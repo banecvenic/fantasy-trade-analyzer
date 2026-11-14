@@ -238,12 +238,21 @@ tr.irhead td{font-size:11px;color:var(--muted);background:var(--bg2);text-align:
 @media (max-width:640px){ .gear{position:absolute;right:16px;top:8px} header.top .wrap{position:relative} }
 .r-meta{font-size:11px;color:var(--muted);padding:10px 12px 0}
 .r-meta .stale{color:var(--warn)}
+.balance.top{padding:4px 12px 10px}
+tr.slot-d td{background:linear-gradient(rgba(214,69,69,.09),rgba(214,69,69,.09)),var(--card)}
+tr.slot-w td{background:linear-gradient(rgba(31,157,85,.09),rgba(31,157,85,.09)),var(--card)}
 .balance{padding:8px 12px 0;display:flex;flex-direction:column;gap:6px}
 .balance .search{padding:0}
 .bal-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .bal-row select{background:var(--bg2);border:1px solid var(--line);border-radius:6px;color:var(--text);padding:6px 8px;font-size:14px;min-width:200px}
 .card-warn.strong{border-radius:0;margin-top:8px}
 .empty-team.cta{color:var(--text);font-weight:600}
+.drag{cursor:grab;color:var(--dim);font-size:16px;line-height:1;padding:6px 4px;margin-left:-4px;touch-action:none;user-select:none;flex:none}
+.drag:hover{color:var(--text)}
+.is-dragging,.is-dragging *{cursor:grabbing!important;user-select:none}
+tr.dragging td{background:var(--card2)!important;opacity:.8}
+tr.drop-before td{box-shadow:inset 0 2px 0 var(--accent)}
+tr.drop-after td{box-shadow:inset 0 -2px 0 var(--accent)}
 .acts{display:flex;align-items:center;gap:4px;margin-left:auto;flex:none}
 .acts .rm,.acts .mini{margin-left:0}
 @media (max-width:640px){
@@ -292,6 +301,7 @@ footer{color:var(--dim);font-size:11px;text-align:center;margin-top:28px}
 <main class="wrap">
   <div class="status" id="status"></div>
   <div id="banner"></div>
+  <div id="tradewarn"></div>
   <div class="score" id="score"></div>
   <div class="teams" id="teams"></div>
   <div id="compare"></div>
@@ -771,8 +781,33 @@ function sumPlayers(plusIds, minusIds = [], lineOf = playerLine) {
   return { sum, vals: catValues(sum, counted || minusIds.length > 0), counted, missing };
 }
 
-/** Zbir jedne strane trejda */
-const teamTotals = team => sumPlayers(team.ids);
+/**
+ * Moj balans rostera za neravnomeran trejd (iz moje perspektive):
+ * - Izbacuješ: igrač kog gubim -> računa se u Daješ
+ * - Waiver dodatak: igrač kog dobijam -> računa se u Dobijaš
+ * Sa unetim rosterom broj slotova se računa prema 13 aktivnih; bez rostera prema razlici broja igrača.
+ */
+function myBalance() {
+  const bal = state.balance.my;
+  if (state.rosters.my.players.length) {
+    const pl = rosterPlan('my');
+    return { mode: 'roster', needDrops: pl.needDrops, waiverSlots: pl.waiverSlots, drops: pl.drops, waivers: pl.waivers, pre: pl.pre };
+  }
+  const both = giveIds().length > 0 && getIds().length > 0;
+  const diff = getIds().length - giveIds().length;
+  const needDrops = both ? Math.max(0, diff) : 0, waiverSlots = both ? Math.max(0, -diff) : 0;
+  const trade = takenIds();
+  const drops = [...new Set(bal.drops)].filter(id => !trade.has(id)).slice(0, needDrops);
+  const waivers = [...new Set(bal.waivers)].filter(id => !trade.has(id) && !drops.includes(id)).slice(0, waiverSlots);
+  return { mode: 'diff', needDrops, waiverSlots, drops, waivers, pre: [] };
+}
+const slotIds = () => { const b = myBalance(); return [...b.drops, ...b.waivers]; };
+
+/** Zbir strane trejda: Daješ + koga izbacujem, Dobijaš + waiver dodatak */
+function teamTotals(team, ti) {
+  const b = myBalance();
+  return sumPlayers([...team.ids, ...(ti === GIVE ? b.drops : b.waivers)]);
+}
 
 /** Upoređuje na prikazanoj preciznosti, da boje odgovaraju brojevima koje korisnik vidi. */
 const cmpKey = (cat, v) => (v == null ? null : Math.round(v * (cat.type === 'pct' ? 1000 : 10)));
@@ -828,6 +863,7 @@ function render() {
   renderBanner();
   const totals = state.teams.map(teamTotals);
   const cmp = compare(totals);
+  renderTradeWarn();
   renderScore(totals, cmp);
   renderTeams(totals, cmp);
   renderCompare(totals, cmp);
@@ -869,6 +905,13 @@ function renderBanner() {
 }
 
 const puntNote = () => (state.punt.size ? ` · <span class="punt-note">punt ${CATS.filter(isPunt).map(c => c.label).join(', ')}</span>` : '');
+
+function renderTradeWarn() {
+  const b = myBalance();
+  const miss = b.needDrops - b.drops.length;
+  $('#tradewarn').innerHTML = miss > 0
+    ? `<div class="banner warn"><span>⚖ Neravnomeran trejd: izaberi koga izbacuješ (${miss}) u kartici Daješ — dotle rezultat nije realan.</span></div>` : '';
+}
 
 /** Srpski oblik reči "kategorija" uz broj */
 const kat = n => (n % 10 === 1 && n % 100 !== 11 ? 'kategoriju' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'kategorije' : 'kategorija');
@@ -956,7 +999,7 @@ function minutesCell(p, line) {
 }
 
 /** Generički red igrača: slika, ime, oznake, MIN, 9 kategorija sa trendom, GP */
-function playerRowHTML(p, { tags = [], cls = '', actions = '', sign = '' } = {}) {
+function playerRowHTML(p, { tags = [], cls = '', actions = '', sign = '', drag = '', attrs = '' } = {}) {
   const line = playerLine(p);
   const cells = CATS.map(c => {
     const pc = puntCls(c) ? ` class="${puntCls(c).trim()}"` : '';
@@ -966,8 +1009,8 @@ function playerRowHTML(p, { tags = [], cls = '', actions = '', sign = '' } = {})
     return `<td${pc}>${tr}${sign}${fmt1(line[c.key])}</td>`;
   }).join('');
   const tagHTML = tags.map(t => `<span class="slot-tag ${t.cls}">${t.text}</span>`).join('');
-  return `<tr class="${line ? '' : 'nodata'} ${cls}">
-    <td><div class="pl">${avatarHTML(p)}<div class="txt">${tagHTML ? `<span class="tags">${tagHTML}</span>` : ''}<span class="nm" title="${esc(p.name)}">${esc(p.name)}</span>
+  return `<tr class="${line ? '' : 'nodata'} ${cls}" ${attrs}>
+    <td><div class="pl">${drag ? `<span class="drag" data-drag="${drag}" title="Prevuci gore/dole" aria-label="Pomeri igrača">≡</span>` : ''}${avatarHTML(p)}<div class="txt">${tagHTML ? `<span class="tags">${tagHTML}</span>` : ''}<span class="nm" title="${esc(p.name)}">${esc(p.name)}</span>
       <span class="meta">${p.team} · ${p.pos} ${injHTML(p)} ${durabilityHTML(p)} ${weekGamesHTML(p)} ${line ? '' : '<span class="flag" title="Nema podataka za ovaj period, ne računa se">0 GP</span>'}</span>
       </div>${actions ? `<span class="acts">${actions}</span>` : ''}</div></td>
     ${minutesCell(p, line)}${cells}<td>${line ? Math.round(line.GP) : '0'}</td></tr>`;
@@ -1018,6 +1061,12 @@ function renderTeams(totals, cmp) {
     const unknown = team.ids.length - players.length;
     const better = cmp.active.length >= 2 ? cmp.score[ti] : null;
     const warn = tradeWarnings(ti);
+    const b = myBalance();
+    const slotList = ti === GIVE ? b.drops : b.waivers;
+    const slotRows = slotList.map(id => state.byId.get(id)).filter(Boolean).map(p => playerRowHTML(p, {
+      tags: [ti === GIVE ? { text: 'Izbacuješ', cls: 'tag-out' } : { text: 'Waiver', cls: 'tag-in' }], cls: ti === GIVE ? 'slot-d' : 'slot-w',
+      actions: `<button class="rm" type="button" data-action="${ti === GIVE ? 'bal-d-remove' : 'bal-w-remove'}" data-kind="my" data-id="${p.id}" aria-label="Ukloni">✕</button>` })).join('');
+    const slotInputs = ti === GIVE ? dropInputsHTML(b) : waiverInputHTML(b);
     return `<section class="card" data-team-card="${ti}">
       <div class="card-h">
         <span class="dot" style="background:${SIDES[ti].color}"></span>
@@ -1026,14 +1075,37 @@ function renderTeams(totals, cmp) {
       </div>
       ${searchBoxHTML(String(ti), ti === GIVE ? 'Koga daješ…' : 'Koga dobijaš…')}
       ${players.length
-        ? `<div class="tscroll"><table><thead>${headerRow()}</thead><tbody>${players.map(p => playerRow(p, ti)).join('')}</tbody>
+        ? `<div class="tscroll"><table><thead>${headerRow()}</thead><tbody>${players.map(p => playerRow(p, ti)).join('')}${slotRows}</tbody>
            <tfoot>${totalRow(t, cmp, ti)}</tfoot></table></div>`
         : `<div class="empty-team">${unknown ? 'Igrači iz linka nisu pronađeni u listi.' : `Još nema igrača. Kucaj ime iznad.`}</div>`}
+      ${slotInputs}
       ${warn}
       ${t.missing.length && players.length ? `<div class="card-warn">⚠ Bez podataka za period „${PERIODS.find(p => p.key === state.period).label}“, ne računa se: ${t.missing.map(esc).join(', ')}</div>` : ''}
     </section>`;
   });
   $('#teams').innerHTML = html.join('');
+}
+
+/** Daješ: koga izbacujem (obavezno kad dobijam više nego što mesta ima) */
+function dropInputsHTML(b) {
+  const parts = [];
+  for (let i = b.drops.length; i < b.needDrops; i++) {
+    const label = `<span class="slot-tag slot-d-tag">Izbacuješ ${i + 1}/${b.needDrops}</span>`;
+    if (b.mode === 'roster') {
+      const opts = b.pre.filter(id => !b.drops.includes(id)).map(id => `<option value="${id}">${esc(state.byId.get(id)?.name || id)}</option>`).join('');
+      parts.push(`<label class="bal-row">${label}<select data-drop="my" data-idx="${i}"><option value="">— koga izbacuješ sa rostera —</option>${opts}</select></label>`);
+    } else {
+      parts.push(searchBoxHTML('my-d', 'Koga izbacuješ sa svog rostera…', label));
+      break; // jedno polje za pretragu; sledeće se pojavi posle izbora
+    }
+  }
+  return parts.length ? `<div class="balance top">${parts.join('')}</div>` : '';
+}
+/** Dobijaš: waiver dodatak (opciono) kad dajem više nego što dobijam */
+function waiverInputHTML(b) {
+  if (b.waiverSlots <= b.waivers.length) return '';
+  return `<div class="balance top">${searchBoxHTML('my-w', 'Koga uzimaš sa waivera… (opciono)',
+    `<span class="slot-tag slot-w-tag">Waiver dodatak ${b.waivers.length + 1}/${b.waiverSlots} · opciono</span>`)}</div>`;
 }
 
 /** Podnaslov strane (ime protivnika kad je izabran) */
@@ -1146,8 +1218,11 @@ const fmtShortDate = iso => (iso ? new Date(iso).toLocaleDateString('sr-Latn', {
 const isStale = iso => iso && Date.now() - new Date(iso).getTime() > ROSTER.STALE_DAYS * 864e5;
 
 /** Red rostera u istom stilu kao gornje tabele, sa oznakama i akcijama */
-function rosterRow(p, kind, { tags = [], cls = '', actions = '' } = {}) {
-  return playerRowHTML(p, { tags, cls, actions });
+/** Red rostera; sačuvani igrači (ne DOLAZI/WAIVER) imaju ručicu za pomeranje */
+function rosterRow(p, kind, { tags = [], cls = '', actions = '', saved = false, ir = false } = {}) {
+  return playerRowHTML(p, { tags, cls, actions,
+    drag: saved ? `${kind}:${p.id}` : '',
+    attrs: saved ? `data-rid="${p.id}" data-rir="${ir ? 1 : 0}" data-rkind="${kind}"` : '' });
 }
 
 /** Tri reda ispod rostera: Pre / Posle / Razlika (iste kolone kao tabele igrača) */
@@ -1179,7 +1254,7 @@ function rosterTableHTML(kind, plan) {
   for (const id of plan.activeBefore) {
     const p = P(id); if (!p) continue;
     const tags = outSet.has(id) ? [{ text: 'Odlazi', cls: 'tag-out' }] : dropSet.has(id) ? [{ text: 'Izbacuješ', cls: 'tag-out' }] : [];
-    rows.push(rosterRow(p, kind, { tags, cls: tags.length ? 'leaving' : '', actions: irBtn(id, true) + rm(id) }));
+    rows.push(rosterRow(p, kind, { tags, cls: tags.length ? 'leaving' : '', actions: irBtn(id, true) + rm(id), saved: true }));
   }
   for (const id of plan.incoming) {
     const p = P(id); if (!p) continue;
@@ -1196,13 +1271,21 @@ function rosterTableHTML(kind, plan) {
     for (const id of plan.irIds) {
       const p = P(id); if (!p) continue;
       const tags = [{ text: 'IR', cls: 'tag-ir' }, ...(outSet.has(id) ? [{ text: 'Odlazi', cls: 'tag-out' }] : [])];
-      rows.push(rosterRow(p, kind, { tags, cls: outSet.has(id) ? 'leaving ir' : 'ir', actions: irBtn(id, false) + rm(id) }));
+      rows.push(rosterRow(p, kind, { tags, cls: outSet.has(id) ? 'leaving ir' : 'ir', actions: irBtn(id, false) + rm(id), saved: true, ir: true }));
     }
   }
   return rows.join('');
 }
 
 function balanceHTML(kind, plan) {
+  if (kind === 'my') {
+    const notes = [];
+    if (plan.needDrops) notes.push(`Koga izbacuješ (${plan.drops.length}/${plan.needDrops}) biraš gore, u kartici Daješ.`);
+    if (plan.waiverSlots) notes.push(`Waiver dodatak (opciono, ${plan.waivers.length}/${plan.waiverSlots}) biraš gore, u kartici Dobijaš.`);
+    const warn = plan.missingDrops > 0
+      ? `<div class="card-warn strong">⚠ Posle trejda imaš ${plan.pre.length} aktivnih (max ${ROSTER.ACTIVE}). Izaberi koga izbacuješ u kartici Daješ — dotle Razlika nije realna.</div>` : '';
+    return (notes.length ? `<div class="balance"><span class="hint">${notes.join(' ')}</span></div>` : '') + warn;
+  }
   const parts = [];
   for (let i = 0; i < plan.needDrops; i++) {
     const cur = plan.drops[i];
@@ -1516,7 +1599,7 @@ function removeFromRoster(kind, id) {
    ===================================================================== */
 const clone = o => JSON.parse(JSON.stringify(o));
 const fmtDate = iso => new Date(iso).toLocaleDateString('sr-Latn', { day: 'numeric', month: 'numeric', year: 'numeric' });
-const tradePlayerIds = teams => [...new Set(teams.flatMap(t => [...t.ids, ...(t.drops || []), ...(t.waivers || [])]))];
+const tradePlayerIds = (teams, slots) => [...new Set([...teams.flatMap(t => [...t.ids, ...(t.drops || []), ...(t.waivers || [])]), ...(slots?.drops || []), ...(slots?.waivers || [])])];
 
 /** Link sadrži samo trejd (strane, slotove, period). Moj tim, istorija i punt ostaju lokalno. */
 async function shareLink(btn) {
@@ -1538,7 +1621,8 @@ function saveTrade(meta = {}) {
     date: new Date().toISOString(),
     period: state.period,
     teams: state.teams.map((t, i) => ({ name: SIDES[i].name, ids: [...t.ids] })),
-    names: Object.fromEntries(tradePlayerIds(state.teams).map(id => [id, state.byId.get(id)?.name || `#${id}`])),
+    slots: { drops: myBalance().drops, waivers: myBalance().waivers },
+    names: Object.fromEntries(tradePlayerIds(state.teams, { drops: myBalance().drops, waivers: myBalance().waivers }).map(id => [id, state.byId.get(id)?.name || `#${id}`])),
     snapshot: totals.map(t => ({ vals: t.vals, sum: t.sum, counted: t.counted })),
   });
   saveHistory();
@@ -1551,12 +1635,13 @@ function openTrade(id) {
   if (!h) return;
   // stari trejdovi (Tim A/B) se otvaraju kao Daješ/Dobijaš: prve dve strane
   state.teams = [GIVE, GET].map(i => ({ ...newTeam(), ids: [...(h.teams[i]?.ids || [])] }));
+  state.balance.my = { drops: [...(h.slots?.drops || [])], waivers: [...(h.slots?.waivers || [])] }; saveBalance();
   state.period = h.period;
   state.histView = id;
   state.histOpen = true;
   saveState();
   render();
-  loadGameLogs(tradePlayerIds(h.teams));
+  loadGameLogs(tradePlayerIds(h.teams, h.slots));
   $('#history').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -1636,7 +1721,9 @@ function renderHistory() {
     const nowP = state.period;
     const blocks = h.teams.map((t0, ti) => {
       const t = normTeam(t0);
-      const plus = [...t.ids, ...t.waivers], minus = t.drops;
+      // novi format: slots (izbacuješ ide u Daješ, waiver u Dobijaš); stari format: waivers +, drops −
+      const extra = h.slots ? (ti === GIVE ? h.slots.drops : h.slots.waivers) || [] : t.waivers;
+      const plus = [...t.ids, ...extra], minus = h.slots ? [] : t.drops;
       const snap = h.snapshot[ti];
       const cur = sumPlayers(plus, minus);
       const sinceT = sumPlayers(plus, minus, p => sinceLine(p, since));
@@ -1719,19 +1806,29 @@ function updateDropdown(key) {
 
 /** Pretraga zavisi od cilja: roster isključuje samo igrače već na rosteru */
 function searchFor(key, query) {
+  if (key === 'my-d') {
+    const ex = new Set([...takenIds(), ...slotIds()]);
+    return searchResults(query, ex, state.rosters.my.players.length ? new Set(rosterIds(state.rosters.my)) : null);
+  }
   const m = key.match(/^(my|opp)-(add|w)$/);
   if (m) {
     const r = rosterOf(m[1]);
     const ex = new Set(rosterIds(r));
-    if (m[2] === 'w') for (const id of takenIds()) ex.add(id);
+    if (m[2] === 'w') for (const id of [...takenIds(), ...slotIds()]) ex.add(id);
     return searchResults(query, ex);
   }
   const pref = searchPrefer(key);
-  return searchResults(query, takenIds(), pref?.set || null);
+  return searchResults(query, new Set([...takenIds(), ...slotIds()]), pref?.set || null);
 }
 
 /** Ključ pretrage -> gde ide igrač: "0" = tim 0 dobija, "0:d" = izbacuje, "0:w" = waiver */
 function pickPlayer(key, id) {
+  if (key === 'my-d') {
+    state.balance.my.drops.push(id); saveBalance();
+    searchUI.set(key, { query: '', sel: 0 }); render();
+    document.querySelector('[data-search="my-d"]')?.focus();
+    return;
+  }
   const m = key.match(/^(my|opp)-(add|w)$/);
   if (m) {
     if (m[2] === 'add') addToRoster(m[1], id);
@@ -1790,6 +1887,7 @@ document.addEventListener('click', e => {
     case 'opp-save': oppSave(); break;
     case 'opp-cancel': state.ui.oppEdit = null; render(); break;
     case 'r-remove': removeFromRoster(el.dataset.kind, +el.dataset.id); render(); break;
+    case 'bal-d-remove': state.balance[el.dataset.kind].drops = state.balance[el.dataset.kind].drops.filter(x => x !== +el.dataset.id); saveBalance(); render(); break;
     case 'bal-w-remove': state.balance[el.dataset.kind].waivers = state.balance[el.dataset.kind].waivers.filter(x => x !== +el.dataset.id); saveBalance(); render(); break;
     case 'remove': removePlayer(ti, +el.dataset.id); break;
   }
@@ -1853,6 +1951,50 @@ document.addEventListener('change', e => {
   saveBalance(); render();
 });
 window.addEventListener('hashchange', () => { loadState(); render(); });
+
+/* ---------- Pomeranje igrača u rosteru (≡): miš i dodir ---------- */
+let drag = null;
+function clearDropMarks() { document.querySelectorAll('.drop-before,.drop-after').forEach(x => x.classList.remove('drop-before', 'drop-after')); }
+document.addEventListener('pointerdown', e => {
+  const h = e.target.closest('[data-drag]');
+  if (!h) return;
+  e.preventDefault();
+  const row = h.closest('tr');
+  drag = { kind: row.dataset.rkind, id: +row.dataset.rid, ir: row.dataset.rir, row, target: null, before: true, pointerId: e.pointerId };
+  row.classList.add('dragging');
+  document.body.classList.add('is-dragging');
+});
+document.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.pointerId) return;
+  e.preventDefault();
+  // automatsko skrolovanje kad je prst/miš blizu ivice ekrana
+  if (e.clientY < 70) scrollBy(0, -12); else if (e.clientY > innerHeight - 70) scrollBy(0, 12);
+  const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('tr[data-rid]');
+  clearDropMarks();
+  drag.target = null;
+  if (!el || el === drag.row || el.dataset.rkind !== drag.kind || el.dataset.rir !== drag.ir) return; // samo unutar iste grupe (aktivni / IR)
+  const r = el.getBoundingClientRect();
+  drag.before = e.clientY < r.top + r.height / 2;
+  drag.target = +el.dataset.rid;
+  el.classList.add(drag.before ? 'drop-before' : 'drop-after');
+}, { passive: false });
+function endDrag() {
+  if (!drag) return;
+  const d = drag; drag = null;
+  d.row.classList.remove('dragging'); document.body.classList.remove('is-dragging'); clearDropMarks();
+  if (d.target == null) return;
+  const r = rosterOf(d.kind);
+  const from = r.players.findIndex(x => x.id === d.id);
+  if (from < 0) return;
+  const [moved] = r.players.splice(from, 1);
+  let to = r.players.findIndex(x => x.id === d.target);
+  if (!d.before) to++;
+  r.players.splice(to, 0, moved);
+  saveRosters(); // redosled je deo rostera; datum "Ažurirano" se ne menja zbog premeštanja
+  render();
+}
+document.addEventListener('pointerup', endDrag);
+document.addEventListener('pointercancel', endDrag);
 
 /* ---------- Tooltip: hover na desktopu, tap na telefonu ([data-tip]) ---------- */
 const tipEl = Object.assign(document.createElement('div'), { id: 'tip', hidden: true });
