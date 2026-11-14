@@ -140,6 +140,9 @@ th.punt,td.catth.punt{text-decoration:line-through;color:var(--dim)!important}
 td.punt{opacity:.35;background:transparent!important;color:var(--muted)!important}
 td.catth.punt{opacity:1;background:var(--card)!important}
 .punt-note{color:var(--warn)}
+.trend{font-size:11px;font-weight:800;margin-right:2px;cursor:help;padding:2px 1px}
+.trend.good{color:var(--win-text)}
+.trend.bad{color:var(--lose-text)}
 .hint{font-weight:500;text-transform:none;letter-spacing:0;color:var(--dim);font-size:11px}
 .addteam{border:1px dashed var(--line);border-radius:var(--radius);background:transparent;color:var(--muted);padding:14px;font-weight:600;cursor:pointer;min-height:56px}
 .addteam:hover{border-color:var(--accent);color:var(--text)}
@@ -230,6 +233,14 @@ const PERIODS = [
 const STAT = { PTS: '0', BLK: '1', STL: '2', AST: '3', REB: '6', TO: '11', FGM: '13', FGA: '14', FTM: '15', FTA: '16', TPM: '17', MIN: '40', GP: '42' };
 /** Stats id za celu prošlu sezonu (za trajnost) */
 const PREV_SEASON_STAT_ID = `00${CONFIG.SEASON - 1}`;
+/** Strelice trenda: poslednjih 15 dana vs sezona (prikaz samo u periodu "Sezona") */
+const TREND = {
+  RECENT_STAT_ID: `02${CONFIG.SEASON}`,
+  MIN_GP: 4,            // bar 4 utakmice u 15 dana
+  COUNT_REL: 0.15,      // counting kategorije: ±15%
+  PCT_ABS: 0.03,        // FG% / FT%: ±3 procentna poena
+  MIN_ABS: 0.1,         // i prikazane vrednosti moraju da se razlikuju (izbegava 0.1 -> 0.2 = +100%)
+};
 /** Pragovi boje za trajnost (GP%) */
 const DURABILITY = { GOOD: 0.85, OK: 0.70 };
 
@@ -732,6 +743,28 @@ function headerRow() {
   return `<tr><th>Igrač</th>${CATS.map(catTh).join('')}<th>GP</th></tr>`;
 }
 
+/** Strelica trenda za igrača i kategoriju, ili '' */
+function trendHTML(p, c) {
+  if (state.period !== 'season') return '';
+  const s = p.stats[PERIODS[0].statId(CONFIG.SEASON)], r = p.stats[TREND.RECENT_STAT_ID];
+  if (!s || !r || s.GP <= 0 || r.GP < TREND.MIN_GP) return '';
+  let sv, rv, show, fmt;
+  if (c.type === 'pct') {
+    if (!(s[c.att] > 0 && r[c.att] > 0)) return '';
+    sv = s[c.made] / s[c.att]; rv = r[c.made] / r[c.att];
+    show = Math.abs(rv - sv) >= TREND.PCT_ABS;
+    fmt = fmtPct;
+  } else {
+    sv = s[c.key]; rv = r[c.key];
+    show = sv > 0 && Math.abs(rv - sv) / sv >= TREND.COUNT_REL && Math.abs(rv - sv) >= TREND.MIN_ABS;
+    fmt = fmt1;
+  }
+  if (!show) return '';
+  const up = rv > sv;
+  const good = c.lowerIsBetter ? !up : up;
+  return `<span class="trend ${good ? 'good' : 'bad'}" data-tip="${c.label} · poslednjih 15 dana: ${fmt(rv)}, sezona: ${fmt(sv)} (${Math.round(r.GP)} ut.)">${up ? '↑' : '↓'}</span>`;
+}
+
 const SLOT_LABEL = { d: { text: 'Izbacuješ', cls: 'slot-d' }, w: { text: 'Waiver dodatak', cls: 'slot-w' } };
 
 function fromSelectHTML(ti, id) {
@@ -748,8 +781,9 @@ function playerRow(p, ti, kind = 'recv') {
   const cells = CATS.map(c => {
     const cls = puntCls(c) ? ` class="${puntCls(c).trim()}"` : '';
     if (!line) return `<td${cls}>-</td>`;
-    if (c.type === 'pct') return `<td${cls}>${fmtPct(line[c.att] > 0 ? line[c.made] / line[c.att] : null)}</td>`;
-    return `<td${cls}>${sign}${fmt1(line[c.key])}</td>`;
+    const tr = trendHTML(p, c);
+    if (c.type === 'pct') return `<td${cls}>${tr}${fmtPct(line[c.att] > 0 ? line[c.made] / line[c.att] : null)}</td>`;
+    return `<td${cls}>${tr}${sign}${fmt1(line[c.key])}</td>`;
   }).join('');
   const slot = SLOT_LABEL[kind];
   return `<tr class="${line ? '' : 'nodata'} ${slot ? slot.cls : ''}">
