@@ -73,11 +73,20 @@ header.top .wrap{display:flex;align-items:center;gap:12px;padding-top:10px;paddi
 
 /* Search */
 .search{position:relative;padding:10px 12px}
+.search-in{position:relative}
+.slot-search{padding-top:4px;display:flex;flex-direction:column;gap:4px}
+.slot-tag{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:1px 5px;border-radius:3px;width:max-content}
+tr.slot-d td{background:linear-gradient(rgba(214,69,69,.09),rgba(214,69,69,.09)),var(--card)}
+tr.slot-w td{background:linear-gradient(rgba(31,157,85,.09),rgba(31,157,85,.09)),var(--card)}
+tr.slot-d .slot-tag,.slot-d-tag{background:var(--lose-bg);color:var(--lose-text)}
+tr.slot-w .slot-tag,.slot-w-tag{background:var(--win-bg);color:var(--win-text)}
+.from{font-size:10px;color:var(--muted);display:flex;align-items:center;gap:3px}
+.from select{background:var(--bg2);border:1px solid var(--line);border-radius:4px;font-size:10px;padding:0 2px;color:var(--text);max-width:80px}
 .search input{width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:10px 12px 10px 34px;outline:none;font-size:16px}
 .search input:focus{border-color:var(--accent)}
 .search input:disabled{opacity:.5}
-.search svg{position:absolute;left:23px;top:50%;transform:translateY(-50%);color:var(--dim);pointer-events:none}
-.dd{position:absolute;left:12px;right:12px;top:calc(100% - 6px);background:var(--card2);border:1px solid var(--line);border-radius:8px;box-shadow:0 12px 30px rgba(0,0,0,.5);z-index:30;max-height:320px;overflow-y:auto;list-style:none;margin:0;padding:4px}
+.search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--dim);pointer-events:none}
+.dd{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--card2);border:1px solid var(--line);border-radius:8px;box-shadow:0 12px 30px rgba(0,0,0,.5);z-index:30;max-height:320px;overflow-y:auto;list-style:none;margin:0;padding:4px}
 .dd li{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:6px;cursor:pointer}
 .dd li[aria-selected="true"]{background:rgba(225,37,27,.18)}
 .dd li .meta{color:var(--muted);font-size:12px}
@@ -151,6 +160,7 @@ footer{color:var(--dim);font-size:11px;text-align:center;margin-top:28px}
 <main class="wrap">
   <div class="status" id="status"></div>
   <div id="banner"></div>
+  <div id="tradewarn"></div>
   <div class="score" id="score"></div>
   <div class="teams" id="teams"></div>
   <div id="compare"></div>
@@ -424,11 +434,28 @@ function setPlayers(players, ts) {
   for (const p of players) p._n = norm(p.name);
 }
 
+/** Tim u trejdu: ids = igrači koje tim DOBIJA. from = od kog tima (samo kod 3+ timova).
+ *  drops = "Izbacuješ" slotovi, waivers = "Waiver dodatak" slotovi. */
+const newTeam = (i, name) => ({ name: name || TEAM_DEFAULT_NAMES[i], ids: [], from: {}, drops: [], waivers: [] });
+const normTeam = (t, i) => ({ ...newTeam(i), ...t, name: t?.name || TEAM_DEFAULT_NAMES[i], ids: t?.ids || [], from: t?.from || {}, drops: t?.drops || [], waivers: t?.waivers || [] });
+
+const ids = s => (s || '').split(',').map(Number).filter(Boolean);
+
 function saveState() {
+  state.teams.forEach((t, ti) => {
+    const need = slotNeeds(ti);
+    t.drops = t.drops.slice(0, need.drops);
+    t.waivers = t.waivers.slice(0, need.waivers);
+  });
   lsSet(CONFIG.STATE_KEY, { period: state.period, teams: state.teams });
-  // Deljiv link: #per=season&t=id,id|id,id
-  const t = state.teams.map(tm => tm.ids.join(',')).join('|');
-  history.replaceState(null, '', `#per=${state.period}&t=${t}`);
+  // Deljiv link: per=period, t=dobija po timu, d=izbacuje, w=waiver, f=id:odTima (samo 3+ timova)
+  const q = new URLSearchParams();
+  q.set('per', state.period);
+  q.set('t', state.teams.map(tm => tm.ids.join(',')).join('|'));
+  if (state.teams.some(tm => tm.drops.length)) q.set('d', state.teams.map(tm => tm.drops.join(',')).join('|'));
+  if (state.teams.some(tm => tm.waivers.length)) q.set('w', state.teams.map(tm => tm.waivers.join(',')).join('|'));
+  if (state.teams.length > 2) q.set('f', state.teams.map(tm => tm.ids.map(id => `${id}:${tm.from[id] ?? ''}`).join(',')).join('|'));
+  history.replaceState(null, '', `#${q.toString().replace(/%7C/gi, '|').replace(/%2C/gi, ',').replace(/%3A/gi, ':')}`);
 }
 
 function loadState() {
@@ -436,17 +463,52 @@ function loadState() {
   const hash = new URLSearchParams(location.hash.slice(1));
   let teams = null, period = saved?.period;
   if (hash.has('t')) {
-    teams = hash.get('t').split('|').map((chunk, i) => ({
-      name: saved?.teams?.[i]?.name || TEAM_DEFAULT_NAMES[i],
-      ids: chunk.split(',').map(Number).filter(Boolean),
-    })).slice(0, CONFIG.MAX_TEAMS);
+    const split = k => (hash.get(k) || '').split('|');
+    const d = split('d'), w = split('w'), f = split('f');
+    teams = split('t').slice(0, CONFIG.MAX_TEAMS).map((chunk, i) => {
+      const from = {};
+      for (const pair of (f[i] || '').split(',')) {
+        const [id, ft] = pair.split(':');
+        if (id && ft !== '' && ft != null) from[+id] = +ft;
+      }
+      return normTeam({ name: saved?.teams?.[i]?.name, ids: ids(chunk), drops: ids(d[i]), waivers: ids(w[i]), from }, i);
+    });
     period = hash.get('per') || period;
   } else if (Array.isArray(saved?.teams)) {
-    teams = saved.teams;
+    teams = saved.teams.map(normTeam);
   }
-  state.teams = teams && teams.length >= 2 ? teams : [{ name: TEAM_DEFAULT_NAMES[0], ids: [] }, { name: TEAM_DEFAULT_NAMES[1], ids: [] }];
+  state.teams = teams && teams.length >= 2 ? teams : [newTeam(0), newTeam(1)];
   state.period = PERIODS.some(p => p.key === period) ? period : 'season';
 }
+
+/* ---------- Neravnomerni trejdovi ---------- */
+/** Od kog tima dolazi igrač koga dobija tim ti. Kod 2 tima uvek drugi tim. */
+function originOf(ti, id) {
+  const n = state.teams.length;
+  if (n === 2) return 1 - ti;
+  const f = state.teams[ti].from[id];
+  return f != null && f !== ti && f < n ? f : (ti + 1) % n;
+}
+/** Igrači koje tim ti DAJE */
+const givenBy = ti => state.teams.flatMap((t, j) => (j === ti ? [] : t.ids.filter(id => originOf(j, id) === ti)));
+
+/** Koliko slotova treba: drops (dobija više nego što daje) ili waivers (dobija manje). */
+function slotNeeds(ti) {
+  const allHave = state.teams.every(t => t.ids.length > 0);
+  if (!allHave) return { drops: 0, waivers: 0 };
+  const diff = state.teams[ti].ids.length - givenBy(ti).length;
+  return { drops: Math.max(0, diff), waivers: Math.max(0, -diff) };
+}
+/** Popunjeni slotovi, odsečeni na potreban broj */
+function activeSlots(ti) {
+  const need = slotNeeds(ti), t = state.teams[ti];
+  return { drops: t.drops.slice(0, need.drops), waivers: t.waivers.slice(0, need.waivers), need };
+}
+const unfilledSlots = () => state.teams.reduce((n, _, ti) => {
+  const a = activeSlots(ti);
+  return n + (a.need.drops - a.drops.length) + (a.need.waivers - a.waivers.length);
+}, 0);
+const takenIds = () => new Set(state.teams.flatMap(t => [...t.ids, ...t.drops, ...t.waivers]));
 
 async function loadPlayers(force = false) {
   const cached = lsGet(CONFIG.CACHE_KEY);
@@ -487,24 +549,43 @@ function playerLine(p) {
 }
 
 /** Zbirovi tima. Igrači bez podataka se ne računaju. */
-function teamTotals(team) {
-  const sum = { PTS: 0, REB: 0, AST: 0, TPM: 0, STL: 0, BLK: 0, TO: 0, FGM: 0, FGA: 0, FTM: 0, FTA: 0 };
-  let counted = 0;
-  const missing = [];
-  for (const id of team.ids) {
-    const p = state.byId.get(id);
-    const line = playerLine(p);
-    if (!line) { missing.push(p ? p.name : `#${id}`); continue; }
-    counted++;
-    for (const k in sum) sum[k] += line[k];
-  }
+const SUM_KEYS = ['PTS', 'REB', 'AST', 'TPM', 'STL', 'BLK', 'TO', 'FGM', 'FGA', 'FTM', 'FTA'];
+
+/** Pretvara zbirove u vrednosti kategorija. Procenti uvek preko made/att, nikad prosek procenata. */
+function catValues(sum, counted) {
   const vals = {};
   for (const c of CATS) {
     vals[c.key] = c.type === 'pct'
       ? (sum[c.att] > 0 ? sum[c.made] / sum[c.att] : null)
       : (counted ? sum[c.key] : null);
   }
-  return { sum, vals, counted, missing };
+  return vals;
+}
+
+/**
+ * Zbir: plus igrači se dodaju, minus igrači oduzimaju (i FGM/FGA, FTM/FTA).
+ * lineOf(p) daje statistiku igrača ili null (nema podataka -> ne računa se, ide u missing).
+ */
+function sumPlayers(plusIds, minusIds = [], lineOf = playerLine) {
+  const sum = Object.fromEntries(SUM_KEYS.map(k => [k, 0]));
+  let counted = 0;
+  const missing = [];
+  const apply = (id, sign) => {
+    const p = state.byId.get(id);
+    const line = lineOf(p);
+    if (!line) { missing.push(p ? p.name : `#${id}`); return; }
+    if (sign > 0) counted++;
+    for (const k of SUM_KEYS) sum[k] += sign * line[k];
+  };
+  plusIds.forEach(id => apply(id, 1));
+  minusIds.forEach(id => apply(id, -1));
+  return { sum, vals: catValues(sum, counted || minusIds.length > 0), counted, missing };
+}
+
+/** Zbirovi tima: dobijeni + waiver dodaci − izbačeni. */
+function teamTotals(team, ti) {
+  const { drops, waivers } = activeSlots(ti);
+  return sumPlayers([...team.ids, ...waivers], drops);
 }
 
 /** Upoređuje na prikazanoj preciznosti, da boje odgovaraju brojevima koje korisnik vidi. */
@@ -550,7 +631,14 @@ function compare(totals) {
 /* =====================================================================
    Render
    ===================================================================== */
-const searchUI = new Map(); // teamIndex -> { query, sel, open }
+const searchUI = new Map(); // ključ pretrage ("0", "0:d", "1:w"...) -> { query, sel, results }
+
+function renderTradeWarn() {
+  const n = unfilledSlots();
+  $('#tradewarn').innerHTML = n
+    ? `<div class="banner warn"><span>⚖ Neravnomeran trejd: rezultat nije realan dok ne popuniš slotove (${n}).</span></div>`
+    : '';
+}
 
 function render() {
   renderPeriods();
@@ -558,6 +646,7 @@ function render() {
   renderBanner();
   const totals = state.teams.map(teamTotals);
   const cmp = compare(totals);
+  renderTradeWarn();
   renderScore(totals, cmp);
   renderTeams(totals, cmp);
   renderCompare(totals, cmp);
@@ -619,18 +708,45 @@ function headerRow() {
   return `<tr><th>Igrač</th>${CATS.map(c => `<th>${c.label}</th>`).join('')}<th>GP</th></tr>`;
 }
 
-function playerRow(p, ti) {
+const SLOT_LABEL = { d: { text: 'Izbacuješ', cls: 'slot-d' }, w: { text: 'Waiver dodatak', cls: 'slot-w' } };
+
+function fromSelectHTML(ti, id) {
+  if (state.teams.length <= 2) return '';
+  const cur = originOf(ti, id);
+  const opts = state.teams.map((t, j) => (j === ti ? '' : `<option value="${j}" ${j === cur ? 'selected' : ''}>${esc(t.name)}</option>`)).join('');
+  return `<label class="from">od <select data-from="${ti}" data-id="${id}" aria-label="Od kog tima">${opts}</select></label>`;
+}
+
+/** kind: 'recv' (dobija), 'd' (izbacuje), 'w' (waiver) */
+function playerRow(p, ti, kind = 'recv') {
   const line = playerLine(p);
+  const sign = kind === 'd' ? '−' : '';
   const cells = CATS.map(c => {
     if (!line) return '<td>-</td>';
     if (c.type === 'pct') return `<td>${fmtPct(line[c.att] > 0 ? line[c.made] / line[c.att] : null)}</td>`;
-    return `<td>${fmt1(line[c.key])}</td>`;
+    return `<td>${sign}${fmt1(line[c.key])}</td>`;
   }).join('');
-  return `<tr class="${line ? '' : 'nodata'}">
-    <td><div class="pl">${avatarHTML(p)}<div class="txt"><span class="nm" title="${esc(p.name)}">${esc(p.name)}</span>
-      <span class="meta">${p.team} · ${p.pos} ${injHTML(p)} ${durabilityHTML(p)} ${line ? '' : '<span class="flag" title="Nema podataka za ovaj period, ne računa se">0 GP</span>'}</span></div>
-      <button class="rm" type="button" data-action="remove" data-team="${ti}" data-id="${p.id}" aria-label="Ukloni ${esc(p.name)}">✕</button></div></td>
+  const slot = SLOT_LABEL[kind];
+  return `<tr class="${line ? '' : 'nodata'} ${slot ? slot.cls : ''}">
+    <td><div class="pl">${avatarHTML(p)}<div class="txt">${slot ? `<span class="slot-tag">${slot.text}</span>` : ''}<span class="nm" title="${esc(p.name)}">${esc(p.name)}</span>
+      <span class="meta">${p.team} · ${p.pos} ${injHTML(p)} ${durabilityHTML(p)} ${line ? '' : '<span class="flag" title="Nema podataka za ovaj period, ne računa se">0 GP</span>'}</span>
+      ${kind === 'recv' ? fromSelectHTML(ti, p.id) : ''}</div>
+      <button class="rm" type="button" data-action="remove" data-kind="${kind}" data-team="${ti}" data-id="${p.id}" aria-label="Ukloni ${esc(p.name)}">✕</button></div></td>
     ${cells}<td>${line ? Math.round(line.GP) : '0'}</td></tr>`;
+}
+
+function searchBoxHTML(key, placeholder, label = '') {
+  const disabled = !state.players.length;
+  const ui = searchUI.get(key) || { query: '' };
+  return `<div class="search ${label ? 'slot-search' : ''}">
+    ${label}
+    <div class="search-in">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input type="search" data-search="${key}" placeholder="${disabled ? (state.loading ? 'Učitavam igrače…' : 'Nema podataka') : placeholder}" autocomplete="off" autocorrect="off" spellcheck="false"
+        value="${esc(ui.query)}" ${disabled ? 'disabled' : ''} role="combobox" aria-expanded="false" aria-controls="dd-${key}">
+      <ul class="dd" id="dd-${key}" role="listbox" hidden></ul>
+    </div>
+  </div>`;
 }
 
 function totalRow(t, cmp, ti) {
@@ -654,7 +770,15 @@ function renderTeams(totals, cmp) {
     const t = totals[ti];
     const players = team.ids.map(id => state.byId.get(id)).filter(Boolean);
     const unknown = team.ids.length - players.length;
-    const ui = searchUI.get(ti) || { query: '' };
+    const slots = activeSlots(ti);
+    const slotRows = [...slots.drops.map(id => ['d', id]), ...slots.waivers.map(id => ['w', id])]
+      .map(([k, id]) => (state.byId.get(id) ? playerRow(state.byId.get(id), ti, k) : '')).join('');
+    const slotSearch = [
+      slots.need.drops > slots.drops.length ? searchBoxHTML(`${ti}:d`, 'Koga izbacuješ sa rostera…',
+        `<span class="slot-tag slot-d-tag">Izbacuješ ${slots.drops.length + 1}/${slots.need.drops}</span>`) : '',
+      slots.need.waivers > slots.waivers.length ? searchBoxHTML(`${ti}:w`, 'Koga uzimaš sa waivera…',
+        `<span class="slot-tag slot-w-tag">Waiver dodatak ${slots.waivers.length + 1}/${slots.need.waivers}</span>`) : '',
+    ].join('');
     const lead = cmp.active.length >= 2 && cmp.score[ti] === Math.max(...cmp.score) && cmp.score.filter(s => s === cmp.score[ti]).length === 1;
     return `<section class="card" data-team-card="${ti}">
       <div class="card-h">
@@ -663,16 +787,12 @@ function renderTeams(totals, cmp) {
         ${cmp.active.length >= 2 ? `<span class="team-badge ${lead ? 'lead' : ''}">${cmp.score[ti]} kat.</span>` : ''}
         ${ti >= 2 ? `<button class="iconbtn" type="button" data-action="remove-team" data-team="${ti}" aria-label="Ukloni tim">✕</button>` : ''}
       </div>
-      <div class="search">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-        <input type="search" data-search="${ti}" placeholder="${disabled ? (state.loading ? 'Učitavam igrače…' : 'Nema podataka') : 'Dodaj igrača…'}" autocomplete="off" autocorrect="off" spellcheck="false"
-          value="${esc(ui.query)}" ${disabled ? 'disabled' : ''} role="combobox" aria-expanded="false" aria-controls="dd-${ti}">
-        <ul class="dd" id="dd-${ti}" role="listbox" hidden></ul>
-      </div>
+      ${searchBoxHTML(String(ti), 'Dodaj igrača…')}
       ${players.length
-        ? `<div class="tscroll"><table><thead>${headerRow()}</thead><tbody>${players.map(p => playerRow(p, ti)).join('')}</tbody>
+        ? `<div class="tscroll"><table><thead>${headerRow()}</thead><tbody>${players.map(p => playerRow(p, ti)).join('')}${slotRows}</tbody>
            <tfoot>${totalRow(t, cmp, ti)}</tfoot></table></div>`
         : `<div class="empty-team">${unknown ? 'Igrači iz linka nisu pronađeni u listi.' : 'Još nema igrača. Kucaj ime iznad.'}</div>`}
+      ${slotSearch}
       ${t.missing.length && players.length ? `<div class="card-warn">⚠ Bez podataka za period „${PERIODS.find(p => p.key === state.period).label}“, ne računa se: ${t.missing.map(esc).join(', ')}</div>` : ''}
     </section>`;
   });
@@ -680,7 +800,7 @@ function renderTeams(totals, cmp) {
   $('#teams').innerHTML = html.join('');
   if (focused != null) {
     const inp = document.querySelector(`[data-search="${focused}"]`);
-    if (inp && !inp.disabled) { inp.focus(); try { inp.setSelectionRange(caret, caret); } catch {} updateDropdown(+focused); }
+    if (inp && !inp.disabled) { inp.focus(); try { inp.setSelectionRange(caret, caret); } catch {} updateDropdown(focused); }
   }
 }
 
@@ -750,7 +870,7 @@ function searchResults(query) {
   const q = norm(query);
   if (!q) return [];
   const tokens = q.split(' ');
-  const taken = new Set(state.teams.flatMap(t => t.ids));
+  const taken = takenIds();
   const out = [];
   // Lista je već sortirana po % owned, pa prvi pogoci su najrelevantniji.
   // Prvo oni čije ime/prezime počinje upitom, pa ostali.
@@ -765,34 +885,52 @@ function searchResults(query) {
   return out.slice(0, CONFIG.DROPDOWN_MAX);
 }
 
-function updateDropdown(ti) {
-  const inp = document.querySelector(`[data-search="${ti}"]`);
-  const dd = document.getElementById(`dd-${ti}`);
+function updateDropdown(key) {
+  const inp = document.querySelector(`[data-search="${key}"]`);
+  const dd = document.getElementById(`dd-${key}`);
   if (!inp || !dd) return;
-  const ui = searchUI.get(ti) || { query: '', sel: 0 };
+  const ui = searchUI.get(key) || { query: '', sel: 0 };
   ui.query = inp.value;
   const results = searchResults(ui.query);
   ui.results = results;
   ui.sel = Math.min(ui.sel || 0, Math.max(results.length - 1, 0));
-  searchUI.set(ti, ui);
+  searchUI.set(key, ui);
   if (!norm(ui.query)) { dd.hidden = true; inp.setAttribute('aria-expanded', 'false'); return; }
   dd.hidden = false;
   inp.setAttribute('aria-expanded', 'true');
   dd.innerHTML = results.length
-    ? results.map((p, k) => `<li role="option" data-pick="${p.id}" data-team="${ti}" aria-selected="${k === ui.sel}">
+    ? results.map((p, k) => `<li role="option" data-pick="${p.id}" data-key="${key}" aria-selected="${k === ui.sel}">
         ${avatarHTML(p)}<div><div>${esc(p.name)}</div><div class="meta">${p.team} · ${p.pos} ${injHTML(p)}</div></div></li>`).join('')
     : `<li class="empty">Nema igrača za „${esc(ui.query)}“</li>`;
   dd.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
 }
 
-function addPlayer(ti, id) {
-  const team = state.teams[ti];
-  if (!team || state.teams.some(t => t.ids.includes(id))) return;
-  team.ids.push(id);
-  searchUI.set(ti, { query: '', sel: 0 });
+/** Ključ pretrage -> gde ide igrač: "0" = tim 0 dobija, "0:d" = izbacuje, "0:w" = waiver */
+function pickPlayer(key, id) {
+  if (takenIds().has(id)) return;
+  const [tiStr, kind] = key.split(':');
+  const ti = +tiStr, team = state.teams[ti];
+  if (!team) return;
+  if (kind === 'd') team.drops.push(id);
+  else if (kind === 'w') team.waivers.push(id);
+  else {
+    team.ids.push(id);
+    if (state.teams.length > 2) team.from[id] = ti === 0 ? 1 : 0;
+  }
+  searchUI.set(key, { query: '', sel: 0 });
   saveState();
   render();
-  document.querySelector(`[data-search="${ti}"]`)?.focus();
+  // fokus: sledeći slot iste vrste ako postoji, inače glavna pretraga tima
+  (document.querySelector(`[data-search="${key}"]`) || document.querySelector(`[data-search="${ti}"]`))?.focus();
+}
+
+function removePlayer(ti, kind, id) {
+  const t = state.teams[ti];
+  if (kind === 'd') t.drops = t.drops.filter(x => x !== id);
+  else if (kind === 'w') t.waivers = t.waivers.filter(x => x !== id);
+  else { t.ids = t.ids.filter(x => x !== id); delete t.from[id]; }
+  saveState();
+  render();
 }
 
 /* =====================================================================
@@ -805,11 +943,15 @@ document.addEventListener('click', e => {
   const ti = +el.dataset.team;
   switch (el.dataset.action) {
     case 'refresh': loadPlayers(true); loadSchedule(true); break;
-    case 'remove': state.teams[ti].ids = state.teams[ti].ids.filter(id => id !== +el.dataset.id); saveState(); render(); break;
+    case 'remove': removePlayer(ti, el.dataset.kind, +el.dataset.id); break;
     case 'add-team':
-      if (state.teams.length < CONFIG.MAX_TEAMS) state.teams.push({ name: TEAM_DEFAULT_NAMES[state.teams.length], ids: [] });
+      if (state.teams.length < CONFIG.MAX_TEAMS) state.teams.push(newTeam(state.teams.length));
       saveState(); render(); break;
-    case 'remove-team': state.teams.splice(ti, 1); searchUI.clear(); saveState(); render(); break;
+    case 'remove-team':
+      state.teams.splice(ti, 1);
+      // ispravi "od" indekse posle brisanja tima
+      for (const t of state.teams) for (const id in t.from) { if (t.from[id] === ti) delete t.from[id]; else if (t.from[id] > ti) t.from[id]--; }
+      searchUI.clear(); saveState(); render(); break;
   }
 });
 
@@ -818,11 +960,11 @@ document.addEventListener('mousedown', e => {
   const li = e.target.closest('[data-pick]');
   if (!li) return;
   e.preventDefault();
-  addPlayer(+li.dataset.team, +li.dataset.pick);
+  pickPlayer(li.dataset.key, +li.dataset.pick);
 });
 
 document.addEventListener('input', e => {
-  if (e.target.dataset.search != null) { const ti = +e.target.dataset.search; const ui = searchUI.get(ti) || {}; ui.sel = 0; searchUI.set(ti, ui); updateDropdown(ti); }
+  if (e.target.dataset.search != null) { const key = e.target.dataset.search; const ui = searchUI.get(key) || {}; ui.sel = 0; searchUI.set(key, ui); updateDropdown(key); }
   if (e.target.dataset.teamName != null) {
     state.teams[+e.target.dataset.teamName].name = e.target.value || TEAM_DEFAULT_NAMES[+e.target.dataset.teamName];
     saveState();
@@ -834,14 +976,14 @@ document.addEventListener('input', e => {
 document.addEventListener('keydown', e => {
   const inp = e.target;
   if (inp.dataset?.search == null) return;
-  const ti = +inp.dataset.search;
-  const ui = searchUI.get(ti);
+  const key = inp.dataset.search;
+  const ui = searchUI.get(key);
   if (!ui || !ui.results) return;
   const n = ui.results.length;
-  if (e.key === 'ArrowDown' && n) { e.preventDefault(); ui.sel = (ui.sel + 1) % n; updateDropdown(ti); }
-  else if (e.key === 'ArrowUp' && n) { e.preventDefault(); ui.sel = (ui.sel - 1 + n) % n; updateDropdown(ti); }
-  else if (e.key === 'Enter' && n) { e.preventDefault(); addPlayer(ti, ui.results[ui.sel].id); }
-  else if (e.key === 'Escape') { inp.value = ''; ui.query = ''; updateDropdown(ti); }
+  if (e.key === 'ArrowDown' && n) { e.preventDefault(); ui.sel = (ui.sel + 1) % n; updateDropdown(key); }
+  else if (e.key === 'ArrowUp' && n) { e.preventDefault(); ui.sel = (ui.sel - 1 + n) % n; updateDropdown(key); }
+  else if (e.key === 'Enter' && n) { e.preventDefault(); pickPlayer(key, ui.results[ui.sel].id); }
+  else if (e.key === 'Escape') { inp.value = ''; ui.query = ''; updateDropdown(key); }
 });
 
 document.addEventListener('focusout', e => {
@@ -849,7 +991,12 @@ document.addEventListener('focusout', e => {
   const dd = document.getElementById(`dd-${e.target.dataset.search}`);
   setTimeout(() => { if (document.activeElement !== e.target && dd) dd.hidden = true; }, 120);
 });
-document.addEventListener('focusin', e => { if (e.target.dataset?.search != null) updateDropdown(+e.target.dataset.search); });
+document.addEventListener('focusin', e => { if (e.target.dataset?.search != null) updateDropdown(e.target.dataset.search); });
+document.addEventListener('change', e => {
+  if (e.target.dataset?.from == null) return;
+  state.teams[+e.target.dataset.from].from[+e.target.dataset.id] = +e.target.value;
+  saveState(); render();
+});
 window.addEventListener('hashchange', () => { loadState(); render(); });
 
 /* ---------- Tooltip: hover na desktopu, tap na telefonu ([data-tip]) ---------- */
