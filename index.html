@@ -140,6 +140,10 @@ th.punt,td.catth.punt{text-decoration:line-through;color:var(--dim)!important}
 td.punt{opacity:.35;background:transparent!important;color:var(--muted)!important}
 td.catth.punt{opacity:1;background:var(--card)!important}
 .punt-note{color:var(--warn)}
+td.mintd{cursor:help;color:var(--muted)}
+td.min-drop{color:var(--lose-text)}
+.mintrend{font-size:9px!important;letter-spacing:-.02em}
+@media (max-width:640px){ .mintrend{display:none!important} }
 .trend{font-size:11px;font-weight:800;margin-right:2px;cursor:help;padding:2px 1px}
 .trend.good{color:var(--win-text)}
 .trend.bad{color:var(--lose-text)}
@@ -241,6 +245,8 @@ const TREND = {
   PCT_ABS: 0.03,        // FG% / FT%: ±3 procentna poena
   MIN_ABS: 0.1,         // i prikazane vrednosti moraju da se razlikuju (izbegava 0.1 -> 0.2 = +100%)
 };
+/** Minutaža: trend sezona -> 30 -> 15 -> 7 dana; upozorenje ako 15 dana pada > 3 min ispod sezone */
+const MINUTES = { TREND_KEYS: ['season', 'l30', 'l15', 'l7'], DROP_ALERT: 3 };
 /** Pragovi boje za trajnost (GP%) */
 const DURABILITY = { GOOD: 0.85, OK: 0.70 };
 
@@ -740,7 +746,7 @@ function injHTML(p) {
 const catTh = c => `<th class="catth${puntCls(c)}" data-punt="${c.key}" title="${isPunt(c) ? 'Vrati kategoriju' : 'Punt: isključi iz rezultata'}">${c.label}</th>`;
 
 function headerRow() {
-  return `<tr><th>Igrač</th>${CATS.map(catTh).join('')}<th>GP</th></tr>`;
+  return `<tr><th>Igrač</th><th class="minth">MIN</th>${CATS.map(catTh).join('')}<th>GP</th></tr>`;
 }
 
 /** Strelica trenda za igrača i kategoriju, ili '' */
@@ -763,6 +769,19 @@ function trendHTML(p, c) {
   const up = rv > sv;
   const good = c.lowerIsBetter ? !up : up;
   return `<span class="trend ${good ? 'good' : 'bad'}" data-tip="${c.label} · poslednjih 15 dana: ${fmt(rv)}, sezona: ${fmt(sv)} (${Math.round(r.GP)} ut.)">${up ? '↑' : '↓'}</span>`;
+}
+
+/** MIN ćelija: minuti za izabrani period + kompaktan trend (sezona → 30 → 15 → 7 dana) */
+function minutesCell(p, line) {
+  const byKey = k => p.stats[PERIODS.find(x => x.key === k).statId(CONFIG.SEASON)];
+  const trend = MINUTES.TREND_KEYS.map(k => { const st = byKey(k); return st && st.GP > 0 ? st.MIN : null; });
+  const [season, , l15] = trend;
+  const drop = season != null && l15 != null && season - l15 > MINUTES.DROP_ALERT;
+  const known = trend.filter(v => v != null);
+  const compact = trend.map(v => (v == null ? '–' : v.toFixed(1))).join(' → ');
+  const tip = `Minuti · sezona / 30 / 15 / 7 dana: ${compact}${drop ? ` · pad ${(season - l15).toFixed(1)} min u 15 dana` : ''}`;
+  const val = line ? fmt1(line.MIN) : '-';
+  return `<td class="mintd ${drop ? 'min-drop' : ''}" ${known.length ? `data-tip="${esc(tip)}"` : ''}>${drop ? '↓' : ''}${val}${known.length > 1 ? `<span class="sub mintrend">${compact}</span>` : ''}</td>`;
 }
 
 const SLOT_LABEL = { d: { text: 'Izbacuješ', cls: 'slot-d' }, w: { text: 'Waiver dodatak', cls: 'slot-w' } };
@@ -791,7 +810,7 @@ function playerRow(p, ti, kind = 'recv') {
       <span class="meta">${p.team} · ${p.pos} ${injHTML(p)} ${durabilityHTML(p)} ${line ? '' : '<span class="flag" title="Nema podataka za ovaj period, ne računa se">0 GP</span>'}</span>
       ${kind === 'recv' ? fromSelectHTML(ti, p.id) : ''}</div>
       <button class="rm" type="button" data-action="remove" data-kind="${kind}" data-team="${ti}" data-id="${p.id}" aria-label="Ukloni ${esc(p.name)}">✕</button></div></td>
-    ${cells}<td>${line ? Math.round(line.GP) : '0'}</td></tr>`;
+    ${minutesCell(p, line)}${cells}<td>${line ? Math.round(line.GP) : '0'}</td></tr>`;
 }
 
 function searchBoxHTML(key, placeholder, label = '') {
@@ -817,7 +836,7 @@ function totalRow(t, cmp, ti) {
     }
     return `<td class="${mark}${puntCls(c)}">${fmt1(v)}</td>`;
   }).join('');
-  return `<tr class="total"><td>Ukupno <span class="meta" style="color:var(--muted);font-weight:500;font-size:11px">(${t.counted})</span></td>${cells}<td></td></tr>`;
+  return `<tr class="total"><td>Ukupno <span class="meta" style="color:var(--muted);font-weight:500;font-size:11px">(${t.counted})</span></td><td></td>${cells}<td></td></tr>`;
 }
 
 function renderTeams(totals, cmp) {
