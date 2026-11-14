@@ -134,6 +134,13 @@ td .sub{display:block;font-size:10px;font-weight:500;color:var(--muted);margin-t
 .empty-team{padding:18px 12px;color:var(--dim);text-align:center;font-size:13px}
 .card-warn{padding:8px 12px;font-size:12px;color:#ffe7a8;background:var(--warn-bg);border-top:1px solid rgba(240,180,41,.25);border-radius:0 0 var(--radius) var(--radius)}
 
+th.catth,td.catth{cursor:pointer;user-select:none}
+th.catth:hover{color:var(--text)}
+th.punt,td.catth.punt{text-decoration:line-through;color:var(--dim)!important}
+td.punt{opacity:.35;background:transparent!important;color:var(--muted)!important}
+td.catth.punt{opacity:1;background:var(--card)!important}
+.punt-note{color:var(--warn)}
+.hint{font-weight:500;text-transform:none;letter-spacing:0;color:var(--dim);font-size:11px}
 .addteam{border:1px dashed var(--line);border-radius:var(--radius);background:transparent;color:var(--muted);padding:14px;font-weight:600;cursor:pointer;min-height:56px}
 .addteam:hover{border-color:var(--accent);color:var(--text)}
 
@@ -201,6 +208,7 @@ const CONFIG = (() => {
     SLOW_NOTICE_MS: 5000,
     CACHE_KEY: `fbaTrade.players.v2.${SEASON}`,
     STATE_KEY: 'fbaTrade.state.v1',
+    PUNT_KEY: 'fbaTrade.punt.v1',      // samo lokalno, ne ide u link
     CACHE_TTL_MS: 6 * 60 * 60 * 1000, // 6h
     HEADSHOT_URL: id => `https://a.espncdn.com/i/headshots/nba/players/full/${id}.png`,
     MAX_TEAMS: 4,
@@ -382,7 +390,17 @@ const state = {
   period: 'season',
   teams: [],            // [{ name, ids: [playerId] }]
   schedule: null,       // { [proTeamId]: [{ id, date }] } ili null ako nije učitan
+  punt: new Set(lsGet(CONFIG.PUNT_KEY) || []), // ključevi kategorija isključenih iz rezultata
 };
+const isPunt = c => state.punt.has(c.key);
+const puntCls = c => (isPunt(c) ? ' punt' : '');
+function togglePunt(key) {
+  if (state.punt.has(key)) state.punt.delete(key); else state.punt.add(key);
+  // ne dozvoli punt svih kategorija
+  if (state.punt.size >= CATS.length) state.punt.delete(key);
+  lsSet(CONFIG.PUNT_KEY, [...state.punt]);
+  render();
+}
 
 /* ---------- Trajnost (GP%) ---------- */
 const gamesDone = tid => {
@@ -600,6 +618,7 @@ function compare(totals) {
   const res = { cats: {}, score: totals.map(() => 0), ties: 0, active };
   for (const cat of CATS) {
     const marks = totals.map(() => '');
+    if (isPunt(cat)) { res.cats[cat.key] = { marks, winner: null, runnerUp: null, margin: null, punted: true }; continue; }
     const entries = active.map(i => ({ i, v: totals[i].vals[cat.key], k: cmpKey(cat, totals[i].vals[cat.key]) })).filter(e => e.k != null);
     let winner = null, margin = null, runnerUp = null;
     if (entries.length >= 2) {
@@ -678,6 +697,8 @@ function renderBanner() {
     : `<div class="banner err"><span>✕ ${esc(state.error)}. Nema sačuvanih podataka.</span><button data-action="refresh" type="button">Pokušaj ponovo</button></div>`;
 }
 
+const puntNote = () => (state.punt.size ? ` · <span class="punt-note">punt ${CATS.filter(isPunt).map(c => c.label).join(', ')}</span>` : '');
+
 function renderScore(totals, cmp) {
   const el = $('#score');
   if (cmp.active.length < 2) {
@@ -692,7 +713,7 @@ function renderScore(totals, cmp) {
   });
   const winnerIdx = leaders === 1 ? cmp.score.indexOf(max) : -1;
   el.innerHTML = `<div class="score-row">${parts.join('<span class="score-sep">:</span>')}</div>
-    <div class="score-note">${winnerIdx >= 0 ? `Pobeđuje <b>${esc(state.teams[winnerIdx].name)}</b>` : 'Nerešeno'}${cmp.ties ? ` · ${cmp.ties} kat. nerešeno` : ''} · ${PERIODS.find(p => p.key === state.period).label}</div>`;
+    <div class="score-note">${winnerIdx >= 0 ? `Pobeđuje <b>${esc(state.teams[winnerIdx].name)}</b>` : 'Nerešeno'}${cmp.ties ? ` · ${cmp.ties} kat. nerešeno` : ''} · ${PERIODS.find(p => p.key === state.period).label}${puntNote()}</div>`;
 }
 
 function avatarHTML(p) {
@@ -704,8 +725,11 @@ function injHTML(p) {
   return i ? `<span class="inj ${i.cls}" title="${esc(p.inj)}">${i.short}</span>` : '';
 }
 
+/** Zaglavlje kategorije: klik = punt */
+const catTh = c => `<th class="catth${puntCls(c)}" data-punt="${c.key}" title="${isPunt(c) ? 'Vrati kategoriju' : 'Punt: isključi iz rezultata'}">${c.label}</th>`;
+
 function headerRow() {
-  return `<tr><th>Igrač</th>${CATS.map(c => `<th>${c.label}</th>`).join('')}<th>GP</th></tr>`;
+  return `<tr><th>Igrač</th>${CATS.map(catTh).join('')}<th>GP</th></tr>`;
 }
 
 const SLOT_LABEL = { d: { text: 'Izbacuješ', cls: 'slot-d' }, w: { text: 'Waiver dodatak', cls: 'slot-w' } };
@@ -722,9 +746,10 @@ function playerRow(p, ti, kind = 'recv') {
   const line = playerLine(p);
   const sign = kind === 'd' ? '−' : '';
   const cells = CATS.map(c => {
-    if (!line) return '<td>-</td>';
-    if (c.type === 'pct') return `<td>${fmtPct(line[c.att] > 0 ? line[c.made] / line[c.att] : null)}</td>`;
-    return `<td>${sign}${fmt1(line[c.key])}</td>`;
+    const cls = puntCls(c) ? ` class="${puntCls(c).trim()}"` : '';
+    if (!line) return `<td${cls}>-</td>`;
+    if (c.type === 'pct') return `<td${cls}>${fmtPct(line[c.att] > 0 ? line[c.made] / line[c.att] : null)}</td>`;
+    return `<td${cls}>${sign}${fmt1(line[c.key])}</td>`;
   }).join('');
   const slot = SLOT_LABEL[kind];
   return `<tr class="${line ? '' : 'nodata'} ${slot ? slot.cls : ''}">
@@ -754,9 +779,9 @@ function totalRow(t, cmp, ti) {
     const mark = cmp.cats[c.key].marks[ti];
     const v = t.vals[c.key];
     if (c.type === 'pct') {
-      return `<td class="${mark}">${fmtPct(v)}<span class="sub">${t.sum[c.made].toFixed(1)}/${t.sum[c.att].toFixed(1)}</span></td>`;
+      return `<td class="${mark}${puntCls(c)}">${fmtPct(v)}<span class="sub">${t.sum[c.made].toFixed(1)}/${t.sum[c.att].toFixed(1)}</span></td>`;
     }
-    return `<td class="${mark}">${fmt1(v)}</td>`;
+    return `<td class="${mark}${puntCls(c)}">${fmt1(v)}</td>`;
   }).join('');
   return `<tr class="total"><td>Ukupno <span class="meta" style="color:var(--muted);font-weight:500;font-size:11px">(${t.counted})</span></td>${cells}<td></td></tr>`;
 }
@@ -811,12 +836,12 @@ function renderCompare(totals, cmp) {
     const r = cmp.cats[c.key];
     const tds = state.teams.map((_, i) => {
       const v = totals[i].vals[c.key];
-      return `<td class="${r.marks[i]}">${c.type === 'pct' ? fmtPct(v) : fmt1(v)}</td>`;
+      return `<td class="${r.marks[i]}${puntCls(c)}">${c.type === 'pct' ? fmtPct(v) : fmt1(v)}</td>`;
     }).join('');
-    const diff = r.winner == null ? '–' : (c.type === 'pct' ? `${(r.margin * 100).toFixed(1)} pp` : r.margin.toFixed(1));
-    return `<tr><td><b>${c.label}</b></td>${tds}<td style="color:var(--muted)">${diff}</td></tr>`;
+    const diff = r.punted ? 'punt' : r.winner == null ? '–' : (c.type === 'pct' ? `${(r.margin * 100).toFixed(1)} pp` : r.margin.toFixed(1));
+    return `<tr class="${r.punted ? 'punt-row' : ''}"><td class="catth${puntCls(c)}" data-punt="${c.key}" title="Klik: punt"><b>${c.label}</b></td>${tds}<td class="${puntCls(c).trim()}" style="color:var(--muted)">${diff}</td></tr>`;
   }).join('');
-  el.innerHTML = `<div class="section-t">Poređenje kategorija</div>
+  el.innerHTML = `<div class="section-t">Poređenje kategorija <span class="hint">· klik na kategoriju = punt</span></div>
     <div class="card"><div class="tscroll"><table class="cmp"><thead><tr><th>Kat.</th>${state.teams.map((t, i) => `<th style="color:${TEAM_COLORS[i]}">${esc(t.name)}</th>`).join('')}<th>Razlika</th></tr></thead>
     <tbody>${rows}</tbody></table></div></div>`;
 }
@@ -856,8 +881,9 @@ function renderReport(totals, cmp) {
     }).filter(x => x.rel < 1).map(x => x.c.label);
     paras.push(`${name} dobija ${parts.join(', ')}.${close.length ? ` Tesno: ${close.join(', ')}.` : ''}`);
   }
-  const tied = CATS.filter(c => cmp.cats[c.key].winner == null).map(c => c.label);
+  const tied = CATS.filter(c => !isPunt(c) && cmp.cats[c.key].winner == null).map(c => c.label);
   if (tied.length) paras.push(`Nerešeno: ${tied.join(', ')}.`);
+  if (state.punt.size) paras.push(`Punt (ne računa se): ${CATS.filter(isPunt).map(c => c.label).join(', ')}.`);
   const missing = cmp.active.flatMap(i => totals[i].missing);
   if (missing.length) paras.push(`Napomena: bez podataka za ovaj period i ne računaju se: ${missing.map(esc).join(', ')}.`);
   el.innerHTML = `<div class="section-t">Izveštaj</div><div class="report">${paras.map(p => `<p>${p}</p>`).join('')}</div>`;
@@ -937,6 +963,8 @@ function removePlayer(ti, kind, id) {
    Događaji (delegirani)
    ===================================================================== */
 document.addEventListener('click', e => {
+  const pt = e.target.closest('[data-punt]');
+  if (pt) { togglePunt(pt.dataset.punt); return; }
   const el = e.target.closest('[data-action],[data-period]');
   if (!el) return;
   if (el.dataset.period) { state.period = el.dataset.period; saveState(); render(); return; }
