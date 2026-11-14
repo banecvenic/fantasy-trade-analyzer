@@ -219,6 +219,10 @@ tr.irhead td{font-size:11px;color:var(--muted);background:var(--bg2);text-align:
 .modal-body b{color:var(--text)}
 .modal-body textarea{width:100%;min-height:140px;background:var(--bg2);border:1px solid var(--line);border-radius:8px;color:var(--text);font:12px ui-monospace,Menlo,monospace;padding:8px}
 .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.linkbtn.done{color:var(--win-text);border-color:rgba(31,157,85,.45)}
+.banner.ok{background:var(--win-bg);border:1px solid rgba(31,157,85,.4);color:#c9f5d9}
+.done-block{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0;display:flex;flex-direction:column;gap:2px}
+.done-tag{color:var(--win-text)}
 .r-meta{font-size:11px;color:var(--muted);padding:10px 12px 0}
 .r-meta .stale{color:var(--warn)}
 .balance{padding:8px 12px 0;display:flex;flex-direction:column;gap:6px}
@@ -834,7 +838,8 @@ function renderStatus() {
 
 function renderBanner() {
   const el = $('#banner');
-  if (!state.error) { el.innerHTML = ''; return; }
+  const notice = state.notice ? `<div class="banner ok"><span>✔ ${esc(state.notice)}</span><button type="button" data-action="notice-close">U redu</button></div>` : '';
+  if (!state.error) { el.innerHTML = notice; return; }
   el.innerHTML = state.stale
     ? `<div class="banner warn"><span>⚠ ${esc(state.error)}. Prikazujem sačuvane podatke od ${timeAgo(state.loadedAt)}.</span><button data-action="refresh" type="button">Pokušaj ponovo</button></div>`
     : `<div class="banner err"><span>✕ ${esc(state.error)}. Nema sačuvanih podataka.</span><button data-action="refresh" type="button">Pokušaj ponovo</button></div>`;
@@ -871,7 +876,7 @@ function renderScore(totals, cmp) {
     </div>
     <div class="score-verdict ${verdict}">Trejd ti donosi ${win} ${kat(win)}, gubiš ${lose}${cmp.ties ? ` · ${cmp.ties} nerešeno` : ''}</div>
     <div class="score-note">${PERIODS.find(p => p.key === state.period).label}${puntNote()}</div>
-    <div class="score-actions"><button type="button" class="linkbtn" data-action="save-trade">★ Sačuvaj trejd</button><button type="button" class="linkbtn" data-action="share">🔗 Kopiraj link</button></div>`;
+    <div class="score-actions"><button type="button" class="linkbtn" data-action="save-trade">★ Sačuvaj trejd</button><button type="button" class="linkbtn" data-action="share">🔗 Kopiraj link</button><button type="button" class="linkbtn done" data-action="trade-done">✔ Trejd obavljen</button></div>`;
 }
 
 function avatarHTML(p) {
@@ -1316,6 +1321,71 @@ function addToRoster(kind, id) {
   saveRosters();
 }
 
+/** Prebaci na IR / vrati sa IR (poštuje 13 aktivnih + 2 IR) */
+function toggleIR(kind, id) {
+  const r = rosterOf(kind);
+  const x = r?.players.find(y => y.id === id);
+  if (!x) return;
+  if (!x.ir && irCount(r) >= ROSTER.IR) {
+    showModal({ title: 'IR mesta su puna', body: `<p>Imaš već ${ROSTER.IR} igrača na IR. Prvo vrati nekog sa IR.</p>`, cancel: 'U redu' });
+    return;
+  }
+  if (x.ir && activeCount(r) >= ROSTER.ACTIVE) {
+    showModal({ title: 'Aktivna mesta su puna', body: `<p>Imaš već ${ROSTER.ACTIVE} aktivnih. Prebaci nekog na IR ili ga ukloni pre nego što vratiš ovog igrača.</p>`, cancel: 'U redu' });
+    return;
+  }
+  x.ir = !x.ir;
+  r.updated = new Date().toISOString();
+  saveRosters();
+  render();
+}
+
+/* ---------- Trejd obavljen: primeni na rostere + sačuvaj u istoriju ---------- */
+function tradeDone() {
+  if (!giveIds().length || !getIds().length) return;
+  const nm = id => esc(state.byId.get(id)?.name || `#${id}`);
+  const list = ids => (ids.length ? ids.map(nm).join(', ') : '—');
+  const plans = ['my', 'opp'].map(k => [k, rosterPlan(k)]).filter(([, pl]) => pl && pl.r.players.length);
+  const blocked = plans.filter(([, pl]) => pl.missingDrops > 0);
+  if (blocked.length) {
+    showModal({ title: 'Prvo izaberi koga izbacuješ',
+      body: blocked.map(([k, pl]) => `<p><b>${k === 'my' ? 'Moj tim' : esc(pl.r.name)}</b>: posle trejda ${pl.pre.length} aktivnih, izaberi još ${pl.missingDrops} za izbacivanje.</p>`).join(''),
+      cancel: 'U redu' });
+    return;
+  }
+  const block = ([k, pl]) => `<div class="done-block"><b>${k === 'my' ? 'Moj tim' : `Protivnik: ${esc(pl.r.name)}`}</b>
+    <div>Odlaze: ${list(pl.outIds)}</div><div>Dolaze: ${list(pl.incoming)}</div>
+    ${pl.drops.length ? `<div>Izbacuješ: ${list(pl.drops)}</div>` : ''}${pl.waivers.length ? `<div>Waiver: ${list(pl.waivers)}</div>` : ''}</div>`;
+  const notes = [];
+  if (!plans.some(([k]) => k === 'my')) notes.push('Tvoj roster nije unet, pa se nijedan roster ne menja — trejd se samo čuva u Istoriju.');
+  else if (!plans.some(([k]) => k === 'opp')) notes.push('Protivnik nije izabran, menja se samo tvoj roster.');
+  showModal({
+    title: 'Potvrdi obavljen trejd',
+    body: `<p>Daješ: <b>${list(giveIds())}</b><br>Dobijaš: <b>${list(getIds())}</b></p>${plans.map(block).join('')}
+      ${notes.map(n => `<p class="hint">${n}</p>`).join('')}<p>Trejd će biti sačuvan u Istoriju, a polja Daješ / Dobijaš ispražnjena.</p>`,
+    confirm: 'Trejd obavljen',
+    onConfirm: () => applyTrade(plans),
+    wide: true,
+  });
+}
+
+function applyTrade(plans) {
+  const opp = rosterOf('opp');
+  saveTrade({ done: true, opp: opp?.name || null });
+  const now = new Date().toISOString();
+  for (const [, pl] of plans) {
+    const gone = new Set([...pl.outIds, ...pl.drops]);
+    pl.r.players = pl.r.players.filter(x => !gone.has(x.id));
+    for (const id of [...pl.incoming.filter(id => !pl.drops.includes(id)), ...pl.waivers]) pl.r.players.push({ id, ir: false });
+    pl.r.updated = now;
+  }
+  state.teams = [newTeam(), newTeam()];
+  state.balance = { my: { drops: [], waivers: [] }, opp: { drops: [], waivers: [] } };
+  saveRosters(); saveBalance(); saveState();
+  state.notice = 'Trejd obavljen: rosteri su ažurirani, a trejd je sačuvan u Istoriju.';
+  render();
+}
+
 function removeFromRoster(kind, id) {
   const r = rosterOf(kind);
   if (!r) return;
@@ -1343,9 +1413,10 @@ async function shareLink(btn) {
   }
 }
 
-function saveTrade() {
+function saveTrade(meta = {}) {
   const totals = state.teams.map(teamTotals);
   state.history.unshift({
+    ...meta,
     id: Date.now(),
     date: new Date().toISOString(),
     period: state.period,
@@ -1435,7 +1506,7 @@ function renderHistory() {
     const per = PERIODS.find(x => x.key === h.period)?.label || h.period;
     return `<li class="${state.histView === h.id ? 'active' : ''}">
       <button type="button" class="hist-open" data-action="hist-open" data-id="${h.id}">
-        <span class="hist-date">${fmtDate(h.date)} · ${per}</span><span class="hist-sides">${sides}</span></button>
+        <span class="hist-date">${fmtDate(h.date)} · ${per}${h.done ? ` · <span class="done-tag">obavljen${h.opp ? ` sa ${esc(h.opp)}` : ''}</span>` : ''}</span><span class="hist-sides">${sides}</span></button>
       <button type="button" class="iconbtn" data-action="hist-del" data-id="${h.id}" aria-label="Obriši trejd">🗑</button></li>`;
   }).join('');
 
@@ -1581,6 +1652,9 @@ document.addEventListener('click', e => {
   switch (el.dataset.action) {
     case 'refresh': loadPlayers(true); loadSchedule(true); break;
     case 'save-trade': saveTrade(); break;
+    case 'trade-done': tradeDone(); break;
+    case 'r-ir': toggleIR(el.dataset.kind, +el.dataset.id); break;
+    case 'notice-close': state.notice = null; render(); break;
     case 'share': shareLink(el); break;
     case 'hist-open': openTrade(+el.dataset.id); break;
     case 'hist-del': deleteTrade(+el.dataset.id); break;
