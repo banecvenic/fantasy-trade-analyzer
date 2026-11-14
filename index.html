@@ -201,6 +201,24 @@ tr.irhead td{font-size:11px;color:var(--muted);background:var(--bg2);text-align:
 .mini{background:var(--bg2);border:1px solid var(--line);border-radius:4px;color:var(--muted);font-size:10px;padding:2px 5px;cursor:pointer;flex:none;margin-left:auto}
 .mini:hover{color:var(--text)}
 .mini + .rm{margin-left:0}
+.opp-pick{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px 0}
+.opp-pick select,.opp-form input{background:var(--bg2);border:1px solid var(--line);border-radius:6px;color:var(--text);padding:7px 10px;font-size:14px;min-width:220px}
+.opp-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 12px 0}
+.btn{background:var(--accent);border:0;color:#fff;border-radius:999px;padding:7px 16px;font-weight:600;cursor:pointer;font-size:13px}
+.btn:hover{background:var(--accent2)}
+.btn.danger,.linkbtn.danger{color:#fff}
+.linkbtn.danger{color:var(--lose-text);border-color:rgba(214,69,69,.4)}
+.btn.danger{background:#b83232}
+#modal{position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:16px}
+.modal-back{position:absolute;inset:0;background:rgba(0,0,0,.6)}
+.modal-box{position:relative;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.6);max-height:calc(100vh - 32px);overflow:auto}
+.modal-box.wide{max-width:640px}
+.modal-box h3{margin:0 0 10px;font-size:16px}
+.modal-body{font-size:13px;color:var(--muted);line-height:1.5}
+.modal-body p{margin:0 0 8px}
+.modal-body b{color:var(--text)}
+.modal-body textarea{width:100%;min-height:140px;background:var(--bg2);border:1px solid var(--line);border-radius:8px;color:var(--text);font:12px ui-monospace,Menlo,monospace;padding:8px}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 .r-meta{font-size:11px;color:var(--muted);padding:10px 12px 0}
 .r-meta .stale{color:var(--warn)}
 .balance{padding:8px 12px 0;display:flex;flex-direction:column;gap:6px}
@@ -989,7 +1007,7 @@ function renderTeams(totals, cmp) {
 }
 
 /** Podnaslov strane (ime protivnika kad je izabran) */
-const sideSubtitle = ti => SIDES[ti].sub;
+const sideSubtitle = ti => (ti === GET && rosterOf('opp') ? `Protivnik: ${rosterOf('opp').name}` : SIDES[ti].sub);
 /** Upozorenja ispod strane trejda: igrač nije na rosteru koji ga daje */
 function tradeWarnings(ti) {
   const r = ti === GIVE ? state.rosters.my : rosterOf('opp');
@@ -1207,8 +1225,86 @@ function renderRosterSection(kind) {
     <div class="fold-body">${head}${body}</div></details>`;
 }
 
-/** Protivnik: izbor sačuvanog tima (dopunjava se u delu 4) */
-const oppPickerHTML = () => '';
+/* ---------- Protivnik: sačuvani timovi po imenu ---------- */
+const oppList = () => Object.entries(state.rosters.opps).sort((a, b) => a[1].name.localeCompare(b[1].name, 'sr'));
+
+function oppPickerHTML() {
+  const sel = state.rosters.oppSel;
+  const opts = oppList().map(([oid, o]) => `<option value="${oid}" ${oid === sel ? 'selected' : ''}>${esc(o.name)} (${o.players.length})</option>`).join('');
+  const mode = state.ui.oppEdit; // 'new' | 'rename' | null
+  const r = rosterOf('opp');
+  const form = mode
+    ? `<div class="opp-form"><input type="text" data-opp-name maxlength="30" placeholder="Ime tima, npr. Marko" value="${mode === 'rename' && r ? esc(r.name) : ''}">
+        <button type="button" class="btn" data-action="opp-save">${mode === 'new' ? 'Napravi' : 'Sačuvaj'}</button>
+        <button type="button" class="linkbtn" data-action="opp-cancel">Otkaži</button></div>`
+    : '';
+  return `<div class="opp-pick">
+      <select data-opp-select aria-label="Izaberi protivnika">
+        <option value="">— izaberi protivnika —</option>${opts}<option value="__new">＋ Novi protivnik…</option>
+      </select>
+      ${r && !mode ? `<button type="button" class="linkbtn" data-action="opp-rename">Preimenuj</button><button type="button" class="linkbtn danger" data-action="opp-delete">Obriši</button>` : ''}
+    </div>${form}`;
+}
+
+function oppSave() {
+  const inp = document.querySelector('[data-opp-name]');
+  const name = inp?.value.trim();
+  if (!name) { inp?.focus(); return; }
+  const dup = oppList().find(([oid, o]) => o.name.toLowerCase() === name.toLowerCase() && oid !== state.rosters.oppSel);
+  if (dup) { inp.setCustomValidity('Već postoji tim sa tim imenom'); inp.reportValidity(); return; }
+  if (state.ui.oppEdit === 'new') {
+    const oid = `o${Date.now()}`;
+    state.rosters.opps[oid] = emptyRoster(name);
+    state.rosters.oppSel = oid;
+  } else if (rosterOf('opp')) {
+    rosterOf('opp').name = name;
+  }
+  state.ui.oppEdit = null;
+  state.balance.opp = { drops: [], waivers: [] };
+  saveRosters(); saveUI(); saveBalance(); render();
+}
+
+function oppDelete() {
+  const r = rosterOf('opp');
+  if (!r) return;
+  showModal({
+    title: `Obrisati tim „${esc(r.name)}”?`,
+    body: `<p>Roster ovog protivnika (${r.players.length} igrača) biće obrisan iz ovog browsera. Ovo ne može da se vrati, osim iz rezervne kopije.</p>`,
+    confirm: 'Obriši', danger: true,
+    onConfirm: () => {
+      delete state.rosters.opps[state.rosters.oppSel];
+      state.rosters.oppSel = null;
+      saveRosters(); render();
+    },
+  });
+}
+
+/* ---------- Modal u stranici (umesto browser confirm) ---------- */
+function showModal({ title, body, confirm = 'U redu', cancel = 'Otkaži', danger = false, onConfirm, wide = false }) {
+  closeModal();
+  const m = document.createElement('div');
+  m.id = 'modal';
+  m.innerHTML = `<div class="modal-back" data-modal-close></div>
+    <div class="modal-box ${wide ? 'wide' : ''}" role="dialog" aria-modal="true" aria-labelledby="modal-t">
+      <h3 id="modal-t">${title}</h3><div class="modal-body">${body}</div>
+      <div class="modal-actions">${cancel ? `<button type="button" class="linkbtn" data-modal-close>${cancel}</button>` : ''}
+        ${onConfirm ? `<button type="button" class="btn ${danger ? 'danger' : ''}" data-modal-ok>${confirm}</button>` : ''}</div>
+    </div>`;
+  document.body.appendChild(m);
+  m._onConfirm = onConfirm;
+  (m.querySelector('[data-modal-ok]') || m.querySelector('[data-modal-close]:not(.modal-back)'))?.focus();
+  return m;
+}
+const closeModal = () => document.getElementById('modal')?.remove();
+document.addEventListener('click', e => {
+  if (e.target.closest('[data-modal-close]')) { closeModal(); return; }
+  if (e.target.closest('[data-modal-ok]')) {
+    const m = document.getElementById('modal');
+    const keep = m?._onConfirm?.(m) === false; // onConfirm može da vrati false da modal ostane otvoren
+    if (!keep) closeModal();
+  }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.getElementById('modal')) closeModal(); });
 
 function addToRoster(kind, id) {
   const r = rosterOf(kind);
@@ -1489,6 +1585,10 @@ document.addEventListener('click', e => {
     case 'hist-open': openTrade(+el.dataset.id); break;
     case 'hist-del': deleteTrade(+el.dataset.id); break;
     case 'hist-close': state.histView = null; render(); break;
+    case 'opp-rename': state.ui.oppEdit = 'rename'; render(); document.querySelector('[data-opp-name]')?.focus(); break;
+    case 'opp-delete': oppDelete(); break;
+    case 'opp-save': oppSave(); break;
+    case 'opp-cancel': state.ui.oppEdit = null; render(); break;
     case 'r-remove': removeFromRoster(el.dataset.kind, +el.dataset.id); render(); break;
     case 'bal-w-remove': state.balance[el.dataset.kind].waivers = state.balance[el.dataset.kind].waivers.filter(x => x !== +el.dataset.id); saveBalance(); render(); break;
     case 'remove': removePlayer(ti, +el.dataset.id); break;
@@ -1509,6 +1609,7 @@ document.addEventListener('input', e => {
 
 document.addEventListener('keydown', e => {
   const inp = e.target;
+  if (inp.matches?.('[data-opp-name]')) { inp.setCustomValidity(''); if (e.key === 'Enter') { e.preventDefault(); oppSave(); } return; }
   if (inp.dataset?.search == null) return;
   const key = inp.dataset.search;
   const ui = searchUI.get(key);
@@ -1534,6 +1635,16 @@ document.addEventListener('toggle', e => {
   if (f === 'hist') { state.histOpen = e.target.open; }
 }, true);
 document.addEventListener('change', e => {
+  if (e.target.matches('[data-opp-select]')) {
+    const v = e.target.value;
+    if (v === '__new') { state.ui.oppEdit = 'new'; }
+    else { state.rosters.oppSel = v || null; state.ui.oppEdit = null; saveRosters(); }
+    state.balance.opp = { drops: [], waivers: [] }; saveBalance();
+    state.ui.oppOpen = true; saveUI();
+    render();
+    if (v === '__new') document.querySelector('[data-opp-name]')?.focus();
+    return;
+  }
   const k = e.target.dataset?.drop;
   if (k == null) return;
   const d = state.balance[k].drops;
