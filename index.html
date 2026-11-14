@@ -109,7 +109,7 @@ td.win{background:var(--win-bg)!important;color:var(--win-text)}
 td.lose{background:var(--lose-bg)!important;color:var(--lose-text)}
 td .sub{display:block;font-size:10px;font-weight:500;color:var(--muted);margin-top:1px}
 .pl{display:flex;align-items:center;gap:8px;min-width:0}
-.pl .txt{min-width:0;display:flex;flex-direction:column}
+.pl .txt{min-width:0;flex:1;overflow:hidden;display:flex;flex-direction:column}
 .pl .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
 .pl .meta{font-size:11px;color:var(--muted);display:flex;gap:4px;align-items:center;flex-wrap:nowrap;white-space:nowrap}
 /* tabele svih timova iste širine kolona, da se brojke poravnaju */
@@ -150,8 +150,17 @@ td.catth.punt{opacity:1;background:var(--card)!important}
 .punt-note{color:var(--warn)}
 td.mintd{cursor:help;color:var(--muted)}
 td.min-drop{color:var(--lose-text)}
-.mintrend{font-size:9px!important;letter-spacing:-.02em}
-@media (max-width:640px){ .mintrend{display:none!important} }
+/* trend minuta je u tooltipu; isprekidana linija i ⓘ u zaglavlju pokazuju da postoji */
+.minval{border-bottom:1px dotted currentColor;padding-bottom:1px}
+th.minth{cursor:help}
+th.minth .i{font-size:10px;opacity:.7;margin-left:2px}
+/* srednji ekrani: uža kolona igrača; ako i dalje ne staje, tabela skroluje u stranu */
+@media (max-width:1000px) and (min-width:641px){
+  th:first-child,td:first-child{width:230px;max-width:230px}
+  .pl .nm{max-width:150px}
+  .teams table{min-width:780px}
+  .pl .meta{flex-wrap:wrap;row-gap:2px}
+}
 .trend{font-size:11px;font-weight:800;margin-right:2px;cursor:help;padding:2px 1px}
 .trend.good{color:var(--win-text)}
 .trend.bad{color:var(--lose-text)}
@@ -845,7 +854,7 @@ function injHTML(p) {
 const catTh = c => `<th class="catth${puntCls(c)}" data-punt="${c.key}" title="${isPunt(c) ? 'Vrati kategoriju' : 'Punt: isključi iz rezultata'}">${c.label}</th>`;
 
 function headerRow() {
-  return `<tr><th>Igrač</th><th class="minth">MIN</th>${CATS.map(catTh).join('')}<th>GP</th></tr>`;
+  return `<tr><th>Igrač</th><th class="minth" data-tip="Minuti u izabranom periodu. Pređi mišem ili tapni na broj za trend: sezona → 30 → 15 → 7 dana. Crveno ↓ = pad veći od ${MINUTES.DROP_ALERT} min u 15 dana.">MIN<span class="i">ⓘ</span></th>${CATS.map(catTh).join('')}<th>GP</th></tr>`;
 }
 
 /** Strelica trenda za igrača i kategoriju, ili '' */
@@ -880,7 +889,7 @@ function minutesCell(p, line) {
   const compact = trend.map(v => (v == null ? '–' : v.toFixed(1))).join(' → ');
   const tip = `Minuti · sezona / 30 / 15 / 7 dana: ${compact}${drop ? ` · pad ${(season - l15).toFixed(1)} min u 15 dana` : ''}`;
   const val = line ? fmt1(line.MIN) : '-';
-  return `<td class="mintd ${drop ? 'min-drop' : ''}" ${known.length ? `data-tip="${esc(tip)}"` : ''}>${drop ? '↓' : ''}${val}${known.length > 1 ? `<span class="sub mintrend">${compact}</span>` : ''}</td>`;
+  return `<td class="mintd ${drop ? 'min-drop' : ''}" ${known.length ? `data-tip="${esc(tip)}"` : ''}>${drop ? '↓' : ''}${known.length ? `<span class="minval">${val}</span>` : val}</td>`;
 }
 
 const SLOT_LABEL = { d: { text: 'Izbacuješ', cls: 'slot-d' }, w: { text: 'Waiver dodatak', cls: 'slot-w' } };
