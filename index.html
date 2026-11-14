@@ -167,6 +167,19 @@ td.min-drop{color:var(--lose-text)}
 .chip button:hover{color:var(--accent2)}
 .mytable td:first-child{min-width:110px}
 .cnt{color:var(--muted);font-weight:500;font-size:11px}
+.score-actions{display:flex;justify-content:center;margin-top:8px}
+.hist-list{list-style:none;margin:0;padding:6px 8px}
+.hist-list li{display:flex;align-items:center;gap:6px;border-radius:8px}
+.hist-list li.active{background:rgba(225,37,27,.12)}
+.hist-open{flex:1;min-width:0;text-align:left;background:none;border:0;padding:8px 6px;cursor:pointer;display:flex;flex-direction:column;gap:2px}
+.hist-open:hover .hist-sides{color:var(--text)}
+.hist-date{font-size:11px;color:var(--muted);font-weight:600}
+.hist-sides{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hist-sides b{color:var(--text);font-weight:600}
+.hist-detail{border-top:1px solid var(--line);margin-top:4px;padding-top:8px}
+.hist-dh{display:flex;justify-content:space-between;align-items:center;padding:4px 12px;font-weight:700}
+.hist-team{margin-bottom:10px}
+.hist-tn{font-weight:700;font-size:13px;padding:4px 12px}
 .addteam{border:1px dashed var(--line);border-radius:var(--radius);background:transparent;color:var(--muted);padding:14px;font-weight:600;cursor:pointer;min-height:56px}
 .addteam:hover{border-color:var(--accent);color:var(--text)}
 
@@ -199,6 +212,7 @@ footer{color:var(--dim);font-size:11px;text-align:center;margin-top:28px}
   <div id="compare"></div>
   <div id="report"></div>
   <div id="myteam"></div>
+  <div id="history"></div>
   <footer>Podaci: javni ESPN fantasy API (nezvaničan). Prosek po utakmici.</footer>
 </main>
 
@@ -237,6 +251,10 @@ const CONFIG = (() => {
     STATE_KEY: 'fbaTrade.state.v1',
     PUNT_KEY: 'fbaTrade.punt.v1',      // samo lokalno, ne ide u link
     MYTEAM_KEY: 'fbaTrade.myteam.v1',  // samo lokalno, ne ide u link
+    HISTORY_KEY: 'fbaTrade.history.v1', // samo lokalno, ne ide u link
+    // Statistika po utakmici (split 5) za izabrane igrače. NAPOMENA: filterStatsForExternalIds
+    // izbacuje split 5 (externalId tih unosa je ID utakmice), zato se ovde ne koristi.
+    GAMELOG_FILTER: ids => ({ players: { filterIds: { value: ids }, filterStatsForSplitTypeIds: { value: [5] } } }),
     CACHE_TTL_MS: 6 * 60 * 60 * 1000, // 6h
     HEADSHOT_URL: id => `https://a.espncdn.com/i/headshots/nba/players/full/${id}.png`,
     MAX_TEAMS: 4,
@@ -430,6 +448,14 @@ const state = {
   schedule: null,       // { [proTeamId]: [{ id, date }] } ili null ako nije učitan
   punt: new Set(lsGet(CONFIG.PUNT_KEY) || []), // ključevi kategorija isključenih iz rezultata
 };
+/* ---------- Istorija trejdova (samo lokalno) ---------- */
+state.history = lsGet(CONFIG.HISTORY_KEY) || [];   // [{ id, date, period, teams, snapshot }]
+state.histView = null;                              // id otvorenog trejda
+state.histOpen = false;
+state.gameLogs = new Map();                         // playerId -> [{ date, line }]
+state.gameLogStatus = { loading: false, error: null };
+const saveHistory = () => lsSet(CONFIG.HISTORY_KEY, state.history);
+
 /* ---------- Moj tim (samo lokalno) ---------- */
 state.my = { roster: [], side: 0, open: false, ...(lsGet(CONFIG.MYTEAM_KEY) || {}) };
 const saveMy = () => lsSet(CONFIG.MYTEAM_KEY, state.my);
@@ -715,6 +741,7 @@ function render() {
   renderCompare(totals, cmp);
   renderReport(totals, cmp);
   renderMyTeam();
+  renderHistory();
   // vrati fokus pretrage posle re-rendera
   if (focused != null) {
     const inp = document.querySelector(`[data-search="${focused}"]`);
@@ -763,7 +790,8 @@ function renderScore(totals, cmp) {
   });
   const winnerIdx = leaders === 1 ? cmp.score.indexOf(max) : -1;
   el.innerHTML = `<div class="score-row">${parts.join('<span class="score-sep">:</span>')}</div>
-    <div class="score-note">${winnerIdx >= 0 ? `Pobeđuje <b>${esc(state.teams[winnerIdx].name)}</b>` : 'Nerešeno'}${cmp.ties ? ` · ${cmp.ties} kat. nerešeno` : ''} · ${PERIODS.find(p => p.key === state.period).label}${puntNote()}</div>`;
+    <div class="score-note">${winnerIdx >= 0 ? `Pobeđuje <b>${esc(state.teams[winnerIdx].name)}</b>` : 'Nerešeno'}${cmp.ties ? ` · ${cmp.ties} kat. nerešeno` : ''} · ${PERIODS.find(p => p.key === state.period).label}${puntNote()}</div>
+    <div class="score-actions"><button type="button" class="linkbtn" data-action="save-trade">★ Sačuvaj trejd</button></div>`;
 }
 
 function avatarHTML(p) {
@@ -1031,6 +1059,151 @@ function renderMyTeam() {
 }
 
 /* =====================================================================
+   Istorija trejdova
+   ===================================================================== */
+const clone = o => JSON.parse(JSON.stringify(o));
+const fmtDate = iso => new Date(iso).toLocaleDateString('sr-Latn', { day: 'numeric', month: 'numeric', year: 'numeric' });
+const tradePlayerIds = teams => [...new Set(teams.flatMap(t => [...t.ids, ...t.drops, ...t.waivers]))];
+
+function saveTrade() {
+  const totals = state.teams.map(teamTotals);
+  state.history.unshift({
+    id: Date.now(),
+    date: new Date().toISOString(),
+    period: state.period,
+    teams: clone(state.teams),
+    names: Object.fromEntries(tradePlayerIds(state.teams).map(id => [id, state.byId.get(id)?.name || `#${id}`])),
+    snapshot: totals.map(t => ({ vals: t.vals, sum: t.sum, counted: t.counted })),
+  });
+  saveHistory();
+  state.histOpen = true;
+  render();
+}
+
+function openTrade(id) {
+  const h = state.history.find(x => x.id === id);
+  if (!h) return;
+  state.teams = clone(h.teams).map(normTeam);
+  state.period = h.period;
+  state.histView = id;
+  state.histOpen = true;
+  saveState();
+  render();
+  loadGameLogs(tradePlayerIds(h.teams));
+  $('#history').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function deleteTrade(id) {
+  const h = state.history.find(x => x.id === id);
+  if (!h || !confirm(`Obrisati sačuvani trejd od ${fmtDate(h.date)}?`)) return;
+  state.history = state.history.filter(x => x.id !== id);
+  if (state.histView === id) state.histView = null;
+  saveHistory();
+  render();
+}
+
+/** Statistika po utakmici (split 5) za date igrače; datum utakmice iz rasporeda (ID utakmice). */
+async function loadGameLogs(ids) {
+  const need = ids.filter(id => !state.gameLogs.has(id));
+  if (!need.length) { render(); return; }
+  state.gameLogStatus = { loading: true, error: null };
+  render();
+  try {
+    if (!state.schedule) await loadSchedule();
+    if (!state.schedule) throw new Error('raspored nije dostupan (potreban za datume utakmica)');
+    const gameDate = new Map(Object.values(state.schedule).flat().map(g => [String(g.id), g.date]));
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), CONFIG.FETCH_TIMEOUT_MS);
+    const res = await fetch(CONFIG.API_URL, { headers: { 'X-Fantasy-Filter': JSON.stringify(CONFIG.GAMELOG_FILTER(need)) }, signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`ESPN je vratio grešku ${res.status}`);
+    const data = await res.json();
+    for (const raw of data.players || []) {
+      const p = raw.player, games = [];
+      for (const st of p.stats || []) {
+        if (st.statSplitTypeId !== 5 || st.seasonId !== CONFIG.SEASON || !st.stats) continue;
+        const date = gameDate.get(String(st.externalId));
+        if (date == null) continue; // utakmica nije u rasporedu -> ne možemo pouzdano da je datiramo
+        const line = {};
+        for (const [k, sid] of Object.entries(STAT)) line[k] = +st.stats[sid] || 0;
+        if (line.GP > 0) games.push({ date, line });
+      }
+      state.gameLogs.set(p.id, games.sort((a, b) => a.date - b.date));
+    }
+    for (const id of need) if (!state.gameLogs.has(id)) state.gameLogs.set(id, []);
+    state.gameLogStatus = { loading: false, error: null };
+  } catch (e) {
+    state.gameLogStatus = { loading: false, error: e.name === 'AbortError' ? 'ESPN ne odgovara' : e.message };
+  }
+  render();
+}
+
+/** Prosek igrača samo za utakmice POSLE datuma trejda (utakmice tog dana se ne računaju). */
+function sinceLine(p, sinceMs) {
+  const games = state.gameLogs.get(p?.id);
+  if (!games) return null;
+  const after = games.filter(g => g.date > sinceMs);
+  if (!after.length) return null;
+  const avg = { GP: after.length };
+  for (const k of [...SUM_KEYS, 'MIN']) avg[k] = after.reduce((a, g) => a + g.line[k], 0) / after.length;
+  return avg;
+}
+
+function renderHistory() {
+  const el = $('#history');
+  const list = state.history.map(h => {
+    const sides = h.teams.map(t => `<b>${esc(t.name)}</b>: ${t.ids.map(id => esc(h.names?.[id] || state.byId.get(id)?.name || id)).join(', ') || '–'}`).join(' ⇄ ');
+    const per = PERIODS.find(x => x.key === h.period)?.label || h.period;
+    return `<li class="${state.histView === h.id ? 'active' : ''}">
+      <button type="button" class="hist-open" data-action="hist-open" data-id="${h.id}">
+        <span class="hist-date">${fmtDate(h.date)} · ${per}</span><span class="hist-sides">${sides}</span></button>
+      <button type="button" class="iconbtn" data-action="hist-del" data-id="${h.id}" aria-label="Obriši trejd">🗑</button></li>`;
+  }).join('');
+
+  let detail = '';
+  const h = state.history.find(x => x.id === state.histView);
+  if (h) {
+    const since = new Date(h.date).getTime();
+    const per = PERIODS.find(x => x.key === h.period)?.label || h.period;
+    const st = state.gameLogStatus;
+    const nowP = state.period;
+    const blocks = h.teams.map((t0, ti) => {
+      const t = normTeam(t0, ti);
+      const plus = [...t.ids, ...t.waivers], minus = t.drops;
+      const snap = h.snapshot[ti];
+      const cur = sumPlayers(plus, minus);
+      const sinceT = sumPlayers(plus, minus, p => sinceLine(p, since));
+      const gamesSince = plus.map(id => sinceLine(state.byId.get(id), since)?.GP || 0);
+      const row = (label, tt, cls = '') => `<tr class="${cls}"><td>${label}</td>${CATS.map(c => {
+        const v = tt?.vals?.[c.key];
+        return `<td class="${puntCls(c).trim()}">${c.type === 'pct' ? fmtPct(v) : fmt1(v)}</td>`;
+      }).join('')}</tr>`;
+      const sinceLabel = st.loading ? 'Od trejda: učitavam…'
+        : st.error ? `Od trejda: greška (${esc(st.error)})`
+        : sinceT.counted ? `Od trejda <span class="cnt">(${Math.min(...gamesSince.filter(Boolean))}–${Math.max(...gamesSince)} ut.)</span>`
+        : 'Od trejda: još nema utakmica';
+      return `<div class="hist-team"><div class="hist-tn" style="color:${TEAM_COLORS[ti]}">${esc(t.name)}</div>
+        <div class="tscroll"><table><thead><tr><th></th>${CATS.map(catTh).join('')}</tr></thead><tbody>
+        ${row(`Snimak <span class="cnt">(${fmtDate(h.date)}, ${per})</span>`, snap)}
+        ${row(`Sada <span class="cnt">(${PERIODS.find(x => x.key === nowP).label})</span>`, cur)}
+        ${row(sinceLabel, sinceT.counted ? sinceT : null, 'total')}
+        </tbody></table></div></div>`;
+    }).join('');
+    detail = `<div class="hist-detail">
+      <div class="hist-dh">Trejd od ${fmtDate(h.date)} <button type="button" class="linkbtn" data-action="hist-close">Zatvori</button></div>
+      <p class="hint" style="padding:0 12px">„Od trejda” = prosek samo utakmica posle datuma čuvanja, iz ESPN statistike po utakmici.</p>
+      ${blocks}</div>`;
+  }
+
+  el.innerHTML = `<details class="card fold" data-fold="hist" ${state.histOpen ? 'open' : ''}>
+    <summary><span>Istorija trejdova</span><span class="hint">${state.history.length ? `${state.history.length} sačuvano` : 'prazno'}</span></summary>
+    <div class="fold-body">
+      ${list ? `<ul class="hist-list">${list}</ul>` : '<div class="empty-team">Još nema sačuvanih trejdova. Klikni „Sačuvaj trejd” ispod rezultata.</div>'}
+      ${detail}
+    </div></details>`;
+}
+
+/* =====================================================================
    Pretraga / autocomplete
    ===================================================================== */
 function searchResults(query, taken = takenIds(), prefer = null) {
@@ -1129,6 +1302,10 @@ document.addEventListener('click', e => {
   const ti = +el.dataset.team;
   switch (el.dataset.action) {
     case 'refresh': loadPlayers(true); loadSchedule(true); break;
+    case 'save-trade': saveTrade(); break;
+    case 'hist-open': openTrade(+el.dataset.id); break;
+    case 'hist-del': deleteTrade(+el.dataset.id); break;
+    case 'hist-close': state.histView = null; render(); break;
     case 'roster-remove': state.my.roster = state.my.roster.filter(id => id !== +el.dataset.id); saveMy(); render(); break;
     case 'remove': removePlayer(ti, el.dataset.kind, +el.dataset.id); break;
     case 'add-team':
