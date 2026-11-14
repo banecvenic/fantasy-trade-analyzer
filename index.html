@@ -129,6 +129,18 @@ td .sub{display:block;font-size:10px;font-weight:500;color:var(--muted);margin-t
 .badge.gp-good{background:var(--win-bg);color:var(--win-text)}
 .badge.gp-ok{background:var(--warn-bg);color:var(--warn)}
 .badge.gp-bad{background:var(--lose-bg);color:var(--lose-text)}
+#tip .tt-title{font-weight:700;margin-bottom:4px}
+#tip table.tt{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+#tip table.tt th,#tip table.tt td{padding:2px 6px;border:0;text-align:right;font-size:12px;white-space:nowrap;position:static;background:none;min-width:0;width:auto;max-width:none}
+#tip table.tt th{color:var(--muted);font-weight:600;font-size:10px}
+#tip table.tt td:first-child,#tip table.tt th:first-child{text-align:left;color:var(--muted)}
+#tip table.tt tr.key td{color:var(--text);font-weight:700}
+#tip table.tt tr.key td:first-child{color:var(--text)}
+#tip .up{color:var(--win-text)}
+#tip .down{color:var(--lose-text)}
+#tip .tt-foot{margin-top:5px;padding-top:5px;border-top:1px solid var(--line);font-weight:600;color:var(--muted)}
+#tip .tt-foot.up{color:var(--win-text)}
+#tip .tt-foot.down{color:var(--lose-text)}
 #tip{position:fixed;z-index:100;max-width:260px;background:#0b0d10;border:1px solid var(--line);color:var(--text);font-size:12px;line-height:1.4;padding:7px 9px;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.6);pointer-events:none;white-space:normal}
 @media (max-width:640px){ .badge .frac{display:none} }
 .rm{background:none;border:0;color:var(--dim);cursor:pointer;padding:6px;font-size:14px;margin-left:auto;flex:none}
@@ -989,6 +1001,25 @@ function trendHTML(p, c) {
   return `<span class="trend ${good ? 'good' : 'bad'}" data-tip="${c.label} · poslednjih 15 dana: ${fmt(rv)}, sezona: ${fmt(sv)} (${Math.round(r.GP)} ut.)">${up ? '↑' : '↓'}</span>`;
 }
 
+/** Tooltip za minute: mala tabela period / MIN / razlika od sezone / utakmice */
+function minutesTipHTML(p, delta, level) {
+  const labels = { season: 'Sezona', l30: '30 dana', l15: '15 dana', l7: '7 dana' };
+  const st = k => p.stats[PERIODS.find(x => x.key === k).statId(CONFIG.SEASON)];
+  const season = st('season')?.GP > 0 ? st('season').MIN : null;
+  const rows = MINUTES.TREND_KEYS.map(k => {
+    const s = st(k), has = s && s.GP > 0;
+    const d = has && season != null && k !== 'season' ? Math.round((s.MIN - season) * 10) / 10 : null;
+    const cls = d == null ? '' : d >= MINUTES.ALERT ? 'up' : d <= -MINUTES.ALERT ? 'down' : '';
+    return `<tr class="${k === 'l15' ? 'key' : ''}"><td>${labels[k]}</td><td>${has ? s.MIN.toFixed(1) : '–'}</td>
+      <td class="${cls}">${d == null ? '' : `${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d).toFixed(1)}`}</td><td>${has ? Math.round(s.GP) : 0}</td></tr>`;
+  }).join('');
+  const verdict = level
+    ? `<div class="tt-foot ${delta > 0 ? 'up' : 'down'}">${delta > 0 ? '↑'.repeat(level) + ' Rast' : '↓'.repeat(level) + ' Pad'} ${Math.abs(delta).toFixed(1)} min u poslednjih 15 dana</div>`
+    : `<div class="tt-foot">Bez bitne promene (prag ±${MINUTES.ALERT} min)</div>`;
+  return `<div class="tt-title">Minuti po periodu</div>
+    <table class="tt"><thead><tr><th></th><th>MIN</th><th>vs sez.</th><th>ut.</th></tr></thead><tbody>${rows}</tbody></table>${verdict}`;
+}
+
 /** MIN ćelija: minuti za izabrani period + kompaktan trend (sezona → 30 → 15 → 7 dana) */
 function minutesCell(p, line) {
   const byKey = k => p.stats[PERIODS.find(x => x.key === k).statId(CONFIG.SEASON)];
@@ -1001,10 +1032,8 @@ function minutesCell(p, line) {
   const dir = !level ? '' : delta > 0 ? 'up' : 'down';
   const arrow = !level ? '' : (delta > 0 ? '↑' : '↓').repeat(level);
   const known = trend.filter(v => v != null);
-  const compact = trend.map(v => (v == null ? '–' : v.toFixed(1))).join(' → ');
-  const tip = `Minuti · sezona / 30 / 15 / 7 dana: ${compact}${level ? ` · ${delta > 0 ? 'rast' : 'pad'} ${Math.abs(delta).toFixed(1)} min u 15 dana` : ''}`;
   const val = line ? fmt1(line.MIN) : '-';
-  return `<td class="mintd ${dir ? `min-${dir}` : ''}" ${known.length ? `data-tip="${esc(tip)}"` : ''}>${arrow ? `<span class="minarrow">${arrow}</span>` : ''}${known.length ? `<span class="minval">${val}</span>` : val}</td>`;
+  return `<td class="mintd ${dir ? `min-${dir}` : ''}" ${known.length ? `data-tip="Minuti" data-tip-html="${esc(minutesTipHTML(p, delta, level))}"` : ''}>${arrow ? `<span class="minarrow">${arrow}</span>` : ''}${known.length ? `<span class="minval">${val}</span>` : val}</td>`;
 }
 
 /** Generički red igrača: slika, ime, oznake, MIN, 9 kategorija sa trendom, GP */
@@ -2011,7 +2040,7 @@ document.body.appendChild(tipEl);
 let tipOwner = null;
 function showTip(el) {
   tipOwner = el;
-  tipEl.textContent = el.dataset.tip;
+  if (el.dataset.tipHtml) tipEl.innerHTML = el.dataset.tipHtml; else tipEl.textContent = el.dataset.tip;
   tipEl.hidden = false;
   const r = el.getBoundingClientRect(), t = tipEl.getBoundingClientRect();
   const left = Math.max(8, Math.min(r.left + r.width / 2 - t.width / 2, innerWidth - t.width - 8));
