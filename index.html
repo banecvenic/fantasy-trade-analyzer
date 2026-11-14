@@ -223,6 +223,12 @@ tr.irhead td{font-size:11px;color:var(--muted);background:var(--bg2);text-align:
 .banner.ok{background:var(--win-bg);border:1px solid rgba(31,157,85,.4);color:#c9f5d9}
 .done-block{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0;display:flex;flex-direction:column;gap:2px}
 .done-tag{color:var(--win-text)}
+.gear{background:none;border:1px solid var(--line);color:var(--muted);border-radius:999px;width:34px;height:34px;font-size:17px;cursor:pointer;flex:none;display:grid;place-items:center}
+.gear:hover{color:var(--text);border-color:var(--dim)}
+.set-block{border-top:1px solid var(--line);padding-top:10px;margin-top:10px;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.set-block textarea{margin-top:2px}
+#import-msg.err{color:var(--lose-text)}
+@media (max-width:640px){ .gear{position:absolute;right:16px;top:8px} header.top .wrap{position:relative} }
 .r-meta{font-size:11px;color:var(--muted);padding:10px 12px 0}
 .r-meta .stale{color:var(--warn)}
 .balance{padding:8px 12px 0;display:flex;flex-direction:column;gap:6px}
@@ -265,6 +271,7 @@ footer{color:var(--dim);font-size:11px;text-align:center;margin-top:28px}
   <div class="wrap">
     <div class="brand"><i></i>Trade Analyzer <small>9-cat</small></div>
     <div class="seg" id="periods" role="group" aria-label="Period"></div>
+    <button type="button" class="gear" data-action="settings" aria-label="Podešavanja" title="Podešavanja i rezervna kopija">⚙</button>
   </div>
 </header>
 
@@ -319,6 +326,8 @@ const CONFIG = (() => {
     ROSTERS_KEY: 'fbaTrade.rosters.v1', // moj roster + protivnici, samo lokalno
     BALANCE_KEY: 'fbaTrade.balance.v1', // izbor Koga izbacuješ / Waiver, samo lokalno
     UI_KEY: 'fbaTrade.ui.v1',           // otvorene sekcije, samo lokalno
+    APP_PREFIX: 'fbaTrade.',            // svi ključevi aplikacije u localStorage
+    BACKUP_FORMAT: { app: 'fbaTrade', version: 1 },
     HISTORY_KEY: 'fbaTrade.history.v1', // samo lokalno, ne ide u link
     // Statistika po utakmici (split 5) za izabrane igrače. NAPOMENA: filterStatsForExternalIds
     // izbacuje split 5 (externalId tih unosa je ID utakmice), zato se ovde ne koristi.
@@ -1284,6 +1293,87 @@ function oppDelete() {
   });
 }
 
+/* ---------- Rezervna kopija: izvoz / uvoz svih podataka aplikacije ---------- */
+/** Ključevi koji se izvoze: sve osim keša ESPN podataka (igrači, raspored), koji se ponovo učitava. */
+function backupKeys() {
+  const out = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k.startsWith(CONFIG.APP_PREFIX) && k !== CONFIG.CACHE_KEY && k !== CONFIG.SCHEDULE_CACHE_KEY
+      && !k.startsWith(`${CONFIG.APP_PREFIX}players.`) && !k.startsWith(`${CONFIG.APP_PREFIX}schedule.`)) out.push(k);
+  }
+  return out.sort();
+}
+
+const trejdova = n => `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'trejd' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'trejda' : 'trejdova'}`;
+
+function backupSummary(data) {
+  const r = data[CONFIG.ROSTERS_KEY];
+  const opps = r?.opps ? Object.values(r.opps) : [];
+  return `moj roster: ${r?.my?.players?.length ?? 0} igrača · protivnici: ${opps.length}${opps.length ? ` (${opps.map(o => esc(o.name)).join(', ')})` : ''} · istorija: ${trejdova((data[CONFIG.HISTORY_KEY] || []).length)}`;
+}
+
+function openSettings() {
+  showModal({
+    title: 'Podešavanja i rezervna kopija',
+    wide: true, cancel: 'Zatvori',
+    body: `<p>Svi tvoji podaci (moj roster, protivnici, IR oznake, istorija, punt i podešavanja) čuvaju se samo u ovom browseru. Napravi rezervnu kopiju pre brisanja podataka ili prelaska na drugi uređaj.</p>
+      <div class="set-block"><b>Izvezi podatke</b><p>Trenutno: ${backupSummary(Object.fromEntries(backupKeys().map(k => [k, lsGet(k)])))}</p>
+        <button type="button" class="btn" data-action="export">Kopiraj podatke u clipboard</button> <span class="hint" id="export-msg"></span></div>
+      <div class="set-block"><b>Uvezi podatke</b><p>Nalepi tekst rezervne kopije. Postojeći podaci biće zamenjeni tek posle potvrde.</p>
+        <textarea id="import-text" spellcheck="false" placeholder='{"app":"fbaTrade", ...}'></textarea>
+        <div id="import-msg" class="hint"></div>
+        <button type="button" class="btn" data-action="import">Proveri i uvezi</button></div>`,
+  });
+}
+
+async function exportData(btn) {
+  const payload = { ...CONFIG.BACKUP_FORMAT, exported: new Date().toISOString(), data: Object.fromEntries(backupKeys().map(k => [k, lsGet(k)])) };
+  const text = JSON.stringify(payload);
+  const msg = document.getElementById('export-msg');
+  try {
+    await navigator.clipboard.writeText(text);
+    msg.textContent = `✓ Kopirano (${Math.round(text.length / 1024)} KB). Sačuvaj ga negde, npr. u beleške ili mejl sebi.`;
+  } catch {
+    // clipboard nedostupan: prikaži tekst za ručno kopiranje
+    const ta = document.getElementById('import-text');
+    ta.value = text; ta.select();
+    msg.textContent = 'Clipboard nije dostupan — tekst je u polju ispod, kopiraj ga ručno (Ctrl/Cmd+C).';
+  }
+}
+
+/** Provera formata rezervne kopije; vraća { data } ili { error } */
+function parseBackup(text) {
+  let obj;
+  try { obj = JSON.parse(text.trim()); } catch { return { error: 'Tekst nije ispravan JSON. Proveri da si nalepio ceo tekst.' }; }
+  if (obj?.app !== CONFIG.BACKUP_FORMAT.app || typeof obj.data !== 'object' || !obj.data) return { error: 'Ovo nije rezervna kopija ove aplikacije.' };
+  if (obj.version > CONFIG.BACKUP_FORMAT.version) return { error: 'Kopija je iz novije verzije aplikacije.' };
+  const keys = Object.keys(obj.data);
+  if (!keys.length || keys.some(k => !k.startsWith(CONFIG.APP_PREFIX))) return { error: 'Kopija sadrži nepoznate podatke.' };
+  const r = obj.data[CONFIG.ROSTERS_KEY];
+  if (r && (!r.my || !Array.isArray(r.my.players) || typeof r.opps !== 'object')) return { error: 'Roster u kopiji nije u ispravnom formatu.' };
+  if (obj.data[CONFIG.HISTORY_KEY] && !Array.isArray(obj.data[CONFIG.HISTORY_KEY])) return { error: 'Istorija u kopiji nije u ispravnom formatu.' };
+  return { data: obj.data, exported: obj.exported };
+}
+
+function importData() {
+  const text = document.getElementById('import-text')?.value || '';
+  const msg = document.getElementById('import-msg');
+  const res = parseBackup(text);
+  if (res.error) { msg.textContent = `✕ ${res.error}`; msg.classList.add('err'); return; }
+  showModal({
+    title: 'Zameniti postojeće podatke?',
+    body: `<p>Uvozi se kopija${res.exported ? ` od ${fmtShortDate(res.exported)}` : ''}: <b>${backupSummary(res.data)}</b>.</p>
+      <p>Trenutni podaci u ovom browseru (${backupSummary(Object.fromEntries(backupKeys().map(k => [k, lsGet(k)])))}) biće <b>zamenjeni</b>.</p>`,
+    confirm: 'Zameni i uvezi', danger: true,
+    onConfirm: () => {
+      for (const k of backupKeys()) localStorage.removeItem(k);
+      for (const [k, v] of Object.entries(res.data)) lsSet(k, v);
+      location.reload();
+    },
+  });
+}
+
 /* ---------- Modal u stranici (umesto browser confirm) ---------- */
 function showModal({ title, body, confirm = 'U redu', cancel = 'Otkaži', danger = false, onConfirm, wide = false }) {
   closeModal();
@@ -1653,6 +1743,9 @@ document.addEventListener('click', e => {
     case 'refresh': loadPlayers(true); loadSchedule(true); break;
     case 'save-trade': saveTrade(); break;
     case 'trade-done': tradeDone(); break;
+    case 'settings': openSettings(); break;
+    case 'export': exportData(el); break;
+    case 'import': importData(); break;
     case 'r-ir': toggleIR(el.dataset.kind, +el.dataset.id); break;
     case 'notice-close': state.notice = null; render(); break;
     case 'share': shareLink(el); break;
