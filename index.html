@@ -117,6 +117,7 @@ td .sub{display:block;font-size:10px;font-weight:500;color:var(--muted);margin-t
 .inj.dtd{background:var(--warn-bg);color:var(--warn)}
 .flag{font-size:10px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--warn-bg);color:var(--warn)}
 .badge{font-size:10px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--card2);color:var(--muted);cursor:help;white-space:nowrap}
+.badge.wk{background:rgba(59,130,246,.16);color:#8fb8ff}
 .badge.gp-good{background:var(--win-bg);color:var(--win-text)}
 .badge.gp-ok{background:var(--warn-bg);color:var(--warn)}
 .badge.gp-bad{background:var(--lose-bg);color:var(--lose-text)}
@@ -286,6 +287,9 @@ const TREND = {
 };
 /** Minutaža: trend sezona -> 30 -> 15 -> 7 dana; upozorenje ako 15 dana pada > 3 min ispod sezone */
 const MINUTES = { TREND_KEYS: ['season', 'l30', 'l15', 'l7'], DROP_ALERT: 3 };
+/** Nedelja = ponedeljak–nedelja po američkom istočnom vremenu (kao ESPN fantasy nedelje),
+ *  da utakmica u nedelju uveče (ET) ne pređe u sledeću nedelju po našem vremenu. */
+const WEEK_TZ = 'America/New_York';
 /** Pragovi boje za trajnost (GP%) */
 const DURABILITY = { GOOD: 0.85, OK: 0.70 };
 
@@ -502,6 +506,33 @@ function durability(p) {
   const shown = Math.round(pct * 100) / 100; // boja prati prikazani procenat (84.6% -> 85% = zeleno)
   const cls = shown >= DURABILITY.GOOD ? 'good' : shown >= DURABILITY.OK ? 'ok' : 'bad';
   return { gp, n, pct, cls, approx };
+}
+
+/* ---------- Utakmice ove nedelje ---------- */
+const etDateFmt = new Intl.DateTimeFormat('en-CA', { timeZone: WEEK_TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+const etDate = ms => etDateFmt.format(ms); // "YYYY-MM-DD"
+/** Datumi (ET) od ponedeljka do nedelje tekuće nedelje */
+function currentWeekDates() {
+  const [y, m, d] = etDate(Date.now()).split('-').map(Number);
+  const today = new Date(Date.UTC(y, m - 1, d));
+  const monOffset = (today.getUTCDay() + 6) % 7; // 0 = ponedeljak
+  return Array.from({ length: 7 }, (_, i) => new Date(Date.UTC(y, m - 1, d - monOffset + i)).toISOString().slice(0, 10));
+}
+function weekGames(tid) {
+  const games = state.schedule?.[tid];
+  if (!games) return null;
+  const week = new Set(currentWeekDates());
+  const inWeek = games.filter(g => week.has(etDate(g.date)));
+  const cutoff = Date.now() - CONFIG.GAME_DONE_AFTER_MS;
+  return { total: inWeek.length, left: inWeek.filter(g => g.date > cutoff).length };
+}
+function weekGamesHTML(p) {
+  if (!p.tid) return '';
+  const w = weekGames(p.tid);
+  if (!w) return '';
+  const [mon, , , , , , sun] = currentWeekDates();
+  const tip = `${w.total} ut. ove nedelje (${mon.slice(5).split('-').reverse().join('.')}–${sun.slice(5).split('-').reverse().join('.')}, pon–ned) · preostalo: ${w.left}`;
+  return `<span class="badge wk" data-tip="${tip}">${w.total} ut.</span>`;
 }
 
 function durabilityHTML(p) {
@@ -868,7 +899,7 @@ function playerRow(p, ti, kind = 'recv') {
   const slot = SLOT_LABEL[kind];
   return `<tr class="${line ? '' : 'nodata'} ${slot ? slot.cls : ''}">
     <td><div class="pl">${avatarHTML(p)}<div class="txt">${slot ? `<span class="slot-tag">${slot.text}</span>` : ''}<span class="nm" title="${esc(p.name)}">${esc(p.name)}</span>
-      <span class="meta">${p.team} · ${p.pos} ${injHTML(p)} ${durabilityHTML(p)} ${line ? '' : '<span class="flag" title="Nema podataka za ovaj period, ne računa se">0 GP</span>'}</span>
+      <span class="meta">${p.team} · ${p.pos} ${injHTML(p)} ${durabilityHTML(p)} ${weekGamesHTML(p)} ${line ? '' : '<span class="flag" title="Nema podataka za ovaj period, ne računa se">0 GP</span>'}</span>
       ${kind === 'recv' ? fromSelectHTML(ti, p.id) : ''}</div>
       <button class="rm" type="button" data-action="remove" data-kind="${kind}" data-team="${ti}" data-id="${p.id}" aria-label="Ukloni ${esc(p.name)}">✕</button></div></td>
     ${minutesCell(p, line)}${cells}<td>${line ? Math.round(line.GP) : '0'}</td></tr>`;
