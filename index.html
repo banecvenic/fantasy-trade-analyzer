@@ -110,7 +110,7 @@ td .sub{display:block;font-size:10px;font-weight:500;color:var(--muted);margin-t
 .pl{display:flex;align-items:center;gap:8px;min-width:0}
 .pl .txt{min-width:0;display:flex;flex-direction:column}
 .pl .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;max-width:120px}
-.pl .meta{font-size:11px;color:var(--muted);display:flex;gap:4px;align-items:center}
+.pl .meta{font-size:11px;color:var(--muted);display:flex;gap:4px;align-items:center;flex-wrap:wrap;row-gap:2px}
 .av{width:30px;height:30px;border-radius:50%;background:var(--card2);flex:none;overflow:hidden;display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line)}
 .av img{width:130%;height:auto;margin-top:6px}
 .inj{font-size:10px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--lose-bg);color:var(--lose-text)}
@@ -128,7 +128,9 @@ td .sub{display:block;font-size:10px;font-weight:500;color:var(--muted);margin-t
   th:first-child,td:first-child{min-width:128px;max-width:150px}
   .pl{gap:6px}
   .pl .av{width:24px;height:24px}
-  .pl .nm{max-width:84px}
+  .pl .nm{max-width:96px}
+  .pl .txt{flex:1;overflow:hidden}
+  .pl .meta{flex-wrap:wrap;row-gap:2px}
   th,td{padding:7px 6px}
 }
 .rm:hover{color:var(--accent2)}
