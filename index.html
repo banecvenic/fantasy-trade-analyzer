@@ -153,7 +153,9 @@ td.punt{opacity:.35;background:transparent!important;color:var(--muted)!importan
 td.catth.punt{opacity:1;background:var(--card)!important}
 .punt-note{color:var(--warn)}
 td.mintd{cursor:help;color:var(--muted)}
-td.min-drop{color:var(--lose-text)}
+td.min-down{color:var(--lose-text)}
+td.min-up{color:var(--win-text)}
+.minarrow{font-weight:800;margin-right:2px;letter-spacing:-2px}
 /* trend minuta je u tooltipu; isprekidana linija i ⓘ u zaglavlju pokazuju da postoji */
 .minval{border-bottom:1px dotted currentColor;padding-bottom:1px}
 th.minth{cursor:help}
@@ -385,7 +387,9 @@ const TREND = {
   MIN_ABS: 0.1,         // i prikazane vrednosti moraju da se razlikuju (izbegava 0.1 -> 0.2 = +100%)
 };
 /** Minutaža: trend sezona -> 30 -> 15 -> 7 dana; upozorenje ako 15 dana pada > 3 min ispod sezone */
-const MINUTES = { TREND_KEYS: ['season', 'l30', 'l15', 'l7'], DROP_ALERT: 3 };
+/** Minutaža: poslednjih 15 dana vs sezona. ±3 min = ↑/↓, ±5 min = ↑↑/↓↓ (promena uloge).
+ *  Pragovi izabrani na podacima (top 300, nov. 2026): ±3 daje ~3% igrača u svakom smeru. */
+const MINUTES = { TREND_KEYS: ['season', 'l30', 'l15', 'l7'], ALERT: 3, STRONG: 5, MIN_GP: 4 };
 /** Nedelja = ponedeljak–nedelja po američkom istočnom vremenu (kao ESPN fantasy nedelje),
  *  da utakmica u nedelju uveče (ET) ne pređe u sledeću nedelju po našem vremenu. */
 const WEEK_TZ = 'America/New_York';
@@ -960,7 +964,7 @@ function injHTML(p) {
 const catTh = c => `<th class="catth${puntCls(c)}" data-punt="${c.key}" title="${isPunt(c) ? 'Vrati kategoriju' : 'Punt: isključi iz rezultata'}">${c.label}</th>`;
 
 function headerRow() {
-  return `<tr><th>Igrač</th><th class="minth" data-tip="Minuti u izabranom periodu. Pređi mišem ili tapni na broj za trend: sezona → 30 → 15 → 7 dana. Crveno ↓ = pad veći od ${MINUTES.DROP_ALERT} min u 15 dana.">MIN<span class="i">ⓘ</span></th>${CATS.map(catTh).join('')}<th>GP</th></tr>`;
+  return `<tr><th>Igrač</th><th class="minth" data-tip="Minuti u izabranom periodu. Pređi mišem ili tapni na broj za trend: sezona → 30 → 15 → 7 dana. Poslednjih 15 dana vs sezona: zeleno ↑ / crveno ↓ = ±${MINUTES.ALERT} min ili više, ↑↑ / ↓↓ = ±${MINUTES.STRONG} min ili više (bar ${MINUTES.MIN_GP} utakmice).">MIN<span class="i">ⓘ</span></th>${CATS.map(catTh).join('')}<th>GP</th></tr>`;
 }
 
 /** Strelica trenda za igrača i kategoriju, ili '' */
@@ -990,12 +994,17 @@ function minutesCell(p, line) {
   const byKey = k => p.stats[PERIODS.find(x => x.key === k).statId(CONFIG.SEASON)];
   const trend = MINUTES.TREND_KEYS.map(k => { const st = byKey(k); return st && st.GP > 0 ? st.MIN : null; });
   const [season, , l15] = trend;
-  const drop = season != null && l15 != null && season - l15 > MINUTES.DROP_ALERT;
+  const enough = (byKey('l15')?.GP || 0) >= MINUTES.MIN_GP;
+  // razlika na prikazanoj preciznosti (29.3 -> 26.3 je tačno 3.0)
+  const delta = season != null && l15 != null && enough ? Math.round((l15 - season) * 10) / 10 : 0;
+  const level = Math.abs(delta) >= MINUTES.STRONG ? 2 : Math.abs(delta) >= MINUTES.ALERT ? 1 : 0;
+  const dir = !level ? '' : delta > 0 ? 'up' : 'down';
+  const arrow = !level ? '' : (delta > 0 ? '↑' : '↓').repeat(level);
   const known = trend.filter(v => v != null);
   const compact = trend.map(v => (v == null ? '–' : v.toFixed(1))).join(' → ');
-  const tip = `Minuti · sezona / 30 / 15 / 7 dana: ${compact}${drop ? ` · pad ${(season - l15).toFixed(1)} min u 15 dana` : ''}`;
+  const tip = `Minuti · sezona / 30 / 15 / 7 dana: ${compact}${level ? ` · ${delta > 0 ? 'rast' : 'pad'} ${Math.abs(delta).toFixed(1)} min u 15 dana` : ''}`;
   const val = line ? fmt1(line.MIN) : '-';
-  return `<td class="mintd ${drop ? 'min-drop' : ''}" ${known.length ? `data-tip="${esc(tip)}"` : ''}>${drop ? '↓' : ''}${known.length ? `<span class="minval">${val}</span>` : val}</td>`;
+  return `<td class="mintd ${dir ? `min-${dir}` : ''}" ${known.length ? `data-tip="${esc(tip)}"` : ''}>${arrow ? `<span class="minarrow">${arrow}</span>` : ''}${known.length ? `<span class="minval">${val}</span>` : val}</td>`;
 }
 
 /** Generički red igrača: slika, ime, oznake, MIN, 9 kategorija sa trendom, GP */
