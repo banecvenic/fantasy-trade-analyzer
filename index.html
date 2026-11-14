@@ -237,7 +237,14 @@ tr.irhead td{font-size:11px;color:var(--muted);background:var(--bg2);text-align:
 .bal-row select{background:var(--bg2);border:1px solid var(--line);border-radius:6px;color:var(--text);padding:6px 8px;font-size:14px;min-width:200px}
 .card-warn.strong{border-radius:0;margin-top:8px}
 .empty-team.cta{color:var(--text);font-weight:600}
-@media (max-width:640px){ .rtable{min-width:700px} }
+.acts{display:flex;align-items:center;gap:4px;margin-left:auto;flex:none}
+.acts .rm,.acts .mini{margin-left:0}
+@media (max-width:640px){
+  .rtable{min-width:700px}
+  .rtable .av{display:none}
+  .acts{flex-direction:column-reverse;gap:2px}
+  .acts .rm{padding:2px 6px}
+}
 @media (max-width:1000px) and (min-width:641px){ .rtable{min-width:780px} }
 .cnt{color:var(--muted);font-weight:500;font-size:11px}
 .score-actions{display:flex;justify-content:center;gap:8px;margin-top:8px;flex-wrap:wrap}
@@ -953,7 +960,7 @@ function playerRowHTML(p, { tags = [], cls = '', actions = '', sign = '' } = {})
   return `<tr class="${line ? '' : 'nodata'} ${cls}">
     <td><div class="pl">${avatarHTML(p)}<div class="txt">${tagHTML ? `<span class="tags">${tagHTML}</span>` : ''}<span class="nm" title="${esc(p.name)}">${esc(p.name)}</span>
       <span class="meta">${p.team} · ${p.pos} ${injHTML(p)} ${durabilityHTML(p)} ${weekGamesHTML(p)} ${line ? '' : '<span class="flag" title="Nema podataka za ovaj period, ne računa se">0 GP</span>'}</span>
-      </div>${actions}</div></td>
+      </div>${actions ? `<span class="acts">${actions}</span>` : ''}</div></td>
     ${minutesCell(p, line)}${cells}<td>${line ? Math.round(line.GP) : '0'}</td></tr>`;
 }
 
