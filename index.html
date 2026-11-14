@@ -244,12 +244,17 @@ tr.irhead td{font-size:11px;color:var(--muted);background:var(--bg2);text-align:
 .banner.ok{background:var(--win-bg);border:1px solid rgba(31,157,85,.4);color:#c9f5d9}
 .done-block{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0;display:flex;flex-direction:column;gap:2px}
 .done-tag{color:var(--win-text)}
+.langsw{display:flex;border:1px solid var(--line);border-radius:999px;padding:2px;flex:none}
+.langsw button{background:none;border:0;color:var(--muted);font-size:11px;font-weight:700;padding:5px 8px;border-radius:999px;cursor:pointer}
+.langsw button[aria-pressed="true"]{background:var(--card2);color:var(--text)}
+.langsw.inmodal button{font-size:13px;padding:6px 14px}
+.set-block.first{border-top:0;margin-top:0;padding-top:0;margin-bottom:10px}
 .gear{background:none;border:1px solid var(--line);color:var(--muted);border-radius:999px;width:34px;height:34px;font-size:17px;cursor:pointer;flex:none;display:grid;place-items:center}
 .gear:hover{color:var(--text);border-color:var(--dim)}
 .set-block{border-top:1px solid var(--line);padding-top:10px;margin-top:10px;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
 .set-block textarea{margin-top:2px}
 #import-msg.err{color:var(--lose-text)}
-@media (max-width:640px){ .gear{position:absolute;right:16px;top:8px} header.top .wrap{position:relative} }
+@media (max-width:640px){ .gear{position:absolute;right:16px;top:8px} header.top > .wrap > .langsw{position:absolute;right:58px;top:10px} header.top .wrap{position:relative} }
 .r-meta{font-size:11px;color:var(--muted);padding:10px 12px 0}
 .r-meta .stale{color:var(--warn)}
 .balance.top{padding:4px 12px 10px}
@@ -308,6 +313,7 @@ footer{color:var(--dim);font-size:11px;text-align:center;margin-top:28px}
   <div class="wrap">
     <div class="brand"><i></i>Trade Analyzer <small>9-cat</small></div>
     <div class="seg" id="periods" role="group" aria-label="Period"></div>
+    <div class="langsw" role="group" aria-label="Jezik / Language"><button type="button" data-lang="sr">SR</button><button type="button" data-lang="en">EN</button></div>
     <button type="button" class="gear" data-action="settings" aria-label="Podešavanja" title="Podešavanja i rezervna kopija">⚙</button>
   </div>
 </header>
@@ -378,12 +384,12 @@ const CONFIG = (() => {
 
 /** Periodi: stats[].id = `${statSourceId}${statSplitTypeId}${season}` */
 const PERIODS = [
-  { key: 'season', label: 'Sezona',    statId: s => `00${s}` },
-  { key: 'l7',     label: '7 dana',    statId: s => `01${s}` },
-  { key: 'l15',    label: '15 dana',   statId: s => `02${s}` },
-  { key: 'l30',    label: '30 dana',   statId: s => `03${s}` },
-  { key: 'proj',   label: 'Projekcija',statId: s => `10${s}` },
-];
+  { key: 'season', sr: 'Sezona',     statId: s => `00${s}` },
+  { key: 'l7',     sr: '7 dana',     statId: s => `01${s}` },
+  { key: 'l15',    sr: '15 dana',    statId: s => `02${s}` },
+  { key: 'l30',    sr: '30 dana',    statId: s => `03${s}` },
+  { key: 'proj',   sr: 'Projekcija', statId: s => `10${s}` },
+].map(p => Object.defineProperty(p, 'label', { get() { return t(this.sr); } }));
 
 /** Ključevi u averageStats */
 /** MIN = '40' provereno: split 5 za utakmicu 401909879 (Wembanyama) = 27, isto kao ESPN gamelog. */
@@ -442,11 +448,262 @@ const INJURY = {
 
 /** Trejd ima uvek dve strane iz moje perspektive: teams[0] = Daješ (moj tim), teams[1] = Dobijaš (protivnik). */
 const SIDES = [
-  { name: 'Daješ', sub: 'Moj tim', color: '#e1251b' },
-  { name: 'Dobijaš', sub: 'Protivnik', color: '#3b82f6' },
-];
+  { srName: 'Daješ', srSub: 'Moj tim', color: '#e1251b' },
+  { srName: 'Dobijaš', srSub: 'Protivnik', color: '#3b82f6' },
+].map(x => Object.defineProperties(x, { name: { get() { return t(this.srName); } }, sub: { get() { return t(this.srSub); } } }));
 const GIVE = 0, GET = 1;
 const TEAM_COLORS = SIDES.map(x => x.color);
+
+/* =====================================================================
+   Jezik (SR / EN)
+   Tekstovi u kodu su na srpskom; t() vraća engleski prevod iz rečnika EN
+   (ključ = srpski tekst, {x} = vrednost). Nedostajući prevod -> srpski tekst.
+   ===================================================================== */
+const LANG_KEY = 'fbaTrade.lang.v1';
+/** Link (?lang) > sačuvan izbor > browser: srpski za jezike regiona, inače engleski */
+function detectLang() {
+  const q = new URLSearchParams(location.hash.slice(1)).get('lang');
+  if (q === 'sr' || q === 'en') return q;
+  try { const saved = JSON.parse(localStorage.getItem(LANG_KEY)); if (saved === 'sr' || saved === 'en') return saved; } catch {}
+  const langs = (navigator.languages || [navigator.language || '']).map(l => String(l).toLowerCase());
+  return langs.some(l => /^(sr|hr|bs|sh|cnr|me|mk|sl)\b/.test(l)) ? 'sr' : 'en';
+}
+let LANG = detectLang();
+document.documentElement.lang = LANG;
+/** Engleski prevodi (ključ = srpski tekst). Novi tekst u UI -> dodati i ovde. */
+const EN = {
+  "upravo": "just now",
+  "pre {n} min": "{n} min ago",
+  "pre {n} h": "{n} h ago",
+  "pre {n} d": "{n} d ago",
+  "Podešavanja i rezervna kopija": "Settings and backup",
+  "Podešavanja": "Settings",
+  "Podaci: javni ESPN fantasy API (nezvaničan). Prosek po utakmici.": "Data: public ESPN fantasy API (unofficial). Per-game averages.",
+  "Sezona": "Season",
+  "7 dana": "7 days",
+  "15 dana": "15 days",
+  "30 dana": "30 days",
+  "Projekcija": "Projection",
+  "Daješ": "You give",
+  "Dobijaš": "You get",
+  "Moj tim": "My team",
+  "Protivnik": "Opponent",
+  "ESPN je vratio grešku {n}": "ESPN returned error {n}",
+  "ESPN je vratio praznu listu igrača": "ESPN returned an empty player list",
+  "ESPN ne odgovara (isteklo vreme)": "ESPN is not responding (timed out)",
+  "Mrežna greška — proveri internet konekciju": "Network error — check your internet connection",
+  "{n} ut. ove nedelje ({a}–{b}, pon–ned) · preostalo: {left}": "{n} games this week ({a}–{b}, Mon–Sun) · remaining: {left}",
+  "{n} ut.": "{n} G",
+  "prošla sezona: {a}/{b}": "last season: {a}/{b}",
+  "prošla sezona: nema podataka": "last season: no data",
+  "Ove sezone: {a}/{b} utakmica ({p}%)": "This season: {a}/{b} games ({p}%)",
+  " · približno, raspored nedostupan": " · approximate, schedule unavailable",
+  "ESPN sporo odgovara, još učitavam…": "ESPN is slow, still loading…",
+  "Učitavam igrače sa ESPN-a…": "Loading players from ESPN…",
+  "{n} igrača · ažurirano {ago} · sezona {s}": "{n} players · updated {ago} · season {s}",
+  "Osveži podatke": "Refresh data",
+  "U redu": "OK",
+  "Prikazujem sačuvane podatke od {ago}.": "Showing saved data from {ago}.",
+  "Pokušaj ponovo": "Try again",
+  "Nema sačuvanih podataka.": "No saved data.",
+  "Neravnomeran trejd: izaberi koga izbacuješ ({n}) u kartici Daješ — dotle rezultat nije realan.": "Uneven trade: pick who you drop ({n}) in the You give card — until then the result isn't realistic.",
+  "Dodaj igrače u Daješ i Dobijaš da vidiš poređenje.": "Add players to You give and You get to see the comparison.",
+  "Trejd ti donosi {w} {kat}, gubiš {l}": "The trade gains you {w} {kat}, you lose {l}",
+  "{n} nerešeno": "{n} tied",
+  "Čuva samo ideju u Istoriju; rosteri se ne menjaju": "Saves the idea to History only; rosters don't change",
+  "Sačuvaj ideju": "Save idea",
+  "Kopiraj link": "Copy link",
+  "Tek ovo menja sačuvane rostere": "Only this changes your saved rosters",
+  "Trejd se dogodio": "Trade happened",
+  "Ovo je ideja za trejd: tvoj sačuvani roster se ne menja dok ne klikneš „Trejd se dogodio”.": "This is a trade idea: your saved roster doesn't change until you click “Trade happened”.",
+  "Vrati kategoriju": "Bring the category back",
+  "Punt: isključi iz rezultata": "Punt: exclude from the score",
+  "Igrač": "Player",
+  "Minuti u izabranom periodu. Pređi mišem ili tapni na broj za trend: sezona → 30 → 15 → 7 dana. Poslednjih 15 dana vs sezona: zeleno ↑ / crveno ↓ = ±{a} min ili više, ↑↑ / ↓↓ = ±{b} min ili više (bar {g} utakmice).": "Minutes in the selected period. Hover or tap the number for the trend: season → 30 → 15 → 7 days. Last 15 days vs season: green ↑ / red ↓ = ±{a} min or more, ↑↑ / ↓↓ = ±{b} min or more (at least {g} games).",
+  "{c} po periodu": "{c} by period",
+  "vs sez.": "vs season",
+  "ut.": "G",
+  "Bolje u poslednjih 15 dana: {d} (prag {r})": "Better over the last 15 days: {d} (threshold {r})",
+  "Lošije u poslednjih 15 dana: {d} (prag {r})": "Worse over the last 15 days: {d} (threshold {r})",
+  "Rast {m} min u poslednjih 15 dana": "Up {m} min over the last 15 days",
+  "Pad {m} min u poslednjih 15 dana": "Down {m} min over the last 15 days",
+  "Bez bitne promene (prag ±{a} min)": "No significant change (threshold ±{a} min)",
+  "Minuti po periodu": "Minutes by period",
+  "Prevuci gore/dole": "Drag up/down",
+  "Pomeri igrača": "Move player",
+  "Nema podataka za ovaj period, ne računa se": "No data for this period, not counted",
+  "Izbacuješ": "Drop",
+  "Waiver": "Waiver",
+  "Odlazi": "Leaving",
+  "Dolazi": "Arriving",
+  "IR": "IR",
+  "Ukloni": "Remove",
+  "Učitavam igrače…": "Loading players…",
+  "Nema podataka": "No data",
+  "Ukupno": "Total",
+  "bolje u {n} kat.": "better in {n} cat.",
+  "Koga daješ…": "Who do you give…",
+  "Koga dobijaš…": "Who do you get…",
+  "Igrači iz linka nisu pronađeni u listi.": "Players from the link were not found in the list.",
+  "Još nema igrača. Kucaj ime iznad.": "No players yet. Type a name above.",
+  "Bez podataka za period „{p}“, ne računa se: {list}": "No data for period “{p}”, not counted: {list}",
+  "Izbacuješ {a}/{b}": "Drop {a}/{b}",
+  "— koga izbacuješ sa rostera —": "— who do you drop from your roster —",
+  "Koga izbacuješ sa svog rostera…": "Who do you drop from your roster…",
+  "Koga uzimaš sa waivera… (opciono)": "Who do you pick up from waivers… (optional)",
+  "Waiver dodatak {a}/{b} · opciono": "Waiver pickup {a}/{b} · optional",
+  "Protivnik: {n}": "Opponent: {n}",
+  "Nije na rosteru tvog tima: {list}": "Not on your roster: {list}",
+  "Nije na rosteru {team}: {list}": "Not on {team}'s roster: {list}",
+  "Već je na tvom rosteru: {list}": "Already on your roster: {list}",
+  "Klik: punt": "Click: punt",
+  "Poređenje kategorija": "Category comparison",
+  "klik na kategoriju = punt": "click a category = punt",
+  "Kat.": "Cat.",
+  "Razlika": "Difference",
+  "Na osnovu proseka ({per}) trejd ti se <span class=\"w\">isplati</span>: dobijaš {w}, gubiš {l} {kat}.": "Based on averages ({per}) the trade <span class=\"w\">pays off</span>: you gain {w}, lose {l} {kat}.",
+  "Na osnovu proseka ({per}) trejd ti se <span class=\"l\">ne isplati</span>: dobijaš {w}, gubiš {l} {kat}.": "Based on averages ({per}) the trade <span class=\"l\">doesn't pay off</span>: you gain {w}, lose {l} {kat}.",
+  "Na osnovu proseka ({per}) trejd je izjednačen: {w} : {l}.": "Based on averages ({per}) the trade is even: {w} : {l}.",
+  "Popravljaš: {list}.": "You improve: {list}.",
+  "Ne popravljaš nijednu kategoriju.": "You don't improve any category.",
+  "Kvariš: {list}.": "You get worse in: {list}.",
+  "Tesno: {list}.": "Close: {list}.",
+  "Nerešeno: {list}.": "Tied: {list}.",
+  "Punt (ne računa se): {list}.": "Punt (not counted): {list}.",
+  "Napomena: bez podataka za ovaj period i ne računaju se: {list}.": "Note: no data for this period, not counted: {list}.",
+  "Izveštaj": "Report",
+  "punt {list}": "punt {list}",
+  "{n} aktivnih": "{n} active",
+  "Pre trejda": "Before trade",
+  "Posle trejda": "After trade",
+  "Ukloni sa rostera": "Remove from roster",
+  "Prebaci na IR": "Move to IR",
+  "Vrati sa IR": "Bring back from IR",
+  "Ukloni waiver": "Remove waiver",
+  "IR · ne računa se u zbirove ({a}/{b})": "IR · not counted in totals ({a}/{b})",
+  "Koga izbacuješ ({a}/{b}) biraš gore, u kartici Daješ.": "Pick who you drop ({a}/{b}) above, in the You give card.",
+  "Waiver dodatak (opciono, {a}/{b}) biraš gore, u kartici Dobijaš.": "Pick the waiver pickup (optional, {a}/{b}) above, in the You get card.",
+  "Posle trejda imaš {n} aktivnih (max {m}). Izaberi koga izbacuješ u kartici Daješ — dotle Razlika nije realna.": "After the trade you have {n} active (max {m}). Pick who you drop in the You give card — until then the Difference isn't realistic.",
+  "— izaberi igrača —": "— pick a player —",
+  "Posle trejda imaš {n} aktivnih (max {m}). Izaberi koga izbacuješ ({k}) — dotle Razlika nije realna.": "After the trade they have {n} active (max {m}). Pick who to drop ({k}) — until then the Difference isn't realistic.",
+  "Izaberi sačuvanog protivnika ili unesi novog.": "Pick a saved opponent or add a new one.",
+  "nije izabran": "not selected",
+  "Roster je pun ({a} + {b} IR). Ukloni igrača da dodaš novog.": "Roster is full ({a} + {b} IR). Remove a player to add a new one.",
+  "Aktivna mesta su puna — novi igrač ide na IR…": "Active spots are full — a new player goes to IR…",
+  "Dodaj igrača na roster…": "Add a player to the roster…",
+  "{a}/{b} aktivnih · {c}/{d} IR": "{a}/{b} active · {c}/{d} IR",
+  "Ažurirano: {d}": "Updated: {d}",
+  "Roster možda nije aktuelan, proveri izmene.": "Roster may be out of date, check for changes.",
+  "Unesi svoj roster ({a} aktivnih + {b} IR). Čuva se samo u ovom browseru.": "Enter your roster ({a} active + {b} IR). Saved only in this browser.",
+  "Unesi roster protivnika ({a} aktivnih + {b} IR). Čuva se samo u ovom browseru.": "Enter the opponent's roster ({a} active + {b} IR). Saved only in this browser.",
+  "Prikaz rostera": "Roster view",
+  "Posle trejda (pregled)": "After trade (preview)",
+  "Sačuvan roster": "Saved roster",
+  "Samo pregled — sačuvan roster se ne menja dok trejd ne potvrdiš.": "Preview only — the saved roster doesn't change until you confirm the trade.",
+  "Ovo je tvoj sačuvani roster, bez trejda.": "This is your saved roster, without the trade.",
+  "Bez podataka za izabrani period, ne računa se: {list}": "No data for the selected period, not counted: {list}",
+  "Trejd se dogodio — ažuriraj rostere": "Trade happened — update rosters",
+  "Ime tima, npr. Marko": "Team name, e.g. Mike",
+  "Napravi": "Create",
+  "Sačuvaj": "Save",
+  "Otkaži": "Cancel",
+  "Izaberi protivnika": "Pick an opponent",
+  "— izaberi protivnika —": "— pick an opponent —",
+  "Novi protivnik…": "New opponent…",
+  "Preimenuj": "Rename",
+  "Obriši": "Delete",
+  "Već postoji tim sa tim imenom": "A team with that name already exists",
+  "Obrisati tim „{n}”?": "Delete team “{n}”?",
+  "Roster ovog protivnika ({n} igrača) biće obrisan iz ovog browsera. Ovo ne može da se vrati, osim iz rezervne kopije.": "This opponent's roster ({n} players) will be deleted from this browser. This can't be undone, except from a backup.",
+  "moj roster: {n} igrača · protivnici: {o}{names} · istorija: {h}": "my roster: {n} players · opponents: {o}{names} · history: {h}",
+  "Zatvori": "Close",
+  "Jezik": "Language",
+  "Svi tvoji podaci (moj roster, protivnici, IR oznake, istorija, punt i podešavanja) čuvaju se samo u ovom browseru. Napravi rezervnu kopiju pre brisanja podataka ili prelaska na drugi uređaj.": "All your data (my roster, opponents, IR flags, history, punts and settings) is stored only in this browser. Make a backup before clearing data or switching devices.",
+  "Izvezi podatke": "Export data",
+  "Trenutno: {s}": "Currently: {s}",
+  "Kopiraj podatke u clipboard": "Copy data to clipboard",
+  "Uvezi podatke": "Import data",
+  "Nalepi tekst rezervne kopije. Postojeći podaci biće zamenjeni tek posle potvrde.": "Paste the backup text. Existing data is replaced only after you confirm.",
+  "Proveri i uvezi": "Check and import",
+  "Kopirano ({k} KB). Sačuvaj ga negde, npr. u beleške ili mejl sebi.": "Copied ({k} KB). Keep it somewhere, e.g. in notes or an email to yourself.",
+  "Clipboard nije dostupan — tekst je u polju ispod, kopiraj ga ručno (Ctrl/Cmd+C).": "Clipboard unavailable — the text is in the field below, copy it manually (Ctrl/Cmd+C).",
+  "Tekst nije ispravan JSON. Proveri da si nalepio ceo tekst.": "The text isn't valid JSON. Check that you pasted all of it.",
+  "Ovo nije rezervna kopija ove aplikacije.": "This isn't a backup from this app.",
+  "Kopija je iz novije verzije aplikacije.": "The backup is from a newer version of the app.",
+  "Kopija sadrži nepoznate podatke.": "The backup contains unknown data.",
+  "Roster u kopiji nije u ispravnom formatu.": "The roster in the backup has an invalid format.",
+  "Istorija u kopiji nije u ispravnom formatu.": "The history in the backup has an invalid format.",
+  "Zameniti postojeće podatke?": "Replace existing data?",
+  "Uvozi se kopija{d}: <b>{s}</b>.": "Importing the backup{d}: <b>{s}</b>.",
+  " od {d}": " from {d}",
+  "Trenutni podaci u ovom browseru ({s}) biće <b>zamenjeni</b>.": "The current data in this browser ({s}) will be <b>replaced</b>.",
+  "Zameni i uvezi": "Replace and import",
+  "IR mesta su puna": "IR spots are full",
+  "Imaš već {n} igrača na IR. Prvo vrati nekog sa IR.": "You already have {n} players on IR. Bring one back from IR first.",
+  "Aktivna mesta su puna": "Active spots are full",
+  "Imaš već {n} aktivnih. Prebaci nekog na IR ili ga ukloni pre nego što vratiš ovog igrača.": "You already have {n} active. Move someone to IR or remove them before bringing this player back.",
+  "Prvo izaberi koga izbacuješ": "Pick who to drop first",
+  "posle trejda {n} aktivnih, izaberi još {k} za izbacivanje.": "{n} active after the trade, pick {k} more to drop.",
+  "Odlaze": "Leaving",
+  "Dolaze": "Arriving",
+  "Tvoj roster nije unet, pa se nijedan roster ne menja — trejd se samo čuva u Istoriju.": "Your roster isn't entered, so no roster changes — the trade is only saved to History.",
+  "Protivnik nije izabran, menja se samo tvoj roster.": "No opponent selected, only your roster changes.",
+  "Trejd se dogodio?": "Did the trade happen?",
+  "Sačuvani rosteri biće trajno izmenjeni kao gore, trejd ide u Istoriju kao obavljen, a polja Daješ / Dobijaš se prazne.": "Saved rosters will be permanently changed as above, the trade goes to History as completed, and the You give / You get fields are cleared.",
+  "Da, ažuriraj rostere": "Yes, update rosters",
+  "Trejd se dogodio: sačuvani rosteri su ažurirani, a trejd je u Istoriji kao obavljen.": "Trade happened: saved rosters are updated and the trade is in History as completed.",
+  "Trejd": "Trade",
+  "Link kopiran": "Link copied",
+  "Kopiraj link:": "Copy link:",
+  "Obrisati sačuvani trejd od {d}?": "Delete the saved trade from {d}?",
+  "raspored nije dostupan (potreban za datume utakmica)": "schedule unavailable (needed for game dates)",
+  "ESPN ne odgovara": "ESPN is not responding",
+  "obavljen sa {n}": "completed with {n}",
+  "obavljen": "completed",
+  "ideja": "idea",
+  "Obriši trejd": "Delete trade",
+  "Od trejda: učitavam…": "Since trade: loading…",
+  "Od trejda: greška ({e})": "Since trade: error ({e})",
+  "Od trejda": "Since trade",
+  "{a}–{b} ut.": "{a}–{b} G",
+  "Od trejda: još nema utakmica": "Since trade: no games yet",
+  "Snimak": "Snapshot",
+  "Sada": "Now",
+  "Trejd od {d}": "Trade from {d}",
+  "„Od trejda” = prosek samo utakmica posle datuma čuvanja, iz ESPN statistike po utakmici.": "“Since trade” = average of only the games after the save date, from ESPN per-game stats.",
+  "Istorija trejdova": "Trade history",
+  "{n} sačuvano": "{n} saved",
+  "prazno": "empty",
+  "Još nema sačuvanih trejdova. Klikni „Sačuvaj ideju” ili „Trejd se dogodio” ispod rezultata.": "No saved trades yet. Click “Save idea” or “Trade happened” below the score.",
+  "Nema igrača za „{q}“": "No players for “{q}”",
+};
+function t(sr, vars) {
+  let out = (LANG === 'en' && EN[sr]) || sr;
+  if (vars) out = out.replace(/\{(\w+)\}/g, (m, k) => (vars[k] ?? m));
+  return out;
+}
+/** Množina: srpski (1 / 2-4 / 5+) i engleski (1 / više) */
+function plural(n, sr, en) {
+  if (LANG === 'en') return n === 1 ? en[0] : en[1];
+  return n % 10 === 1 && n % 100 !== 11 ? sr[0] : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? sr[1] : sr[2];
+}
+const LOCALE = () => (LANG === 'en' ? 'en-US' : 'sr-Latn');
+function setLang(l) {
+  LANG = l;
+  document.documentElement.lang = l;
+  try { localStorage.setItem(LANG_KEY, JSON.stringify(l)); } catch {}
+  applyStaticText();
+  saveState();
+  render();
+}
+/** Statični tekst u HTML-u (zaglavlje, futer) */
+function applyStaticText() {
+  const gear = document.querySelector('.gear');
+  if (gear) { gear.title = t('Podešavanja i rezervna kopija'); gear.setAttribute('aria-label', t('Podešavanja')); }
+  const ft = document.querySelector('footer');
+  if (ft) ft.textContent = t('Podaci: javni ESPN fantasy API (nezvaničan). Prosek po utakmici.');
+  document.querySelectorAll('[data-lang]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.lang === LANG)));
+}
 
 /* =====================================================================
    Pomoćne funkcije
@@ -465,10 +722,10 @@ const lsGet = k => { try { return JSON.parse(localStorage.getItem(k)); } catch {
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* pun / blokiran */ } };
 const timeAgo = ts => {
   const m = Math.round((Date.now() - ts) / 60000);
-  if (m < 1) return 'upravo';
-  if (m < 60) return `pre ${m} min`;
+  if (m < 1) return t('upravo');
+  if (m < 60) return t('pre {n} min', { n: m });
   const h = Math.round(m / 60);
-  return h < 24 ? `pre ${h} h` : `pre ${Math.round(h / 24)} d`;
+  return h < 24 ? t('pre {n} h', { n: h }) : t('pre {n} d', { n: Math.round(h / 24) });
 };
 
 /* =====================================================================
@@ -544,14 +801,14 @@ async function fetchPlayers() {
       headers: { 'X-Fantasy-Filter': JSON.stringify(CONFIG.FILTER) },
       signal: ctrl.signal,
     });
-    if (!res.ok) throw new Error(`ESPN je vratio grešku ${res.status}`);
+    if (!res.ok) throw new Error(t('ESPN je vratio grešku {n}', { n: res.status }));
     const data = await res.json();
     const list = Array.isArray(data) ? data : data.players;
-    if (!Array.isArray(list) || list.length === 0) throw new Error('ESPN je vratio praznu listu igrača');
+    if (!Array.isArray(list) || list.length === 0) throw new Error(t('ESPN je vratio praznu listu igrača'));
     return list.map(compactPlayer).filter(p => p.id && p.name);
   } catch (e) {
-    if (e.name === 'AbortError') throw new Error('ESPN ne odgovara (isteklo vreme)');
-    if (e instanceof TypeError) throw new Error('Mrežna greška — proveri internet konekciju');
+    if (e.name === 'AbortError') throw new Error(t('ESPN ne odgovara (isteklo vreme)'));
+    if (e instanceof TypeError) throw new Error(t('Mrežna greška — proveri internet konekciju'));
     throw e;
   } finally {
     clearTimeout(timer);
@@ -670,16 +927,17 @@ function weekGamesHTML(p) {
   const w = weekGames(p.tid);
   if (!w) return '';
   const [mon, , , , , , sun] = currentWeekDates();
-  const tip = `${w.total} ut. ove nedelje (${mon.slice(5).split('-').reverse().join('.')}–${sun.slice(5).split('-').reverse().join('.')}, pon–ned) · preostalo: ${w.left}`;
-  return `<span class="badge wk" data-tip="${tip}">${w.total} ut.</span>`;
+  const d = iso => new Date(`${iso}T12:00:00Z`).toLocaleDateString(LOCALE(), { day: 'numeric', month: 'numeric', timeZone: 'UTC' });
+  const tip = t('{n} ut. ove nedelje ({a}–{b}, pon–ned) · preostalo: {left}', { n: w.total, a: d(mon), b: d(sun), left: w.left });
+  return `<span class="badge wk" data-tip="${esc(tip)}">${t('{n} ut.', { n: w.total })}</span>`;
 }
 
 function durabilityHTML(p) {
   const d = durability(p);
-  const prev = p.prevGP != null ? `prošla sezona: ${Math.round(p.prevGP)}/${CONFIG.PREV_SEASON_GAMES}` : 'prošla sezona: nema podataka';
+  const prev = p.prevGP != null ? t('prošla sezona: {a}/{b}', { a: Math.round(p.prevGP), b: CONFIG.PREV_SEASON_GAMES }) : t('prošla sezona: nema podataka');
   if (!d) return p.prevGP != null ? `<span class="badge" data-tip="${prev}">—</span>` : '';
   const pct = Math.round(d.pct * 100);
-  const tip = `Ove sezone: ${d.gp}/${d.n} utakmica (${pct}%)${d.approx ? ' · približno, raspored nedostupan' : ''} · ${prev}`;
+  const tip = `${t('Ove sezone: {a}/{b} utakmica ({p}%)', { a: d.gp, b: d.n, p: pct })}${d.approx ? t(' · približno, raspored nedostupan') : ''} · ${prev}`;
   return `<span class="badge gp-${d.cls}" data-tip="${esc(tip)}"><span class="frac">${d.gp}/${d.n} · </span>${pct}%</span>`;
 }
 
@@ -702,6 +960,7 @@ function saveState() {
   const q = new URLSearchParams();
   q.set('per', state.period);
   q.set('t', state.teams.map(tm => tm.ids.join(',')).join('|'));
+  if (LANG === 'en') q.set('lang', 'en'); // primalac linka vidi isti jezik
   history.replaceState(null, '', `#${q.toString().replace(/%7C/gi, '|').replace(/%2C/gi, ',')}`);
 }
 
@@ -902,36 +1161,35 @@ function renderPeriods() {
 function renderStatus() {
   const el = $('#status');
   if (state.loading) {
-    el.innerHTML = `<div class="spinner"></div><span>${state.slow ? 'ESPN sporo odgovara, još učitavam…' : 'Učitavam igrače sa ESPN-a…'}</span>`;
+    el.innerHTML = `<div class="spinner"></div><span>${state.slow ? t('ESPN sporo odgovara, još učitavam…') : t('Učitavam igrače sa ESPN-a…')}</span>`;
     return;
   }
   const info = state.loadedAt
-    ? `${state.players.length} igrača · ažurirano ${timeAgo(state.loadedAt)} · sezona ${CONFIG.SEASON - 1}-${String(CONFIG.SEASON).slice(2)}`
+    ? t('{n} igrača · ažurirano {ago} · sezona {s}', { n: state.players.length, ago: timeAgo(state.loadedAt), s: `${CONFIG.SEASON - 1}-${String(CONFIG.SEASON).slice(2)}` })
     : '';
-  el.innerHTML = `<span class="grow">${info}</span><button class="linkbtn" data-action="refresh" type="button">↻ Osveži podatke</button>`;
+  el.innerHTML = `<span class="grow">${info}</span><button class="linkbtn" data-action="refresh" type="button">↻ ${t('Osveži podatke')}</button>`;
 }
 
 function renderBanner() {
   const el = $('#banner');
-  const notice = state.notice ? `<div class="banner ok"><span>✔ ${esc(state.notice)}</span><button type="button" data-action="notice-close">U redu</button></div>` : '';
+  const notice = state.notice ? `<div class="banner ok"><span>✔ ${esc(t(state.notice))}</span><button type="button" data-action="notice-close">${t('U redu')}</button></div>` : '';
   if (!state.error) { el.innerHTML = notice; return; }
   el.innerHTML = state.stale
-    ? `<div class="banner warn"><span>⚠ ${esc(state.error)}. Prikazujem sačuvane podatke od ${timeAgo(state.loadedAt)}.</span><button data-action="refresh" type="button">Pokušaj ponovo</button></div>`
-    : `<div class="banner err"><span>✕ ${esc(state.error)}. Nema sačuvanih podataka.</span><button data-action="refresh" type="button">Pokušaj ponovo</button></div>`;
+    ? `<div class="banner warn"><span>⚠ ${esc(state.error)}. ${t('Prikazujem sačuvane podatke od {ago}.', { ago: timeAgo(state.loadedAt) })}</span><button data-action="refresh" type="button">${t('Pokušaj ponovo')}</button></div>`
+    : `<div class="banner err"><span>✕ ${esc(state.error)}. ${t('Nema sačuvanih podataka.')}</span><button data-action="refresh" type="button">${t('Pokušaj ponovo')}</button></div>`;
 }
 
-const puntNote = () => (state.punt.size ? ` · <span class="punt-note">punt ${CATS.filter(isPunt).map(c => c.label).join(', ')}</span>` : '');
+const puntNote = () => (state.punt.size ? ` · <span class="punt-note">${t('punt {list}', { list: CATS.filter(isPunt).map(c => c.label).join(', ') })}</span>` : '');
 
 function renderTradeWarn() {
   const b = myBalance();
   const miss = b.needDrops - b.drops.length;
   $('#tradewarn').innerHTML = miss > 0
-    ? `<div class="banner warn"><span>⚖ Neravnomeran trejd: izaberi koga izbacuješ (${miss}) u kartici Daješ — dotle rezultat nije realan.</span></div>` : '';
+    ? `<div class="banner warn"><span>⚖ ${t('Neravnomeran trejd: izaberi koga izbacuješ ({n}) u kartici Daješ — dotle rezultat nije realan.', { n: miss })}</span></div>` : '';
 }
 
 /** Srpski oblik reči "kategorija" uz broj */
-const kat = n => (n % 10 === 1 && n % 100 !== 11 ? 'kategoriju' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'kategorije' : 'kategorija');
-const katNom = n => (n % 10 === 1 && n % 100 !== 11 ? 'kategorija' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'kategorije' : 'kategorija');
+const kat = n => plural(n, ['kategoriju', 'kategorije', 'kategorija'], ['category', 'categories']);
 
 /** Promena kategorije iz moje perspektive (Dobijaš − Daješ), na prikazanoj preciznosti */
 function myDeltaText(c, totals) {
@@ -946,21 +1204,21 @@ function myDeltaText(c, totals) {
 function renderScore(totals, cmp) {
   const el = $('#score');
   if (cmp.active.length < 2) {
-    el.innerHTML = `<div class="score-empty">${state.players.length || !state.loading ? 'Dodaj igrače u Daješ i Dobijaš da vidiš poređenje.' : '<div class="skeleton" style="height:48px"></div>'}</div>`;
+    el.innerHTML = `<div class="score-empty">${state.players.length || !state.loading ? t('Dodaj igrače u Daješ i Dobijaš da vidiš poređenje.') : '<div class="skeleton" style="height:48px"></div>'}</div>`;
     return;
   }
   const win = cmp.score[GET], lose = cmp.score[GIVE];
   const verdict = win > lose ? 'good' : win < lose ? 'bad' : '';
   el.innerHTML = `<div class="score-row">
-      <div class="score-team ${verdict === 'good' ? 'lead' : ''}"><span class="pts">${win}</span><span class="nm">Dobijaš</span></div>
+      <div class="score-team ${verdict === 'good' ? 'lead' : ''}"><span class="pts">${win}</span><span class="nm">${SIDES[GET].name}</span></div>
       <span class="score-sep">:</span>
-      <div class="score-team ${verdict === 'bad' ? 'lead-bad' : ''}"><span class="pts">${lose}</span><span class="nm">Daješ</span></div>
+      <div class="score-team ${verdict === 'bad' ? 'lead-bad' : ''}"><span class="pts">${lose}</span><span class="nm">${SIDES[GIVE].name}</span></div>
     </div>
-    <div class="score-verdict ${verdict}">Trejd ti donosi ${win} ${kat(win)}, gubiš ${lose}${cmp.ties ? ` · ${cmp.ties} nerešeno` : ''}</div>
+    <div class="score-verdict ${verdict}">${t('Trejd ti donosi {w} {kat}, gubiš {l}', { w: win, kat: kat(win), l: lose })}${cmp.ties ? ` · ${t('{n} nerešeno', { n: cmp.ties })}` : ''}</div>
     <div class="score-note">${PERIODS.find(p => p.key === state.period).label}${puntNote()}</div>
-    <div class="score-actions"><button type="button" class="linkbtn" data-action="save-trade" title="Čuva samo ideju u Istoriju; rosteri se ne menjaju">★ Sačuvaj ideju</button><button type="button" class="linkbtn" data-action="share">🔗 Kopiraj link</button></div>
-    <div class="score-actions"><button type="button" class="btn ok" data-action="trade-done" title="Tek ovo menja sačuvane rostere">✔ Trejd se dogodio</button></div>
-    <div class="score-hint">Ovo je ideja za trejd: tvoj sačuvani roster se ne menja dok ne klikneš „Trejd se dogodio”.</div>`;
+    <div class="score-actions"><button type="button" class="linkbtn" data-action="save-trade" title="${t('Čuva samo ideju u Istoriju; rosteri se ne menjaju')}">★ ${t('Sačuvaj ideju')}</button><button type="button" class="linkbtn" data-action="share">🔗 ${t('Kopiraj link')}</button></div>
+    <div class="score-actions"><button type="button" class="btn ok" data-action="trade-done" title="${t('Tek ovo menja sačuvane rostere')}">✔ ${t('Trejd se dogodio')}</button></div>
+    <div class="score-hint">${t('Ovo je ideja za trejd: tvoj sačuvani roster se ne menja dok ne klikneš „Trejd se dogodio”.')}</div>`;
 }
 
 function avatarHTML(p) {
@@ -973,10 +1231,10 @@ function injHTML(p) {
 }
 
 /** Zaglavlje kategorije: klik = punt */
-const catTh = c => `<th class="catth${puntCls(c)}" data-punt="${c.key}" title="${isPunt(c) ? 'Vrati kategoriju' : 'Punt: isključi iz rezultata'}">${c.label}</th>`;
+const catTh = c => `<th class="catth${puntCls(c)}" data-punt="${c.key}" title="${isPunt(c) ? t('Vrati kategoriju') : t('Punt: isključi iz rezultata')}">${c.label}</th>`;
 
 function headerRow() {
-  return `<tr><th>Igrač</th><th class="minth" data-tip="Minuti u izabranom periodu. Pređi mišem ili tapni na broj za trend: sezona → 30 → 15 → 7 dana. Poslednjih 15 dana vs sezona: zeleno ↑ / crveno ↓ = ±${MINUTES.ALERT} min ili više, ↑↑ / ↓↓ = ±${MINUTES.STRONG} min ili više (bar ${MINUTES.MIN_GP} utakmice).">MIN<span class="i">ⓘ</span></th>${CATS.map(catTh).join('')}<th>GP</th></tr>`;
+  return `<tr><th>${t('Igrač')}</th><th class="minth" data-tip="${esc(t('Minuti u izabranom periodu. Pređi mišem ili tapni na broj za trend: sezona → 30 → 15 → 7 dana. Poslednjih 15 dana vs sezona: zeleno ↑ / crveno ↓ = ±{a} min ili više, ↑↑ / ↓↓ = ±{b} min ili više (bar {g} utakmice).', { a: MINUTES.ALERT, b: MINUTES.STRONG, g: MINUTES.MIN_GP }))}">MIN<span class="i">ⓘ</span></th>${CATS.map(catTh).join('')}<th>GP</th></tr>`;
 }
 
 /** Strelica trenda za igrača i kategoriju, ili '' */
@@ -1006,7 +1264,7 @@ function trendHTML(p, c) {
 
 /** Tooltip za strelicu kategorije: ista tabela kao za minute (period / vrednost / vs sezona / utakmice) */
 function catTipHTML(p, c, sv, rv) {
-  const labels = { season: 'Sezona', l30: '30 dana', l15: '15 dana', l7: '7 dana' };
+  const labels = Object.fromEntries(PERIODS.map(x => [x.key, x.label]));
   const fmt = c.type === 'pct' ? fmtPct : fmt1;
   const diffTxt = d => (c.type === 'pct'
     ? `${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d * 100).toFixed(1)} pp`
@@ -1022,14 +1280,14 @@ function catTipHTML(p, c, sv, rv) {
   }).join('');
   const d = rv - sv, good = goodDir(d);
   const rule = c.type === 'pct' ? `±${TREND.PCT_ABS * 100} pp` : `±${TREND.COUNT_REL * 100}%`;
-  return `<div class="tt-title">${c.label} po periodu</div>
-    <table class="tt"><thead><tr><th></th><th>${c.label}</th><th>vs sez.</th><th>ut.</th></tr></thead><tbody>${rows}</tbody></table>
-    <div class="tt-foot ${good ? 'up' : 'down'}">${d > 0 ? '↑' : '↓'} ${good ? 'Bolje' : 'Lošije'} u poslednjih 15 dana: ${diffTxt(d)} (prag ${rule})</div>`;
+  return `<div class="tt-title">${t('{c} po periodu', { c: c.label })}</div>
+    <table class="tt"><thead><tr><th></th><th>${c.label}</th><th>${t('vs sez.')}</th><th>${t('ut.')}</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="tt-foot ${good ? 'up' : 'down'}">${d > 0 ? '↑' : '↓'} ${good ? t('Bolje u poslednjih 15 dana: {d} (prag {r})', { d: diffTxt(d), r: rule }) : t('Lošije u poslednjih 15 dana: {d} (prag {r})', { d: diffTxt(d), r: rule })}</div>`;
 }
 
 /** Tooltip za minute: mala tabela period / MIN / razlika od sezone / utakmice */
 function minutesTipHTML(p, delta, level) {
-  const labels = { season: 'Sezona', l30: '30 dana', l15: '15 dana', l7: '7 dana' };
+  const labels = Object.fromEntries(PERIODS.map(x => [x.key, x.label]));
   const st = k => p.stats[PERIODS.find(x => x.key === k).statId(CONFIG.SEASON)];
   const season = st('season')?.GP > 0 ? st('season').MIN : null;
   const rows = MINUTES.TREND_KEYS.map(k => {
@@ -1040,10 +1298,10 @@ function minutesTipHTML(p, delta, level) {
       <td class="${cls}">${d == null ? '' : `${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d).toFixed(1)}`}</td><td>${has ? Math.round(s.GP) : 0}</td></tr>`;
   }).join('');
   const verdict = level
-    ? `<div class="tt-foot ${delta > 0 ? 'up' : 'down'}">${delta > 0 ? '↑'.repeat(level) + ' Rast' : '↓'.repeat(level) + ' Pad'} ${Math.abs(delta).toFixed(1)} min u poslednjih 15 dana</div>`
-    : `<div class="tt-foot">Bez bitne promene (prag ±${MINUTES.ALERT} min)</div>`;
-  return `<div class="tt-title">Minuti po periodu</div>
-    <table class="tt"><thead><tr><th></th><th>MIN</th><th>vs sez.</th><th>ut.</th></tr></thead><tbody>${rows}</tbody></table>${verdict}`;
+    ? `<div class="tt-foot ${delta > 0 ? 'up' : 'down'}">${(delta > 0 ? '↑' : '↓').repeat(level)} ${t(delta > 0 ? 'Rast {m} min u poslednjih 15 dana' : 'Pad {m} min u poslednjih 15 dana', { m: Math.abs(delta).toFixed(1) })}</div>`
+    : `<div class="tt-foot">${t('Bez bitne promene (prag ±{a} min)', { a: MINUTES.ALERT })}</div>`;
+  return `<div class="tt-title">${t('Minuti po periodu')}</div>
+    <table class="tt"><thead><tr><th></th><th>MIN</th><th>${t('vs sez.')}</th><th>${t('ut.')}</th></tr></thead><tbody>${rows}</tbody></table>${verdict}`;
 }
 
 /** MIN ćelija: minuti za izabrani period + kompaktan trend (sezona → 30 → 15 → 7 dana) */
@@ -1072,10 +1330,10 @@ function playerRowHTML(p, { tags = [], cls = '', actions = '', sign = '', drag =
     if (c.type === 'pct') return `<td${pc}>${tr}${fmtPct(line[c.att] > 0 ? line[c.made] / line[c.att] : null)}</td>`;
     return `<td${pc}>${tr}${sign}${fmt1(line[c.key])}</td>`;
   }).join('');
-  const tagHTML = tags.map(t => `<span class="slot-tag ${t.cls}">${t.text}</span>`).join('');
+  const tagHTML = tags.map(tg => `<span class="slot-tag ${tg.cls}">${tg.raw ? tg.text : t(tg.text)}</span>`).join('');
   return `<tr class="${line ? '' : 'nodata'} ${cls}" ${attrs}>
-    <td><div class="pl">${drag ? `<span class="drag" data-drag="${drag}" title="Prevuci gore/dole" aria-label="Pomeri igrača">≡</span>` : ''}${avatarHTML(p)}<div class="txt">${tagHTML ? `<span class="tags">${tagHTML}</span>` : ''}<span class="nm" title="${esc(p.name)}">${esc(p.name)}</span>
-      <span class="meta">${p.team} · ${p.pos} ${injHTML(p)} ${durabilityHTML(p)} ${weekGamesHTML(p)} ${line ? '' : '<span class="flag" title="Nema podataka za ovaj period, ne računa se">0 GP</span>'}</span>
+    <td><div class="pl">${drag ? `<span class="drag" data-drag="${drag}" title="${t('Prevuci gore/dole')}" aria-label="${t('Pomeri igrača')}">≡</span>` : ''}${avatarHTML(p)}<div class="txt">${tagHTML ? `<span class="tags">${tagHTML}</span>` : ''}<span class="nm" title="${esc(p.name)}">${esc(p.name)}</span>
+      <span class="meta">${p.team} · ${p.pos} ${injHTML(p)} ${durabilityHTML(p)} ${weekGamesHTML(p)} ${line ? '' : `<span class="flag" title="${t('Nema podataka za ovaj period, ne računa se')}">0 GP</span>`}</span>
       </div>${actions ? `<span class="acts">${actions}</span>` : ''}</div></td>
     ${minutesCell(p, line)}${cells}<td>${line ? Math.round(line.GP) : '0'}</td></tr>`;
 }
@@ -1087,9 +1345,9 @@ function playerRow(p, ti, kind = 'recv') {
   const slot = SLOT_LABEL[kind];
   const mine = ti === GIVE && rosterIds(state.rosters.my).includes(p.id);
   const opp = ti === GET && rosterIds(rosterOf('opp')).includes(p.id);
-  const tags = slot ? [slot] : mine ? [{ text: 'Moj tim', cls: 'tag-mine' }] : opp ? [{ text: esc(rosterOf('opp').name), cls: 'tag-mine' }] : [];
+  const tags = slot ? [slot] : mine ? [{ text: 'Moj tim', cls: 'tag-mine' }] : opp ? [{ text: esc(rosterOf('opp').name), cls: 'tag-mine', raw: true }] : [];
   return playerRowHTML(p, { tags, sign: kind === 'd' ? '−' : '',
-    actions: `<button class="rm" type="button" data-action="remove" data-team="${ti}" data-id="${p.id}" aria-label="Ukloni ${esc(p.name)}">✕</button>` });
+    actions: `<button class="rm" type="button" data-action="remove" data-team="${ti}" data-id="${p.id}" aria-label="${t('Ukloni')} ${esc(p.name)}">✕</button>` });
 }
 
 function searchBoxHTML(key, placeholder, label = '') {
@@ -1099,7 +1357,7 @@ function searchBoxHTML(key, placeholder, label = '') {
     ${label}
     <div class="search-in">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input type="search" data-search="${key}" placeholder="${disabled ? (state.loading ? 'Učitavam igrače…' : 'Nema podataka') : placeholder}" autocomplete="off" autocorrect="off" spellcheck="false"
+      <input type="search" data-search="${key}" placeholder="${disabled ? (state.loading ? t('Učitavam igrače…') : t('Nema podataka')) : placeholder}" autocomplete="off" autocorrect="off" spellcheck="false"
         value="${esc(ui.query)}" ${disabled ? 'disabled' : ''} role="combobox" aria-expanded="false" aria-controls="dd-${key}">
       <ul class="dd" id="dd-${key}" role="listbox" hidden></ul>
     </div>
@@ -1107,6 +1365,7 @@ function searchBoxHTML(key, placeholder, label = '') {
 }
 
 function totalRow(t, cmp, ti) {
+  const tt = window.t; // parametar t zaklanja funkciju prevoda
   const cells = CATS.map(c => {
     const mark = cmp.cats[c.key].marks[ti];
     const v = t.vals[c.key];
@@ -1115,12 +1374,12 @@ function totalRow(t, cmp, ti) {
     }
     return `<td class="${mark}${puntCls(c)}">${fmt1(v)}</td>`;
   }).join('');
-  return `<tr class="total"><td>Ukupno <span class="meta" style="color:var(--muted);font-weight:500;font-size:11px">(${t.counted})</span></td><td></td>${cells}<td></td></tr>`;
+  return `<tr class="total"><td>${tt('Ukupno')} <span class="meta" style="color:var(--muted);font-weight:500;font-size:11px">(${t.counted})</span></td><td></td>${cells}<td></td></tr>`;
 }
 
 function renderTeams(totals, cmp) {
   const html = state.teams.map((team, ti) => {
-    const t = totals[ti];
+    const tot = totals[ti];
     const players = team.ids.map(id => state.byId.get(id)).filter(Boolean);
     const unknown = team.ids.length - players.length;
     const better = cmp.active.length >= 2 ? cmp.score[ti] : null;
@@ -1129,22 +1388,22 @@ function renderTeams(totals, cmp) {
     const slotList = ti === GIVE ? b.drops : b.waivers;
     const slotRows = slotList.map(id => state.byId.get(id)).filter(Boolean).map(p => playerRowHTML(p, {
       tags: [ti === GIVE ? { text: 'Izbacuješ', cls: 'tag-out' } : { text: 'Waiver', cls: 'tag-in' }], cls: ti === GIVE ? 'slot-d' : 'slot-w',
-      actions: `<button class="rm" type="button" data-action="${ti === GIVE ? 'bal-d-remove' : 'bal-w-remove'}" data-kind="my" data-id="${p.id}" aria-label="Ukloni">✕</button>` })).join('');
+      actions: `<button class="rm" type="button" data-action="${ti === GIVE ? 'bal-d-remove' : 'bal-w-remove'}" data-kind="my" data-id="${p.id}" aria-label="${t('Ukloni')}">✕</button>` })).join('');
     const slotInputs = ti === GIVE ? dropInputsHTML(b) : waiverInputHTML(b);
     return `<section class="card" data-team-card="${ti}">
       <div class="card-h">
         <span class="dot" style="background:${SIDES[ti].color}"></span>
         <div class="side-title"><b>${SIDES[ti].name}</b><small>${esc(sideSubtitle(ti))}</small></div>
-        ${better != null ? `<span class="team-badge ${ti === GET && cmp.score[GET] > cmp.score[GIVE] ? 'lead' : ''}">bolje u ${better} kat.</span>` : ''}
+        ${better != null ? `<span class="team-badge ${ti === GET && cmp.score[GET] > cmp.score[GIVE] ? 'lead' : ''}">${t('bolje u {n} kat.', { n: better })}</span>` : ''}
       </div>
-      ${searchBoxHTML(String(ti), ti === GIVE ? 'Koga daješ…' : 'Koga dobijaš…')}
+      ${searchBoxHTML(String(ti), ti === GIVE ? t('Koga daješ…') : t('Koga dobijaš…'))}
       ${players.length
         ? `<div class="tscroll"><table><thead>${headerRow()}</thead><tbody>${players.map(p => playerRow(p, ti)).join('')}${slotRows}</tbody>
-           <tfoot>${totalRow(t, cmp, ti)}</tfoot></table></div>`
-        : `<div class="empty-team">${unknown ? 'Igrači iz linka nisu pronađeni u listi.' : `Još nema igrača. Kucaj ime iznad.`}</div>`}
+           <tfoot>${totalRow(tot, cmp, ti)}</tfoot></table></div>`
+        : `<div class="empty-team">${unknown ? t('Igrači iz linka nisu pronađeni u listi.') : t('Još nema igrača. Kucaj ime iznad.')}</div>`}
       ${slotInputs}
       ${warn}
-      ${t.missing.length && players.length ? `<div class="card-warn">⚠ Bez podataka za period „${PERIODS.find(p => p.key === state.period).label}“, ne računa se: ${t.missing.map(esc).join(', ')}</div>` : ''}
+      ${tot.missing.length && players.length ? `<div class="card-warn">⚠ ${t('Bez podataka za period „{p}“, ne računa se: {list}', { p: PERIODS.find(p => p.key === state.period).label, list: tot.missing.map(esc).join(', ') })}</div>` : ''}
     </section>`;
   });
   $('#teams').innerHTML = html.join('');
@@ -1154,12 +1413,12 @@ function renderTeams(totals, cmp) {
 function dropInputsHTML(b) {
   const parts = [];
   for (let i = b.drops.length; i < b.needDrops; i++) {
-    const label = `<span class="slot-tag slot-d-tag">Izbacuješ ${i + 1}/${b.needDrops}</span>`;
+    const label = `<span class="slot-tag slot-d-tag">${t('Izbacuješ {a}/{b}', { a: i + 1, b: b.needDrops })}</span>`;
     if (b.mode === 'roster') {
       const opts = b.pre.filter(id => !b.drops.includes(id)).map(id => `<option value="${id}">${esc(state.byId.get(id)?.name || id)}</option>`).join('');
-      parts.push(`<label class="bal-row">${label}<select data-drop="my" data-idx="${i}"><option value="">— koga izbacuješ sa rostera —</option>${opts}</select></label>`);
+      parts.push(`<label class="bal-row">${label}<select data-drop="my" data-idx="${i}"><option value="">${t('— koga izbacuješ sa rostera —')}</option>${opts}</select></label>`);
     } else {
-      parts.push(searchBoxHTML('my-d', 'Koga izbacuješ sa svog rostera…', label));
+      parts.push(searchBoxHTML('my-d', t('Koga izbacuješ sa svog rostera…'), label));
       break; // jedno polje za pretragu; sledeće se pojavi posle izbora
     }
   }
@@ -1168,12 +1427,12 @@ function dropInputsHTML(b) {
 /** Dobijaš: waiver dodatak (opciono) kad dajem više nego što dobijam */
 function waiverInputHTML(b) {
   if (b.waiverSlots <= b.waivers.length) return '';
-  return `<div class="balance top">${searchBoxHTML('my-w', 'Koga uzimaš sa waivera… (opciono)',
-    `<span class="slot-tag slot-w-tag">Waiver dodatak ${b.waivers.length + 1}/${b.waiverSlots} · opciono</span>`)}</div>`;
+  return `<div class="balance top">${searchBoxHTML('my-w', t('Koga uzimaš sa waivera… (opciono)'),
+    `<span class="slot-tag slot-w-tag">${t('Waiver dodatak {a}/{b} · opciono', { a: b.waivers.length + 1, b: b.waiverSlots })}</span>`)}</div>`;
 }
 
 /** Podnaslov strane (ime protivnika kad je izabran) */
-const sideSubtitle = ti => (ti === GET && rosterOf('opp') ? `Protivnik: ${rosterOf('opp').name}` : SIDES[ti].sub);
+const sideSubtitle = ti => (ti === GET && rosterOf('opp') ? t('Protivnik: {n}', { n: rosterOf('opp').name }) : SIDES[ti].sub);
 /** Upozorenja ispod strane trejda: igrač nije na rosteru koji ga daje */
 function tradeWarnings(ti) {
   const r = ti === GIVE ? state.rosters.my : rosterOf('opp');
@@ -1182,8 +1441,8 @@ function tradeWarnings(ti) {
   const alreadyMine = ti === GET ? state.teams[GET].ids.filter(id => rosterIds(state.rosters.my).includes(id)) : [];
   const nm = id => esc(state.byId.get(id)?.name || id);
   return [
-    notOn.length ? `<div class="card-warn">⚠ Nije na rosteru ${ti === GIVE ? 'tvog tima' : esc(r.name)}: ${notOn.map(nm).join(', ')}</div>` : '',
-    alreadyMine.length ? `<div class="card-warn">⚠ Već je na tvom rosteru: ${alreadyMine.map(nm).join(', ')}</div>` : '',
+    notOn.length ? `<div class="card-warn">⚠ ${ti === GIVE ? t('Nije na rosteru tvog tima: {list}', { list: notOn.map(nm).join(', ') }) : t('Nije na rosteru {team}: {list}', { team: esc(r.name), list: notOn.map(nm).join(', ') })}</div>` : '',
+    alreadyMine.length ? `<div class="card-warn">⚠ ${t('Već je na tvom rosteru: {list}', { list: alreadyMine.map(nm).join(', ') })}</div>` : '',
   ].join('');
 }
 
@@ -1197,10 +1456,10 @@ function renderCompare(totals, cmp) {
       return `<td class="${r.marks[i]}${puntCls(c)}">${c.type === 'pct' ? fmtPct(v) : fmt1(v)}</td>`;
     }).join('');
     const diff = r.punted ? 'punt' : r.winner == null ? '–' : (c.type === 'pct' ? `${(r.margin * 100).toFixed(1)} pp` : r.margin.toFixed(1));
-    return `<tr class="${r.punted ? 'punt-row' : ''}"><td class="catth${puntCls(c)}" data-punt="${c.key}" title="Klik: punt"><b>${c.label}</b></td>${tds}<td class="${puntCls(c).trim()}" style="color:var(--muted)">${diff}</td></tr>`;
+    return `<tr class="${r.punted ? 'punt-row' : ''}"><td class="catth${puntCls(c)}" data-punt="${c.key}" title="${t('Klik: punt')}"><b>${c.label}</b></td>${tds}<td class="${puntCls(c).trim()}" style="color:var(--muted)">${diff}</td></tr>`;
   }).join('');
-  el.innerHTML = `<div class="section-t">Poređenje kategorija <span class="hint">· klik na kategoriju = punt</span></div>
-    <div class="card"><div class="tscroll"><table class="cmp"><thead><tr><th>Kat.</th>${SIDES.map(sd => `<th style="color:${sd.color}">${sd.name}</th>`).join('')}<th>Razlika</th></tr></thead>
+  el.innerHTML = `<div class="section-t">${t('Poređenje kategorija')} <span class="hint">· ${t('klik na kategoriju = punt')}</span></div>
+    <div class="card"><div class="tscroll"><table class="cmp"><thead><tr><th>${t('Kat.')}</th>${SIDES.map(sd => `<th style="color:${sd.color}">${sd.name}</th>`).join('')}<th>${t('Razlika')}</th></tr></thead>
     <tbody>${rows}</tbody></table></div></div>`;
 }
 
@@ -1216,33 +1475,36 @@ function renderReport(totals, cmp) {
   const win = cmp.score[GET], lose = cmp.score[GIVE];
   const paras = [];
   paras.push(win > lose
-    ? `Na osnovu proseka (${per}) trejd ti se <span class="w">isplati</span>: dobijaš ${win}, gubiš ${lose} ${kat(lose)}.`
+    ? t('Na osnovu proseka ({per}) trejd ti se <span class="w">isplati</span>: dobijaš {w}, gubiš {l} {kat}.', { per, w: win, l: lose, kat: kat(lose) })
     : win < lose
-      ? `Na osnovu proseka (${per}) trejd ti se <span class="l">ne isplati</span>: dobijaš ${win}, gubiš ${lose} ${kat(lose)}.`
-      : `Na osnovu proseka (${per}) trejd je izjednačen: ${win} : ${lose}.`);
+      ? t('Na osnovu proseka ({per}) trejd ti se <span class="l">ne isplati</span>: dobijaš {w}, gubiš {l} {kat}.', { per, w: win, l: lose, kat: kat(lose) })
+      : t('Na osnovu proseka ({per}) trejd je izjednačen: {w} : {l}.', { per, w: win, l: lose }));
   const listFor = side => CATS.filter(c => cmp.cats[c.key].winner === side).map(c => `${c.label} (${myDeltaText(c, totals)})`);
   const gain = listFor(GET), loss = listFor(GIVE);
-  paras.push(gain.length ? `Popravljaš: ${gain.join(', ')}.` : 'Ne popravljaš nijednu kategoriju.');
-  if (loss.length) paras.push(`Kvariš: ${loss.join(', ')}.`);
+  paras.push(gain.length ? t('Popravljaš: {list}.', { list: gain.join(', ') }) : t('Ne popravljaš nijednu kategoriju.'));
+  if (loss.length) paras.push(t('Kvariš: {list}.', { list: loss.join(', ') }));
   const close = CATS.filter(c => {
     const r = cmp.cats[c.key];
     if (r.winner == null) return false;
     const base = Math.abs(totals[r.winner].vals[c.key]) || 1;
     return (c.type === 'pct' ? r.margin / 0.02 : r.margin / base / 0.05) < 1;
   }).map(c => c.label);
-  if (close.length) paras.push(`Tesno: ${close.join(', ')}.`);
+  if (close.length) paras.push(t('Tesno: {list}.', { list: close.join(', ') }));
   const tied = CATS.filter(c => !isPunt(c) && cmp.cats[c.key].winner == null).map(c => c.label);
-  if (tied.length) paras.push(`Nerešeno: ${tied.join(', ')}.`);
-  if (state.punt.size) paras.push(`Punt (ne računa se): ${CATS.filter(isPunt).map(c => c.label).join(', ')}.`);
+  if (tied.length) paras.push(t('Nerešeno: {list}.', { list: tied.join(', ') }));
+  if (state.punt.size) paras.push(t('Punt (ne računa se): {list}.', { list: CATS.filter(isPunt).map(c => c.label).join(', ') }));
   const missing = cmp.active.flatMap(i => totals[i].missing);
-  if (missing.length) paras.push(`Napomena: bez podataka za ovaj period i ne računaju se: ${missing.map(esc).join(', ')}.`);
-  el.innerHTML = `<div class="section-t">Izveštaj</div><div class="report">${paras.map(p => `<p>${p}</p>`).join('')}</div>`;
+  if (missing.length) paras.push(t('Napomena: bez podataka za ovaj period i ne računaju se: {list}.', { list: missing.map(esc).join(', ') }));
+  el.innerHTML = `<div class="section-t">${t('Izveštaj')}</div><div class="report">${paras.map(p => `<p>${p}</p>`).join('')}</div>`;
 }
 
 /* =====================================================================
    Rosteri: Moj tim (i protivnik) pre i posle trejda
    ===================================================================== */
-const KINDS = { my: { title: 'Moj tim', out: GIVE, in: GET }, opp: { title: 'Protivnik', out: GET, in: GIVE } };
+const KINDS = {
+  my: { srTitle: 'Moj tim', out: GIVE, in: GET, get title() { return t(this.srTitle); } },
+  opp: { srTitle: 'Protivnik', out: GET, in: GIVE, get title() { return t(this.srTitle); } },
+};
 /** Roster za vrstu: 'my' ili 'opp' (izabrani protivnik, ili null) */
 const rosterOf = kind => (kind === 'my' ? state.rosters.my : state.rosters.opps[state.rosters.oppSel] || null);
 const rosterIds = r => (r ? r.players.map(x => x.id) : []);
@@ -1278,7 +1540,7 @@ function rosterPlan(kind) {
   return { r, activeBefore, irIds, outIds, incoming, drops, needDrops, waivers, waiverSlots, pre, activeAfter, notOnRoster, tradeTouches, missingDrops: needDrops - drops.length };
 }
 
-const fmtShortDate = iso => (iso ? new Date(iso).toLocaleDateString('sr-Latn', { day: 'numeric', month: 'numeric', year: 'numeric' }) : '—');
+const fmtShortDate = iso => (iso ? new Date(iso).toLocaleDateString(LOCALE(), LANG === 'en' ? { day: 'numeric', month: 'short', year: 'numeric' } : { day: 'numeric', month: 'numeric', year: 'numeric' }) : '—');
 const isStale = iso => iso && Date.now() - new Date(iso).getTime() > ROSTER.STALE_DAYS * 864e5;
 
 /** Red rostera u istom stilu kao gornje tabele, sa oznakama i akcijama */
@@ -1291,11 +1553,11 @@ function rosterRow(p, kind, { tags = [], cls = '', actions = '', saved = false, 
 
 /** Tri reda ispod rostera: Pre / Posle / Razlika (iste kolone kao tabele igrača) */
 function summaryRows(before, after, showAfter) {
-  const cells = t => CATS.map(c => {
-    const v = t.vals[c.key];
-    return `<td class="${puntCls(c).trim()}">${c.type === 'pct' ? `${fmtPct(v)}<span class="sub">${t.sum[c.made].toFixed(1)}/${t.sum[c.att].toFixed(1)}</span>` : fmt1(v)}</td>`;
+  const cells = tot => CATS.map(c => {
+    const v = tot.vals[c.key];
+    return `<td class="${puntCls(c).trim()}">${c.type === 'pct' ? `${fmtPct(v)}<span class="sub">${tot.sum[c.made].toFixed(1)}/${tot.sum[c.att].toFixed(1)}</span>` : fmt1(v)}</td>`;
   }).join('');
-  if (!showAfter) return `<tr class="total"><td>Ukupno <span class="cnt">(${before.counted} aktivnih)</span></td><td></td>${cells(before)}<td></td></tr>`;
+  if (!showAfter) return `<tr class="total"><td>${t('Ukupno')} <span class="cnt">(${t('{n} aktivnih', { n: before.counted })})</span></td><td></td>${cells(before)}<td></td></tr>`;
   const diff = CATS.map(c => {
     const b = cmpKey(c, before.vals[c.key]), a = cmpKey(c, after.vals[c.key]);
     if (a == null || b == null) return `<td class="${puntCls(c).trim()}">-</td>`;
@@ -1304,15 +1566,15 @@ function summaryRows(before, after, showAfter) {
     const txt = c.type === 'pct' ? `${d > 0 ? '+' : d < 0 ? '−' : ''}${Math.abs(d * 100).toFixed(1)} pp` : `${d > 0 ? '+' : d < 0 ? '−' : ''}${Math.abs(d).toFixed(1)}`;
     return `<td class="${d === 0 ? '' : better ? 'win' : 'lose'}${puntCls(c)}">${txt}</td>`;
   }).join('');
-  return `<tr class="sumrow"><td>Pre trejda <span class="cnt">(${before.counted})</span></td><td></td>${cells(before)}<td></td></tr>
-    <tr class="sumrow"><td>Posle trejda <span class="cnt">(${after.counted})</span></td><td></td>${cells(after)}<td></td></tr>
-    <tr class="total"><td>Razlika</td><td></td>${diff}<td></td></tr>`;
+  return `<tr class="sumrow"><td>${t('Pre trejda')} <span class="cnt">(${before.counted})</span></td><td></td>${cells(before)}<td></td></tr>
+    <tr class="sumrow"><td>${t('Posle trejda')} <span class="cnt">(${after.counted})</span></td><td></td>${cells(after)}<td></td></tr>
+    <tr class="total"><td>${t('Razlika')}</td><td></td>${diff}<td></td></tr>`;
 }
 
 function rosterTableHTML(kind, plan) {
   const P = id => state.byId.get(id);
-  const rm = (id, label = 'Ukloni sa rostera') => `<button class="rm" type="button" data-action="r-remove" data-kind="${kind}" data-id="${id}" aria-label="${label}">✕</button>`;
-  const irBtn = (id, toIr) => `<button class="mini" type="button" data-action="r-ir" data-kind="${kind}" data-id="${id}" title="${toIr ? 'Prebaci na IR' : 'Vrati sa IR'}">${toIr ? '→IR' : '←IR'}</button>`;
+  const rm = (id, label = t('Ukloni sa rostera')) => `<button class="rm" type="button" data-action="r-remove" data-kind="${kind}" data-id="${id}" aria-label="${label}">✕</button>`;
+  const irBtn = (id, toIr) => `<button class="mini" type="button" data-action="r-ir" data-kind="${kind}" data-id="${id}" title="${toIr ? t('Prebaci na IR') : t('Vrati sa IR')}">${toIr ? '→IR' : '←IR'}</button>`;
   const outSet = new Set(plan.outIds), dropSet = new Set(plan.drops);
   const rows = [];
   for (const id of plan.activeBefore) {
@@ -1328,10 +1590,10 @@ function rosterTableHTML(kind, plan) {
   for (const id of plan.waivers) {
     const p = P(id); if (!p) continue;
     rows.push(rosterRow(p, kind, { tags: [{ text: 'Waiver', cls: 'tag-in' }], cls: 'arriving',
-      actions: `<button class="rm" type="button" data-action="bal-w-remove" data-kind="${kind}" data-id="${id}" aria-label="Ukloni waiver">✕</button>` }));
+      actions: `<button class="rm" type="button" data-action="bal-w-remove" data-kind="${kind}" data-id="${id}" aria-label="${t('Ukloni waiver')}">✕</button>` }));
   }
   if (plan.irIds.length) {
-    rows.push(`<tr class="irhead"><td colspan="${CATS.length + 3}">IR · ne računa se u zbirove (${plan.irIds.length}/${ROSTER.IR})</td></tr>`);
+    rows.push(`<tr class="irhead"><td colspan="${CATS.length + 3}">${t('IR · ne računa se u zbirove ({a}/{b})', { a: plan.irIds.length, b: ROSTER.IR })}</td></tr>`);
     for (const id of plan.irIds) {
       const p = P(id); if (!p) continue;
       const tags = [{ text: 'IR', cls: 'tag-ir' }, ...(outSet.has(id) ? [{ text: 'Odlazi', cls: 'tag-out' }] : [])];
@@ -1344,10 +1606,10 @@ function rosterTableHTML(kind, plan) {
 function balanceHTML(kind, plan) {
   if (kind === 'my') {
     const notes = [];
-    if (plan.needDrops) notes.push(`Koga izbacuješ (${plan.drops.length}/${plan.needDrops}) biraš gore, u kartici Daješ.`);
-    if (plan.waiverSlots) notes.push(`Waiver dodatak (opciono, ${plan.waivers.length}/${plan.waiverSlots}) biraš gore, u kartici Dobijaš.`);
+    if (plan.needDrops) notes.push(t('Koga izbacuješ ({a}/{b}) biraš gore, u kartici Daješ.', { a: plan.drops.length, b: plan.needDrops }));
+    if (plan.waiverSlots) notes.push(t('Waiver dodatak (opciono, {a}/{b}) biraš gore, u kartici Dobijaš.', { a: plan.waivers.length, b: plan.waiverSlots }));
     const warn = plan.missingDrops > 0
-      ? `<div class="card-warn strong">⚠ Posle trejda imaš ${plan.pre.length} aktivnih (max ${ROSTER.ACTIVE}). Izaberi koga izbacuješ u kartici Daješ — dotle Razlika nije realna.</div>` : '';
+      ? `<div class="card-warn strong">⚠ ${t('Posle trejda imaš {n} aktivnih (max {m}). Izaberi koga izbacuješ u kartici Daješ — dotle Razlika nije realna.', { n: plan.pre.length, m: ROSTER.ACTIVE })}</div>` : '';
     return (notes.length ? `<div class="balance"><span class="hint">${notes.join(' ')}</span></div>` : '') + warn;
   }
   const parts = [];
@@ -1355,15 +1617,15 @@ function balanceHTML(kind, plan) {
     const cur = plan.drops[i];
     const opts = plan.pre.filter(id => id === cur || !plan.drops.includes(id))
       .map(id => `<option value="${id}" ${id === cur ? 'selected' : ''}>${esc(state.byId.get(id)?.name || id)}</option>`).join('');
-    parts.push(`<label class="bal-row"><span class="slot-tag slot-d-tag">Koga izbacuješ ${i + 1}/${plan.needDrops}</span>
-      <select data-drop="${kind}" data-idx="${i}"><option value="">— izaberi igrača —</option>${opts}</select></label>`);
+    parts.push(`<label class="bal-row"><span class="slot-tag slot-d-tag">${t('Izbacuješ {a}/{b}', { a: i + 1, b: plan.needDrops })}</span>
+      <select data-drop="${kind}" data-idx="${i}"><option value="">${t('— izaberi igrača —')}</option>${opts}</select></label>`);
   }
   if (plan.waiverSlots > plan.waivers.length) {
-    parts.push(searchBoxHTML(`${kind}-w`, 'Koga uzimaš sa waivera… (opciono)',
-      `<span class="slot-tag slot-w-tag">Waiver dodatak ${plan.waivers.length + 1}/${plan.waiverSlots} · opciono</span>`));
+    parts.push(searchBoxHTML(`${kind}-w`, t('Koga uzimaš sa waivera… (opciono)'),
+      `<span class="slot-tag slot-w-tag">${t('Waiver dodatak {a}/{b} · opciono', { a: plan.waivers.length + 1, b: plan.waiverSlots })}</span>`));
   }
   const warn = plan.missingDrops > 0
-    ? `<div class="card-warn strong">⚠ Posle trejda imaš ${plan.pre.length} aktivnih (max ${ROSTER.ACTIVE}). Izaberi koga izbacuješ (${plan.missingDrops}) — dotle Razlika nije realna.</div>` : '';
+    ? `<div class="card-warn strong">⚠ ${t('Posle trejda imaš {n} aktivnih (max {m}). Izaberi koga izbacuješ ({k}) — dotle Razlika nije realna.', { n: plan.pre.length, m: ROSTER.ACTIVE, k: plan.missingDrops })}</div>` : '';
   return parts.length || warn ? `<div class="balance">${parts.join('')}</div>${warn}` : '';
 }
 
@@ -1375,18 +1637,18 @@ function renderRosterSection(kind) {
   const head = kind === 'opp' ? oppPickerHTML() : '';
   let body = '', hint = '';
   if (!r) {
-    body = `<div class="empty-team">Izaberi sačuvanog protivnika ili unesi novog.</div>`;
-    hint = 'nije izabran';
+    body = `<div class="empty-team">${t('Izaberi sačuvanog protivnika ili unesi novog.')}</div>`;
+    hint = t('nije izabran');
   } else {
     const plan = rosterPlan(kind);
     const full = activeCount(r) >= ROSTER.ACTIVE && irCount(r) >= ROSTER.IR;
     const addBox = full
-      ? `<div class="empty-team">Roster je pun (${ROSTER.ACTIVE} + ${ROSTER.IR} IR). Ukloni igrača da dodaš novog.</div>`
-      : searchBoxHTML(`${kind}-add`, activeCount(r) >= ROSTER.ACTIVE ? 'Aktivna mesta su puna — novi igrač ide na IR…' : 'Dodaj igrača na roster…');
-    hint = `${activeCount(r)}/${ROSTER.ACTIVE} aktivnih · ${irCount(r)}/${ROSTER.IR} IR`;
-    const updated = `<div class="r-meta">Ažurirano: ${fmtShortDate(r.updated)}${isStale(r.updated) ? ' <span class="stale">· Roster možda nije aktuelan, proveri izmene.</span>' : ''}</div>`;
+      ? `<div class="empty-team">${t('Roster je pun ({a} + {b} IR). Ukloni igrača da dodaš novog.', { a: ROSTER.ACTIVE, b: ROSTER.IR })}</div>`
+      : searchBoxHTML(`${kind}-add`, activeCount(r) >= ROSTER.ACTIVE ? t('Aktivna mesta su puna — novi igrač ide na IR…') : t('Dodaj igrača na roster…'));
+    hint = t('{a}/{b} aktivnih · {c}/{d} IR', { a: activeCount(r), b: ROSTER.ACTIVE, c: irCount(r), d: ROSTER.IR });
+    const updated = `<div class="r-meta">${t('Ažurirano: {d}', { d: fmtShortDate(r.updated) })}${isStale(r.updated) ? ` <span class="stale">· ${t('Roster možda nije aktuelan, proveri izmene.')}</span>` : ''}</div>`;
     if (!r.players.length) {
-      body = `${updated}${addBox}<div class="empty-team cta">${kind === 'my' ? 'Unesi svoj roster' : 'Unesi roster protivnika'} (${ROSTER.ACTIVE} aktivnih + ${ROSTER.IR} IR). Čuva se samo u ovom browseru.</div>`;
+      body = `${updated}${addBox}<div class="empty-team cta">${t(kind === 'my' ? 'Unesi svoj roster ({a} aktivnih + {b} IR). Čuva se samo u ovom browseru.' : 'Unesi roster protivnika ({a} aktivnih + {b} IR). Čuva se samo u ovom browseru.', { a: ROSTER.ACTIVE, b: ROSTER.IR })}</div>`;
     } else {
       const before = sumPlayers(plan.activeBefore), after = sumPlayers(plan.activeAfter);
       const missing = [...new Set([...before.missing, ...after.missing])];
@@ -1394,18 +1656,18 @@ function renderRosterSection(kind) {
       const view = plan.tradeTouches ? (state.ui.rosterView?.[kind] || 'after') : 'saved';
       const showPlan = view === 'after' ? plan : { ...plan, outIds: [], incoming: [], drops: [], waivers: [] };
       const toggle = plan.tradeTouches ? `<div class="view-row">
-          <div class="seg small" role="group" aria-label="Prikaz rostera">
-            <button type="button" data-rview="${kind}:after" aria-pressed="${view === 'after'}">Posle trejda (pregled)</button>
-            <button type="button" data-rview="${kind}:saved" aria-pressed="${view === 'saved'}">Sačuvan roster</button>
+          <div class="seg small" role="group" aria-label="${t('Prikaz rostera')}">
+            <button type="button" data-rview="${kind}:after" aria-pressed="${view === 'after'}">${t('Posle trejda (pregled)')}</button>
+            <button type="button" data-rview="${kind}:saved" aria-pressed="${view === 'saved'}">${t('Sačuvan roster')}</button>
           </div>
-          <span class="preview-note">${view === 'after' ? 'Samo pregled — sačuvan roster se ne menja dok trejd ne potvrdiš.' : 'Ovo je tvoj sačuvani roster, bez trejda.'}</span>
+          <span class="preview-note">${view === 'after' ? t('Samo pregled — sačuvan roster se ne menja dok trejd ne potvrdiš.') : t('Ovo je tvoj sačuvani roster, bez trejda.')}</span>
         </div>` : '';
       body = `${updated}${addBox}${toggle}
         <div class="tscroll"><table class="rtable"><thead>${headerRow()}</thead><tbody>${rosterTableHTML(kind, showPlan)}</tbody></table></div>
         ${view === 'after' ? balanceHTML(kind, plan) : ''}
         <div class="tscroll"><table class="rtable sumtable"><tbody>${summaryRows(before, after, view === 'after')}</tbody></table></div>
-        ${missing.length ? `<div class="card-warn">⚠ Bez podataka za izabrani period, ne računa se: ${missing.map(esc).join(', ')}</div>` : ''}
-        ${plan.tradeTouches && giveIds().length && getIds().length ? `<div class="r-done"><button type="button" class="btn ok" data-action="trade-done">✔ Trejd se dogodio — ažuriraj rostere</button></div>` : ''}`;
+        ${missing.length ? `<div class="card-warn">⚠ ${t('Bez podataka za izabrani period, ne računa se: {list}', { list: missing.map(esc).join(', ') })}</div>` : ''}
+        ${plan.tradeTouches && giveIds().length && getIds().length ? `<div class="r-done"><button type="button" class="btn ok" data-action="trade-done">✔ ${t('Trejd se dogodio — ažuriraj rostere')}</button></div>` : ''}`;
     }
   }
   el.innerHTML = `<details class="card fold" data-fold="${kind}" ${open ? 'open' : ''}>
@@ -1422,15 +1684,15 @@ function oppPickerHTML() {
   const mode = state.ui.oppEdit; // 'new' | 'rename' | null
   const r = rosterOf('opp');
   const form = mode
-    ? `<div class="opp-form"><input type="text" data-opp-name maxlength="30" placeholder="Ime tima, npr. Marko" value="${mode === 'rename' && r ? esc(r.name) : ''}">
-        <button type="button" class="btn" data-action="opp-save">${mode === 'new' ? 'Napravi' : 'Sačuvaj'}</button>
-        <button type="button" class="linkbtn" data-action="opp-cancel">Otkaži</button></div>`
+    ? `<div class="opp-form"><input type="text" data-opp-name maxlength="30" placeholder="${t('Ime tima, npr. Marko')}" value="${mode === 'rename' && r ? esc(r.name) : ''}">
+        <button type="button" class="btn" data-action="opp-save">${mode === 'new' ? t('Napravi') : t('Sačuvaj')}</button>
+        <button type="button" class="linkbtn" data-action="opp-cancel">${t('Otkaži')}</button></div>`
     : '';
   return `<div class="opp-pick">
-      <select data-opp-select aria-label="Izaberi protivnika">
-        <option value="">— izaberi protivnika —</option>${opts}<option value="__new">＋ Novi protivnik…</option>
+      <select data-opp-select aria-label="${t('Izaberi protivnika')}">
+        <option value="">${t('— izaberi protivnika —')}</option>${opts}<option value="__new">＋ ${t('Novi protivnik…')}</option>
       </select>
-      ${r && !mode ? `<button type="button" class="linkbtn" data-action="opp-rename">Preimenuj</button><button type="button" class="linkbtn danger" data-action="opp-delete">Obriši</button>` : ''}
+      ${r && !mode ? `<button type="button" class="linkbtn" data-action="opp-rename">${t('Preimenuj')}</button><button type="button" class="linkbtn danger" data-action="opp-delete">${t('Obriši')}</button>` : ''}
     </div>${form}`;
 }
 
@@ -1439,7 +1701,7 @@ function oppSave() {
   const name = inp?.value.trim();
   if (!name) { inp?.focus(); return; }
   const dup = oppList().find(([oid, o]) => o.name.toLowerCase() === name.toLowerCase() && oid !== state.rosters.oppSel);
-  if (dup) { inp.setCustomValidity('Već postoji tim sa tim imenom'); inp.reportValidity(); return; }
+  if (dup) { inp.setCustomValidity(t('Već postoji tim sa tim imenom')); inp.reportValidity(); return; }
   if (state.ui.oppEdit === 'new') {
     const oid = `o${Date.now()}`;
     state.rosters.opps[oid] = emptyRoster(name);
@@ -1456,9 +1718,9 @@ function oppDelete() {
   const r = rosterOf('opp');
   if (!r) return;
   showModal({
-    title: `Obrisati tim „${esc(r.name)}”?`,
-    body: `<p>Roster ovog protivnika (${r.players.length} igrača) biće obrisan iz ovog browsera. Ovo ne može da se vrati, osim iz rezervne kopije.</p>`,
-    confirm: 'Obriši', danger: true,
+    title: t('Obrisati tim „{n}”?', { n: esc(r.name) }),
+    body: `<p>${t('Roster ovog protivnika ({n} igrača) biće obrisan iz ovog browsera. Ovo ne može da se vrati, osim iz rezervne kopije.', { n: r.players.length })}</p>`,
+    confirm: t('Obriši'), danger: true,
     onConfirm: () => {
       delete state.rosters.opps[state.rosters.oppSel];
       state.rosters.oppSel = null;
@@ -1479,25 +1741,26 @@ function backupKeys() {
   return out.sort();
 }
 
-const trejdova = n => `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'trejd' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'trejda' : 'trejdova'}`;
+const trejdova = n => `${n} ${plural(n, ['trejd', 'trejda', 'trejdova'], ['trade', 'trades'])}`;
 
 function backupSummary(data) {
   const r = data[CONFIG.ROSTERS_KEY];
   const opps = r?.opps ? Object.values(r.opps) : [];
-  return `moj roster: ${r?.my?.players?.length ?? 0} igrača · protivnici: ${opps.length}${opps.length ? ` (${opps.map(o => esc(o.name)).join(', ')})` : ''} · istorija: ${trejdova((data[CONFIG.HISTORY_KEY] || []).length)}`;
+  return t('moj roster: {n} igrača · protivnici: {o}{names} · istorija: {h}', { n: r?.my?.players?.length ?? 0, o: opps.length, names: opps.length ? ` (${opps.map(o => esc(o.name)).join(', ')})` : '', h: trejdova((data[CONFIG.HISTORY_KEY] || []).length) });
 }
 
 function openSettings() {
   showModal({
-    title: 'Podešavanja i rezervna kopija',
-    wide: true, cancel: 'Zatvori',
-    body: `<p>Svi tvoji podaci (moj roster, protivnici, IR oznake, istorija, punt i podešavanja) čuvaju se samo u ovom browseru. Napravi rezervnu kopiju pre brisanja podataka ili prelaska na drugi uređaj.</p>
-      <div class="set-block"><b>Izvezi podatke</b><p>Trenutno: ${backupSummary(Object.fromEntries(backupKeys().map(k => [k, lsGet(k)])))}</p>
-        <button type="button" class="btn" data-action="export">Kopiraj podatke u clipboard</button> <span class="hint" id="export-msg"></span></div>
-      <div class="set-block"><b>Uvezi podatke</b><p>Nalepi tekst rezervne kopije. Postojeći podaci biće zamenjeni tek posle potvrde.</p>
+    title: t('Podešavanja i rezervna kopija'),
+    wide: true, cancel: t('Zatvori'),
+    body: `<div class="set-block first"><b>${t('Jezik')}</b><div class="langsw inmodal" role="group"><button type="button" data-lang="sr" aria-pressed="${LANG === 'sr'}">Srpski</button><button type="button" data-lang="en" aria-pressed="${LANG === 'en'}">English</button></div></div>
+      <p>${t('Svi tvoji podaci (moj roster, protivnici, IR oznake, istorija, punt i podešavanja) čuvaju se samo u ovom browseru. Napravi rezervnu kopiju pre brisanja podataka ili prelaska na drugi uređaj.')}</p>
+      <div class="set-block"><b>${t('Izvezi podatke')}</b><p>${t('Trenutno: {s}', { s: backupSummary(Object.fromEntries(backupKeys().map(k => [k, lsGet(k)]))) })}</p>
+        <button type="button" class="btn" data-action="export">${t('Kopiraj podatke u clipboard')}</button> <span class="hint" id="export-msg"></span></div>
+      <div class="set-block"><b>${t('Uvezi podatke')}</b><p>${t('Nalepi tekst rezervne kopije. Postojeći podaci biće zamenjeni tek posle potvrde.')}</p>
         <textarea id="import-text" spellcheck="false" placeholder='{"app":"fbaTrade", ...}'></textarea>
         <div id="import-msg" class="hint"></div>
-        <button type="button" class="btn" data-action="import">Proveri i uvezi</button></div>`,
+        <button type="button" class="btn" data-action="import">${t('Proveri i uvezi')}</button></div>`,
   });
 }
 
@@ -1507,26 +1770,26 @@ async function exportData(btn) {
   const msg = document.getElementById('export-msg');
   try {
     await navigator.clipboard.writeText(text);
-    msg.textContent = `✓ Kopirano (${Math.round(text.length / 1024)} KB). Sačuvaj ga negde, npr. u beleške ili mejl sebi.`;
+    msg.textContent = `✓ ${t('Kopirano ({k} KB). Sačuvaj ga negde, npr. u beleške ili mejl sebi.', { k: Math.round(text.length / 1024) })}`;
   } catch {
     // clipboard nedostupan: prikaži tekst za ručno kopiranje
     const ta = document.getElementById('import-text');
     ta.value = text; ta.select();
-    msg.textContent = 'Clipboard nije dostupan — tekst je u polju ispod, kopiraj ga ručno (Ctrl/Cmd+C).';
+    msg.textContent = t('Clipboard nije dostupan — tekst je u polju ispod, kopiraj ga ručno (Ctrl/Cmd+C).');
   }
 }
 
 /** Provera formata rezervne kopije; vraća { data } ili { error } */
 function parseBackup(text) {
   let obj;
-  try { obj = JSON.parse(text.trim()); } catch { return { error: 'Tekst nije ispravan JSON. Proveri da si nalepio ceo tekst.' }; }
-  if (obj?.app !== CONFIG.BACKUP_FORMAT.app || typeof obj.data !== 'object' || !obj.data) return { error: 'Ovo nije rezervna kopija ove aplikacije.' };
-  if (obj.version > CONFIG.BACKUP_FORMAT.version) return { error: 'Kopija je iz novije verzije aplikacije.' };
+  try { obj = JSON.parse(text.trim()); } catch { return { error: t('Tekst nije ispravan JSON. Proveri da si nalepio ceo tekst.') }; }
+  if (obj?.app !== CONFIG.BACKUP_FORMAT.app || typeof obj.data !== 'object' || !obj.data) return { error: t('Ovo nije rezervna kopija ove aplikacije.') };
+  if (obj.version > CONFIG.BACKUP_FORMAT.version) return { error: t('Kopija je iz novije verzije aplikacije.') };
   const keys = Object.keys(obj.data);
-  if (!keys.length || keys.some(k => !k.startsWith(CONFIG.APP_PREFIX))) return { error: 'Kopija sadrži nepoznate podatke.' };
+  if (!keys.length || keys.some(k => !k.startsWith(CONFIG.APP_PREFIX))) return { error: t('Kopija sadrži nepoznate podatke.') };
   const r = obj.data[CONFIG.ROSTERS_KEY];
-  if (r && (!r.my || !Array.isArray(r.my.players) || typeof r.opps !== 'object')) return { error: 'Roster u kopiji nije u ispravnom formatu.' };
-  if (obj.data[CONFIG.HISTORY_KEY] && !Array.isArray(obj.data[CONFIG.HISTORY_KEY])) return { error: 'Istorija u kopiji nije u ispravnom formatu.' };
+  if (r && (!r.my || !Array.isArray(r.my.players) || typeof r.opps !== 'object')) return { error: t('Roster u kopiji nije u ispravnom formatu.') };
+  if (obj.data[CONFIG.HISTORY_KEY] && !Array.isArray(obj.data[CONFIG.HISTORY_KEY])) return { error: t('Istorija u kopiji nije u ispravnom formatu.') };
   return { data: obj.data, exported: obj.exported };
 }
 
@@ -1536,10 +1799,10 @@ function importData() {
   const res = parseBackup(text);
   if (res.error) { msg.textContent = `✕ ${res.error}`; msg.classList.add('err'); return; }
   showModal({
-    title: 'Zameniti postojeće podatke?',
-    body: `<p>Uvozi se kopija${res.exported ? ` od ${fmtShortDate(res.exported)}` : ''}: <b>${backupSummary(res.data)}</b>.</p>
-      <p>Trenutni podaci u ovom browseru (${backupSummary(Object.fromEntries(backupKeys().map(k => [k, lsGet(k)])))}) biće <b>zamenjeni</b>.</p>`,
-    confirm: 'Zameni i uvezi', danger: true,
+    title: t('Zameniti postojeće podatke?'),
+    body: `<p>${t('Uvozi se kopija{d}: <b>{s}</b>.', { d: res.exported ? t(' od {d}', { d: fmtShortDate(res.exported) }) : '', s: backupSummary(res.data) })}</p>
+      <p>${t('Trenutni podaci u ovom browseru ({s}) biće <b>zamenjeni</b>.', { s: backupSummary(Object.fromEntries(backupKeys().map(k => [k, lsGet(k)]))) })}</p>`,
+    confirm: t('Zameni i uvezi'), danger: true,
     onConfirm: () => {
       for (const k of backupKeys()) localStorage.removeItem(k);
       for (const [k, v] of Object.entries(res.data)) lsSet(k, v);
@@ -1549,7 +1812,7 @@ function importData() {
 }
 
 /* ---------- Modal u stranici (umesto browser confirm) ---------- */
-function showModal({ title, body, confirm = 'U redu', cancel = 'Otkaži', danger = false, onConfirm, wide = false }) {
+function showModal({ title, body, confirm = t('U redu'), cancel = t('Otkaži'), danger = false, onConfirm, wide = false }) {
   closeModal();
   const m = document.createElement('div');
   m.id = 'modal';
@@ -1591,11 +1854,11 @@ function toggleIR(kind, id) {
   const x = r?.players.find(y => y.id === id);
   if (!x) return;
   if (!x.ir && irCount(r) >= ROSTER.IR) {
-    showModal({ title: 'IR mesta su puna', body: `<p>Imaš već ${ROSTER.IR} igrača na IR. Prvo vrati nekog sa IR.</p>`, cancel: 'U redu' });
+    showModal({ title: t('IR mesta su puna'), body: `<p>${t('Imaš već {n} igrača na IR. Prvo vrati nekog sa IR.', { n: ROSTER.IR })}</p>`, cancel: t('U redu') });
     return;
   }
   if (x.ir && activeCount(r) >= ROSTER.ACTIVE) {
-    showModal({ title: 'Aktivna mesta su puna', body: `<p>Imaš već ${ROSTER.ACTIVE} aktivnih. Prebaci nekog na IR ili ga ukloni pre nego što vratiš ovog igrača.</p>`, cancel: 'U redu' });
+    showModal({ title: t('Aktivna mesta su puna'), body: `<p>${t('Imaš već {n} aktivnih. Prebaci nekog na IR ili ga ukloni pre nego što vratiš ovog igrača.', { n: ROSTER.ACTIVE })}</p>`, cancel: t('U redu') });
     return;
   }
   x.ir = !x.ir;
@@ -1612,22 +1875,22 @@ function tradeDone() {
   const plans = ['my', 'opp'].map(k => [k, rosterPlan(k)]).filter(([, pl]) => pl && pl.r.players.length);
   const blocked = plans.filter(([, pl]) => pl.missingDrops > 0);
   if (blocked.length) {
-    showModal({ title: 'Prvo izaberi koga izbacuješ',
-      body: blocked.map(([k, pl]) => `<p><b>${k === 'my' ? 'Moj tim' : esc(pl.r.name)}</b>: posle trejda ${pl.pre.length} aktivnih, izaberi još ${pl.missingDrops} za izbacivanje.</p>`).join(''),
-      cancel: 'U redu' });
+    showModal({ title: t('Prvo izaberi koga izbacuješ'),
+      body: blocked.map(([k, pl]) => `<p><b>${k === 'my' ? t('Moj tim') : esc(pl.r.name)}</b>: ${t('posle trejda {n} aktivnih, izaberi još {k} za izbacivanje.', { n: pl.pre.length, k: pl.missingDrops })}</p>`).join(''),
+      cancel: t('U redu') });
     return;
   }
-  const block = ([k, pl]) => `<div class="done-block"><b>${k === 'my' ? 'Moj tim' : `Protivnik: ${esc(pl.r.name)}`}</b>
-    <div>Odlaze: ${list(pl.outIds)}</div><div>Dolaze: ${list(pl.incoming)}</div>
-    ${pl.drops.length ? `<div>Izbacuješ: ${list(pl.drops)}</div>` : ''}${pl.waivers.length ? `<div>Waiver: ${list(pl.waivers)}</div>` : ''}</div>`;
+  const block = ([k, pl]) => `<div class="done-block"><b>${k === 'my' ? t('Moj tim') : t('Protivnik: {n}', { n: esc(pl.r.name) })}</b>
+    <div>${t('Odlaze')}: ${list(pl.outIds)}</div><div>${t('Dolaze')}: ${list(pl.incoming)}</div>
+    ${pl.drops.length ? `<div>${t('Izbacuješ')}: ${list(pl.drops)}</div>` : ''}${pl.waivers.length ? `<div>Waiver: ${list(pl.waivers)}</div>` : ''}</div>`;
   const notes = [];
-  if (!plans.some(([k]) => k === 'my')) notes.push('Tvoj roster nije unet, pa se nijedan roster ne menja — trejd se samo čuva u Istoriju.');
-  else if (!plans.some(([k]) => k === 'opp')) notes.push('Protivnik nije izabran, menja se samo tvoj roster.');
+  if (!plans.some(([k]) => k === 'my')) notes.push(t('Tvoj roster nije unet, pa se nijedan roster ne menja — trejd se samo čuva u Istoriju.'));
+  else if (!plans.some(([k]) => k === 'opp')) notes.push(t('Protivnik nije izabran, menja se samo tvoj roster.'));
   showModal({
-    title: 'Trejd se dogodio?',
-    body: `<p>Daješ: <b>${list(giveIds())}</b><br>Dobijaš: <b>${list(getIds())}</b></p>${plans.map(block).join('')}
-      ${notes.map(n => `<p class="hint">${n}</p>`).join('')}<p>Sačuvani rosteri biće trajno izmenjeni kao gore, trejd ide u Istoriju kao obavljen, a polja Daješ / Dobijaš se prazne.</p>`,
-    confirm: 'Da, ažuriraj rostere',
+    title: t('Trejd se dogodio?'),
+    body: `<p>${SIDES[GIVE].name}: <b>${list(giveIds())}</b><br>${SIDES[GET].name}: <b>${list(getIds())}</b></p>${plans.map(block).join('')}
+      ${notes.map(n => `<p class="hint">${n}</p>`).join('')}<p>${t('Sačuvani rosteri biće trajno izmenjeni kao gore, trejd ide u Istoriju kao obavljen, a polja Daješ / Dobijaš se prazne.')}</p>`,
+    confirm: t('Da, ažuriraj rostere'),
     onConfirm: () => applyTrade(plans),
     wide: true,
   });
@@ -1662,7 +1925,7 @@ function removeFromRoster(kind, id) {
    Istorija trejdova
    ===================================================================== */
 const clone = o => JSON.parse(JSON.stringify(o));
-const fmtDate = iso => new Date(iso).toLocaleDateString('sr-Latn', { day: 'numeric', month: 'numeric', year: 'numeric' });
+const fmtDate = iso => fmtShortDate(iso);
 const tradePlayerIds = (teams, slots) => [...new Set([...teams.flatMap(t => [...t.ids, ...(t.drops || []), ...(t.waivers || [])]), ...(slots?.drops || []), ...(slots?.waivers || [])])];
 
 /** Link sadrži samo trejd (strane, slotove, period). Moj tim, istorija i punt ostaju lokalno. */
@@ -1670,10 +1933,10 @@ async function shareLink(btn) {
   saveState();
   const url = location.href;
   try {
-    if (navigator.share && matchMedia('(hover: none)').matches) await navigator.share({ title: 'Trejd', url });
-    else { await navigator.clipboard.writeText(url); btn.textContent = '✓ Link kopiran'; setTimeout(() => render(), 1500); }
+    if (navigator.share && matchMedia('(hover: none)').matches) await navigator.share({ title: t('Trejd'), url });
+    else { await navigator.clipboard.writeText(url); btn.textContent = `✓ ${t('Link kopiran')}`; setTimeout(() => render(), 1500); }
   } catch (e) {
-    if (e.name !== 'AbortError') prompt('Kopiraj link:', url);
+    if (e.name !== 'AbortError') prompt(t('Kopiraj link:'), url);
   }
 }
 
@@ -1684,10 +1947,10 @@ function saveTrade(meta = {}) {
     id: Date.now(),
     date: new Date().toISOString(),
     period: state.period,
-    teams: state.teams.map((t, i) => ({ name: SIDES[i].name, ids: [...t.ids] })),
+    teams: state.teams.map((tm, i) => ({ name: SIDES[i].srName, ids: [...tm.ids] })),
     slots: { drops: myBalance().drops, waivers: myBalance().waivers },
     names: Object.fromEntries(tradePlayerIds(state.teams, { drops: myBalance().drops, waivers: myBalance().waivers }).map(id => [id, state.byId.get(id)?.name || `#${id}`])),
-    snapshot: totals.map(t => ({ vals: t.vals, sum: t.sum, counted: t.counted })),
+    snapshot: totals.map(tot => ({ vals: tot.vals, sum: tot.sum, counted: tot.counted })),
   });
   saveHistory();
   state.histOpen = true;
@@ -1711,7 +1974,7 @@ function openTrade(id) {
 
 function deleteTrade(id) {
   const h = state.history.find(x => x.id === id);
-  if (!h || !confirm(`Obrisati sačuvani trejd od ${fmtDate(h.date)}?`)) return;
+  if (!h || !confirm(t('Obrisati sačuvani trejd od {d}?', { d: fmtDate(h.date) }))) return;
   state.history = state.history.filter(x => x.id !== id);
   if (state.histView === id) state.histView = null;
   saveHistory();
@@ -1726,13 +1989,13 @@ async function loadGameLogs(ids) {
   render();
   try {
     if (!state.schedule) await loadSchedule();
-    if (!state.schedule) throw new Error('raspored nije dostupan (potreban za datume utakmica)');
+    if (!state.schedule) throw new Error(t('raspored nije dostupan (potreban za datume utakmica)'));
     const gameDate = new Map(Object.values(state.schedule).flat().map(g => [String(g.id), g.date]));
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), CONFIG.FETCH_TIMEOUT_MS);
     const res = await fetch(CONFIG.API_URL, { headers: { 'X-Fantasy-Filter': JSON.stringify(CONFIG.GAMELOG_FILTER(need)) }, signal: ctrl.signal });
     clearTimeout(timer);
-    if (!res.ok) throw new Error(`ESPN je vratio grešku ${res.status}`);
+    if (!res.ok) throw new Error(t('ESPN je vratio grešku {n}', { n: res.status }));
     const data = await res.json();
     for (const raw of data.players || []) {
       const p = raw.player, games = [];
@@ -1749,7 +2012,7 @@ async function loadGameLogs(ids) {
     for (const id of need) if (!state.gameLogs.has(id)) state.gameLogs.set(id, []);
     state.gameLogStatus = { loading: false, error: null };
   } catch (e) {
-    state.gameLogStatus = { loading: false, error: e.name === 'AbortError' ? 'ESPN ne odgovara' : e.message };
+    state.gameLogStatus = { loading: false, error: e.name === 'AbortError' ? t('ESPN ne odgovara') : e.message };
   }
   render();
 }
@@ -1768,12 +2031,13 @@ function sinceLine(p, sinceMs) {
 function renderHistory() {
   const el = $('#history');
   const list = state.history.map(h => {
-    const sides = h.teams.map((t, i) => `<b>${esc(t.name || SIDES[i]?.name || '')}</b>: ${t.ids.map(id => esc(h.names?.[id] || state.byId.get(id)?.name || id)).join(', ') || '–'}`).join(' ⇄ ');
+    const sideName = (tm, i) => (SIDES[i] && (!tm.name || tm.name === SIDES[i].srName) ? SIDES[i].name : tm.name || '');
+    const sides = h.teams.map((tm, i) => `<b>${esc(sideName(tm, i))}</b>: ${tm.ids.map(id => esc(h.names?.[id] || state.byId.get(id)?.name || id)).join(', ') || '–'}`).join(' ⇄ ');
     const per = PERIODS.find(x => x.key === h.period)?.label || h.period;
     return `<li class="${state.histView === h.id ? 'active' : ''}">
       <button type="button" class="hist-open" data-action="hist-open" data-id="${h.id}">
-        <span class="hist-date">${fmtDate(h.date)} · ${per}${h.done ? ` · <span class="done-tag">obavljen${h.opp ? ` sa ${esc(h.opp)}` : ''}</span>` : ' · <span class="idea-tag">ideja</span>'}</span><span class="hist-sides">${sides}</span></button>
-      <button type="button" class="iconbtn" data-action="hist-del" data-id="${h.id}" aria-label="Obriši trejd">🗑</button></li>`;
+        <span class="hist-date">${fmtDate(h.date)} · ${per}${h.done ? ` · <span class="done-tag">${h.opp ? t('obavljen sa {n}', { n: esc(h.opp) }) : t('obavljen')}</span>` : ` · <span class="idea-tag">${t('ideja')}</span>`}</span><span class="hist-sides">${sides}</span></button>
+      <button type="button" class="iconbtn" data-action="hist-del" data-id="${h.id}" aria-label="${t('Obriši trejd')}">🗑</button></li>`;
   }).join('');
 
   let detail = '';
@@ -1784,10 +2048,10 @@ function renderHistory() {
     const st = state.gameLogStatus;
     const nowP = state.period;
     const blocks = h.teams.map((t0, ti) => {
-      const t = normTeam(t0);
+      const tm = normTeam(t0);
       // novi format: slots (izbacuješ ide u Daješ, waiver u Dobijaš); stari format: waivers +, drops −
-      const extra = h.slots ? (ti === GIVE ? h.slots.drops : h.slots.waivers) || [] : t.waivers;
-      const plus = [...t.ids, ...extra], minus = h.slots ? [] : t.drops;
+      const extra = h.slots ? (ti === GIVE ? h.slots.drops : h.slots.waivers) || [] : tm.waivers;
+      const plus = [...tm.ids, ...extra], minus = h.slots ? [] : tm.drops;
       const snap = h.snapshot[ti];
       const cur = sumPlayers(plus, minus);
       const sinceT = sumPlayers(plus, minus, p => sinceLine(p, since));
@@ -1796,27 +2060,28 @@ function renderHistory() {
         const v = tt?.vals?.[c.key];
         return `<td class="${puntCls(c).trim()}">${c.type === 'pct' ? fmtPct(v) : fmt1(v)}</td>`;
       }).join('')}</tr>`;
-      const sinceLabel = st.loading ? 'Od trejda: učitavam…'
-        : st.error ? `Od trejda: greška (${esc(st.error)})`
-        : sinceT.counted ? `Od trejda <span class="cnt">(${Math.min(...gamesSince.filter(Boolean))}–${Math.max(...gamesSince)} ut.)</span>`
-        : 'Od trejda: još nema utakmica';
-      return `<div class="hist-team"><div class="hist-tn" style="color:${TEAM_COLORS[ti] || 'var(--muted)'}">${esc(t.name || SIDES[ti]?.name || '')}</div>
+      const sinceLabel = st.loading ? t('Od trejda: učitavam…')
+        : st.error ? t('Od trejda: greška ({e})', { e: esc(st.error) })
+        : sinceT.counted ? `${t('Od trejda')} <span class="cnt">(${t('{a}–{b} ut.', { a: Math.min(...gamesSince.filter(Boolean)), b: Math.max(...gamesSince) })})</span>`
+        : t('Od trejda: još nema utakmica');
+      const nm = SIDES[ti] && (!t0.name || t0.name === SIDES[ti].srName) ? SIDES[ti].name : t0.name || '';
+      return `<div class="hist-team"><div class="hist-tn" style="color:${TEAM_COLORS[ti] || 'var(--muted)'}">${esc(nm)}</div>
         <div class="tscroll"><table><thead><tr><th></th>${CATS.map(catTh).join('')}</tr></thead><tbody>
-        ${row(`Snimak <span class="cnt">(${fmtDate(h.date)}, ${per})</span>`, snap)}
-        ${row(`Sada <span class="cnt">(${PERIODS.find(x => x.key === nowP).label})</span>`, cur)}
+        ${row(`${t('Snimak')} <span class="cnt">(${fmtDate(h.date)}, ${per})</span>`, snap)}
+        ${row(`${t('Sada')} <span class="cnt">(${PERIODS.find(x => x.key === nowP).label})</span>`, cur)}
         ${row(sinceLabel, sinceT.counted ? sinceT : null, 'total')}
         </tbody></table></div></div>`;
     }).join('');
     detail = `<div class="hist-detail">
-      <div class="hist-dh">Trejd od ${fmtDate(h.date)} <button type="button" class="linkbtn" data-action="hist-close">Zatvori</button></div>
-      <p class="hint" style="padding:0 12px">„Od trejda” = prosek samo utakmica posle datuma čuvanja, iz ESPN statistike po utakmici.</p>
+      <div class="hist-dh">${t('Trejd od {d}', { d: fmtDate(h.date) })} <button type="button" class="linkbtn" data-action="hist-close">${t('Zatvori')}</button></div>
+      <p class="hint" style="padding:0 12px">${t('„Od trejda” = prosek samo utakmica posle datuma čuvanja, iz ESPN statistike po utakmici.')}</p>
       ${blocks}</div>`;
   }
 
   el.innerHTML = `<details class="card fold" data-fold="hist" ${state.histOpen ? 'open' : ''}>
-    <summary><span>Istorija trejdova</span><span class="hint">${state.history.length ? `${state.history.length} sačuvano` : 'prazno'}</span></summary>
+    <summary><span>${t('Istorija trejdova')}</span><span class="hint">${state.history.length ? t('{n} sačuvano', { n: state.history.length }) : t('prazno')}</span></summary>
     <div class="fold-body">
-      ${list ? `<ul class="hist-list">${list}</ul>` : '<div class="empty-team">Još nema sačuvanih trejdova. Klikni „Sačuvaj ideju” ili „Trejd se dogodio” ispod rezultata.</div>'}
+      ${list ? `<ul class="hist-list">${list}</ul>` : `<div class="empty-team">${t('Još nema sačuvanih trejdova. Klikni „Sačuvaj ideju” ili „Trejd se dogodio” ispod rezultata.')}</div>`}
       ${detail}
     </div></details>`;
 }
@@ -1842,7 +2107,7 @@ function searchResults(query, taken = takenIds(), prefer = null) {
 
 /** Za ključ pretrage: koje igrače nuditi prve i kojom oznakom */
 function searchPrefer(key) {
-  if (key === String(GIVE)) return { set: new Set(rosterIds(state.rosters.my)), label: 'Moj tim' };
+  if (key === String(GIVE)) return { set: new Set(rosterIds(state.rosters.my)), label: t('Moj tim') };
   if (key === String(GET) && rosterOf('opp')) return { set: new Set(rosterIds(rosterOf('opp'))), label: rosterOf('opp').name };
   return null;
 }
@@ -1864,7 +2129,7 @@ function updateDropdown(key) {
   dd.innerHTML = results.length
     ? results.map((p, k) => `<li role="option" data-pick="${p.id}" data-key="${key}" aria-selected="${k === ui.sel}">
         ${avatarHTML(p)}<div><div>${esc(p.name)} ${pref?.set.has(p.id) ? `<span class="slot-tag tag-mine">${esc(pref.label)}</span>` : ''}</div><div class="meta">${p.team} · ${p.pos} ${injHTML(p)}</div></div></li>`).join('')
-    : `<li class="empty">Nema igrača za „${esc(ui.query)}“</li>`;
+    : `<li class="empty">${t('Nema igrača za „{q}“', { q: esc(ui.query) })}</li>`;
   dd.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
 }
 
@@ -1921,6 +2186,12 @@ function removePlayer(ti, id) {
    Događaji (delegirani)
    ===================================================================== */
 document.addEventListener('click', e => {
+  const lb = e.target.closest('[data-lang]');
+  if (lb) {
+    setLang(lb.dataset.lang);
+    if (lb.closest('#modal')) openSettings(); // osveži i modal podešavanja
+    return;
+  }
   const rv = e.target.closest('[data-rview]');
   if (rv) {
     const [k, v] = rv.dataset.rview.split(':');
@@ -2089,6 +2360,7 @@ addEventListener('scroll', hideTip, { passive: true });
 
 /* ===================================================================== */
 loadState();
+applyStaticText();
 render();
 loadPlayers();
 loadSchedule();
