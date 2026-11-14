@@ -107,6 +107,12 @@ td .sub{display:block;font-size:10px;font-weight:500;color:var(--muted);margin-t
 .inj{font-size:10px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--lose-bg);color:var(--lose-text)}
 .inj.dtd{background:var(--warn-bg);color:var(--warn)}
 .flag{font-size:10px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--warn-bg);color:var(--warn)}
+.badge{font-size:10px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--card2);color:var(--muted);cursor:help;white-space:nowrap}
+.badge.gp-good{background:var(--win-bg);color:var(--win-text)}
+.badge.gp-ok{background:var(--warn-bg);color:var(--warn)}
+.badge.gp-bad{background:var(--lose-bg);color:var(--lose-text)}
+#tip{position:fixed;z-index:100;max-width:260px;background:#0b0d10;border:1px solid var(--line);color:var(--text);font-size:12px;line-height:1.4;padding:7px 9px;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.6);pointer-events:none;white-space:normal}
+@media (max-width:640px){ .badge .frac{display:none} }
 .rm{background:none;border:0;color:var(--dim);cursor:pointer;padding:6px;font-size:14px;margin-left:auto;flex:none}
 @media (max-width:640px){
   th:first-child,td:first-child{min-width:128px;max-width:150px}
@@ -166,18 +172,24 @@ const CONFIG = (() => {
     API_URL: `https://lm-api-reads.fantasy.espn.com/apis/v3/games/fba/seasons/${SEASON}/segments/0/leaguedefaults/1?view=kona_player_info`,
     PLAYER_LIMIT: 600,
     // filterStatsForSplitTypeIds [0..3] izbacuje split 5 (po utakmicama), a ExternalIds
-    // ostavlja samo tekuću sezonu. Payload: ~24 MB -> ~0,4 MB (gzip).
+    // ostavlja samo prošlu i tekuću sezonu. Payload: ~24 MB -> ~0,6 MB (gzip).
     FILTER: {
       players: {
         limit: 600,
         sortPercOwned: { sortPriority: 1, sortAsc: false },
         filterStatsForSplitTypeIds: { value: [0, 1, 2, 3] },
-        filterStatsForExternalIds: { value: [SEASON] },
+        filterStatsForExternalIds: { value: [SEASON - 1, SEASON] },
       },
     },
+    // Raspored NBA timova (datumi utakmica). Javan, CORS radi.
+    SCHEDULE_URL: `https://lm-api-reads.fantasy.espn.com/apis/v3/games/fba/seasons/${SEASON}?view=proTeamSchedules_wl`,
+    SCHEDULE_CACHE_KEY: `fbaTrade.schedule.v1.${SEASON}`,
+    // Utakmica se računa kao odigrana kad prođe ovoliko od početka (izbegava utakmice u toku).
+    GAME_DONE_AFTER_MS: 3.5 * 60 * 60 * 1000,
+    PREV_SEASON_GAMES: 82,
     FETCH_TIMEOUT_MS: 25000,
     SLOW_NOTICE_MS: 5000,
-    CACHE_KEY: `fbaTrade.players.v1.${SEASON}`,
+    CACHE_KEY: `fbaTrade.players.v2.${SEASON}`,
     STATE_KEY: 'fbaTrade.state.v1',
     CACHE_TTL_MS: 6 * 60 * 60 * 1000, // 6h
     HEADSHOT_URL: id => `https://a.espncdn.com/i/headshots/nba/players/full/${id}.png`,
@@ -196,7 +208,12 @@ const PERIODS = [
 ];
 
 /** Ključevi u averageStats */
-const STAT = { PTS: '0', BLK: '1', STL: '2', AST: '3', REB: '6', TO: '11', FGM: '13', FGA: '14', FTM: '15', FTA: '16', TPM: '17', GP: '42' };
+/** MIN = '40' provereno: split 5 za utakmicu 401909879 (Wembanyama) = 27, isto kao ESPN gamelog. */
+const STAT = { PTS: '0', BLK: '1', STL: '2', AST: '3', REB: '6', TO: '11', FGM: '13', FGA: '14', FTM: '15', FTA: '16', TPM: '17', MIN: '40', GP: '42' };
+/** Stats id za celu prošlu sezonu (za trajnost) */
+const PREV_SEASON_STAT_ID = `00${CONFIG.SEASON - 1}`;
+/** Pragovi boje za trajnost (GP%) */
+const DURABILITY = { GOOD: 0.85, OK: 0.70 };
 
 /** 9 kategorija, redosled kolona. type: 'sum' (zbir proseka) ili 'pct' (ponderisano). */
 const CATS = [
@@ -261,8 +278,10 @@ const timeAgo = ts => {
 function compactPlayer(raw) {
   const p = raw.player || raw;
   const stats = {};
+  let prevGP = null;
   const wanted = new Set(PERIODS.map(per => per.statId(CONFIG.SEASON)));
   for (const s of p.stats || []) {
+    if (s.id === PREV_SEASON_STAT_ID && s.averageStats) { prevGP = +s.averageStats[STAT.GP] || 0; continue; }
     if (!wanted.has(s.id) || !s.averageStats) continue;
     const a = s.averageStats, o = {};
     for (const [k, id] of Object.entries(STAT)) o[k] = +a[id] || 0;
@@ -271,11 +290,50 @@ function compactPlayer(raw) {
   return {
     id: p.id,
     name: p.fullName,
+    tid: p.proTeamId,
     team: PRO_TEAMS[p.proTeamId] ?? '?',
     pos: POSITIONS[p.defaultPositionId] ?? '?',
     inj: p.injuryStatus || 'ACTIVE',
+    prevGP,
     stats,
   };
+}
+
+/** Raspored: { [proTeamId]: [{ id: gameId, date: ms }] } sortirano po datumu */
+async function fetchSchedule() {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), CONFIG.FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(CONFIG.SCHEDULE_URL, { signal: ctrl.signal });
+    if (!res.ok) throw new Error(`raspored: HTTP ${res.status}`);
+    const data = await res.json();
+    const teams = {};
+    for (const t of data?.settings?.proTeams || []) {
+      if (!t.id) continue; // 0 = FA
+      const games = new Map();
+      for (const list of Object.values(t.proGamesByScoringPeriod || {}))
+        for (const g of list) games.set(g.id, { id: g.id, date: g.date });
+      teams[t.id] = [...games.values()].sort((a, b) => a.date - b.date);
+    }
+    if (!Object.keys(teams).length) throw new Error('raspored je prazan');
+    return teams;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function loadSchedule(force = false) {
+  const cached = lsGet(CONFIG.SCHEDULE_CACHE_KEY);
+  if (cached?.teams) state.schedule = cached.teams;
+  if (!force && cached?.teams && Date.now() - cached.ts < CONFIG.CACHE_TTL_MS) { render(); return; }
+  try {
+    const teams = await fetchSchedule();
+    state.schedule = teams;
+    lsSet(CONFIG.SCHEDULE_CACHE_KEY, { ts: Date.now(), teams });
+  } catch (e) {
+    console.warn('Raspored nije učitan:', e.message); // funkcije koje zavise od rasporeda koriste fallback
+  }
+  render();
 }
 
 async function fetchPlayers() {
@@ -313,7 +371,51 @@ const state = {
   slow: false,
   period: 'season',
   teams: [],            // [{ name, ids: [playerId] }]
+  schedule: null,       // { [proTeamId]: [{ id, date }] } ili null ako nije učitan
 };
+
+/* ---------- Trajnost (GP%) ---------- */
+const gamesDone = tid => {
+  const games = state.schedule?.[tid];
+  if (!games) return null;
+  const cutoff = Date.now() - CONFIG.GAME_DONE_AFTER_MS;
+  let n = 0;
+  for (const g of games) { if (g.date <= cutoff) n++; else break; }
+  return n;
+};
+
+/**
+ * Moguće utakmice = broj utakmica koje je igračev NBA tim odigrao (iz rasporeda).
+ * APROKSIMACIJA (fallback kad raspored nije dostupan): najveći GP među igračima istog tima.
+ */
+function possibleGames(p) {
+  const fromSchedule = gamesDone(p.tid);
+  if (fromSchedule != null) return { n: fromSchedule, approx: false };
+  let max = 0;
+  const sid = PERIODS[0].statId(CONFIG.SEASON);
+  for (const q of state.players) if (q.tid === p.tid) max = Math.max(max, q.stats[sid]?.GP || 0);
+  return { n: max, approx: true };
+}
+
+function durability(p) {
+  if (!p.tid) return null; // slobodan igrač: nema tima
+  const gp = Math.round(p.stats[PERIODS[0].statId(CONFIG.SEASON)]?.GP || 0);
+  const { n, approx } = possibleGames(p);
+  if (!n) return null;
+  const pct = Math.min(gp / n, 1);
+  const shown = Math.round(pct * 100) / 100; // boja prati prikazani procenat (84.6% -> 85% = zeleno)
+  const cls = shown >= DURABILITY.GOOD ? 'good' : shown >= DURABILITY.OK ? 'ok' : 'bad';
+  return { gp, n, pct, cls, approx };
+}
+
+function durabilityHTML(p) {
+  const d = durability(p);
+  const prev = p.prevGP != null ? `prošla sezona: ${Math.round(p.prevGP)}/${CONFIG.PREV_SEASON_GAMES}` : 'prošla sezona: nema podataka';
+  if (!d) return p.prevGP != null ? `<span class="badge" data-tip="${prev}">—</span>` : '';
+  const pct = Math.round(d.pct * 100);
+  const tip = `Ove sezone: ${d.gp}/${d.n} utakmica (${pct}%)${d.approx ? ' · približno, raspored nedostupan' : ''} · ${prev}`;
+  return `<span class="badge gp-${d.cls}" data-tip="${esc(tip)}"><span class="frac">${d.gp}/${d.n} · </span>${pct}%</span>`;
+}
 
 function setPlayers(players, ts) {
   state.players = players;
@@ -526,7 +628,7 @@ function playerRow(p, ti) {
   }).join('');
   return `<tr class="${line ? '' : 'nodata'}">
     <td><div class="pl">${avatarHTML(p)}<div class="txt"><span class="nm" title="${esc(p.name)}">${esc(p.name)}</span>
-      <span class="meta">${p.team} · ${p.pos} ${injHTML(p)} ${line ? '' : '<span class="flag" title="Nema podataka za ovaj period, ne računa se">0 GP</span>'}</span></div>
+      <span class="meta">${p.team} · ${p.pos} ${injHTML(p)} ${durabilityHTML(p)} ${line ? '' : '<span class="flag" title="Nema podataka za ovaj period, ne računa se">0 GP</span>'}</span></div>
       <button class="rm" type="button" data-action="remove" data-team="${ti}" data-id="${p.id}" aria-label="Ukloni ${esc(p.name)}">✕</button></div></td>
     ${cells}<td>${line ? Math.round(line.GP) : '0'}</td></tr>`;
 }
@@ -702,7 +804,7 @@ document.addEventListener('click', e => {
   if (el.dataset.period) { state.period = el.dataset.period; saveState(); render(); return; }
   const ti = +el.dataset.team;
   switch (el.dataset.action) {
-    case 'refresh': loadPlayers(true); break;
+    case 'refresh': loadPlayers(true); loadSchedule(true); break;
     case 'remove': state.teams[ti].ids = state.teams[ti].ids.filter(id => id !== +el.dataset.id); saveState(); render(); break;
     case 'add-team':
       if (state.teams.length < CONFIG.MAX_TEAMS) state.teams.push({ name: TEAM_DEFAULT_NAMES[state.teams.length], ids: [] });
@@ -750,10 +852,38 @@ document.addEventListener('focusout', e => {
 document.addEventListener('focusin', e => { if (e.target.dataset?.search != null) updateDropdown(+e.target.dataset.search); });
 window.addEventListener('hashchange', () => { loadState(); render(); });
 
+/* ---------- Tooltip: hover na desktopu, tap na telefonu ([data-tip]) ---------- */
+const tipEl = Object.assign(document.createElement('div'), { id: 'tip', hidden: true });
+document.body.appendChild(tipEl);
+let tipOwner = null;
+function showTip(el) {
+  tipOwner = el;
+  tipEl.textContent = el.dataset.tip;
+  tipEl.hidden = false;
+  const r = el.getBoundingClientRect(), t = tipEl.getBoundingClientRect();
+  const left = Math.max(8, Math.min(r.left + r.width / 2 - t.width / 2, innerWidth - t.width - 8));
+  const top = r.top - t.height - 6 < 8 ? r.bottom + 6 : r.top - t.height - 6;
+  tipEl.style.left = `${left}px`; tipEl.style.top = `${top}px`;
+}
+const hideTip = () => { tipEl.hidden = true; tipOwner = null; };
+const canHover = () => matchMedia('(hover: hover)').matches;
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-tip]');
+  // Na touch uređaju drugi tap na isti element zatvara; na desktopu hover već prikazuje.
+  if (el && (el !== tipOwner || canHover())) showTip(el); else hideTip();
+}, true);
+document.addEventListener('mouseover', e => {
+  if (!canHover()) return;
+  const el = e.target.closest('[data-tip]');
+  if (el) showTip(el); else if (tipOwner) hideTip();
+});
+addEventListener('scroll', hideTip, { passive: true });
+
 /* ===================================================================== */
 loadState();
 render();
 loadPlayers();
+loadSchedule();
 </script>
 </body>
 </html>
