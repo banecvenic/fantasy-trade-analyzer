@@ -980,25 +980,51 @@ function headerRow() {
 }
 
 /** Strelica trenda za igrača i kategoriju, ili '' */
+/** Vrednost kategorije u jednom periodu (procenti preko made/att), ili null */
+function catValue(st, c) {
+  if (!st || st.GP <= 0) return null;
+  if (c.type === 'pct') return st[c.att] > 0 ? st[c.made] / st[c.att] : null;
+  return st[c.key];
+}
+/** Da li je promena u odnosu na sezonu bitna (isti prag kao za strelicu) */
+function bigChange(c, sv, v) {
+  if (sv == null || v == null) return false;
+  if (c.type === 'pct') return Math.abs(v - sv) >= TREND.PCT_ABS;
+  return sv > 0 && Math.abs(v - sv) / sv >= TREND.COUNT_REL && Math.abs(v - sv) >= TREND.MIN_ABS;
+}
+
 function trendHTML(p, c) {
   if (state.period !== 'season') return '';
   const s = p.stats[PERIODS[0].statId(CONFIG.SEASON)], r = p.stats[TREND.RECENT_STAT_ID];
   if (!s || !r || s.GP <= 0 || r.GP < TREND.MIN_GP) return '';
-  let sv, rv, show, fmt;
-  if (c.type === 'pct') {
-    if (!(s[c.att] > 0 && r[c.att] > 0)) return '';
-    sv = s[c.made] / s[c.att]; rv = r[c.made] / r[c.att];
-    show = Math.abs(rv - sv) >= TREND.PCT_ABS;
-    fmt = fmtPct;
-  } else {
-    sv = s[c.key]; rv = r[c.key];
-    show = sv > 0 && Math.abs(rv - sv) / sv >= TREND.COUNT_REL && Math.abs(rv - sv) >= TREND.MIN_ABS;
-    fmt = fmt1;
-  }
-  if (!show) return '';
+  const sv = catValue(s, c), rv = catValue(r, c);
+  if (!bigChange(c, sv, rv)) return '';
   const up = rv > sv;
   const good = c.lowerIsBetter ? !up : up;
-  return `<span class="trend ${good ? 'good' : 'bad'}" data-tip="${c.label} · poslednjih 15 dana: ${fmt(rv)}, sezona: ${fmt(sv)} (${Math.round(r.GP)} ut.)">${up ? '↑' : '↓'}</span>`;
+  return `<span class="trend ${good ? 'good' : 'bad'}" data-tip="${c.label}" data-tip-html="${esc(catTipHTML(p, c, sv, rv))}">${up ? '↑' : '↓'}</span>`;
+}
+
+/** Tooltip za strelicu kategorije: ista tabela kao za minute (period / vrednost / vs sezona / utakmice) */
+function catTipHTML(p, c, sv, rv) {
+  const labels = { season: 'Sezona', l30: '30 dana', l15: '15 dana', l7: '7 dana' };
+  const fmt = c.type === 'pct' ? fmtPct : fmt1;
+  const diffTxt = d => (c.type === 'pct'
+    ? `${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d * 100).toFixed(1)} pp`
+    : `${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d).toFixed(1)}`);
+  const goodDir = d => (c.lowerIsBetter ? d < 0 : d > 0);
+  const rows = MINUTES.TREND_KEYS.map(k => {
+    const st = p.stats[PERIODS.find(x => x.key === k).statId(CONFIG.SEASON)];
+    const v = catValue(st, c);
+    const d = v != null && k !== 'season' ? v - sv : null;
+    const cls = d != null && bigChange(c, sv, v) ? (goodDir(d) ? 'up' : 'down') : '';
+    return `<tr class="${k === 'l15' ? 'key' : ''}"><td>${labels[k]}</td><td>${v == null ? '–' : fmt(v)}</td>
+      <td class="${cls}">${d == null ? '' : diffTxt(d)}</td><td>${st?.GP > 0 ? Math.round(st.GP) : 0}</td></tr>`;
+  }).join('');
+  const d = rv - sv, good = goodDir(d);
+  const rule = c.type === 'pct' ? `±${TREND.PCT_ABS * 100} pp` : `±${TREND.COUNT_REL * 100}%`;
+  return `<div class="tt-title">${c.label} po periodu</div>
+    <table class="tt"><thead><tr><th></th><th>${c.label}</th><th>vs sez.</th><th>ut.</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="tt-foot ${good ? 'up' : 'down'}">${d > 0 ? '↑' : '↓'} ${good ? 'Bolje' : 'Lošije'} u poslednjih 15 dana: ${diffTxt(d)} (prag ${rule})</div>`;
 }
 
 /** Tooltip za minute: mala tabela period / MIN / razlika od sezone / utakmice */
