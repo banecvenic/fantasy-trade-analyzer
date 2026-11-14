@@ -1,0 +1,759 @@
+<!doctype html>
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#121418">
+<title>Trade Analyzer 9-cat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#121418; --bg2:#181b21; --card:#1f232b; --card2:#262b34; --line:#323844;
+  --text:#e9ecf1; --muted:#9aa3b2; --dim:#6b7383;
+  --accent:#e1251b; --accent2:#ff4136;
+  --win:#1f9d55; --win-bg:rgba(31,157,85,.18); --win-text:#5be38f;
+  --lose:#d64545; --lose-bg:rgba(214,69,69,.16); --lose-text:#ff8a8a;
+  --warn:#f0b429; --warn-bg:rgba(240,180,41,.14);
+  --radius:12px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;-webkit-text-size-adjust:100%}
+button,input{font:inherit;color:inherit}
+.wrap{max-width:1280px;margin:0 auto;padding:0 16px calc(32px + env(safe-area-inset-bottom))}
+
+/* Header */
+header.top{position:sticky;top:0;z-index:20;background:rgba(18,20,24,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+header.top .wrap{display:flex;align-items:center;gap:12px;padding-top:10px;padding-bottom:10px;flex-wrap:wrap}
+.brand{font-weight:800;font-size:16px;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+.brand i{display:inline-block;width:8px;height:20px;background:var(--accent);border-radius:2px}
+.brand small{color:var(--muted);font-weight:500;font-size:12px}
+.seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:3px;overflow-x:auto;scrollbar-width:none;margin-left:auto}
+.seg::-webkit-scrollbar{display:none}
+.seg button{background:none;border:0;padding:6px 12px;border-radius:999px;color:var(--muted);font-weight:600;font-size:13px;white-space:nowrap;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+@media (max-width:640px){.seg{margin-left:0;width:100%;justify-content:space-between}.seg button{padding:6px 8px;font-size:12px}}
+
+/* Status bar */
+.status{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px;margin:12px 0}
+.status .grow{flex:1}
+.linkbtn{background:none;border:1px solid var(--line);border-radius:999px;padding:4px 10px;color:var(--muted);cursor:pointer;font-size:12px}
+.linkbtn:hover{color:var(--text);border-color:var(--dim)}
+.banner{border-radius:var(--radius);padding:12px 14px;margin:12px 0;font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.banner.err{background:var(--lose-bg);border:1px solid rgba(214,69,69,.4);color:#ffd0d0}
+.banner.warn{background:var(--warn-bg);border:1px solid rgba(240,180,41,.35);color:#ffe7a8}
+.banner button{background:var(--accent);border:0;color:#fff;border-radius:999px;padding:6px 14px;font-weight:600;cursor:pointer}
+.spinner{width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Scoreboard */
+.score{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px}
+.score-row{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap}
+.score-team{display:flex;flex-direction:column;align-items:center;min-width:72px}
+.score-team .nm{font-size:12px;color:var(--muted);font-weight:600;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.score-team .pts{font-size:34px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+.score-team.lead .pts{color:var(--win-text)}
+.score-team.lead .nm{color:var(--text)}
+.score-sep{font-size:24px;color:var(--dim);font-weight:700}
+.score-note{text-align:center;color:var(--muted);font-size:12px;margin-top:6px}
+.score-note b{color:var(--text)}
+.score-empty{text-align:center;color:var(--muted);padding:6px 0}
+
+/* Teams grid */
+.teams{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,560px),1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:visible;min-width:0}
+.card-h{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.card-h .dot{width:10px;height:10px;border-radius:50%;flex:none}
+.team-name{background:transparent;border:1px solid transparent;border-radius:6px;padding:3px 6px;font-weight:700;font-size:15px;min-width:0;flex:1}
+.team-name:hover,.team-name:focus{border-color:var(--line);outline:none;background:var(--bg2)}
+.team-badge{font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap}
+.team-badge.lead{color:var(--win-text)}
+.iconbtn{background:none;border:0;color:var(--dim);cursor:pointer;width:28px;height:28px;border-radius:6px;display:grid;place-items:center;flex:none;font-size:16px}
+.iconbtn:hover{background:var(--card2);color:var(--text)}
+
+/* Search */
+.search{position:relative;padding:10px 12px}
+.search input{width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:10px 12px 10px 34px;outline:none;font-size:16px}
+.search input:focus{border-color:var(--accent)}
+.search input:disabled{opacity:.5}
+.search svg{position:absolute;left:23px;top:50%;transform:translateY(-50%);color:var(--dim);pointer-events:none}
+.dd{position:absolute;left:12px;right:12px;top:calc(100% - 6px);background:var(--card2);border:1px solid var(--line);border-radius:8px;box-shadow:0 12px 30px rgba(0,0,0,.5);z-index:30;max-height:320px;overflow-y:auto;list-style:none;margin:0;padding:4px}
+.dd li{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:6px;cursor:pointer}
+.dd li[aria-selected="true"]{background:rgba(225,37,27,.18)}
+.dd li .meta{color:var(--muted);font-size:12px}
+.dd .empty{color:var(--muted);cursor:default;padding:10px}
+
+/* Table */
+.tscroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:7px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+th{font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.03em;background:var(--bg2)}
+td{font-size:13px}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;z-index:1;background:var(--card);min-width:150px;max-width:190px}
+th:first-child{background:var(--bg2)}
+tbody tr.nodata td{color:var(--dim)}
+tbody tr.nodata td:first-child{color:var(--muted)}
+tr.total td{font-weight:700;border-bottom:0;background:var(--card2)}
+tr.total td:first-child{background:var(--card2)}
+td.win{background:var(--win-bg)!important;color:var(--win-text)}
+td.lose{background:var(--lose-bg)!important;color:var(--lose-text)}
+td .sub{display:block;font-size:10px;font-weight:500;color:var(--muted);margin-top:1px}
+.pl{display:flex;align-items:center;gap:8px;min-width:0}
+.pl .txt{min-width:0;display:flex;flex-direction:column}
+.pl .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;max-width:120px}
+.pl .meta{font-size:11px;color:var(--muted);display:flex;gap:4px;align-items:center}
+.av{width:30px;height:30px;border-radius:50%;background:var(--card2);flex:none;overflow:hidden;display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line)}
+.av img{width:130%;height:auto;margin-top:6px}
+.inj{font-size:10px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--lose-bg);color:var(--lose-text)}
+.inj.dtd{background:var(--warn-bg);color:var(--warn)}
+.flag{font-size:10px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--warn-bg);color:var(--warn)}
+.rm{background:none;border:0;color:var(--dim);cursor:pointer;padding:6px;font-size:14px;margin-left:auto;flex:none}
+@media (max-width:640px){
+  th:first-child,td:first-child{min-width:128px;max-width:150px}
+  .pl{gap:6px}
+  .pl .av{width:24px;height:24px}
+  .pl .nm{max-width:84px}
+  th,td{padding:7px 6px}
+}
+.rm:hover{color:var(--accent2)}
+.empty-team{padding:18px 12px;color:var(--dim);text-align:center;font-size:13px}
+.card-warn{padding:8px 12px;font-size:12px;color:#ffe7a8;background:var(--warn-bg);border-top:1px solid rgba(240,180,41,.25);border-radius:0 0 var(--radius) var(--radius)}
+
+.addteam{border:1px dashed var(--line);border-radius:var(--radius);background:transparent;color:var(--muted);padding:14px;font-weight:600;cursor:pointer;min-height:56px}
+.addteam:hover{border-color:var(--accent);color:var(--text)}
+
+/* Compare + report */
+.section-t{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:22px 0 8px}
+.cmp td:first-child,.cmp th:first-child{min-width:70px}
+.report{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;line-height:1.6;font-size:14px}
+.report p{margin:0 0 8px}
+.report p:last-child{margin-bottom:0}
+.report .w{color:var(--win-text);font-weight:600}
+footer{color:var(--dim);font-size:11px;text-align:center;margin-top:28px}
+.skeleton{height:120px;border-radius:var(--radius);background:linear-gradient(90deg,var(--card),var(--card2),var(--card));background-size:200% 100%;animation:sh 1.2s infinite}
+@keyframes sh{to{background-position:-200% 0}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><i></i>Trade Analyzer <small>9-cat</small></div>
+    <div class="seg" id="periods" role="group" aria-label="Period"></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="status" id="status"></div>
+  <div id="banner"></div>
+  <div class="score" id="score"></div>
+  <div class="teams" id="teams"></div>
+  <div id="compare"></div>
+  <div id="report"></div>
+  <footer>Podaci: javni ESPN fantasy API (nezvaničan). Prosek po utakmici.</footer>
+</main>
+
+<script>
+'use strict';
+/* =====================================================================
+   KONFIGURACIJA — sve što zavisi od (nezvaničnog) ESPN API-ja je ovde.
+   ===================================================================== */
+const CONFIG = (() => {
+  const now = new Date();
+  // Sezona = godina u kojoj se završava. Od oktobra (mesec index 9) je sledeća godina.
+  const SEASON = now.getMonth() >= 9 ? now.getFullYear() + 1 : now.getFullYear();
+  return {
+    SEASON,
+    API_URL: `https://lm-api-reads.fantasy.espn.com/apis/v3/games/fba/seasons/${SEASON}/segments/0/leaguedefaults/1?view=kona_player_info`,
+    PLAYER_LIMIT: 600,
+    // filterStatsForSplitTypeIds [0..3] izbacuje split 5 (po utakmicama), a ExternalIds
+    // ostavlja samo tekuću sezonu. Payload: ~24 MB -> ~0,4 MB (gzip).
+    FILTER: {
+      players: {
+        limit: 600,
+        sortPercOwned: { sortPriority: 1, sortAsc: false },
+        filterStatsForSplitTypeIds: { value: [0, 1, 2, 3] },
+        filterStatsForExternalIds: { value: [SEASON] },
+      },
+    },
+    FETCH_TIMEOUT_MS: 25000,
+    SLOW_NOTICE_MS: 5000,
+    CACHE_KEY: `fbaTrade.players.v1.${SEASON}`,
+    STATE_KEY: 'fbaTrade.state.v1',
+    CACHE_TTL_MS: 6 * 60 * 60 * 1000, // 6h
+    HEADSHOT_URL: id => `https://a.espncdn.com/i/headshots/nba/players/full/${id}.png`,
+    MAX_TEAMS: 4,
+    DROPDOWN_MAX: 10,
+  };
+})();
+
+/** Periodi: stats[].id = `${statSourceId}${statSplitTypeId}${season}` */
+const PERIODS = [
+  { key: 'season', label: 'Sezona',    statId: s => `00${s}` },
+  { key: 'l7',     label: '7 dana',    statId: s => `01${s}` },
+  { key: 'l15',    label: '15 dana',   statId: s => `02${s}` },
+  { key: 'l30',    label: '30 dana',   statId: s => `03${s}` },
+  { key: 'proj',   label: 'Projekcija',statId: s => `10${s}` },
+];
+
+/** Ključevi u averageStats */
+const STAT = { PTS: '0', BLK: '1', STL: '2', AST: '3', REB: '6', TO: '11', FGM: '13', FGA: '14', FTM: '15', FTA: '16', TPM: '17', GP: '42' };
+
+/** 9 kategorija, redosled kolona. type: 'sum' (zbir proseka) ili 'pct' (ponderisano). */
+const CATS = [
+  { key: 'PTS', label: 'PTS', type: 'sum' },
+  { key: 'REB', label: 'REB', type: 'sum' },
+  { key: 'AST', label: 'AST', type: 'sum' },
+  { key: 'TPM', label: '3PM', type: 'sum' },
+  { key: 'STL', label: 'STL', type: 'sum' },
+  { key: 'BLK', label: 'BLK', type: 'sum' },
+  { key: 'FGP', label: 'FG%', type: 'pct', made: 'FGM', att: 'FGA' },
+  { key: 'FTP', label: 'FT%', type: 'pct', made: 'FTM', att: 'FTA' },
+  { key: 'TO',  label: 'TO',  type: 'sum', lowerIsBetter: true },
+];
+
+/** proTeamId -> skraćenica (provereno preko ?view=proTeamSchedules_wl, 2027) */
+const PRO_TEAMS = {
+  0: 'FA', 1: 'ATL', 2: 'BOS', 3: 'NOP', 4: 'CHI', 5: 'CLE', 6: 'DAL', 7: 'DEN', 8: 'DET', 9: 'GSW',
+  10: 'HOU', 11: 'IND', 12: 'LAC', 13: 'LAL', 14: 'MIA', 15: 'MIL', 16: 'MIN', 17: 'BKN', 18: 'NYK',
+  19: 'ORL', 20: 'PHI', 21: 'PHX', 22: 'POR', 23: 'SAC', 24: 'SAS', 25: 'OKC', 26: 'UTA', 27: 'WAS',
+  28: 'TOR', 29: 'MEM', 30: 'CHA',
+};
+
+/** defaultPositionId -> pozicija */
+const POSITIONS = { 1: 'PG', 2: 'SG', 3: 'SF', 4: 'PF', 5: 'C' };
+
+/** injuryStatus -> kratka oznaka (ACTIVE/NORMAL se ne prikazuju) */
+const INJURY = {
+  DAY_TO_DAY: { short: 'DTD', cls: 'dtd' }, QUESTIONABLE: { short: 'Q', cls: 'dtd' }, PROBABLE: { short: 'P', cls: 'dtd' },
+  OUT: { short: 'O', cls: '' }, INJURY_RESERVE: { short: 'IR', cls: '' }, SUSPENSION: { short: 'SSPD', cls: '' },
+};
+
+const TEAM_COLORS = ['#e1251b', '#3b82f6', '#f0b429', '#a855f7'];
+const TEAM_DEFAULT_NAMES = ['Tim A', 'Tim B', 'Tim C', 'Tim D'];
+
+/* =====================================================================
+   Pomoćne funkcije
+   ===================================================================== */
+const $ = sel => document.querySelector(sel);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+/** Uklanja dijakritike: Jokić -> jokic, Dončić -> doncic, Đ -> dj */
+const norm = s => String(s).toLowerCase()
+  .replace(/đ/g, 'dj').replace(/ø/g, 'o').replace(/ł/g, 'l').replace(/ß/g, 'ss')
+  .normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+const initials = name => name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+const fmt1 = v => (v == null ? '-' : v.toFixed(1));
+const fmtPct = v => (v == null ? '-' : v.toFixed(3).replace(/^0/, ''));
+const lsGet = k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* pun / blokiran */ } };
+const timeAgo = ts => {
+  const m = Math.round((Date.now() - ts) / 60000);
+  if (m < 1) return 'upravo';
+  if (m < 60) return `pre ${m} min`;
+  const h = Math.round(m / 60);
+  return h < 24 ? `pre ${h} h` : `pre ${Math.round(h / 24)} d`;
+};
+
+/* =====================================================================
+   Podaci: učitavanje, kompaktovanje, keš
+   ===================================================================== */
+/** Iz sirovog ESPN igrača pravi mali objekat sa samo potrebnim poljima. */
+function compactPlayer(raw) {
+  const p = raw.player || raw;
+  const stats = {};
+  const wanted = new Set(PERIODS.map(per => per.statId(CONFIG.SEASON)));
+  for (const s of p.stats || []) {
+    if (!wanted.has(s.id) || !s.averageStats) continue;
+    const a = s.averageStats, o = {};
+    for (const [k, id] of Object.entries(STAT)) o[k] = +a[id] || 0;
+    stats[s.id] = o;
+  }
+  return {
+    id: p.id,
+    name: p.fullName,
+    team: PRO_TEAMS[p.proTeamId] ?? '?',
+    pos: POSITIONS[p.defaultPositionId] ?? '?',
+    inj: p.injuryStatus || 'ACTIVE',
+    stats,
+  };
+}
+
+async function fetchPlayers() {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), CONFIG.FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(CONFIG.API_URL, {
+      headers: { 'X-Fantasy-Filter': JSON.stringify(CONFIG.FILTER) },
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error(`ESPN je vratio grešku ${res.status}`);
+    const data = await res.json();
+    const list = Array.isArray(data) ? data : data.players;
+    if (!Array.isArray(list) || list.length === 0) throw new Error('ESPN je vratio praznu listu igrača');
+    return list.map(compactPlayer).filter(p => p.id && p.name);
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('ESPN ne odgovara (isteklo vreme)');
+    if (e instanceof TypeError) throw new Error('Mrežna greška — proveri internet konekciju');
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/* =====================================================================
+   Stanje aplikacije
+   ===================================================================== */
+const state = {
+  players: [],          // kompaktni igrači
+  byId: new Map(),
+  loadedAt: 0,
+  loading: false,
+  error: null,          // poruka greške
+  stale: false,         // prikazujemo stari keš posle greške
+  slow: false,
+  period: 'season',
+  teams: [],            // [{ name, ids: [playerId] }]
+};
+
+function setPlayers(players, ts) {
+  state.players = players;
+  state.byId = new Map(players.map(p => [p.id, p]));
+  state.loadedAt = ts;
+  for (const p of players) p._n = norm(p.name);
+}
+
+function saveState() {
+  lsSet(CONFIG.STATE_KEY, { period: state.period, teams: state.teams });
+  // Deljiv link: #per=season&t=id,id|id,id
+  const t = state.teams.map(tm => tm.ids.join(',')).join('|');
+  history.replaceState(null, '', `#per=${state.period}&t=${t}`);
+}
+
+function loadState() {
+  const saved = lsGet(CONFIG.STATE_KEY);
+  const hash = new URLSearchParams(location.hash.slice(1));
+  let teams = null, period = saved?.period;
+  if (hash.has('t')) {
+    teams = hash.get('t').split('|').map((chunk, i) => ({
+      name: saved?.teams?.[i]?.name || TEAM_DEFAULT_NAMES[i],
+      ids: chunk.split(',').map(Number).filter(Boolean),
+    })).slice(0, CONFIG.MAX_TEAMS);
+    period = hash.get('per') || period;
+  } else if (Array.isArray(saved?.teams)) {
+    teams = saved.teams;
+  }
+  state.teams = teams && teams.length >= 2 ? teams : [{ name: TEAM_DEFAULT_NAMES[0], ids: [] }, { name: TEAM_DEFAULT_NAMES[1], ids: [] }];
+  state.period = PERIODS.some(p => p.key === period) ? period : 'season';
+}
+
+async function loadPlayers(force = false) {
+  const cached = lsGet(CONFIG.CACHE_KEY);
+  if (!force && cached?.players?.length && Date.now() - cached.ts < CONFIG.CACHE_TTL_MS) {
+    setPlayers(cached.players, cached.ts);
+    render();
+    return;
+  }
+  if (cached?.players?.length && !state.players.length) setPlayers(cached.players, cached.ts);
+  state.loading = true; state.error = null; state.slow = false;
+  render();
+  const slowTimer = setTimeout(() => { state.slow = true; renderStatus(); }, CONFIG.SLOW_NOTICE_MS);
+  try {
+    const players = await fetchPlayers();
+    const ts = Date.now();
+    setPlayers(players, ts);
+    lsSet(CONFIG.CACHE_KEY, { ts, players });
+    state.stale = false;
+  } catch (e) {
+    state.error = e.message;
+    state.stale = state.players.length > 0;
+  } finally {
+    clearTimeout(slowTimer);
+    state.loading = false; state.slow = false;
+    render();
+  }
+}
+
+/* =====================================================================
+   Proračun
+   ===================================================================== */
+const currentStatId = () => PERIODS.find(p => p.key === state.period).statId(CONFIG.SEASON);
+
+/** Statistika igrača za trenutni period ili null ako nema podataka (GP = 0). */
+function playerLine(p) {
+  const s = p?.stats[currentStatId()];
+  return s && s.GP > 0 ? s : null;
+}
+
+/** Zbirovi tima. Igrači bez podataka se ne računaju. */
+function teamTotals(team) {
+  const sum = { PTS: 0, REB: 0, AST: 0, TPM: 0, STL: 0, BLK: 0, TO: 0, FGM: 0, FGA: 0, FTM: 0, FTA: 0 };
+  let counted = 0;
+  const missing = [];
+  for (const id of team.ids) {
+    const p = state.byId.get(id);
+    const line = playerLine(p);
+    if (!line) { missing.push(p ? p.name : `#${id}`); continue; }
+    counted++;
+    for (const k in sum) sum[k] += line[k];
+  }
+  const vals = {};
+  for (const c of CATS) {
+    vals[c.key] = c.type === 'pct'
+      ? (sum[c.att] > 0 ? sum[c.made] / sum[c.att] : null)
+      : (counted ? sum[c.key] : null);
+  }
+  return { sum, vals, counted, missing };
+}
+
+/** Upoređuje na prikazanoj preciznosti, da boje odgovaraju brojevima koje korisnik vidi. */
+const cmpKey = (cat, v) => (v == null ? null : Math.round(v * (cat.type === 'pct' ? 1000 : 10)));
+
+/**
+ * Za svaku kategoriju: rezultat po timu ('win' | 'lose' | ''), pobednik i razlika.
+ * Učestvuju samo timovi sa bar jednim igračem koji ima podatke.
+ */
+function compare(totals) {
+  const active = totals.map((t, i) => (t.counted > 0 ? i : -1)).filter(i => i >= 0);
+  const res = { cats: {}, score: totals.map(() => 0), ties: 0, active };
+  for (const cat of CATS) {
+    const marks = totals.map(() => '');
+    const entries = active.map(i => ({ i, v: totals[i].vals[cat.key], k: cmpKey(cat, totals[i].vals[cat.key]) })).filter(e => e.k != null);
+    let winner = null, margin = null, runnerUp = null;
+    if (entries.length >= 2) {
+      entries.sort((a, b) => (cat.lowerIsBetter ? a.k - b.k : b.k - a.k));
+      const best = entries[0].k, worst = entries[entries.length - 1].k;
+      if (best !== worst) {
+        const bestOnes = entries.filter(e => e.k === best);
+        const worstOnes = entries.filter(e => e.k === worst);
+        if (bestOnes.length === 1) {
+          winner = bestOnes[0].i;
+          runnerUp = entries[1].i;
+          // Razlika na prikazanoj preciznosti (17.0 - 16.3 = 0.7, ne 0.75 -> 0.8)
+          margin = Math.abs(entries[0].k - entries[1].k) / (cat.type === 'pct' ? 1000 : 10);
+          marks[winner] = 'win';
+          res.score[winner]++;
+        } else {
+          res.ties++;
+        }
+        if (worstOnes.length === 1) marks[worstOnes[0].i] = 'lose';
+      } else {
+        res.ties++;
+      }
+    }
+    res.cats[cat.key] = { marks, winner, runnerUp, margin };
+  }
+  return res;
+}
+
+/* =====================================================================
+   Render
+   ===================================================================== */
+const searchUI = new Map(); // teamIndex -> { query, sel, open }
+
+function render() {
+  renderPeriods();
+  renderStatus();
+  renderBanner();
+  const totals = state.teams.map(teamTotals);
+  const cmp = compare(totals);
+  renderScore(totals, cmp);
+  renderTeams(totals, cmp);
+  renderCompare(totals, cmp);
+  renderReport(totals, cmp);
+}
+
+function renderPeriods() {
+  $('#periods').innerHTML = PERIODS.map(p =>
+    `<button type="button" data-period="${p.key}" aria-pressed="${p.key === state.period}">${p.label}</button>`).join('');
+}
+
+function renderStatus() {
+  const el = $('#status');
+  if (state.loading) {
+    el.innerHTML = `<div class="spinner"></div><span>${state.slow ? 'ESPN sporo odgovara, još učitavam…' : 'Učitavam igrače sa ESPN-a…'}</span>`;
+    return;
+  }
+  const info = state.loadedAt
+    ? `${state.players.length} igrača · ažurirano ${timeAgo(state.loadedAt)} · sezona ${CONFIG.SEASON - 1}-${String(CONFIG.SEASON).slice(2)}`
+    : '';
+  el.innerHTML = `<span class="grow">${info}</span><button class="linkbtn" data-action="refresh" type="button">↻ Osveži podatke</button>`;
+}
+
+function renderBanner() {
+  const el = $('#banner');
+  if (!state.error) { el.innerHTML = ''; return; }
+  el.innerHTML = state.stale
+    ? `<div class="banner warn"><span>⚠ ${esc(state.error)}. Prikazujem sačuvane podatke od ${timeAgo(state.loadedAt)}.</span><button data-action="refresh" type="button">Pokušaj ponovo</button></div>`
+    : `<div class="banner err"><span>✕ ${esc(state.error)}. Nema sačuvanih podataka.</span><button data-action="refresh" type="button">Pokušaj ponovo</button></div>`;
+}
+
+function renderScore(totals, cmp) {
+  const el = $('#score');
+  if (cmp.active.length < 2) {
+    el.innerHTML = `<div class="score-empty">${state.players.length || !state.loading ? 'Dodaj igrače u bar dva tima da vidiš poređenje.' : '<div class="skeleton" style="height:48px"></div>'}</div>`;
+    return;
+  }
+  const max = Math.max(...cmp.score);
+  const leaders = cmp.score.filter(s => s === max).length;
+  const parts = state.teams.map((t, i) => {
+    const lead = cmp.active.includes(i) && cmp.score[i] === max && leaders === 1;
+    return `<div class="score-team ${lead ? 'lead' : ''}"><span class="pts">${cmp.active.includes(i) ? cmp.score[i] : '–'}</span><span class="nm">${esc(t.name)}</span></div>`;
+  });
+  const winnerIdx = leaders === 1 ? cmp.score.indexOf(max) : -1;
+  el.innerHTML = `<div class="score-row">${parts.join('<span class="score-sep">:</span>')}</div>
+    <div class="score-note">${winnerIdx >= 0 ? `Pobeđuje <b>${esc(state.teams[winnerIdx].name)}</b>` : 'Nerešeno'}${cmp.ties ? ` · ${cmp.ties} kat. nerešeno` : ''} · ${PERIODS.find(p => p.key === state.period).label}</div>`;
+}
+
+function avatarHTML(p) {
+  return `<span class="av" data-ini="${esc(initials(p.name))}"><img src="${CONFIG.HEADSHOT_URL(p.id)}" alt="" loading="lazy" onerror="this.parentNode.textContent=this.parentNode.dataset.ini"></span>`;
+}
+
+function injHTML(p) {
+  const i = INJURY[p.inj];
+  return i ? `<span class="inj ${i.cls}" title="${esc(p.inj)}">${i.short}</span>` : '';
+}
+
+function headerRow() {
+  return `<tr><th>Igrač</th>${CATS.map(c => `<th>${c.label}</th>`).join('')}<th>GP</th></tr>`;
+}
+
+function playerRow(p, ti) {
+  const line = playerLine(p);
+  const cells = CATS.map(c => {
+    if (!line) return '<td>-</td>';
+    if (c.type === 'pct') return `<td>${fmtPct(line[c.att] > 0 ? line[c.made] / line[c.att] : null)}</td>`;
+    return `<td>${fmt1(line[c.key])}</td>`;
+  }).join('');
+  return `<tr class="${line ? '' : 'nodata'}">
+    <td><div class="pl">${avatarHTML(p)}<div class="txt"><span class="nm" title="${esc(p.name)}">${esc(p.name)}</span>
+      <span class="meta">${p.team} · ${p.pos} ${injHTML(p)} ${line ? '' : '<span class="flag" title="Nema podataka za ovaj period, ne računa se">0 GP</span>'}</span></div>
+      <button class="rm" type="button" data-action="remove" data-team="${ti}" data-id="${p.id}" aria-label="Ukloni ${esc(p.name)}">✕</button></div></td>
+    ${cells}<td>${line ? Math.round(line.GP) : '0'}</td></tr>`;
+}
+
+function totalRow(t, cmp, ti) {
+  const cells = CATS.map(c => {
+    const mark = cmp.cats[c.key].marks[ti];
+    const v = t.vals[c.key];
+    if (c.type === 'pct') {
+      return `<td class="${mark}">${fmtPct(v)}<span class="sub">${t.sum[c.made].toFixed(1)}/${t.sum[c.att].toFixed(1)}</span></td>`;
+    }
+    return `<td class="${mark}">${fmt1(v)}</td>`;
+  }).join('');
+  return `<tr class="total"><td>Ukupno <span class="meta" style="color:var(--muted);font-weight:500;font-size:11px">(${t.counted})</span></td>${cells}<td></td></tr>`;
+}
+
+function renderTeams(totals, cmp) {
+  // Sačuvaj fokus pretrage pri ponovnom renderu
+  const focused = document.activeElement?.dataset?.search;
+  const caret = document.activeElement?.selectionStart;
+  const disabled = !state.players.length;
+  const html = state.teams.map((team, ti) => {
+    const t = totals[ti];
+    const players = team.ids.map(id => state.byId.get(id)).filter(Boolean);
+    const unknown = team.ids.length - players.length;
+    const ui = searchUI.get(ti) || { query: '' };
+    const lead = cmp.active.length >= 2 && cmp.score[ti] === Math.max(...cmp.score) && cmp.score.filter(s => s === cmp.score[ti]).length === 1;
+    return `<section class="card" data-team-card="${ti}">
+      <div class="card-h">
+        <span class="dot" style="background:${TEAM_COLORS[ti]}"></span>
+        <input class="team-name" data-team-name="${ti}" value="${esc(team.name)}" aria-label="Ime tima" maxlength="24">
+        ${cmp.active.length >= 2 ? `<span class="team-badge ${lead ? 'lead' : ''}">${cmp.score[ti]} kat.</span>` : ''}
+        ${ti >= 2 ? `<button class="iconbtn" type="button" data-action="remove-team" data-team="${ti}" aria-label="Ukloni tim">✕</button>` : ''}
+      </div>
+      <div class="search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input type="search" data-search="${ti}" placeholder="${disabled ? (state.loading ? 'Učitavam igrače…' : 'Nema podataka') : 'Dodaj igrača…'}" autocomplete="off" autocorrect="off" spellcheck="false"
+          value="${esc(ui.query)}" ${disabled ? 'disabled' : ''} role="combobox" aria-expanded="false" aria-controls="dd-${ti}">
+        <ul class="dd" id="dd-${ti}" role="listbox" hidden></ul>
+      </div>
+      ${players.length
+        ? `<div class="tscroll"><table><thead>${headerRow()}</thead><tbody>${players.map(p => playerRow(p, ti)).join('')}</tbody>
+           <tfoot>${totalRow(t, cmp, ti)}</tfoot></table></div>`
+        : `<div class="empty-team">${unknown ? 'Igrači iz linka nisu pronađeni u listi.' : 'Još nema igrača. Kucaj ime iznad.'}</div>`}
+      ${t.missing.length && players.length ? `<div class="card-warn">⚠ Bez podataka za period „${PERIODS.find(p => p.key === state.period).label}“, ne računa se: ${t.missing.map(esc).join(', ')}</div>` : ''}
+    </section>`;
+  });
+  if (state.teams.length < CONFIG.MAX_TEAMS) html.push(`<button class="addteam" type="button" data-action="add-team">+ Dodaj tim</button>`);
+  $('#teams').innerHTML = html.join('');
+  if (focused != null) {
+    const inp = document.querySelector(`[data-search="${focused}"]`);
+    if (inp && !inp.disabled) { inp.focus(); try { inp.setSelectionRange(caret, caret); } catch {} updateDropdown(+focused); }
+  }
+}
+
+function renderCompare(totals, cmp) {
+  const el = $('#compare');
+  if (cmp.active.length < 2) { el.innerHTML = ''; return; }
+  const rows = CATS.map(c => {
+    const r = cmp.cats[c.key];
+    const tds = state.teams.map((_, i) => {
+      const v = totals[i].vals[c.key];
+      return `<td class="${r.marks[i]}">${c.type === 'pct' ? fmtPct(v) : fmt1(v)}</td>`;
+    }).join('');
+    const diff = r.winner == null ? '–' : (c.type === 'pct' ? `${(r.margin * 100).toFixed(1)} pp` : r.margin.toFixed(1));
+    return `<tr><td><b>${c.label}</b></td>${tds}<td style="color:var(--muted)">${diff}</td></tr>`;
+  }).join('');
+  el.innerHTML = `<div class="section-t">Poređenje kategorija</div>
+    <div class="card"><div class="tscroll"><table class="cmp"><thead><tr><th>Kat.</th>${state.teams.map((t, i) => `<th style="color:${TEAM_COLORS[i]}">${esc(t.name)}</th>`).join('')}<th>Razlika</th></tr></thead>
+    <tbody>${rows}</tbody></table></div></div>`;
+}
+
+function catMarginText(c, margin) {
+  if (c.type === 'pct') return `+${(margin * 100).toFixed(1)} pp`;
+  return `${c.lowerIsBetter ? '−' : '+'}${margin.toFixed(1)}`;
+}
+
+function renderReport(totals, cmp) {
+  const el = $('#report');
+  if (cmp.active.length < 2) { el.innerHTML = ''; return; }
+  const multi = cmp.active.length > 2;
+  const per = PERIODS.find(p => p.key === state.period).label.toLowerCase();
+  const paras = [];
+  const max = Math.max(...cmp.score);
+  const leaders = cmp.active.filter(i => cmp.score[i] === max);
+  const scoreStr = cmp.active.map(i => cmp.score[i]).join(':');
+  paras.push(leaders.length === 1
+    ? `Na osnovu proseka (${per}) <span class="w">${esc(state.teams[leaders[0]].name)}</span> dobija trejd ${scoreStr} po kategorijama.`
+    : `Na osnovu proseka (${per}) trejd je izjednačen (${scoreStr}).`);
+
+  for (const i of cmp.active) {
+    const won = CATS.filter(c => cmp.cats[c.key].winner === i);
+    const name = esc(state.teams[i].name);
+    if (!won.length) { paras.push(`${name} ne osvaja nijednu kategoriju.`); continue; }
+    const parts = won.map(c => {
+      const r = cmp.cats[c.key];
+      const vs = multi ? ` ispred ${esc(state.teams[r.runnerUp].name)}` : '';
+      return `${c.label} (${catMarginText(c, r.margin)}${vs})`;
+    });
+    // Najtesnija pobeda (relativno) — korisno za trejd odluke
+    const close = won.map(c => {
+      const r = cmp.cats[c.key];
+      const base = Math.abs(totals[i].vals[c.key]) || 1;
+      return { c, rel: c.type === 'pct' ? r.margin / 0.02 : r.margin / base / 0.05 };
+    }).filter(x => x.rel < 1).map(x => x.c.label);
+    paras.push(`${name} dobija ${parts.join(', ')}.${close.length ? ` Tesno: ${close.join(', ')}.` : ''}`);
+  }
+  const tied = CATS.filter(c => cmp.cats[c.key].winner == null).map(c => c.label);
+  if (tied.length) paras.push(`Nerešeno: ${tied.join(', ')}.`);
+  const missing = cmp.active.flatMap(i => totals[i].missing);
+  if (missing.length) paras.push(`Napomena: bez podataka za ovaj period i ne računaju se: ${missing.map(esc).join(', ')}.`);
+  el.innerHTML = `<div class="section-t">Izveštaj</div><div class="report">${paras.map(p => `<p>${p}</p>`).join('')}</div>`;
+}
+
+/* =====================================================================
+   Pretraga / autocomplete
+   ===================================================================== */
+function searchResults(query) {
+  const q = norm(query);
+  if (!q) return [];
+  const tokens = q.split(' ');
+  const taken = new Set(state.teams.flatMap(t => t.ids));
+  const out = [];
+  // Lista je već sortirana po % owned, pa prvi pogoci su najrelevantniji.
+  // Prvo oni čije ime/prezime počinje upitom, pa ostali.
+  const starts = [], rest = [];
+  for (const p of state.players) {
+    if (taken.has(p.id)) continue;
+    if (!tokens.every(t => p._n.includes(t))) continue;
+    (p._n.split(' ').some(w => w.startsWith(tokens[0])) ? starts : rest).push(p);
+    if (starts.length >= CONFIG.DROPDOWN_MAX) break;
+  }
+  out.push(...starts, ...rest);
+  return out.slice(0, CONFIG.DROPDOWN_MAX);
+}
+
+function updateDropdown(ti) {
+  const inp = document.querySelector(`[data-search="${ti}"]`);
+  const dd = document.getElementById(`dd-${ti}`);
+  if (!inp || !dd) return;
+  const ui = searchUI.get(ti) || { query: '', sel: 0 };
+  ui.query = inp.value;
+  const results = searchResults(ui.query);
+  ui.results = results;
+  ui.sel = Math.min(ui.sel || 0, Math.max(results.length - 1, 0));
+  searchUI.set(ti, ui);
+  if (!norm(ui.query)) { dd.hidden = true; inp.setAttribute('aria-expanded', 'false'); return; }
+  dd.hidden = false;
+  inp.setAttribute('aria-expanded', 'true');
+  dd.innerHTML = results.length
+    ? results.map((p, k) => `<li role="option" data-pick="${p.id}" data-team="${ti}" aria-selected="${k === ui.sel}">
+        ${avatarHTML(p)}<div><div>${esc(p.name)}</div><div class="meta">${p.team} · ${p.pos} ${injHTML(p)}</div></div></li>`).join('')
+    : `<li class="empty">Nema igrača za „${esc(ui.query)}“</li>`;
+  dd.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
+}
+
+function addPlayer(ti, id) {
+  const team = state.teams[ti];
+  if (!team || state.teams.some(t => t.ids.includes(id))) return;
+  team.ids.push(id);
+  searchUI.set(ti, { query: '', sel: 0 });
+  saveState();
+  render();
+  document.querySelector(`[data-search="${ti}"]`)?.focus();
+}
+
+/* =====================================================================
+   Događaji (delegirani)
+   ===================================================================== */
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-action],[data-period]');
+  if (!el) return;
+  if (el.dataset.period) { state.period = el.dataset.period; saveState(); render(); return; }
+  const ti = +el.dataset.team;
+  switch (el.dataset.action) {
+    case 'refresh': loadPlayers(true); break;
+    case 'remove': state.teams[ti].ids = state.teams[ti].ids.filter(id => id !== +el.dataset.id); saveState(); render(); break;
+    case 'add-team':
+      if (state.teams.length < CONFIG.MAX_TEAMS) state.teams.push({ name: TEAM_DEFAULT_NAMES[state.teams.length], ids: [] });
+      saveState(); render(); break;
+    case 'remove-team': state.teams.splice(ti, 1); searchUI.clear(); saveState(); render(); break;
+  }
+});
+
+// mousedown (ne click) da blur inputa ne zatvori dropdown pre izbora
+document.addEventListener('mousedown', e => {
+  const li = e.target.closest('[data-pick]');
+  if (!li) return;
+  e.preventDefault();
+  addPlayer(+li.dataset.team, +li.dataset.pick);
+});
+
+document.addEventListener('input', e => {
+  if (e.target.dataset.search != null) { const ti = +e.target.dataset.search; const ui = searchUI.get(ti) || {}; ui.sel = 0; searchUI.set(ti, ui); updateDropdown(ti); }
+  if (e.target.dataset.teamName != null) {
+    state.teams[+e.target.dataset.teamName].name = e.target.value || TEAM_DEFAULT_NAMES[+e.target.dataset.teamName];
+    saveState();
+    const totals = state.teams.map(teamTotals), cmp = compare(totals);
+    renderScore(totals, cmp); renderCompare(totals, cmp); renderReport(totals, cmp);
+  }
+});
+
+document.addEventListener('keydown', e => {
+  const inp = e.target;
+  if (inp.dataset?.search == null) return;
+  const ti = +inp.dataset.search;
+  const ui = searchUI.get(ti);
+  if (!ui || !ui.results) return;
+  const n = ui.results.length;
+  if (e.key === 'ArrowDown' && n) { e.preventDefault(); ui.sel = (ui.sel + 1) % n; updateDropdown(ti); }
+  else if (e.key === 'ArrowUp' && n) { e.preventDefault(); ui.sel = (ui.sel - 1 + n) % n; updateDropdown(ti); }
+  else if (e.key === 'Enter' && n) { e.preventDefault(); addPlayer(ti, ui.results[ui.sel].id); }
+  else if (e.key === 'Escape') { inp.value = ''; ui.query = ''; updateDropdown(ti); }
+});
+
+document.addEventListener('focusout', e => {
+  if (e.target.dataset?.search == null) return;
+  const dd = document.getElementById(`dd-${e.target.dataset.search}`);
+  setTimeout(() => { if (document.activeElement !== e.target && dd) dd.hidden = true; }, 120);
+});
+document.addEventListener('focusin', e => { if (e.target.dataset?.search != null) updateDropdown(+e.target.dataset.search); });
+window.addEventListener('hashchange', () => { loadState(); render(); });
+
+/* ===================================================================== */
+loadState();
+render();
+loadPlayers();
+</script>
+</body>
+</html>
