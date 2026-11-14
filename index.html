@@ -80,8 +80,9 @@ header.top .wrap{display:flex;align-items:center;gap:12px;padding-top:10px;paddi
 
 /* Search */
 .search{position:relative;padding:10px 12px}
+.search.slot-search{display:flex;flex-direction:column;gap:4px}
 .search-in{position:relative}
-.slot-tag{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:1px 5px;border-radius:3px;width:max-content}
+.slot-tag{display:inline-block;white-space:nowrap;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:1px 5px;border-radius:3px;width:max-content}
 tr.slot-d td{background:linear-gradient(rgba(214,69,69,.09),rgba(214,69,69,.09)),var(--card)}
 tr.slot-w td{background:linear-gradient(rgba(31,157,85,.09),rgba(31,157,85,.09)),var(--card)}
 tr.slot-d .slot-tag,.slot-d-tag{background:var(--lose-bg);color:var(--lose-text)}
@@ -183,7 +184,33 @@ th.minth .i{font-size:10px;opacity:.7;margin-left:2px}
 .chip small{color:var(--muted);font-size:10px}
 .chip button{background:none;border:0;color:var(--dim);cursor:pointer;padding:2px 4px}
 .chip button:hover{color:var(--accent2)}
-.mytable td:first-child{min-width:110px}
+.rtable{table-layout:fixed;min-width:860px}
+.sumtable td{border-bottom:1px solid var(--line)}
+tr.sumrow td{font-weight:600;background:var(--bg2)}
+tr.sumrow td:first-child{background:var(--bg2)}
+tr.leaving td,tr.ir td{color:var(--dim)}
+tr.leaving .av,tr.ir .av,tr.leaving .badge,tr.ir .badge{opacity:.5}
+tr.leaving .nm{text-decoration:line-through}
+tr.arriving td{background:linear-gradient(rgba(31,157,85,.10),rgba(31,157,85,.10)),var(--card)}
+tr.irhead td{font-size:11px;color:var(--muted);background:var(--bg2);text-align:left;font-weight:600;letter-spacing:.03em}
+.tags{display:flex;gap:3px;margin-bottom:1px}
+.tag-out{background:var(--lose-bg);color:var(--lose-text)}
+.tag-in{background:var(--win-bg);color:var(--win-text)}
+.tag-ir{background:var(--card2);color:var(--muted);border:1px solid var(--line)}
+.tag-mine{background:rgba(225,37,27,.16);color:#ff9b94}
+.mini{background:var(--bg2);border:1px solid var(--line);border-radius:4px;color:var(--muted);font-size:10px;padding:2px 5px;cursor:pointer;flex:none;margin-left:auto}
+.mini:hover{color:var(--text)}
+.mini + .rm{margin-left:0}
+.r-meta{font-size:11px;color:var(--muted);padding:10px 12px 0}
+.r-meta .stale{color:var(--warn)}
+.balance{padding:8px 12px 0;display:flex;flex-direction:column;gap:6px}
+.balance .search{padding:0}
+.bal-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bal-row select{background:var(--bg2);border:1px solid var(--line);border-radius:6px;color:var(--text);padding:6px 8px;font-size:14px;min-width:200px}
+.card-warn.strong{border-radius:0;margin-top:8px}
+.empty-team.cta{color:var(--text);font-weight:600}
+@media (max-width:640px){ .rtable{min-width:700px} }
+@media (max-width:1000px) and (min-width:641px){ .rtable{min-width:780px} }
 .cnt{color:var(--muted);font-weight:500;font-size:11px}
 .score-actions{display:flex;justify-content:center;gap:8px;margin-top:8px;flex-wrap:wrap}
 .hist-list{list-style:none;margin:0;padding:6px 8px}
@@ -227,6 +254,7 @@ footer{color:var(--dim);font-size:11px;text-align:center;margin-top:28px}
   <div id="compare"></div>
   <div id="report"></div>
   <div id="myteam"></div>
+  <div id="oppteam"></div>
   <div id="history"></div>
   <footer>Podaci: javni ESPN fantasy API (nezvaničan). Prosek po utakmici.</footer>
 </main>
@@ -265,7 +293,10 @@ const CONFIG = (() => {
     CACHE_KEY: `fbaTrade.players.v2.${SEASON}`,
     STATE_KEY: 'fbaTrade.state.v1',
     PUNT_KEY: 'fbaTrade.punt.v1',      // samo lokalno, ne ide u link
-    MYTEAM_KEY: 'fbaTrade.myteam.v1',  // samo lokalno, ne ide u link
+    MYTEAM_KEY: 'fbaTrade.myteam.v1',  // stari format (samo za migraciju)
+    ROSTERS_KEY: 'fbaTrade.rosters.v1', // moj roster + protivnici, samo lokalno
+    BALANCE_KEY: 'fbaTrade.balance.v1', // izbor Koga izbacuješ / Waiver, samo lokalno
+    UI_KEY: 'fbaTrade.ui.v1',           // otvorene sekcije, samo lokalno
     HISTORY_KEY: 'fbaTrade.history.v1', // samo lokalno, ne ide u link
     // Statistika po utakmici (split 5) za izabrane igrače. NAPOMENA: filterStatsForExternalIds
     // izbacuje split 5 (externalId tih unosa je ID utakmice), zato se ovde ne koristi.
@@ -303,6 +334,8 @@ const MINUTES = { TREND_KEYS: ['season', 'l30', 'l15', 'l7'], DROP_ALERT: 3 };
 /** Nedelja = ponedeljak–nedelja po američkom istočnom vremenu (kao ESPN fantasy nedelje),
  *  da utakmica u nedelju uveče (ET) ne pređe u sledeću nedelju po našem vremenu. */
 const WEEK_TZ = 'America/New_York';
+/** Roster kao u ESPN-u: 13 aktivnih + 2 IR. IR igrači se ne računaju u zbirove. */
+const ROSTER = { ACTIVE: 13, IR: 2, STALE_DAYS: 7 };
 /** Pragovi boje za trajnost (GP%) */
 const DURABILITY = { GOOD: 0.85, OK: 0.70 };
 
@@ -478,9 +511,26 @@ state.gameLogs = new Map();                         // playerId -> [{ date, line
 state.gameLogStatus = { loading: false, error: null };
 const saveHistory = () => lsSet(CONFIG.HISTORY_KEY, state.history);
 
-/* ---------- Moj tim (samo lokalno) ---------- */
-state.my = { roster: [], side: 0, open: false, ...(lsGet(CONFIG.MYTEAM_KEY) || {}) };
-const saveMy = () => lsSet(CONFIG.MYTEAM_KEY, state.my);
+/* ---------- Rosteri (samo lokalno) ----------
+ * rosters.my / rosters.opps[oid] = { name?, players: [{ id, ir }], updated: ISO }
+ * balance[kind] = { drops: [id], waivers: [id] } — izbor za trenutni trejd */
+const emptyRoster = name => ({ name, players: [], updated: null });
+function loadRosters() {
+  const r = lsGet(CONFIG.ROSTERS_KEY) || { my: emptyRoster('Moj tim'), opps: {}, oppSel: null };
+  // migracija starog "Moj tim" (lista ID-jeva) u novi format
+  const old = lsGet(CONFIG.MYTEAM_KEY);
+  if (!r.my.players.length && old?.roster?.length) {
+    r.my.players = old.roster.slice(0, ROSTER.ACTIVE + ROSTER.IR).map((id, i) => ({ id, ir: i >= ROSTER.ACTIVE }));
+    r.my.updated = new Date().toISOString();
+  }
+  return r;
+}
+state.rosters = loadRosters();
+state.balance = { my: { drops: [], waivers: [] }, opp: { drops: [], waivers: [] }, ...(lsGet(CONFIG.BALANCE_KEY) || {}) };
+state.ui = { myOpen: true, oppOpen: false, ...(lsGet(CONFIG.UI_KEY) || {}) };
+const saveRosters = () => lsSet(CONFIG.ROSTERS_KEY, state.rosters);
+const saveBalance = () => lsSet(CONFIG.BALANCE_KEY, state.balance);
+const saveUI = () => lsSet(CONFIG.UI_KEY, state.ui);
 
 const isPunt = c => state.punt.has(c.key);
 const puntCls = c => (isPunt(c) ? ' punt' : '');
@@ -737,7 +787,8 @@ function render() {
   renderTeams(totals, cmp);
   renderCompare(totals, cmp);
   renderReport(totals, cmp);
-  renderMyTeam();
+  renderRosterSection('my');
+  renderRosterSection('opp');
   renderHistory();
   // vrati fokus pretrage posle re-rendera
   if (focused != null) {
@@ -856,26 +907,34 @@ function minutesCell(p, line) {
   return `<td class="mintd ${drop ? 'min-drop' : ''}" ${known.length ? `data-tip="${esc(tip)}"` : ''}>${drop ? '↓' : ''}${known.length ? `<span class="minval">${val}</span>` : val}</td>`;
 }
 
-const SLOT_LABEL = { d: { text: 'Izbacuješ', cls: 'slot-d' }, w: { text: 'Waiver dodatak', cls: 'slot-w' } };
-
-/** Red igrača u trejdu. kind: 'recv' (strana trejda), 'd' / 'w' (koristi se u istoriji starih trejdova) */
-function playerRow(p, ti, kind = 'recv') {
+/** Generički red igrača: slika, ime, oznake, MIN, 9 kategorija sa trendom, GP */
+function playerRowHTML(p, { tags = [], cls = '', actions = '', sign = '' } = {}) {
   const line = playerLine(p);
-  const sign = kind === 'd' ? '−' : '';
   const cells = CATS.map(c => {
-    const cls = puntCls(c) ? ` class="${puntCls(c).trim()}"` : '';
-    if (!line) return `<td${cls}>-</td>`;
+    const pc = puntCls(c) ? ` class="${puntCls(c).trim()}"` : '';
+    if (!line) return `<td${pc}>-</td>`;
     const tr = trendHTML(p, c);
-    if (c.type === 'pct') return `<td${cls}>${tr}${fmtPct(line[c.att] > 0 ? line[c.made] / line[c.att] : null)}</td>`;
-    return `<td${cls}>${tr}${sign}${fmt1(line[c.key])}</td>`;
+    if (c.type === 'pct') return `<td${pc}>${tr}${fmtPct(line[c.att] > 0 ? line[c.made] / line[c.att] : null)}</td>`;
+    return `<td${pc}>${tr}${sign}${fmt1(line[c.key])}</td>`;
   }).join('');
-  const slot = SLOT_LABEL[kind];
-  return `<tr class="${line ? '' : 'nodata'} ${slot ? slot.cls : ''}">
-    <td><div class="pl">${avatarHTML(p)}<div class="txt">${slot ? `<span class="slot-tag">${slot.text}</span>` : ''}<span class="nm" title="${esc(p.name)}">${esc(p.name)}</span>
+  const tagHTML = tags.map(t => `<span class="slot-tag ${t.cls}">${t.text}</span>`).join('');
+  return `<tr class="${line ? '' : 'nodata'} ${cls}">
+    <td><div class="pl">${avatarHTML(p)}<div class="txt">${tagHTML ? `<span class="tags">${tagHTML}</span>` : ''}<span class="nm" title="${esc(p.name)}">${esc(p.name)}</span>
       <span class="meta">${p.team} · ${p.pos} ${injHTML(p)} ${durabilityHTML(p)} ${weekGamesHTML(p)} ${line ? '' : '<span class="flag" title="Nema podataka za ovaj period, ne računa se">0 GP</span>'}</span>
-      </div>
-      <button class="rm" type="button" data-action="remove" data-kind="${kind}" data-team="${ti}" data-id="${p.id}" aria-label="Ukloni ${esc(p.name)}">✕</button></div></td>
+      </div>${actions}</div></td>
     ${minutesCell(p, line)}${cells}<td>${line ? Math.round(line.GP) : '0'}</td></tr>`;
+}
+
+const SLOT_LABEL = { d: { text: 'Izbacuješ', cls: 'tag-out' }, w: { text: 'Waiver', cls: 'tag-in' } };
+
+/** Red igrača u trejdu (ili starom sačuvanom trejdu: 'd' / 'w') */
+function playerRow(p, ti, kind = 'recv') {
+  const slot = SLOT_LABEL[kind];
+  const mine = ti === GIVE && rosterIds(state.rosters.my).includes(p.id);
+  const opp = ti === GET && rosterIds(rosterOf('opp')).includes(p.id);
+  const tags = slot ? [slot] : mine ? [{ text: 'Moj tim', cls: 'tag-mine' }] : opp ? [{ text: esc(rosterOf('opp').name), cls: 'tag-mine' }] : [];
+  return playerRowHTML(p, { tags, sign: kind === 'd' ? '−' : '',
+    actions: `<button class="rm" type="button" data-action="remove" data-team="${ti}" data-id="${p.id}" aria-label="Ukloni ${esc(p.name)}">✕</button>` });
 }
 
 function searchBoxHTML(key, placeholder, label = '') {
@@ -931,8 +990,18 @@ function renderTeams(totals, cmp) {
 
 /** Podnaslov strane (ime protivnika kad je izabran) */
 const sideSubtitle = ti => SIDES[ti].sub;
-/** Upozorenja ispod strane trejda (dopunjava se u sekciji rostera) */
-const tradeWarnings = () => '';
+/** Upozorenja ispod strane trejda: igrač nije na rosteru koji ga daje */
+function tradeWarnings(ti) {
+  const r = ti === GIVE ? state.rosters.my : rosterOf('opp');
+  if (!r || !r.players.length) return '';
+  const notOn = state.teams[ti].ids.filter(id => !rosterIds(r).includes(id));
+  const alreadyMine = ti === GET ? state.teams[GET].ids.filter(id => rosterIds(state.rosters.my).includes(id)) : [];
+  const nm = id => esc(state.byId.get(id)?.name || id);
+  return [
+    notOn.length ? `<div class="card-warn">⚠ Nije na rosteru ${ti === GIVE ? 'tvog tima' : esc(r.name)}: ${notOn.map(nm).join(', ')}</div>` : '',
+    alreadyMine.length ? `<div class="card-warn">⚠ Već je na tvom rosteru: ${alreadyMine.map(nm).join(', ')}</div>` : '',
+  ].join('');
+}
 
 function renderCompare(totals, cmp) {
   const el = $('#compare');
@@ -987,57 +1056,176 @@ function renderReport(totals, cmp) {
 }
 
 /* =====================================================================
-   Moj tim: pre i posle trejda
+   Rosteri: Moj tim (i protivnik) pre i posle trejda
    ===================================================================== */
-/** Roster posle trejda: − dati igrači − izbačeni + dobijeni + waiver dodaci (moja strana). */
-function myTeamAfter() {
-  const roster = state.my.roster;
-  const given = new Set(giveIds());
-  const after = [...roster.filter(id => !given.has(id)), ...getIds()];
-  const notOnRoster = [...given].filter(id => !roster.includes(id));
-  return { after: [...new Set(after)], notOnRoster };
+const KINDS = { my: { title: 'Moj tim', out: GIVE, in: GET }, opp: { title: 'Protivnik', out: GET, in: GIVE } };
+/** Roster za vrstu: 'my' ili 'opp' (izabrani protivnik, ili null) */
+const rosterOf = kind => (kind === 'my' ? state.rosters.my : state.rosters.opps[state.rosters.oppSel] || null);
+const rosterIds = r => (r ? r.players.map(x => x.id) : []);
+const activeCount = r => r.players.filter(x => !x.ir).length;
+const irCount = r => r.players.filter(x => x.ir).length;
+
+/**
+ * Plan rostera posle trejda.
+ * - odlaze: igrači sa rostera koji su na izlaznoj strani trejda (moj: Daješ, protivnik: Dobijaš)
+ * - dolaze: igrači sa ulazne strane, idu na aktivna mesta
+ * - IR igrači se ne računaju; IR igrač koji odlazi ne oslobađa aktivno mesto
+ * - više od 13 aktivnih -> obavezno "Koga izbacuješ"; manje -> opcioni "Waiver dodatak"
+ */
+function rosterPlan(kind) {
+  const r = rosterOf(kind);
+  if (!r) return null;
+  const outSet = new Set(state.teams[KINDS[kind].out].ids);
+  const onRoster = new Set(rosterIds(r));
+  const activeBefore = r.players.filter(x => !x.ir).map(x => x.id);
+  const irIds = r.players.filter(x => x.ir).map(x => x.id);
+  const outIds = rosterIds(r).filter(id => outSet.has(id));
+  const incoming = state.teams[KINDS[kind].in].ids.filter(id => !onRoster.has(id));
+  const pre = [...activeBefore.filter(id => !outSet.has(id)), ...incoming];
+  const needDrops = Math.max(0, pre.length - ROSTER.ACTIVE);
+  const bal = state.balance[kind];
+  const drops = [...new Set(bal.drops)].filter(id => pre.includes(id)).slice(0, needDrops);
+  const waiverSlots = Math.max(0, ROSTER.ACTIVE - pre.length);
+  const taken = new Set([...onRoster, ...takenIds()]);
+  const waivers = [...new Set(bal.waivers)].filter(id => !taken.has(id)).slice(0, waiverSlots);
+  const activeAfter = [...pre.filter(id => !drops.includes(id)), ...waivers];
+  const notOnRoster = [...outSet].filter(id => !onRoster.has(id));
+  const tradeTouches = outIds.length + incoming.length > 0;
+  return { r, activeBefore, irIds, outIds, incoming, drops, needDrops, waivers, waiverSlots, pre, activeAfter, notOnRoster, tradeTouches, missingDrops: needDrops - drops.length };
 }
 
-function renderMyTeam() {
-  const el = $('#myteam');
-  const roster = state.my.roster.map(id => state.byId.get(id)).filter(Boolean);
-  const chips = roster.map(p => `<span class="chip">${esc(p.name)} <small>${p.team}·${p.pos}</small>
-    <button type="button" data-action="roster-remove" data-id="${p.id}" aria-label="Ukloni ${esc(p.name)}">✕</button></span>`).join('');
+const fmtShortDate = iso => (iso ? new Date(iso).toLocaleDateString('sr-Latn', { day: 'numeric', month: 'numeric', year: 'numeric' }) : '—');
+const isStale = iso => iso && Date.now() - new Date(iso).getTime() > ROSTER.STALE_DAYS * 864e5;
 
-  let table = '';
-  if (roster.length) {
-    const { after, notOnRoster } = myTeamAfter();
-    const before = sumPlayers(state.my.roster), aft = sumPlayers(after);
-    const cell = (c, t) => {
-      const v = t.vals[c.key];
-      return `<td class="${puntCls(c).trim()}">${c.type === 'pct' ? fmtPct(v) : fmt1(v)}${c.type === 'pct' ? `<span class="sub">${t.sum[c.made].toFixed(1)}/${t.sum[c.att].toFixed(1)}</span>` : ''}</td>`;
-    };
-    const diffCells = CATS.map(c => {
-      const b = cmpKey(c, before.vals[c.key]), a = cmpKey(c, aft.vals[c.key]);
-      if (a == null || b == null) return `<td class="${puntCls(c).trim()}">-</td>`;
-      const d = (a - b) / (c.type === 'pct' ? 1000 : 10);
-      const better = c.lowerIsBetter ? d < 0 : d > 0;
-      const cls = d === 0 ? '' : better ? 'win' : 'lose';
-      const txt = c.type === 'pct' ? `${d > 0 ? '+' : ''}${(d * 100).toFixed(1)} pp` : `${d > 0 ? '+' : ''}${d.toFixed(1)}`;
-      return `<td class="${cls}${puntCls(c)}">${txt}</td>`;
-    }).join('');
-    const missing = [...new Set([...before.missing, ...aft.missing])];
-    table = `<div class="tscroll"><table class="mytable"><thead><tr><th></th>${CATS.map(catTh).join('')}</tr></thead><tbody>
-      <tr><td>Pre trejda <span class="cnt">(${before.counted})</span></td>${CATS.map(c => cell(c, before)).join('')}</tr>
-      <tr><td>Posle trejda <span class="cnt">(${aft.counted})</span></td>${CATS.map(c => cell(c, aft)).join('')}</tr>
-      <tr class="total"><td>Razlika</td>${diffCells}</tr></tbody></table></div>
-      ${notOnRoster.length ? `<div class="card-warn">⚠ Daješ/izbacuješ igrače koji nisu na tvom rosteru (ne oduzimaju se): ${notOnRoster.map(id => esc(state.byId.get(id)?.name || id)).join(', ')}</div>` : ''}
-      ${missing.length ? `<div class="card-warn">⚠ Bez podataka za izabrani period, ne računa se: ${missing.map(esc).join(', ')}</div>` : ''}`;
+/** Red rostera u istom stilu kao gornje tabele, sa oznakama i akcijama */
+function rosterRow(p, kind, { tags = [], cls = '', actions = '' } = {}) {
+  return playerRowHTML(p, { tags, cls, actions });
+}
+
+/** Tri reda ispod rostera: Pre / Posle / Razlika (iste kolone kao tabele igrača) */
+function summaryRows(before, after, showAfter) {
+  const cells = t => CATS.map(c => {
+    const v = t.vals[c.key];
+    return `<td class="${puntCls(c).trim()}">${c.type === 'pct' ? `${fmtPct(v)}<span class="sub">${t.sum[c.made].toFixed(1)}/${t.sum[c.att].toFixed(1)}</span>` : fmt1(v)}</td>`;
+  }).join('');
+  if (!showAfter) return `<tr class="total"><td>Ukupno <span class="cnt">(${before.counted} aktivnih)</span></td><td></td>${cells(before)}<td></td></tr>`;
+  const diff = CATS.map(c => {
+    const b = cmpKey(c, before.vals[c.key]), a = cmpKey(c, after.vals[c.key]);
+    if (a == null || b == null) return `<td class="${puntCls(c).trim()}">-</td>`;
+    const d = (a - b) / (c.type === 'pct' ? 1000 : 10);
+    const better = c.lowerIsBetter ? d < 0 : d > 0;
+    const txt = c.type === 'pct' ? `${d > 0 ? '+' : d < 0 ? '−' : ''}${Math.abs(d * 100).toFixed(1)} pp` : `${d > 0 ? '+' : d < 0 ? '−' : ''}${Math.abs(d).toFixed(1)}`;
+    return `<td class="${d === 0 ? '' : better ? 'win' : 'lose'}${puntCls(c)}">${txt}</td>`;
+  }).join('');
+  return `<tr class="sumrow"><td>Pre trejda <span class="cnt">(${before.counted})</span></td><td></td>${cells(before)}<td></td></tr>
+    <tr class="sumrow"><td>Posle trejda <span class="cnt">(${after.counted})</span></td><td></td>${cells(after)}<td></td></tr>
+    <tr class="total"><td>Razlika</td><td></td>${diff}<td></td></tr>`;
+}
+
+function rosterTableHTML(kind, plan) {
+  const P = id => state.byId.get(id);
+  const rm = (id, label = 'Ukloni sa rostera') => `<button class="rm" type="button" data-action="r-remove" data-kind="${kind}" data-id="${id}" aria-label="${label}">✕</button>`;
+  const irBtn = (id, toIr) => `<button class="mini" type="button" data-action="r-ir" data-kind="${kind}" data-id="${id}" title="${toIr ? 'Prebaci na IR' : 'Vrati sa IR'}">${toIr ? '→IR' : '←IR'}</button>`;
+  const outSet = new Set(plan.outIds), dropSet = new Set(plan.drops);
+  const rows = [];
+  for (const id of plan.activeBefore) {
+    const p = P(id); if (!p) continue;
+    const tags = outSet.has(id) ? [{ text: 'Odlazi', cls: 'tag-out' }] : dropSet.has(id) ? [{ text: 'Izbacuješ', cls: 'tag-out' }] : [];
+    rows.push(rosterRow(p, kind, { tags, cls: tags.length ? 'leaving' : '', actions: irBtn(id, true) + rm(id) }));
   }
+  for (const id of plan.incoming) {
+    const p = P(id); if (!p) continue;
+    const dropped = dropSet.has(id);
+    rows.push(rosterRow(p, kind, { tags: [{ text: 'Dolazi', cls: 'tag-in' }, ...(dropped ? [{ text: 'Izbacuješ', cls: 'tag-out' }] : [])], cls: dropped ? 'leaving' : 'arriving' }));
+  }
+  for (const id of plan.waivers) {
+    const p = P(id); if (!p) continue;
+    rows.push(rosterRow(p, kind, { tags: [{ text: 'Waiver', cls: 'tag-in' }], cls: 'arriving',
+      actions: `<button class="rm" type="button" data-action="bal-w-remove" data-kind="${kind}" data-id="${id}" aria-label="Ukloni waiver">✕</button>` }));
+  }
+  if (plan.irIds.length) {
+    rows.push(`<tr class="irhead"><td colspan="${CATS.length + 3}">IR · ne računa se u zbirove (${plan.irIds.length}/${ROSTER.IR})</td></tr>`);
+    for (const id of plan.irIds) {
+      const p = P(id); if (!p) continue;
+      const tags = [{ text: 'IR', cls: 'tag-ir' }, ...(outSet.has(id) ? [{ text: 'Odlazi', cls: 'tag-out' }] : [])];
+      rows.push(rosterRow(p, kind, { tags, cls: outSet.has(id) ? 'leaving ir' : 'ir', actions: irBtn(id, false) + rm(id) }));
+    }
+  }
+  return rows.join('');
+}
 
-  el.innerHTML = `<details class="card fold" data-fold="my" ${state.my.open ? 'open' : ''}>
-    <summary><span>Moj tim: pre i posle</span><span class="hint">${roster.length ? `${roster.length} igrača` : 'dodaj roster'}</span></summary>
-    <div class="fold-body">
-      ${searchBoxHTML('roster', 'Dodaj igrača na svoj roster…')}
-      ${chips ? `<div class="chips">${chips}</div>` : ''}
-      ${table || '<div class="empty-team">Dodaj ceo svoj roster da vidiš kako ga trejd menja.</div>'}
-    </div>
-  </details>`;
+function balanceHTML(kind, plan) {
+  const parts = [];
+  for (let i = 0; i < plan.needDrops; i++) {
+    const cur = plan.drops[i];
+    const opts = plan.pre.filter(id => id === cur || !plan.drops.includes(id))
+      .map(id => `<option value="${id}" ${id === cur ? 'selected' : ''}>${esc(state.byId.get(id)?.name || id)}</option>`).join('');
+    parts.push(`<label class="bal-row"><span class="slot-tag slot-d-tag">Koga izbacuješ ${i + 1}/${plan.needDrops}</span>
+      <select data-drop="${kind}" data-idx="${i}"><option value="">— izaberi igrača —</option>${opts}</select></label>`);
+  }
+  if (plan.waiverSlots > plan.waivers.length) {
+    parts.push(searchBoxHTML(`${kind}-w`, 'Koga uzimaš sa waivera… (opciono)',
+      `<span class="slot-tag slot-w-tag">Waiver dodatak ${plan.waivers.length + 1}/${plan.waiverSlots} · opciono</span>`));
+  }
+  const warn = plan.missingDrops > 0
+    ? `<div class="card-warn strong">⚠ Posle trejda imaš ${plan.pre.length} aktivnih (max ${ROSTER.ACTIVE}). Izaberi koga izbacuješ (${plan.missingDrops}) — dotle Razlika nije realna.</div>` : '';
+  return parts.length || warn ? `<div class="balance">${parts.join('')}</div>${warn}` : '';
+}
+
+function renderRosterSection(kind) {
+  const el = $(`#${kind === 'my' ? 'myteam' : 'oppteam'}`);
+  if (!el) return;
+  const open = kind === 'my' ? state.ui.myOpen : state.ui.oppOpen;
+  const r = rosterOf(kind);
+  const head = kind === 'opp' ? oppPickerHTML() : '';
+  let body = '', hint = '';
+  if (!r) {
+    body = `<div class="empty-team">Izaberi sačuvanog protivnika ili unesi novog.</div>`;
+    hint = 'nije izabran';
+  } else {
+    const plan = rosterPlan(kind);
+    const full = activeCount(r) >= ROSTER.ACTIVE && irCount(r) >= ROSTER.IR;
+    const addBox = full
+      ? `<div class="empty-team">Roster je pun (${ROSTER.ACTIVE} + ${ROSTER.IR} IR). Ukloni igrača da dodaš novog.</div>`
+      : searchBoxHTML(`${kind}-add`, activeCount(r) >= ROSTER.ACTIVE ? 'Aktivna mesta su puna — novi igrač ide na IR…' : 'Dodaj igrača na roster…');
+    hint = `${activeCount(r)}/${ROSTER.ACTIVE} aktivnih · ${irCount(r)}/${ROSTER.IR} IR`;
+    const updated = `<div class="r-meta">Ažurirano: ${fmtShortDate(r.updated)}${isStale(r.updated) ? ' <span class="stale">· Roster možda nije aktuelan, proveri izmene.</span>' : ''}</div>`;
+    if (!r.players.length) {
+      body = `${updated}${addBox}<div class="empty-team cta">${kind === 'my' ? 'Unesi svoj roster' : 'Unesi roster protivnika'} (${ROSTER.ACTIVE} aktivnih + ${ROSTER.IR} IR). Čuva se samo u ovom browseru.</div>`;
+    } else {
+      const before = sumPlayers(plan.activeBefore), after = sumPlayers(plan.activeAfter);
+      const missing = [...new Set([...before.missing, ...after.missing])];
+      body = `${updated}${addBox}
+        <div class="tscroll"><table class="rtable"><thead>${headerRow()}</thead><tbody>${rosterTableHTML(kind, plan)}</tbody></table></div>
+        ${plan.tradeTouches ? balanceHTML(kind, plan) : ''}
+        <div class="tscroll"><table class="rtable sumtable"><tbody>${summaryRows(before, after, plan.tradeTouches)}</tbody></table></div>
+        ${missing.length ? `<div class="card-warn">⚠ Bez podataka za izabrani period, ne računa se: ${missing.map(esc).join(', ')}</div>` : ''}`;
+    }
+  }
+  el.innerHTML = `<details class="card fold" data-fold="${kind}" ${open ? 'open' : ''}>
+    <summary><span>${KINDS[kind].title}${kind === 'opp' && r ? `: ${esc(r.name)}` : ''}</span><span class="hint">${hint}</span></summary>
+    <div class="fold-body">${head}${body}</div></details>`;
+}
+
+/** Protivnik: izbor sačuvanog tima (dopunjava se u delu 4) */
+const oppPickerHTML = () => '';
+
+function addToRoster(kind, id) {
+  const r = rosterOf(kind);
+  if (!r || rosterIds(r).includes(id)) return;
+  if (activeCount(r) < ROSTER.ACTIVE) r.players.push({ id, ir: false });
+  else if (irCount(r) < ROSTER.IR) r.players.push({ id, ir: true });
+  else return;
+  r.updated = new Date().toISOString();
+  saveRosters();
+}
+
+function removeFromRoster(kind, id) {
+  const r = rosterOf(kind);
+  if (!r) return;
+  r.players = r.players.filter(x => x.id !== id);
+  r.updated = new Date().toISOString();
+  saveRosters();
 }
 
 /* =====================================================================
@@ -1203,22 +1391,25 @@ function renderHistory() {
    ===================================================================== */
 function searchResults(query, taken = takenIds(), prefer = null) {
   const q = norm(query);
-  if (!q) return [];
+  // prazan upit: ponudi igrače sa rostera (npr. u Daješ prvo moj tim)
+  if (!q) return prefer ? [...prefer].map(id => state.byId.get(id)).filter(p => p && !taken.has(p.id)).slice(0, CONFIG.DROPDOWN_MAX * 2) : [];
   const tokens = q.split(' ');
-  const out = [];
-  // Lista je već sortirana po % owned, pa prvi pogoci su najrelevantniji.
-  // Prvo oni čije ime/prezime počinje upitom, pa ostali.
-  const starts = [], rest = [];
+  const pref = [], starts = [], rest = [];
   for (const p of state.players) {
     if (taken.has(p.id)) continue;
     if (!tokens.every(t => p._n.includes(t))) continue;
-    (p._n.split(' ').some(w => w.startsWith(tokens[0])) ? starts : rest).push(p);
-    if (starts.length >= CONFIG.DROPDOWN_MAX) break;
+    if (prefer?.has(p.id)) pref.push(p);
+    else (p._n.split(' ').some(w => w.startsWith(tokens[0])) ? starts : rest).push(p);
   }
-  out.push(...starts, ...rest);
-  // npr. kod "Izbacuješ" na mojoj strani: prvo igrači sa mog rostera
-  if (prefer) out.sort((a, b) => prefer.has(b.id) - prefer.has(a.id));
-  return out.slice(0, CONFIG.DROPDOWN_MAX);
+  // Lista je sortirana po % owned; prvo igrači sa rostera, pa oni čije ime počinje upitom
+  return [...pref, ...starts, ...rest].slice(0, CONFIG.DROPDOWN_MAX);
+}
+
+/** Za ključ pretrage: koje igrače nuditi prve i kojom oznakom */
+function searchPrefer(key) {
+  if (key === String(GIVE)) return { set: new Set(rosterIds(state.rosters.my)), label: 'Moj tim' };
+  if (key === String(GET) && rosterOf('opp')) return { set: new Set(rosterIds(rosterOf('opp'))), label: rosterOf('opp').name };
+  return null;
 }
 
 function updateDropdown(key) {
@@ -1231,28 +1422,38 @@ function updateDropdown(key) {
   ui.results = results;
   ui.sel = Math.min(ui.sel || 0, Math.max(results.length - 1, 0));
   searchUI.set(key, ui);
-  if (!norm(ui.query)) { dd.hidden = true; inp.setAttribute('aria-expanded', 'false'); return; }
+  const pref = searchPrefer(key);
+  if (!results.length && !norm(ui.query)) { dd.hidden = true; inp.setAttribute('aria-expanded', 'false'); return; }
   dd.hidden = false;
   inp.setAttribute('aria-expanded', 'true');
   dd.innerHTML = results.length
     ? results.map((p, k) => `<li role="option" data-pick="${p.id}" data-key="${key}" aria-selected="${k === ui.sel}">
-        ${avatarHTML(p)}<div><div>${esc(p.name)}</div><div class="meta">${p.team} · ${p.pos} ${injHTML(p)}</div></div></li>`).join('')
+        ${avatarHTML(p)}<div><div>${esc(p.name)} ${pref?.set.has(p.id) ? `<span class="slot-tag tag-mine">${esc(pref.label)}</span>` : ''}</div><div class="meta">${p.team} · ${p.pos} ${injHTML(p)}</div></div></li>`).join('')
     : `<li class="empty">Nema igrača za „${esc(ui.query)}“</li>`;
   dd.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
 }
 
 /** Pretraga zavisi od cilja: roster isključuje samo igrače već na rosteru */
 function searchFor(key, query) {
-  if (key === 'roster') return searchResults(query, new Set(state.my.roster));
-  return searchResults(query);
+  const m = key.match(/^(my|opp)-(add|w)$/);
+  if (m) {
+    const r = rosterOf(m[1]);
+    const ex = new Set(rosterIds(r));
+    if (m[2] === 'w') for (const id of takenIds()) ex.add(id);
+    return searchResults(query, ex);
+  }
+  const pref = searchPrefer(key);
+  return searchResults(query, takenIds(), pref?.set || null);
 }
 
 /** Ključ pretrage -> gde ide igrač: "0" = tim 0 dobija, "0:d" = izbacuje, "0:w" = waiver */
 function pickPlayer(key, id) {
-  if (key === 'roster') {
-    if (!state.my.roster.includes(id)) state.my.roster.push(id);
-    saveMy(); searchUI.set(key, { query: '', sel: 0 }); render();
-    document.querySelector('[data-search="roster"]')?.focus();
+  const m = key.match(/^(my|opp)-(add|w)$/);
+  if (m) {
+    if (m[2] === 'add') addToRoster(m[1], id);
+    else { state.balance[m[1]].waivers.push(id); saveBalance(); }
+    searchUI.set(key, { query: '', sel: 0 }); render();
+    document.querySelector(`[data-search="${key}"]`)?.focus();
     return;
   }
   if (takenIds().has(id)) return;
@@ -1288,7 +1489,8 @@ document.addEventListener('click', e => {
     case 'hist-open': openTrade(+el.dataset.id); break;
     case 'hist-del': deleteTrade(+el.dataset.id); break;
     case 'hist-close': state.histView = null; render(); break;
-    case 'roster-remove': state.my.roster = state.my.roster.filter(id => id !== +el.dataset.id); saveMy(); render(); break;
+    case 'r-remove': removeFromRoster(el.dataset.kind, +el.dataset.id); render(); break;
+    case 'bal-w-remove': state.balance[el.dataset.kind].waivers = state.balance[el.dataset.kind].waivers.filter(x => x !== +el.dataset.id); saveBalance(); render(); break;
     case 'remove': removePlayer(ti, +el.dataset.id); break;
   }
 });
@@ -1327,9 +1529,18 @@ document.addEventListener('focusin', e => { if (e.target.dataset?.search != null
 // otvoreno/zatvoreno stanje sklopivih sekcija
 document.addEventListener('toggle', e => {
   const f = e.target.dataset?.fold;
-  if (f === 'my') { state.my.open = e.target.open; saveMy(); }
+  if (f === 'my') { state.ui.myOpen = e.target.open; saveUI(); }
+  if (f === 'opp') { state.ui.oppOpen = e.target.open; saveUI(); }
   if (f === 'hist') { state.histOpen = e.target.open; }
 }, true);
+document.addEventListener('change', e => {
+  const k = e.target.dataset?.drop;
+  if (k == null) return;
+  const d = state.balance[k].drops;
+  d[+e.target.dataset.idx] = e.target.value ? +e.target.value : null;
+  state.balance[k].drops = d.filter(Boolean);
+  saveBalance(); render();
+});
 window.addEventListener('hashchange', () => { loadState(); render(); });
 
 /* ---------- Tooltip: hover na desktopu, tap na telefonu ([data-tip]) ---------- */
