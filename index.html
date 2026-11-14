@@ -219,6 +219,13 @@ tr.irhead td{font-size:11px;color:var(--muted);background:var(--bg2);text-align:
 .modal-body b{color:var(--text)}
 .modal-body textarea{width:100%;min-height:140px;background:var(--bg2);border:1px solid var(--line);border-radius:8px;color:var(--text);font:12px ui-monospace,Menlo,monospace;padding:8px}
 .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.btn.ok{background:var(--win);font-size:14px;padding:8px 18px}
+.btn.ok:hover{background:#25b863}
+.score-hint{text-align:center;font-size:11px;color:var(--dim);margin-top:6px}
+.idea-tag{color:var(--muted)}
+.view-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px 2px}
+.preview-note{font-size:11px;color:var(--warn)}
+.r-done{display:flex;justify-content:flex-end;padding:10px 12px}
 .linkbtn.done{color:var(--win-text);border-color:rgba(31,157,85,.45)}
 .banner.ok{background:var(--win-bg);border:1px solid rgba(31,157,85,.4);color:#c9f5d9}
 .done-block{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0;display:flex;flex-direction:column;gap:2px}
@@ -892,7 +899,9 @@ function renderScore(totals, cmp) {
     </div>
     <div class="score-verdict ${verdict}">Trejd ti donosi ${win} ${kat(win)}, gubiš ${lose}${cmp.ties ? ` · ${cmp.ties} nerešeno` : ''}</div>
     <div class="score-note">${PERIODS.find(p => p.key === state.period).label}${puntNote()}</div>
-    <div class="score-actions"><button type="button" class="linkbtn" data-action="save-trade">★ Sačuvaj trejd</button><button type="button" class="linkbtn" data-action="share">🔗 Kopiraj link</button><button type="button" class="linkbtn done" data-action="trade-done">✔ Trejd obavljen</button></div>`;
+    <div class="score-actions"><button type="button" class="linkbtn" data-action="save-trade" title="Čuva samo ideju u Istoriju; rosteri se ne menjaju">★ Sačuvaj ideju</button><button type="button" class="linkbtn" data-action="share">🔗 Kopiraj link</button></div>
+    <div class="score-actions"><button type="button" class="btn ok" data-action="trade-done" title="Tek ovo menja sačuvane rostere">✔ Trejd se dogodio</button></div>
+    <div class="score-hint">Ovo je ideja za trejd: tvoj sačuvani roster se ne menja dok ne klikneš „Trejd se dogodio”.</div>`;
 }
 
 function avatarHTML(p) {
@@ -1234,11 +1243,22 @@ function renderRosterSection(kind) {
     } else {
       const before = sumPlayers(plan.activeBefore), after = sumPlayers(plan.activeAfter);
       const missing = [...new Set([...before.missing, ...after.missing])];
-      body = `${updated}${addBox}
-        <div class="tscroll"><table class="rtable"><thead>${headerRow()}</thead><tbody>${rosterTableHTML(kind, plan)}</tbody></table></div>
-        ${plan.tradeTouches ? balanceHTML(kind, plan) : ''}
-        <div class="tscroll"><table class="rtable sumtable"><tbody>${summaryRows(before, after, plan.tradeTouches)}</tbody></table></div>
-        ${missing.length ? `<div class="card-warn">⚠ Bez podataka za izabrani period, ne računa se: ${missing.map(esc).join(', ')}</div>` : ''}`;
+      // Pregled posle trejda (samo prikaz) ili sačuvan roster kakav jeste
+      const view = plan.tradeTouches ? (state.ui.rosterView?.[kind] || 'after') : 'saved';
+      const showPlan = view === 'after' ? plan : { ...plan, outIds: [], incoming: [], drops: [], waivers: [] };
+      const toggle = plan.tradeTouches ? `<div class="view-row">
+          <div class="seg small" role="group" aria-label="Prikaz rostera">
+            <button type="button" data-rview="${kind}:after" aria-pressed="${view === 'after'}">Posle trejda (pregled)</button>
+            <button type="button" data-rview="${kind}:saved" aria-pressed="${view === 'saved'}">Sačuvan roster</button>
+          </div>
+          <span class="preview-note">${view === 'after' ? 'Samo pregled — sačuvan roster se ne menja dok trejd ne potvrdiš.' : 'Ovo je tvoj sačuvani roster, bez trejda.'}</span>
+        </div>` : '';
+      body = `${updated}${addBox}${toggle}
+        <div class="tscroll"><table class="rtable"><thead>${headerRow()}</thead><tbody>${rosterTableHTML(kind, showPlan)}</tbody></table></div>
+        ${view === 'after' ? balanceHTML(kind, plan) : ''}
+        <div class="tscroll"><table class="rtable sumtable"><tbody>${summaryRows(before, after, view === 'after')}</tbody></table></div>
+        ${missing.length ? `<div class="card-warn">⚠ Bez podataka za izabrani period, ne računa se: ${missing.map(esc).join(', ')}</div>` : ''}
+        ${plan.tradeTouches && giveIds().length && getIds().length ? `<div class="r-done"><button type="button" class="btn ok" data-action="trade-done">✔ Trejd se dogodio — ažuriraj rostere</button></div>` : ''}`;
     }
   }
   el.innerHTML = `<details class="card fold" data-fold="${kind}" ${open ? 'open' : ''}>
@@ -1457,10 +1477,10 @@ function tradeDone() {
   if (!plans.some(([k]) => k === 'my')) notes.push('Tvoj roster nije unet, pa se nijedan roster ne menja — trejd se samo čuva u Istoriju.');
   else if (!plans.some(([k]) => k === 'opp')) notes.push('Protivnik nije izabran, menja se samo tvoj roster.');
   showModal({
-    title: 'Potvrdi obavljen trejd',
+    title: 'Trejd se dogodio?',
     body: `<p>Daješ: <b>${list(giveIds())}</b><br>Dobijaš: <b>${list(getIds())}</b></p>${plans.map(block).join('')}
-      ${notes.map(n => `<p class="hint">${n}</p>`).join('')}<p>Trejd će biti sačuvan u Istoriju, a polja Daješ / Dobijaš ispražnjena.</p>`,
-    confirm: 'Trejd obavljen',
+      ${notes.map(n => `<p class="hint">${n}</p>`).join('')}<p>Sačuvani rosteri biće trajno izmenjeni kao gore, trejd ide u Istoriju kao obavljen, a polja Daješ / Dobijaš se prazne.</p>`,
+    confirm: 'Da, ažuriraj rostere',
     onConfirm: () => applyTrade(plans),
     wide: true,
   });
@@ -1479,7 +1499,7 @@ function applyTrade(plans) {
   state.teams = [newTeam(), newTeam()];
   state.balance = { my: { drops: [], waivers: [] }, opp: { drops: [], waivers: [] } };
   saveRosters(); saveBalance(); saveState();
-  state.notice = 'Trejd obavljen: rosteri su ažurirani, a trejd je sačuvan u Istoriju.';
+  state.notice = 'Trejd se dogodio: sačuvani rosteri su ažurirani, a trejd je u Istoriji kao obavljen.';
   render();
 }
 
@@ -1603,7 +1623,7 @@ function renderHistory() {
     const per = PERIODS.find(x => x.key === h.period)?.label || h.period;
     return `<li class="${state.histView === h.id ? 'active' : ''}">
       <button type="button" class="hist-open" data-action="hist-open" data-id="${h.id}">
-        <span class="hist-date">${fmtDate(h.date)} · ${per}${h.done ? ` · <span class="done-tag">obavljen${h.opp ? ` sa ${esc(h.opp)}` : ''}</span>` : ''}</span><span class="hist-sides">${sides}</span></button>
+        <span class="hist-date">${fmtDate(h.date)} · ${per}${h.done ? ` · <span class="done-tag">obavljen${h.opp ? ` sa ${esc(h.opp)}` : ''}</span>` : ' · <span class="idea-tag">ideja</span>'}</span><span class="hist-sides">${sides}</span></button>
       <button type="button" class="iconbtn" data-action="hist-del" data-id="${h.id}" aria-label="Obriši trejd">🗑</button></li>`;
   }).join('');
 
@@ -1645,7 +1665,7 @@ function renderHistory() {
   el.innerHTML = `<details class="card fold" data-fold="hist" ${state.histOpen ? 'open' : ''}>
     <summary><span>Istorija trejdova</span><span class="hint">${state.history.length ? `${state.history.length} sačuvano` : 'prazno'}</span></summary>
     <div class="fold-body">
-      ${list ? `<ul class="hist-list">${list}</ul>` : '<div class="empty-team">Još nema sačuvanih trejdova. Klikni „Sačuvaj trejd” ispod rezultata.</div>'}
+      ${list ? `<ul class="hist-list">${list}</ul>` : '<div class="empty-team">Još nema sačuvanih trejdova. Klikni „Sačuvaj ideju” ili „Trejd se dogodio” ispod rezultata.</div>'}
       ${detail}
     </div></details>`;
 }
@@ -1740,6 +1760,12 @@ function removePlayer(ti, id) {
    Događaji (delegirani)
    ===================================================================== */
 document.addEventListener('click', e => {
+  const rv = e.target.closest('[data-rview]');
+  if (rv) {
+    const [k, v] = rv.dataset.rview.split(':');
+    state.ui.rosterView = { ...(state.ui.rosterView || {}), [k]: v };
+    saveUI(); render(); return;
+  }
   const pt = e.target.closest('[data-punt]');
   if (pt) { togglePunt(pt.dataset.punt); return; }
   const el = e.target.closest('[data-action],[data-period]');
