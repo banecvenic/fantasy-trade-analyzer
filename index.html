@@ -168,7 +168,7 @@ td.min-drop{color:var(--lose-text)}
 .chip button:hover{color:var(--accent2)}
 .mytable td:first-child{min-width:110px}
 .cnt{color:var(--muted);font-weight:500;font-size:11px}
-.score-actions{display:flex;justify-content:center;margin-top:8px}
+.score-actions{display:flex;justify-content:center;gap:8px;margin-top:8px;flex-wrap:wrap}
 .hist-list{list-style:none;margin:0;padding:6px 8px}
 .hist-list li{display:flex;align-items:center;gap:6px;border-radius:8px}
 .hist-list li.active{background:rgba(225,37,27,.12)}
@@ -822,7 +822,7 @@ function renderScore(totals, cmp) {
   const winnerIdx = leaders === 1 ? cmp.score.indexOf(max) : -1;
   el.innerHTML = `<div class="score-row">${parts.join('<span class="score-sep">:</span>')}</div>
     <div class="score-note">${winnerIdx >= 0 ? `Pobeđuje <b>${esc(state.teams[winnerIdx].name)}</b>` : 'Nerešeno'}${cmp.ties ? ` · ${cmp.ties} kat. nerešeno` : ''} · ${PERIODS.find(p => p.key === state.period).label}${puntNote()}</div>
-    <div class="score-actions"><button type="button" class="linkbtn" data-action="save-trade">★ Sačuvaj trejd</button></div>`;
+    <div class="score-actions"><button type="button" class="linkbtn" data-action="save-trade">★ Sačuvaj trejd</button><button type="button" class="linkbtn" data-action="share">🔗 Kopiraj link</button></div>`;
 }
 
 function avatarHTML(p) {
@@ -1096,6 +1096,18 @@ const clone = o => JSON.parse(JSON.stringify(o));
 const fmtDate = iso => new Date(iso).toLocaleDateString('sr-Latn', { day: 'numeric', month: 'numeric', year: 'numeric' });
 const tradePlayerIds = teams => [...new Set(teams.flatMap(t => [...t.ids, ...t.drops, ...t.waivers]))];
 
+/** Link sadrži samo trejd (strane, slotove, period). Moj tim, istorija i punt ostaju lokalno. */
+async function shareLink(btn) {
+  saveState();
+  const url = location.href;
+  try {
+    if (navigator.share && matchMedia('(hover: none)').matches) await navigator.share({ title: 'Trejd', url });
+    else { await navigator.clipboard.writeText(url); btn.textContent = '✓ Link kopiran'; setTimeout(() => render(), 1500); }
+  } catch (e) {
+    if (e.name !== 'AbortError') prompt('Kopiraj link:', url);
+  }
+}
+
 function saveTrade() {
   const totals = state.teams.map(teamTotals);
   state.history.unshift({
@@ -1334,6 +1346,7 @@ document.addEventListener('click', e => {
   switch (el.dataset.action) {
     case 'refresh': loadPlayers(true); loadSchedule(true); break;
     case 'save-trade': saveTrade(); break;
+    case 'share': shareLink(el); break;
     case 'hist-open': openTrade(+el.dataset.id); break;
     case 'hist-del': deleteTrade(+el.dataset.id); break;
     case 'hist-close': state.histView = null; render(); break;
