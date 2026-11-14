@@ -148,6 +148,25 @@ td.min-drop{color:var(--lose-text)}
 .trend.good{color:var(--win-text)}
 .trend.bad{color:var(--lose-text)}
 .hint{font-weight:500;text-transform:none;letter-spacing:0;color:var(--dim);font-size:11px}
+.fold{margin-top:22px}
+.fold summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:12px 14px;font-weight:700;font-size:14px}
+.fold summary::-webkit-details-marker{display:none}
+.fold summary::before{content:'▸';color:var(--accent);margin-right:8px;transition:transform .15s}
+.fold[open] summary::before{transform:rotate(90deg)}
+.fold summary span:first-of-type{flex:1}
+.fold[open] summary{border-bottom:1px solid var(--line)}
+.fold-body{padding-bottom:4px}
+.myside{display:flex;align-items:center;gap:8px;padding:10px 12px 0;flex-wrap:wrap}
+.myside .lbl{font-size:12px;color:var(--muted)}
+.seg.small{margin-left:0}
+.seg.small button{padding:4px 10px;font-size:12px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 10px}
+.chip{display:inline-flex;align-items:center;gap:4px;background:var(--card2);border:1px solid var(--line);border-radius:999px;padding:2px 4px 2px 10px;font-size:12px}
+.chip small{color:var(--muted);font-size:10px}
+.chip button{background:none;border:0;color:var(--dim);cursor:pointer;padding:2px 4px}
+.chip button:hover{color:var(--accent2)}
+.mytable td:first-child{min-width:110px}
+.cnt{color:var(--muted);font-weight:500;font-size:11px}
 .addteam{border:1px dashed var(--line);border-radius:var(--radius);background:transparent;color:var(--muted);padding:14px;font-weight:600;cursor:pointer;min-height:56px}
 .addteam:hover{border-color:var(--accent);color:var(--text)}
 
@@ -179,6 +198,7 @@ footer{color:var(--dim);font-size:11px;text-align:center;margin-top:28px}
   <div class="teams" id="teams"></div>
   <div id="compare"></div>
   <div id="report"></div>
+  <div id="myteam"></div>
   <footer>Podaci: javni ESPN fantasy API (nezvaničan). Prosek po utakmici.</footer>
 </main>
 
@@ -216,6 +236,7 @@ const CONFIG = (() => {
     CACHE_KEY: `fbaTrade.players.v2.${SEASON}`,
     STATE_KEY: 'fbaTrade.state.v1',
     PUNT_KEY: 'fbaTrade.punt.v1',      // samo lokalno, ne ide u link
+    MYTEAM_KEY: 'fbaTrade.myteam.v1',  // samo lokalno, ne ide u link
     CACHE_TTL_MS: 6 * 60 * 60 * 1000, // 6h
     HEADSHOT_URL: id => `https://a.espncdn.com/i/headshots/nba/players/full/${id}.png`,
     MAX_TEAMS: 4,
@@ -409,6 +430,10 @@ const state = {
   schedule: null,       // { [proTeamId]: [{ id, date }] } ili null ako nije učitan
   punt: new Set(lsGet(CONFIG.PUNT_KEY) || []), // ključevi kategorija isključenih iz rezultata
 };
+/* ---------- Moj tim (samo lokalno) ---------- */
+state.my = { roster: [], side: 0, open: false, ...(lsGet(CONFIG.MYTEAM_KEY) || {}) };
+const saveMy = () => lsSet(CONFIG.MYTEAM_KEY, state.my);
+
 const isPunt = c => state.punt.has(c.key);
 const puntCls = c => (isPunt(c) ? ' punt' : '');
 function togglePunt(key) {
@@ -677,6 +702,8 @@ function renderTradeWarn() {
 }
 
 function render() {
+  const focused = document.activeElement?.dataset?.search;
+  const caret = document.activeElement?.selectionStart;
   renderPeriods();
   renderStatus();
   renderBanner();
@@ -687,6 +714,12 @@ function render() {
   renderTeams(totals, cmp);
   renderCompare(totals, cmp);
   renderReport(totals, cmp);
+  renderMyTeam();
+  // vrati fokus pretrage posle re-rendera
+  if (focused != null) {
+    const inp = document.querySelector(`[data-search="${focused}"]`);
+    if (inp && !inp.disabled && document.activeElement !== inp) { inp.focus(); try { inp.setSelectionRange(caret, caret); } catch {} updateDropdown(focused); }
+  }
 }
 
 function renderPeriods() {
@@ -840,9 +873,6 @@ function totalRow(t, cmp, ti) {
 }
 
 function renderTeams(totals, cmp) {
-  // Sačuvaj fokus pretrage pri ponovnom renderu
-  const focused = document.activeElement?.dataset?.search;
-  const caret = document.activeElement?.selectionStart;
   const disabled = !state.players.length;
   const html = state.teams.map((team, ti) => {
     const t = totals[ti];
@@ -876,10 +906,6 @@ function renderTeams(totals, cmp) {
   });
   if (state.teams.length < CONFIG.MAX_TEAMS) html.push(`<button class="addteam" type="button" data-action="add-team">+ Dodaj tim</button>`);
   $('#teams').innerHTML = html.join('');
-  if (focused != null) {
-    const inp = document.querySelector(`[data-search="${focused}"]`);
-    if (inp && !inp.disabled) { inp.focus(); try { inp.setSelectionRange(caret, caret); } catch {} updateDropdown(focused); }
-  }
 }
 
 function renderCompare(totals, cmp) {
@@ -943,13 +969,74 @@ function renderReport(totals, cmp) {
 }
 
 /* =====================================================================
+   Moj tim: pre i posle trejda
+   ===================================================================== */
+/** Roster posle trejda: − dati igrači − izbačeni + dobijeni + waiver dodaci (moja strana). */
+function myTeamAfter() {
+  const side = state.my.side, roster = state.my.roster;
+  const given = new Set(givenBy(side));
+  const { drops, waivers } = activeSlots(side);
+  const dropSet = new Set(drops);
+  const after = [...roster.filter(id => !given.has(id) && !dropSet.has(id)), ...state.teams[side].ids, ...waivers];
+  const notOnRoster = [...given, ...drops].filter(id => !roster.includes(id));
+  return { after: [...new Set(after)], notOnRoster };
+}
+
+function renderMyTeam() {
+  const el = $('#myteam');
+  // ako je tim obrisan, vrati izbor strane na prvi tim
+  if (state.my.side >= state.teams.length) state.my.side = 0;
+  const side = state.my.side;
+  const roster = state.my.roster.map(id => state.byId.get(id)).filter(Boolean);
+  const sideBtns = state.teams.map((t, i) =>
+    `<button type="button" data-my-side="${i}" aria-pressed="${i === side}">${esc(t.name)}</button>`).join('');
+  const chips = roster.map(p => `<span class="chip">${esc(p.name)} <small>${p.team}·${p.pos}</small>
+    <button type="button" data-action="roster-remove" data-id="${p.id}" aria-label="Ukloni ${esc(p.name)}">✕</button></span>`).join('');
+
+  let table = '';
+  if (roster.length) {
+    const { after, notOnRoster } = myTeamAfter();
+    const before = sumPlayers(state.my.roster), aft = sumPlayers(after);
+    const cell = (c, t) => {
+      const v = t.vals[c.key];
+      return `<td class="${puntCls(c).trim()}">${c.type === 'pct' ? fmtPct(v) : fmt1(v)}${c.type === 'pct' ? `<span class="sub">${t.sum[c.made].toFixed(1)}/${t.sum[c.att].toFixed(1)}</span>` : ''}</td>`;
+    };
+    const diffCells = CATS.map(c => {
+      const b = cmpKey(c, before.vals[c.key]), a = cmpKey(c, aft.vals[c.key]);
+      if (a == null || b == null) return `<td class="${puntCls(c).trim()}">-</td>`;
+      const d = (a - b) / (c.type === 'pct' ? 1000 : 10);
+      const better = c.lowerIsBetter ? d < 0 : d > 0;
+      const cls = d === 0 ? '' : better ? 'win' : 'lose';
+      const txt = c.type === 'pct' ? `${d > 0 ? '+' : ''}${(d * 100).toFixed(1)} pp` : `${d > 0 ? '+' : ''}${d.toFixed(1)}`;
+      return `<td class="${cls}${puntCls(c)}">${txt}</td>`;
+    }).join('');
+    const missing = [...new Set([...before.missing, ...aft.missing])];
+    table = `<div class="tscroll"><table class="mytable"><thead><tr><th></th>${CATS.map(catTh).join('')}</tr></thead><tbody>
+      <tr><td>Pre trejda <span class="cnt">(${before.counted})</span></td>${CATS.map(c => cell(c, before)).join('')}</tr>
+      <tr><td>Posle trejda <span class="cnt">(${aft.counted})</span></td>${CATS.map(c => cell(c, aft)).join('')}</tr>
+      <tr class="total"><td>Razlika</td>${diffCells}</tr></tbody></table></div>
+      ${notOnRoster.length ? `<div class="card-warn">⚠ Daješ/izbacuješ igrače koji nisu na tvom rosteru (ne oduzimaju se): ${notOnRoster.map(id => esc(state.byId.get(id)?.name || id)).join(', ')}</div>` : ''}
+      ${missing.length ? `<div class="card-warn">⚠ Bez podataka za izabrani period, ne računa se: ${missing.map(esc).join(', ')}</div>` : ''}`;
+  }
+
+  el.innerHTML = `<details class="card fold" data-fold="my" ${state.my.open ? 'open' : ''}>
+    <summary><span>Moj tim: pre i posle</span><span class="hint">${roster.length ? `${roster.length} igrača` : 'dodaj roster'}</span></summary>
+    <div class="fold-body">
+      <div class="myside"><span class="lbl">Moja strana trejda:</span><div class="seg small">${sideBtns}</div></div>
+      ${searchBoxHTML('roster', 'Dodaj igrača na svoj roster…')}
+      ${chips ? `<div class="chips">${chips}</div>` : ''}
+      ${table || '<div class="empty-team">Dodaj ceo svoj roster da vidiš kako ga trejd menja.</div>'}
+    </div>
+  </details>`;
+}
+
+/* =====================================================================
    Pretraga / autocomplete
    ===================================================================== */
-function searchResults(query) {
+function searchResults(query, taken = takenIds(), prefer = null) {
   const q = norm(query);
   if (!q) return [];
   const tokens = q.split(' ');
-  const taken = takenIds();
   const out = [];
   // Lista je već sortirana po % owned, pa prvi pogoci su najrelevantniji.
   // Prvo oni čije ime/prezime počinje upitom, pa ostali.
@@ -961,6 +1048,8 @@ function searchResults(query) {
     if (starts.length >= CONFIG.DROPDOWN_MAX) break;
   }
   out.push(...starts, ...rest);
+  // npr. kod "Izbacuješ" na mojoj strani: prvo igrači sa mog rostera
+  if (prefer) out.sort((a, b) => prefer.has(b.id) - prefer.has(a.id));
   return out.slice(0, CONFIG.DROPDOWN_MAX);
 }
 
@@ -970,7 +1059,7 @@ function updateDropdown(key) {
   if (!inp || !dd) return;
   const ui = searchUI.get(key) || { query: '', sel: 0 };
   ui.query = inp.value;
-  const results = searchResults(ui.query);
+  const results = searchFor(key, ui.query);
   ui.results = results;
   ui.sel = Math.min(ui.sel || 0, Math.max(results.length - 1, 0));
   searchUI.set(key, ui);
@@ -984,8 +1073,22 @@ function updateDropdown(key) {
   dd.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
 }
 
+/** Pretraga zavisi od cilja: roster isključuje samo igrače već na rosteru */
+function searchFor(key, query) {
+  if (key === 'roster') return searchResults(query, new Set(state.my.roster));
+  const [ti, kind] = key.split(':');
+  if (kind === 'd' && +ti === state.my.side && state.my.roster.length) return searchResults(query, takenIds(), new Set(state.my.roster));
+  return searchResults(query);
+}
+
 /** Ključ pretrage -> gde ide igrač: "0" = tim 0 dobija, "0:d" = izbacuje, "0:w" = waiver */
 function pickPlayer(key, id) {
+  if (key === 'roster') {
+    if (!state.my.roster.includes(id)) state.my.roster.push(id);
+    saveMy(); searchUI.set(key, { query: '', sel: 0 }); render();
+    document.querySelector('[data-search="roster"]')?.focus();
+    return;
+  }
   if (takenIds().has(id)) return;
   const [tiStr, kind] = key.split(':');
   const ti = +tiStr, team = state.teams[ti];
@@ -1016,6 +1119,8 @@ function removePlayer(ti, kind, id) {
    Događaji (delegirani)
    ===================================================================== */
 document.addEventListener('click', e => {
+  const ms = e.target.closest('[data-my-side]');
+  if (ms) { state.my.side = +ms.dataset.mySide; saveMy(); render(); return; }
   const pt = e.target.closest('[data-punt]');
   if (pt) { togglePunt(pt.dataset.punt); return; }
   const el = e.target.closest('[data-action],[data-period]');
@@ -1024,6 +1129,7 @@ document.addEventListener('click', e => {
   const ti = +el.dataset.team;
   switch (el.dataset.action) {
     case 'refresh': loadPlayers(true); loadSchedule(true); break;
+    case 'roster-remove': state.my.roster = state.my.roster.filter(id => id !== +el.dataset.id); saveMy(); render(); break;
     case 'remove': removePlayer(ti, el.dataset.kind, +el.dataset.id); break;
     case 'add-team':
       if (state.teams.length < CONFIG.MAX_TEAMS) state.teams.push(newTeam(state.teams.length));
@@ -1073,6 +1179,12 @@ document.addEventListener('focusout', e => {
   setTimeout(() => { if (document.activeElement !== e.target && dd) dd.hidden = true; }, 120);
 });
 document.addEventListener('focusin', e => { if (e.target.dataset?.search != null) updateDropdown(e.target.dataset.search); });
+// otvoreno/zatvoreno stanje sklopivih sekcija
+document.addEventListener('toggle', e => {
+  const f = e.target.dataset?.fold;
+  if (f === 'my') { state.my.open = e.target.open; saveMy(); }
+  if (f === 'hist') { state.histOpen = e.target.open; }
+}, true);
 document.addEventListener('change', e => {
   if (e.target.dataset?.from == null) return;
   state.teams[+e.target.dataset.from].from[+e.target.dataset.id] = +e.target.value;
