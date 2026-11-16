@@ -241,6 +241,9 @@ tr.irhead td{font-size:11px;color:var(--muted);background:var(--bg2);text-align:
 .preview-note{font-size:11px;color:var(--warn)}
 .r-done{display:flex;justify-content:flex-end;padding:10px 12px}
 .linkbtn.done{color:var(--win-text);border-color:rgba(31,157,85,.45)}
+.notall{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:10px 12px 0;padding:10px 12px;border-radius:8px;background:var(--warn-bg);border:1px solid rgba(240,180,41,.35);color:#ffe7a8;font-size:13px}
+.full-note{margin:10px 12px 0;padding:9px 12px;border-radius:8px;border:1px dashed var(--line);color:var(--muted);font-size:12px;cursor:help}
+.is-disabled{opacity:.45;cursor:not-allowed!important}
 .card-warn.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-radius:0}
 .card-warn.soft{background:transparent;color:var(--muted);border-top:0}
 .linkbtn.addmy{color:var(--text);border-color:rgba(225,37,27,.5);background:rgba(225,37,27,.12)}
@@ -707,6 +710,12 @@ const EN = {
   "{n} nije na tvom rosteru.": "{n} is not on your roster.",
   "Dok u Daješ nema igrača sa tvog rostera, sekcija Moj tim ne menja ništa (nije tvoj trejd).": "Until You give has a player from your roster, the My team section doesn't change anything (it's not your trade).",
   "Dobijaš {w} {kw}, gubiš {l} ({per}).": "You gain {w} {kw}, lose {l} ({per}).",
+  "Maksimalan broj igrača u timu ({n}). Izbaci nekoga ili ga prebaci na IR da bi dodao novog.": "Maximum number of players on the team ({n}). Drop someone or move them to IR to add a new one.",
+  "Nisu svi igrači iz Daješ na tvom rosteru ({list}), pa se Moj tim ne menja.": "Not all You give players are on your roster ({list}), so My team doesn't change.",
+  "Nisu svi igrači iz Dobijaš na rosteru tima {team} ({list}), pa se njegov roster ne menja.": "Not all You get players are on {team}'s roster ({list}), so their roster doesn't change.",
+  "Dodaj sve ({n})": "Add all ({n})",
+  "Dodaj na roster": "Add to roster",
+  "Dok svi igrači iz Daješ nisu na tvom rosteru, sekcija Moj tim se ne menja.": "Until all You give players are on your roster, the My team section doesn't change.",
 };
 function t(sr, vars) {
   let out = (LANG === 'en' && EN[sr]) || sr;
@@ -1471,11 +1480,13 @@ function waiverInputHTML(b) {
 /** Podnaslov strane (ime protivnika kad je izabran) */
 const sideSubtitle = ti => (ti === GET && rosterOf('opp') ? t('Protivnik: {n}', { n: rosterOf('opp').name }) : SIDES[ti].sub);
 /** Upozorenja ispod strane trejda: igrač nije na rosteru koji ga daje */
-function addMyButton(id) {
-  const r = state.rosters.my;
-  const full = activeCount(r) >= ROSTER.ACTIVE && irCount(r) >= ROSTER.IR;
-  return `<button type="button" class="linkbtn addmy" data-action="add-to-my" data-id="${id}" ${full ? `disabled title="${esc(t('Roster je pun ({a} + {b} IR). Ukloni igrača da dodaš novog.', { a: ROSTER.ACTIVE, b: ROSTER.IR }))}"` : ''}>＋ ${t('Dodaj u moj tim')}</button>`;
+/** Dugme za dodavanje na roster; kad nema mesta, izgleda neaktivno, a hover/tap pokazuje zašto */
+function addButtonHTML({ action, kind = 'my', id = '', label, n = 1, cls = 'linkbtn addmy' }) {
+  const room = hasRoom(rosterOf(kind), n);
+  return `<button type="button" class="${cls} ${room ? '' : 'is-disabled'}" data-action="${action}" data-kind="${kind}" ${id !== '' ? `data-id="${id}"` : ''}
+    ${room ? '' : `aria-disabled="true" data-tip="${esc(fullTip())}"`}>＋ ${label}</button>`;
 }
+const addMyButton = id => addButtonHTML({ action: 'add-to-my', id, label: t('Dodaj u moj tim') });
 
 function tradeWarnings(ti) {
   if (ti === GIVE) {
@@ -1483,9 +1494,8 @@ function tradeWarnings(ti) {
     const mine = new Set(rosterIds(state.rosters.my));
     const notMine = giveIds().filter(id => !mine.has(id));
     if (!notMine.length) return '';
-    const anyMine = giveIds().some(id => mine.has(id));
     return notMine.map(id => `<div class="card-warn row">⚠ ${t('{n} nije na tvom rosteru.', { n: esc(state.byId.get(id)?.name || id) })} ${addMyButton(id)}</div>`).join('')
-      + (anyMine ? '' : `<div class="card-warn soft">${t('Dok u Daješ nema igrača sa tvog rostera, sekcija Moj tim ne menja ništa (nije tvoj trejd).')}</div>`);
+      + `<div class="card-warn soft">${t('Dok svi igrači iz Daješ nisu na tvom rosteru, sekcija Moj tim se ne menja.')}</div>`;
   }
   const r = rosterOf('opp');
   if (!r || !r.players.length) {
@@ -1604,10 +1614,13 @@ function rosterPlan(kind) {
   const onRoster = new Set(rosterIds(r));
   const activeBefore = r.players.filter(x => !x.ir).map(x => x.id);
   const irIds = r.players.filter(x => x.ir).map(x => x.id);
-  const outIds = rosterIds(r).filter(id => outSet.has(id));
-  // Trejd je "moj" tek kad dajem bar jednog igrača sa ovog rostera; inače niko ne dolazi i ništa se ne oduzima.
-  const incoming = outIds.length ? state.teams[KINDS[kind].in].ids.filter(id => !onRoster.has(id)) : [];
-  const pre = [...activeBefore.filter(id => !outSet.has(id)), ...incoming];
+  // Trejd je "moj" tek kad su SVI igrači sa izlazne strane (moj: Daješ, protivnik: Dobijaš) na ovom rosteru.
+  // Dok nisu: niko ne odlazi, niko ne dolazi, Moj tim se ne menja (samo obaveštenje + "Dodaj sve").
+  const notOnRoster = [...outSet].filter(id => !onRoster.has(id));
+  const allIn = outSet.size > 0 && notOnRoster.length === 0;
+  const outIds = allIn ? rosterIds(r).filter(id => outSet.has(id)) : [];
+  const incoming = allIn ? state.teams[KINDS[kind].in].ids.filter(id => !onRoster.has(id)) : [];
+  const pre = [...activeBefore.filter(id => !outIds.includes(id)), ...incoming];
   const needDrops = Math.max(0, pre.length - ROSTER.ACTIVE);
   const bal = state.balance[kind];
   const drops = [...new Set(bal.drops)].filter(id => pre.includes(id)).slice(0, needDrops);
@@ -1615,8 +1628,7 @@ function rosterPlan(kind) {
   const taken = new Set([...onRoster, ...takenIds()]);
   const waivers = [...new Set(bal.waivers)].filter(id => !taken.has(id)).slice(0, waiverSlots);
   const activeAfter = [...pre.filter(id => !drops.includes(id)), ...waivers];
-  const notOnRoster = [...outSet].filter(id => !onRoster.has(id));
-  const tradeTouches = outIds.length > 0;
+  const tradeTouches = allIn;
   return { r, activeBefore, irIds, outIds, incoming, drops, needDrops, waivers, waiverSlots, pre, activeAfter, notOnRoster, tradeTouches, missingDrops: needDrops - drops.length };
 }
 
@@ -1721,10 +1733,9 @@ function renderRosterSection(kind) {
     hint = t('nije izabran');
   } else {
     const plan = rosterPlan(kind);
-    const full = activeCount(r) >= ROSTER.ACTIVE && irCount(r) >= ROSTER.IR;
-    const addBox = full
-      ? `<div class="empty-team">${t('Roster je pun ({a} + {b} IR). Ukloni igrača da dodaš novog.', { a: ROSTER.ACTIVE, b: ROSTER.IR })}</div>`
-      : searchBoxHTML(`${kind}-add`, activeCount(r) >= ROSTER.ACTIVE ? t('Aktivna mesta su puna — novi igrač ide na IR…') : t('Dodaj igrača na roster…'));
+    const addBox = hasRoom(r)
+      ? searchBoxHTML(`${kind}-add`, t('Dodaj igrača na roster…'))
+      : `<div class="full-note" data-tip="${esc(fullTip())}">🔒 ${t('Maksimalan broj igrača u timu ({n}). Izbaci nekoga ili ga prebaci na IR da bi dodao novog.', { n: ROSTER.ACTIVE })}</div>`;
     hint = t('{a}/{b} aktivnih · {c}/{d} IR', { a: activeCount(r), b: ROSTER.ACTIVE, c: irCount(r), d: ROSTER.IR });
     const updated = `<div class="r-meta">${t('Ažurirano: {d}', { d: fmtShortDate(r.updated) })}${isStale(r.updated) ? ` <span class="stale">· ${t('Roster možda nije aktuelan, proveri izmene.')}</span>` : ''}</div>`;
     if (!r.players.length) {
@@ -1742,7 +1753,14 @@ function renderRosterSection(kind) {
           </div>
           <span class="preview-note">${view === 'after' ? t('Samo pregled — sačuvan roster se ne menja dok trejd ne potvrdiš.') : t('Ovo je tvoj sačuvani roster, bez trejda.')}</span>
         </div>` : '';
-      body = `${updated}${addBox}${toggle}
+      // Nisu svi igrači sa izlazne strane na rosteru -> samo obaveštenje, roster se ne menja
+      const notAll = plan.notOnRoster.length && !plan.tradeTouches
+        ? `<div class="notall"><span>⚠ ${kind === 'my'
+            ? t('Nisu svi igrači iz Daješ na tvom rosteru ({list}), pa se Moj tim ne menja.', { list: plan.notOnRoster.map(id => esc(state.byId.get(id)?.name || id)).join(', ') })
+            : t('Nisu svi igrači iz Dobijaš na rosteru tima {team} ({list}), pa se njegov roster ne menja.', { team: esc(r.name), list: plan.notOnRoster.map(id => esc(state.byId.get(id)?.name || id)).join(', ') })}</span>
+            ${addButtonHTML({ action: 'add-all', kind, label: plan.notOnRoster.length > 1 ? t('Dodaj sve ({n})', { n: plan.notOnRoster.length }) : t('Dodaj na roster'), n: plan.notOnRoster.length })}</div>`
+        : '';
+      body = `${updated}${addBox}${notAll}${toggle}
         <div class="tscroll"><table class="rtable"><thead>${headerRow()}</thead><tbody>${rosterTableHTML(kind, showPlan)}</tbody></table></div>
         ${view === 'after' ? balanceHTML(kind, plan) : ''}
         <div class="tscroll"><table class="rtable sumtable"><tbody>${summaryRows(before, after, view === 'after')}</tbody></table></div>
@@ -1918,14 +1936,24 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.getElementById('modal')) closeModal(); });
 
+/** Ima li mesta za još n aktivnih igrača (max 13). Novi igrač uvek ide na aktivno mesto; na IR se prebacuje dugmetom. */
+const hasRoom = (r, n = 1) => !!r && activeCount(r) + n <= ROSTER.ACTIVE;
+const fullTip = () => t('Maksimalan broj igrača u timu ({n}). Izbaci nekoga ili ga prebaci na IR da bi dodao novog.', { n: ROSTER.ACTIVE });
+
 function addToRoster(kind, id) {
   const r = rosterOf(kind);
-  if (!r || rosterIds(r).includes(id)) return;
-  if (activeCount(r) < ROSTER.ACTIVE) r.players.push({ id, ir: false });
-  else if (irCount(r) < ROSTER.IR) r.players.push({ id, ir: true });
-  else return;
+  if (!r || rosterIds(r).includes(id) || !hasRoom(r)) return false;
+  r.players.push({ id, ir: false });
   r.updated = new Date().toISOString();
   saveRosters();
+  return true;
+}
+
+/** Dodaj sve igrače sa izlazne strane koji nisu na rosteru (samo ako ima mesta za sve) */
+function addAllToRoster(kind) {
+  const plan = rosterPlan(kind);
+  if (!plan || !hasRoom(plan.r, plan.notOnRoster.length)) return;
+  for (const id of plan.notOnRoster) addToRoster(kind, id);
 }
 
 /** Prebaci na IR / vrati sa IR (poštuje 13 aktivnih + 2 IR) */
@@ -2218,13 +2246,14 @@ function updateDropdown(key) {
   // "Dodaj u moj tim" u rezultatima, osim u pretrazi koja već dodaje na roster
   const showAddMy = !/^(my|opp)-add$/.test(key);
   const myIds = new Set(rosterIds(state.rosters.my));
+  const myRoom = hasRoom(state.rosters.my);
   if (!results.length && !norm(ui.query)) { dd.hidden = true; inp.setAttribute('aria-expanded', 'false'); return; }
   dd.hidden = false;
   inp.setAttribute('aria-expanded', 'true');
   dd.innerHTML = results.length
     ? results.map((p, k) => `<li role="option" data-pick="${p.id}" data-key="${key}" aria-selected="${k === ui.sel}">
         ${avatarHTML(p)}<div class="dd-main"><div>${esc(p.name)} ${pref?.set.has(p.id) ? `<span class="slot-tag tag-mine">${esc(pref.label)}</span>` : ''}</div><div class="meta">${p.team} · ${p.pos} ${injHTML(p)}</div></div>
-        ${showAddMy && !myIds.has(p.id) ? `<button type="button" class="dd-addmy" data-addmy="${p.id}" title="${esc(t('Dodaj u moj tim'))}">＋ ${t('Moj tim')}</button>` : ''}</li>`).join('')
+        ${showAddMy && !myIds.has(p.id) ? `<button type="button" class="dd-addmy ${myRoom ? '' : 'is-disabled'}" data-addmy="${p.id}" ${myRoom ? `title="${esc(t('Dodaj u moj tim'))}"` : `aria-disabled="true" title="${esc(fullTip())}"`}>＋ ${t('Moj tim')}</button>` : ''}</li>`).join('')
     : `<li class="empty">${t('Nema igrača za „{q}“', { q: esc(ui.query) })}</li>`;
   dd.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
 }
@@ -2298,7 +2327,8 @@ document.addEventListener('click', e => {
     case 'refresh': loadPlayers(true); loadSchedule(true); break;
     case 'save-trade': saveTrade(); break;
     case 'trade-done': tradeDone(); break;
-    case 'add-to-my': addToRoster('my', +el.dataset.id); render(); break;
+    case 'add-to-my': if (!el.classList.contains('is-disabled')) { addToRoster('my', +el.dataset.id); render(); } break;
+    case 'add-all': if (!el.classList.contains('is-disabled')) { addAllToRoster(el.dataset.kind); render(); } break;
     case 'settings': openSettings(); break;
     case 'export': exportData(el); break;
     case 'import': importData(); break;
@@ -2325,6 +2355,7 @@ document.addEventListener('mousedown', e => {
   const add = e.target.closest('[data-addmy]');
   if (add) {
     e.preventDefault(); e.stopPropagation();
+    if (add.classList.contains('is-disabled')) return; // pun roster: poruka je u title
     const key = add.closest('[data-key]')?.dataset.key;
     addToRoster('my', +add.dataset.addmy);
     render();
