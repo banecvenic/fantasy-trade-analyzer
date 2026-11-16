@@ -718,6 +718,7 @@ const EN = {
   "Dok svi igrači iz Daješ nisu na tvom rosteru, sekcija Moj tim se ne menja.": "Until all You give players are on your roster, the My team section doesn't change.",
   "tim: bez promene": "team: no change",
   "tim: {d}": "team: {d}",
+  "tim: {a} → {b}": "team: {a} → {b}",
 };
 function t(sr, vars) {
   let out = (LANG === 'en' && EN[sr]) || sr;
@@ -1148,13 +1149,18 @@ const EPS = 1e-9;
 /** FG%/FT%: promena mog tima ispod ovoga (0.1 pp) = "bez promene" i nerešeno u rezultatu */
 const TEAM_PCT_TIE = 0.001;
 
-/** Promena mog tima (posle − pre) za kategoriju, ili null kad roster nije unet / trejd nije moj */
-function myTeamDelta(c) {
+/** Vrednost kategorije mog tima pre i posle trejda, ili null kad roster nije unet / trejd nije moj */
+function myTeamValues(c) {
   if (!state.rosters?.my?.players.length) return null;
   const plan = rosterPlan('my');
   if (!plan?.tradeTouches) return null;
-  const b = sumPlayers(plan.activeBefore).vals[c.key], a = sumPlayers(plan.activeAfter).vals[c.key];
-  return a == null || b == null ? null : a - b;
+  const before = sumPlayers(plan.activeBefore).vals[c.key], after = sumPlayers(plan.activeAfter).vals[c.key];
+  return before == null || after == null ? null : { before, after };
+}
+/** Promena mog tima (posle − pre) za kategoriju, ili null */
+function myTeamDelta(c) {
+  const v = myTeamValues(c);
+  return v ? v.after - v.before : null;
 }
 
 /**
@@ -1575,8 +1581,10 @@ function renderCompare(totals, cmp) {
     }).join('');
     // Razlika iz moje perspektive: Dobijaš − Daješ
     // FG%/FT% sa unetim rosterom: sitno ispod, koliko se menja procenat mog tima
-    const td = c.type === 'pct' ? myTeamDelta(c) : null;
-    const sub = td == null ? '' : Math.abs(td) < TEAM_PCT_TIE ? t('tim: bez promene') : t('tim: {d}', { d: fmtDelta(c, td).txt });
+    const tv = c.type === 'pct' ? myTeamValues(c) : null;
+    const sub = tv == null ? '' : Math.abs(tv.after - tv.before) < TEAM_PCT_TIE
+      ? t('tim: bez promene')
+      : t('tim: {a} → {b}', { a: fmtPct(tv.before), b: fmtPct(tv.after) });
     let diff = r.punted ? `<td class="dcell punt">punt</td>` : deltaCellHTML(c, totals[GIVE], totals[GET], '', sub);
     if (!r.punted && lowVolume(c, totals)) diff = diff.replace(/(<span class="sub dsub">|<\/td>$)/, ` <span class="lowvol" data-tip="${esc(t('Procenat na malom broju šuteva skoro ne utiče na tim.'))}">${t('mali obim')}</span>$1`);
     return `<tr class="${r.punted ? 'punt-row' : ''}"><td class="catth${puntCls(c)}" data-punt="${c.key}" title="${t('Klik: punt')}"><b>${c.label}</b></td>${tds}${diff}</tr>`;
