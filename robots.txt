@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://banecvenic.github.io/fantasy-trade-analyzer/sitemap.xml

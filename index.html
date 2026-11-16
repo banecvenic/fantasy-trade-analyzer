@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fantasy Basketball Trade Analyzer | RosterSwing</title>
+<meta name="description" content="Compare fantasy basketball trades category by category. See what each side gains and gives up, and how the deal would change your roster.">
+<link rel="canonical" href="https://banecvenic.github.io/fantasy-trade-analyzer/">
+<link rel="alternate" hreflang="en" href="https://banecvenic.github.io/fantasy-trade-analyzer/">
+<link rel="alternate" hreflang="sr" href="https://banecvenic.github.io/fantasy-trade-analyzer/sr/">
+<link rel="alternate" hreflang="x-default" href="https://banecvenic.github.io/fantasy-trade-analyzer/">
+<meta name="theme-color" content="#131519">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="RosterSwing">
+<meta property="og:title" content="Fantasy Basketball Trade Analyzer | RosterSwing">
+<meta property="og:description" content="Compare fantasy basketball trades category by category. See what each side gains and gives up, and how the deal would change your roster.">
+<meta property="og:url" content="https://banecvenic.github.io/fantasy-trade-analyzer/">
+<meta property="og:image" content="https://banecvenic.github.io/fantasy-trade-analyzer/assets/og-en.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="RosterSwing Fantasy Basketball Trade Analyzer">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Fantasy Basketball Trade Analyzer | RosterSwing">
+<meta name="twitter:description" content="Compare fantasy basketball trades category by category. See what each side gains and gives up, and how the deal would change your roster.">
+<meta name="twitter:image" content="https://banecvenic.github.io/fantasy-trade-analyzer/assets/og-en.png">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="assets/favicon-16.png" sizes="16x16" type="image/png">
+<link rel="icon" href="assets/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="assets/favicon-64.png" sizes="64x64" type="image/png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"></noscript>
+<link rel="stylesheet" href="assets/app.css">
+<link rel="stylesheet" href="assets/site.css">
+<script>
+(function(){var h=location.hash;if(/^#(home|quick|league-)/.test(h)||/(^#|&)(t|s|per)=/.test(h)){location.replace('app/'+h);}})();
+</script>
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "WebApplication",
+ "name": "RosterSwing Fantasy Basketball Trade Analyzer",
+ "alternateName": "RosterSwing",
+ "url": "https://banecvenic.github.io/fantasy-trade-analyzer/",
+ "description": "Compare fantasy basketball trades category by category. See what each side gains and gives up, and how the deal would change your roster.",
+ "applicationCategory": "SportsApplication",
+ "operatingSystem": "Any",
+ "browserRequirements": "Requires JavaScript",
+ "inLanguage": "en",
+ "isAccessibleForFree": true,
+ "offers": {
+  "@type": "Offer",
+  "price": "0",
+  "priceCurrency": "USD"
+ }
+}
+</script>
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "FAQPage",
+ "inLanguage": "en",
+ "mainEntity": [
+  {
+   "@type": "Question",
+   "name": "How are FG% and FT% calculated?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "From the total makes and attempts of all players on each side, not by averaging percentages. A player who shoots 60% on 3 attempts moves the result less than one who shoots 50% on 15 attempts. With your roster added, the tool also shows how much your team percentage changes."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "What is 9-cat?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "9-cat is the most common category format in fantasy basketball: points, rebounds, assists, three pointers, steals, blocks, field goal percentage, free throw percentage and turnovers. In head to head leagues you win or lose each category every week. For turnovers, fewer is better."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Is this fantasy basketball trade calculator free?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Yes. RosterSwing is free to use. There is nothing to buy and no sign-up."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Where does the data come from?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Player stats, projections and news come from publicly available ESPN fantasy data. Numbers are averages per game for the period you pick."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Does it work for Yahoo leagues?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Yes. The analyzer compares players, not platforms, so it works for Yahoo, ESPN and other leagues with 9-category scoring. You can set your league roster size, including IR spots. Stats always come from the same source."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Do I need an account?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "No. Leagues, rosters and trades are saved only in your browser on this device. There is no account and no server that stores your data."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "What does \"low volume\" mean?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "A percentage built on very few attempts, under 3 field goal or 1.5 free throw attempts per game on one side. It barely changes a team percentage, so when no roster is added, that category counts as a tie in the score."
+   }
+  }
+ ]
+}
+</script>
+</head>
+<body class="pub">
+<header class="site-h">
+  <div class="wrap">
+    <a class="brand" href="./" aria-label="RosterSwing"><img class="brand-mark" src="assets/favicon.svg" width="24" height="24" alt="RosterSwing"><img class="brand-word" src="assets/wordmark.svg" width="96" height="16" alt=""><span class="brand-desc">Fantasy Basketball Tools</span></a>
+    <nav class="site-nav" aria-label="Main">
+      <a class="lang-link" href="sr/" hreflang="sr" lang="sr">Srpski</a>
+      <a class="leagues-link" id="leagues-link" href="app/#home&amp;lang=en">My leagues</a>
+    </nav>
+  </div>
+</header>
+<script>
+(function(){try{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));var l=p&&p.leagues&&(p.leagues.find(function(x){return x.id===p.lastLeagueId})||p.leagues[0]);
+if(l){var a=document.getElementById('leagues-link');a.textContent="Continue: {name}".replace('{name}',l.name);a.title=a.textContent;a.href='app/#league-'+l.id+'&lang=en';}}catch(e){}})();
+</script>
+
+<main class="wrap">
+  <section class="hero">
+    <div class="stripe" aria-hidden="true"><i style="background:var(--rs-red)"></i><i style="background:var(--rs-green)"></i><i style="background:var(--rs-blue)"></i></div>
+    <h1>Fantasy Basketball Trade Analyzer</h1>
+    <p>See what a trade does to your roster. Compare both sides and check which categories get stronger or weaker before you make the move.</p>
+    <a class="cta" href="#tool" id="cta">Analyze a Trade</a>
+  </section>
+
+  <section class="tool" id="tool" aria-labelledby="tool-h">
+    <h2 id="tool-h">Compare a trade</h2>
+    <p class="lead">Add players to You give and You get. Per game stats for 9-category head to head leagues.</p>
+    <div class="tool-periods"><div class="seg" id="periods" role="group" aria-label="Period"><button type="button" aria-pressed="true">Season</button><button type="button" aria-pressed="false">7 days</button><button type="button" aria-pressed="false">15 days</button><button type="button" aria-pressed="false">30 days</button><button type="button" aria-pressed="false">Projection</button></div></div>
+    <div class="tool-app">
+      <div class="status" id="status">Loading players…</div>
+      <div id="banner"></div>
+      <div id="tradewarn"></div>
+      <div class="score" id="score"><div class="score-empty">Add players to You give and You get to see the comparison.</div></div>
+      <div class="teams" id="teams"><section class="card" data-team-card="0"><div class="card-h"><span class="dot" style="background:var(--give)"></span><div class="side-title"><b style="color:var(--give)">You give</b><small>My team</small></div></div><div class="search"><div class="search-in"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg><input type="search" placeholder="Who do you give…" aria-label="Who do you give…" disabled></div></div><div class="empty-team">No players yet. Type a name above.</div></section><section class="card" data-team-card="1"><div class="card-h"><span class="dot" style="background:var(--get)"></span><div class="side-title"><b style="color:var(--get)">You get</b><small>Opponent</small></div></div><div class="search"><div class="search-in"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg><input type="search" placeholder="Who do you get…" aria-label="Who do you get…" disabled></div></div><div class="empty-team">No players yet. Type a name above.</div></section></div>
+      <div id="compare"></div>
+      <div id="nudge"></div>
+      <div id="report"></div>
+    </div>
+    <div hidden><span id="hleague"></span><button type="button" id="pchip"></button><section id="home"></section><div id="leaguebar"></div><div id="wshead"></div><div id="tradetabs"></div><div id="myteam"></div><div id="oppteam"></div><div id="history"></div></div>
+  </section>
+
+  <section aria-labelledby="how-h">
+    <h2 id="how-h">How it works</h2>
+    <ol class="steps"><li><h3>Add the players you give</h3><p>Type a name in You give. One player or a whole package.</p></li><li><h3>Add the players you get</h3><p>Fill in You get. The fantasy basketball trade calculator adds up both sides per game.</p></li><li><h3>Read the result</h3><p>See which categories get stronger or weaker, the score across all 9 categories, and a short report on minutes, trends and injuries.</p></li></ol>
+  </section>
+
+  <section aria-labelledby="what-h">
+    <h2 id="what-h">What you get</h2>
+    <ul class="feats"><li><h3>Category by category comparison</h3><p>Points, rebounds, assists, threes, steals, blocks, FG%, FT% and turnovers, with the difference for each one.</p></li><li><h3>Weighted FG% and FT%</h3><p>Percentages come from makes and attempts, so a high percentage on a few shots does not count as much as volume.</p></li><li><h3>Minutes and trends</h3><p>Switch between season, last 7, 15 and 30 days, and projections. See who is playing more or less lately.</p></li><li><h3>Injuries and news</h3><p>Injury status, missed games and the latest player news in the trade report.</p></li><li><h3>Impact on your team</h3><p>Add your league and roster to see your team before and after the trade, with roster size and IR spots from your league.</p></li><li><h3>Text for AI analysis</h3><p>Copy a ready summary of the trade with stats, news and your roster, and paste it into the AI assistant you use.</p></li></ul>
+  </section>
+
+  <section aria-labelledby="faq-h">
+    <h2 id="faq-h">Frequently asked questions</h2>
+    <div class="faq"><details><summary><h3>How are FG% and FT% calculated?</h3></summary><div class="a"><p>From the total makes and attempts of all players on each side, not by averaging percentages. A player who shoots 60% on 3 attempts moves the result less than one who shoots 50% on 15 attempts. With your roster added, the tool also shows how much your team percentage changes.</p></div></details><details><summary><h3>What is 9-cat?</h3></summary><div class="a"><p>9-cat is the most common category format in fantasy basketball: points, rebounds, assists, three pointers, steals, blocks, field goal percentage, free throw percentage and turnovers. In head to head leagues you win or lose each category every week. For turnovers, fewer is better.</p></div></details><details><summary><h3>Is this fantasy basketball trade calculator free?</h3></summary><div class="a"><p>Yes. RosterSwing is free to use. There is nothing to buy and no sign-up.</p></div></details><details><summary><h3>Where does the data come from?</h3></summary><div class="a"><p>Player stats, projections and news come from publicly available ESPN fantasy data. Numbers are averages per game for the period you pick.</p></div></details><details><summary><h3>Does it work for Yahoo leagues?</h3></summary><div class="a"><p>Yes. The analyzer compares players, not platforms, so it works for Yahoo, ESPN and other leagues with 9-category scoring. You can set your league roster size, including IR spots. Stats always come from the same source.</p></div></details><details><summary><h3>Do I need an account?</h3></summary><div class="a"><p>No. Leagues, rosters and trades are saved only in your browser on this device. There is no account and no server that stores your data.</p></div></details><details><summary><h3>What does &quot;low volume&quot; mean?</h3></summary><div class="a"><p>A percentage built on very few attempts, under 3 field goal or 1.5 free throw attempts per game on one side. It barely changes a team percentage, so when no roster is added, that category counts as a tie in the score.</p></div></details></div>
+  </section>
+</main>
+<footer class="site-f">
+  <div class="wrap">
+    <div class="f-top">
+      <span class="f-brand"><img src="assets/favicon.svg" width="24" height="24" alt="RosterSwing"> Fantasy Basketball Tools</span>
+      <nav class="f-links" aria-label="Footer">
+        <a href="about/">About</a>
+        <a href="privacy/">Privacy</a>
+        <a href="https://github.com/banecvenic/fantasy-trade-analyzer/issues" rel="noopener">Contact</a>
+      </nav>
+    </div>
+    <p class="f-note">RosterSwing is not affiliated with ESPN, Yahoo or the NBA. Stats come from publicly available sources.</p>
+  </div>
+</footer>
+<script>window.RS_EMBED={lang:'en',app:'app/'};</script>
+<script src="assets/app.js" defer></script>
+<script>
+document.getElementById('cta').addEventListener('click',function(e){e.preventDefault();document.getElementById('tool').scrollIntoView({behavior:'smooth'});
+var f=function(){var i=document.querySelector('[data-search="0"]');if(i)i.focus({preventScroll:true});};setTimeout(f,350);});
+</script>
+</body>
+</html>

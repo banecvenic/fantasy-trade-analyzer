@@ -1,0 +1,82 @@
+/* Javne stranice (početna, privatnost, o sajtu). Boje i osnova dolaze iz app.css (:root). */
+.site-h{position:sticky;top:0;z-index:20;background:var(--header-bg);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.site-h .wrap{display:flex;align-items:center;gap:12px;min-height:60px;padding-top:8px;padding-bottom:8px}
+.site-nav{display:flex;align-items:center;gap:8px;margin-left:auto}
+.site-nav a{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 14px;border-radius:999px;font-weight:600;font-size:14px;text-decoration:none;white-space:nowrap}
+.lang-link{color:var(--muted);border:1px solid var(--line)}
+.lang-link:hover{color:var(--text);border-color:var(--dim)}
+.leagues-link{color:var(--text);background:var(--card);border:1px solid var(--line);max-width:240px;overflow:hidden;text-overflow:ellipsis}
+.leagues-link:hover{border-color:var(--dim)}
+.cta{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 22px;border-radius:999px;background:var(--rs-red-btn);color:#fff;font-weight:700;font-size:16px;text-decoration:none;border:0;cursor:pointer;font-family:inherit}
+.cta:hover{background:var(--rs-red)}
+
+.hero{padding:44px 0 8px;max-width:760px}
+.hero h1{font-size:32px;line-height:1.15;font-weight:800;letter-spacing:-.02em;margin:0 0 14px}
+.hero p{font-size:17px;line-height:1.55;color:var(--muted);margin:0 0 22px}
+.hero .stripe{display:flex;height:3px;width:120px;border-radius:2px;overflow:hidden;margin-bottom:18px}
+.hero .stripe i{flex:1}
+
+.pub main > section > h2{font-size:20px;font-weight:700;letter-spacing:-.01em;margin:0 0 6px}
+.pub main > section{padding:36px 0 0}
+.lead{color:var(--muted);font-size:15px;line-height:1.55;margin:0 0 14px;max-width:760px}
+.tool{scroll-margin-top:72px}
+.tool-app .status{margin-top:4px}
+.tool-periods{margin:10px 0 0}
+.tool-periods .seg{margin-left:0;width:max-content;max-width:100%}
+.tool-app .score{margin-top:4px}
+
+.steps{list-style:none;margin:16px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,1fr);gap:12px;counter-reset:st}
+.steps li{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;counter-increment:st}
+.steps li::before{content:counter(st);display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--card2);border:1px solid var(--line);font-weight:800;font-size:13px;margin-bottom:10px}
+.steps h3,.feats h3{font-size:16px;font-weight:700;margin:0 0 6px}
+.steps p,.feats p{margin:0;color:var(--muted);font-size:14px;line-height:1.55}
+.feats{list-style:none;margin:16px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.feats li{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+
+.faq{margin-top:12px;display:flex;flex-direction:column;gap:8px;max-width:860px}
+.faq details{background:var(--card);border:1px solid var(--line);border-radius:var(--radius)}
+.faq summary{cursor:pointer;list-style:none;padding:14px 16px;font-weight:700;font-size:15px;display:flex;justify-content:space-between;gap:12px;min-height:44px;align-items:center}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:'+';color:var(--muted);font-size:20px;font-weight:500;line-height:1}
+.faq details[open] summary::after{content:'−'}
+.faq h3{font:inherit;margin:0}
+.faq .a{padding:0 16px 14px;color:var(--muted);font-size:14px;line-height:1.6}
+.faq .a p{margin:0}
+
+.site-f{border-top:1px solid var(--line);margin-top:48px;padding:22px 0 calc(28px + env(safe-area-inset-bottom));color:var(--muted);font-size:13px}
+.site-f .wrap{display:flex;flex-direction:column;gap:12px}
+.f-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.f-brand{display:flex;align-items:center;gap:10px;color:var(--muted)}
+.f-links{display:flex;gap:4px;flex-wrap:wrap}
+.f-links a{color:var(--muted);text-decoration:none;display:inline-flex;align-items:center;min-height:44px;padding:0 10px}
+.f-links a:hover{color:var(--text)}
+.f-note{margin:0;color:var(--dim);font-size:12px;line-height:1.5}
+
+/* Tekstualne stranice */
+.doc{max-width:760px;padding:36px 0 0}
+.doc h1{font-size:30px;font-weight:800;letter-spacing:-.02em;margin:0 0 8px}
+.doc .upd{color:var(--dim);font-size:13px;margin:0 0 20px}
+.doc h2{font-size:18px;font-weight:700;margin:28px 0 8px}
+.doc p,.doc li{color:var(--muted);font-size:15px;line-height:1.65}
+.doc p{margin:0 0 12px}
+.doc ul{margin:0 0 12px;padding-left:20px}
+.doc li{margin:4px 0}
+.doc strong{color:var(--text)}
+
+@media (max-width:820px){
+  .steps,.feats{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+  .hero{padding:26px 0 4px}
+  .hero h1{font-size:28px}
+  .hero p{font-size:16px;margin-bottom:18px}
+  .cta{width:100%}
+  .pub main > section{padding-top:28px}
+  .site-nav{gap:6px}
+  .site-nav a{padding:0 12px;font-size:13px}
+  .leagues-link{max-width:150px}
+  .doc h1{font-size:28px}
+}
+@media (max-width:420px){
+  .site-h .brand-word{display:none}
+}

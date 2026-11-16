@@ -1,0 +1,36 @@
+<!doctype html>
+<!-- Šablon za sliku za deljenje 1200 × 630 (brandbook str. 7). Pravi se sa: sh tools/build_og.sh -->
+<html>
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;800&display=block" rel="stylesheet">
+<style>
+html,body{margin:0;width:1200px;height:630px;background:#131519;font-family:Inter,sans-serif;overflow:hidden}
+.card{position:absolute;inset:40px;background:#1E222A;border:1px solid #333A46;border-radius:22px;overflow:hidden;padding:64px 72px;box-sizing:border-box}
+.stripe{position:absolute;top:0;left:0;right:0;height:8px;display:flex}
+.stripe i{flex:1}
+.logo{display:flex;align-items:center;gap:16px}
+.logo .mark{width:64px;height:64px}
+.logo .word{height:41px}
+h1{color:#E9EDF3;font-size:84px;line-height:1.04;font-weight:800;letter-spacing:-.025em;margin:46px 0 0}
+p{color:#A4AEBD;font-size:34px;font-weight:500;margin:30px 0 0}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="stripe"><i style="background:#EE3024"></i><i style="background:#55DE91"></i><i style="background:#75A9FF"></i></div>
+  <div class="logo"><img class="mark" src="../assets/favicon.svg" alt=""><img class="word" src="../assets/wordmark.svg" alt=""></div>
+  <h1 id="h"></h1>
+  <p id="p"></p>
+</div>
+<script>
+const T = {
+  en: ['Fantasy Basketball<br>Trade Analyzer', 'See how a trade changes your roster.'],
+  sr: ['Kalkulator za<br>fantasy trejdove', 'Vidi kako trejd menja tvoj roster.'],
+};
+const l = location.hash.slice(1) === 'sr' ? 'sr' : 'en';
+document.getElementById('h').innerHTML = T[l][0];
+document.getElementById('p').textContent = T[l][1];
+</script>
+</body>
+</html>
