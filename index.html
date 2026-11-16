@@ -729,6 +729,7 @@ const EN = {
   "{n} nije na rosteru tima {team}.": "{n} is not on {team}'s roster.",
   "Posle trejda imaš {n} aktivnih (max {m}). Izaberi koga izbacuješ u kartici Daješ, dotle Razlika nije realna.": "After the trade you have {n} active (max {m}). Pick who you drop in the You give card; until then the Difference isn't realistic.",
   "Posle trejda imaš {n} aktivnih (max {m}). Izaberi koga izbacuješ ({k}), dotle Razlika nije realna.": "After the trade they have {n} active (max {m}). Pick who to drop ({k}); until then the Difference isn't realistic.",
+  "Izbačen": "Dropped",
 };
 function t(sr, vars) {
   let out = (LANG === 'en' && EN[sr]) || sr;
@@ -1717,31 +1718,41 @@ function rosterTableHTML(kind, plan) {
   const rm = (id, label = t('Ukloni sa rostera')) => `<button class="rm" type="button" data-action="r-remove" data-kind="${kind}" data-id="${id}" aria-label="${label}">✕</button>`;
   const irBtn = (id, toIr) => `<button class="mini" type="button" data-action="r-ir" data-kind="${kind}" data-id="${id}" title="${toIr ? t('Prebaci na IR') : t('Vrati sa IR')}">${toIr ? '→IR' : '←IR'}</button>`;
   const outSet = new Set(plan.outIds), dropSet = new Set(plan.dropsRemove || []);
-  const rows = [];
+  // Pregled: igrači koji ostaju na svojim mestima (sačuvani redosled), a dole redom
+  // ODLAZI, IZBAČEN, DOLAZI, WAIVER. U prikazu "Sačuvan roster" plan je prazan, pa svi ostaju na mestu.
+  const stay = [], leaving = [], dropped = [];
+  const irRow = id => P(id) && rosterRow(P(id), kind, { tags: [{ text: 'IR', cls: 'tag-ir' }], cls: 'ir', actions: irBtn(id, false) + rm(id), saved: true, ir: true });
   for (const id of plan.activeBefore) {
     const p = P(id); if (!p) continue;
-    const tags = outSet.has(id) ? [{ text: 'Odlazi', cls: 'tag-out' }] : dropSet.has(id) ? [{ text: 'Izbacuješ', cls: 'tag-out' }] : [];
-    rows.push(rosterRow(p, kind, { tags, cls: tags.length ? 'leaving' : '', actions: irBtn(id, true) + rm(id), saved: true }));
+    if (outSet.has(id)) leaving.push({ id, ir: false });
+    else if (dropSet.has(id)) dropped.push({ id, ir: false });
+    else stay.push(rosterRow(p, kind, { actions: irBtn(id, true) + rm(id), saved: true }));
   }
+  const irStay = [];
+  for (const id of plan.irIds) {
+    if (outSet.has(id)) leaving.push({ id, ir: true });
+    else if (dropSet.has(id)) dropped.push({ id, ir: true });
+    else irStay.push(id);
+  }
+  const rows = [...stay];
+  if (irStay.length) {
+    rows.push(`<tr class="irhead"><td colspan="${CATS.length + 3}">${t('IR · ne računa se u zbirove ({a}/{b})', { a: plan.irIds.length, b: ROSTER.IR })}</td></tr>`);
+    irStay.forEach(id => rows.push(irRow(id)));
+  }
+  const moved = (list, text) => list.map(({ id, ir }) => P(id) && rosterRow(P(id), kind, {
+    tags: [...(ir ? [{ text: 'IR', cls: 'tag-ir' }] : []), { text, cls: 'tag-out' }], cls: `leaving ${ir ? 'ir' : ''}`,
+    actions: irBtn(id, !ir) + rm(id), saved: true, ir })).filter(Boolean);
+  rows.push(...moved(leaving, 'Odlazi'), ...moved(dropped, 'Izbačen'));
   for (const id of plan.incoming) {
     const p = P(id); if (!p) continue;
-    const dropped = dropSet.has(id);
-    rows.push(rosterRow(p, kind, { tags: [{ text: 'Dolazi', cls: 'tag-in' }, ...(dropped ? [{ text: 'Izbacuješ', cls: 'tag-out' }] : [])], cls: dropped ? 'leaving' : 'arriving' }));
+    rows.push(rosterRow(p, kind, { tags: [{ text: 'Dolazi', cls: 'tag-in' }], cls: 'arriving' }));
   }
   for (const id of plan.waivers) {
     const p = P(id); if (!p) continue;
     rows.push(rosterRow(p, kind, { tags: [{ text: 'Waiver', cls: 'tag-in' }], cls: 'arriving',
       actions: `<button class="rm" type="button" data-action="bal-w-remove" data-kind="${kind}" data-id="${id}" aria-label="${t('Ukloni waiver')}">✕</button>` }));
   }
-  if (plan.irIds.length) {
-    rows.push(`<tr class="irhead"><td colspan="${CATS.length + 3}">${t('IR · ne računa se u zbirove ({a}/{b})', { a: plan.irIds.length, b: ROSTER.IR })}</td></tr>`);
-    for (const id of plan.irIds) {
-      const p = P(id); if (!p) continue;
-      const tags = [{ text: 'IR', cls: 'tag-ir' }, ...(outSet.has(id) ? [{ text: 'Odlazi', cls: 'tag-out' }] : [])];
-      rows.push(rosterRow(p, kind, { tags, cls: outSet.has(id) ? 'leaving ir' : 'ir', actions: irBtn(id, false) + rm(id), saved: true, ir: true }));
-    }
-  }
-  return rows.join('');
+  return rows.filter(Boolean).join('');
 }
 
 function balanceHTML(kind, plan) {
@@ -1795,7 +1806,7 @@ function renderRosterSection(kind) {
       const missing = [...new Set([...before.missing, ...after.missing])];
       // Pregled posle trejda (samo prikaz) ili sačuvan roster kakav jeste
       const view = plan.tradeTouches ? (state.ui.rosterView?.[kind] || 'after') : 'saved';
-      const showPlan = view === 'after' ? plan : { ...plan, outIds: [], incoming: [], drops: [], waivers: [] };
+      const showPlan = view === 'after' ? plan : { ...plan, outIds: [], incoming: [], drops: [], dropsRemove: [], waivers: [] };
       const toggle = plan.tradeTouches ? `<div class="view-row">
           <div class="seg small" role="group" aria-label="${t('Prikaz rostera')}">
             <button type="button" data-rview="${kind}:after" aria-pressed="${view === 'after'}">${t('Posle trejda (pregled)')}</button>
