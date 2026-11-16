@@ -82,6 +82,9 @@ header.top .wrap{display:flex;align-items:center;gap:12px;padding-top:10px;paddi
 .search{position:relative;padding:10px 12px}
 .search.slot-search{display:flex;flex-direction:column;gap:4px}
 .search-in{position:relative}
+.slot-opt-tag{background:var(--card2);color:var(--muted);border:1px solid var(--line)}
+.chip.off{opacity:.7;border-style:dashed}
+.slot-chips{padding:8px 12px 0}
 .slot-tag{display:inline-block;white-space:nowrap;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:1px 5px;border-radius:3px;width:max-content}
 tr.slot-d td{background:linear-gradient(rgba(214,69,69,.09),rgba(214,69,69,.09)),var(--card)}
 tr.slot-w td{background:linear-gradient(rgba(31,157,85,.09),rgba(31,157,85,.09)),var(--card)}
@@ -719,6 +722,13 @@ const EN = {
   "tim: bez promene": "team: no change",
   "tim: {d}": "team: {d}",
   "tim: {a} → {b}": "team: {a} → {b}",
+  "obavezno": "required",
+  "opciono": "optional",
+  "Koga izbacuje sa svog rostera…": "Who do they drop from their roster…",
+  "Izbacuje": "Drops",
+  "{n} nije na rosteru tima {team}.": "{n} is not on {team}'s roster.",
+  "Posle trejda imaš {n} aktivnih (max {m}). Izaberi koga izbacuješ u kartici Daješ, dotle Razlika nije realna.": "After the trade you have {n} active (max {m}). Pick who you drop in the You give card; until then the Difference isn't realistic.",
+  "Posle trejda imaš {n} aktivnih (max {m}). Izaberi koga izbacuješ ({k}), dotle Razlika nije realna.": "After the trade they have {n} active (max {m}). Pick who to drop ({k}); until then the Difference isn't realistic.",
 };
 function t(sr, vars) {
   let out = (LANG === 'en' && EN[sr]) || sr;
@@ -1115,31 +1125,28 @@ function sumPlayers(plusIds, minusIds = [], lineOf = playerLine) {
 }
 
 /**
- * Moj balans rostera za neravnomeran trejd (iz moje perspektive):
- * - Izbacuješ: igrač kog gubim -> računa se u Daješ
- * - Waiver dodatak: igrač kog dobijam -> računa se u Dobijaš
- * Sa unetim rosterom broj slotova se računa prema 13 aktivnih; bez rostera prema razlici broja igrača.
+ * Slotovi za neravnomeran trejd, jedno pravilo za sva stanja rostera (kind: 'my' ili 'opp'):
+ * - "Izbacuješ": kad strana dobija više igrača nego što daje; broj slotova = razlika u broju igrača
+ * - "Waiver dodatak": kad daje više nego što dobija; broj = razlika; uvek opciono
+ * Da li je "Izbacuješ" obavezan (roster bi imao > 13 aktivnih) računa rosterPlan.
  */
-function myBalance() {
-  const bal = state.balance.my;
-  if (state.rosters.my.players.length) {
-    const pl = rosterPlan('my');
-    return { mode: 'roster', needDrops: pl.needDrops, waiverSlots: pl.waiverSlots, drops: pl.drops, waivers: pl.waivers, pre: pl.pre };
-  }
-  const both = giveIds().length > 0 && getIds().length > 0;
-  const diff = getIds().length - giveIds().length;
-  const needDrops = both ? Math.max(0, diff) : 0, waiverSlots = both ? Math.max(0, -diff) : 0;
-  const trade = takenIds();
-  const drops = [...new Set(bal.drops)].filter(id => !trade.has(id)).slice(0, needDrops);
-  const waivers = [...new Set(bal.waivers)].filter(id => !trade.has(id) && !drops.includes(id)).slice(0, waiverSlots);
-  return { mode: 'diff', needDrops, waiverSlots, drops, waivers, pre: [] };
+function slotPlan(kind) {
+  const outSide = state.teams[KINDS[kind].out].ids, inSide = state.teams[KINDS[kind].in].ids;
+  const both = outSide.length > 0 && inSide.length > 0;
+  const dropSlots = both ? Math.max(0, inSide.length - outSide.length) : 0;
+  const waiverSlots = both ? Math.max(0, outSide.length - inSide.length) : 0;
+  const trade = takenIds(), bal = state.balance[kind];
+  const onRoster = new Set(rosterIds(rosterOf(kind)));
+  const drops = [...new Set(bal.drops)].filter(id => !trade.has(id)).slice(0, dropSlots);
+  const waivers = [...new Set(bal.waivers)].filter(id => !trade.has(id) && !drops.includes(id) && !onRoster.has(id)).slice(0, waiverSlots);
+  return { dropSlots, waiverSlots, drops, waivers };
 }
-const slotIds = () => { const b = myBalance(); return [...b.drops, ...b.waivers]; };
+const slotIds = (kind = 'my') => { const sp = slotPlan(kind); return [...sp.drops, ...sp.waivers]; };
 
-/** Zbir strane trejda: Daješ + koga izbacujem, Dobijaš + waiver dodatak */
+/** Zbir strane trejda (moj ugao): Daješ + koga izbacujem, Dobijaš + waiver dodatak */
 function teamTotals(team, ti) {
-  const b = myBalance();
-  return sumPlayers([...team.ids, ...(ti === GIVE ? b.drops : b.waivers)]);
+  const sp = slotPlan('my');
+  return sumPlayers([...team.ids, ...(ti === GIVE ? sp.drops : sp.waivers)]);
 }
 
 /** Zaokruživanje na prikazanu preciznost (koristi se samo za prikaz i stara mesta koja porede prikaz). */
@@ -1261,8 +1268,8 @@ function renderBanner() {
 const puntNote = () => (state.punt.size ? ` · <span class="punt-note">${t('punt {list}', { list: CATS.filter(isPunt).map(c => c.label).join(', ') })}</span>` : '');
 
 function renderTradeWarn() {
-  const b = myBalance();
-  const miss = b.needDrops - b.drops.length;
+  const plan = state.rosters.my.players.length ? rosterPlan('my') : null;
+  const miss = plan ? plan.missingDrops : 0;
   $('#tradewarn').innerHTML = miss > 0
     ? `<div class="banner warn"><span>⚖ ${t('Neravnomeran trejd: izaberi koga izbacuješ ({n}) u kartici Daješ — dotle rezultat nije realan.', { n: miss })}</span></div>` : '';
 }
@@ -1470,12 +1477,12 @@ function renderTeams(totals, cmp) {
     const unknown = team.ids.length - players.length;
     const better = cmp.active.length >= 2 ? cmp.score[ti] : null;
     const warn = tradeWarnings(ti);
-    const b = myBalance();
-    const slotList = ti === GIVE ? b.drops : b.waivers;
+    const sp = slotPlan('my');
+    const slotList = ti === GIVE ? sp.drops : sp.waivers;
     const slotRows = slotList.map(id => state.byId.get(id)).filter(Boolean).map(p => playerRowHTML(p, {
       tags: [ti === GIVE ? { text: 'Izbacuješ', cls: 'tag-out' } : { text: 'Waiver', cls: 'tag-in' }], cls: ti === GIVE ? 'slot-d' : 'slot-w',
       actions: `<button class="rm" type="button" data-action="${ti === GIVE ? 'bal-d-remove' : 'bal-w-remove'}" data-kind="my" data-id="${p.id}" aria-label="${t('Ukloni')}">✕</button>` })).join('');
-    const slotInputs = ti === GIVE ? dropInputsHTML(b) : waiverInputHTML(b);
+    const slotInputs = slotInputHTML('my', ti === GIVE ? 'd' : 'w');
     return `<section class="card" data-team-card="${ti}">
       <div class="card-h">
         <span class="dot" style="background:${SIDES[ti].color}"></span>
@@ -1495,26 +1502,23 @@ function renderTeams(totals, cmp) {
   $('#teams').innerHTML = html.join('');
 }
 
-/** Daješ: koga izbacujem (obavezno kad dobijam više nego što mesta ima) */
-function dropInputsHTML(b) {
-  const parts = [];
-  for (let i = b.drops.length; i < b.needDrops; i++) {
-    const label = `<span class="slot-tag slot-d-tag">${t('Izbacuješ {a}/{b}', { a: i + 1, b: b.needDrops })}</span>`;
-    if (b.mode === 'roster') {
-      const opts = b.pre.filter(id => !b.drops.includes(id)).map(id => `<option value="${id}">${esc(state.byId.get(id)?.name || id)}</option>`).join('');
-      parts.push(`<label class="bal-row">${label}<select data-drop="my" data-idx="${i}"><option value="">${t('— koga izbacuješ sa rostera —')}</option>${opts}</select></label>`);
-    } else {
-      parts.push(searchBoxHTML('my-d', t('Koga izbacuješ sa svog rostera…'), label));
-      break; // jedno polje za pretragu; sledeće se pojavi posle izbora
-    }
+/**
+ * Polje za sledeći slobodan slot (which: 'd' = Izbacuješ, 'w' = Waiver dodatak).
+ * Ista komponenta za sva stanja rostera: pretraga koja prvo nudi igrače sa rostera.
+ * "Izbacuješ" je obavezan (crveno) samo dok bi roster imao više od 13 aktivnih; inače opcion.
+ */
+function slotInputHTML(kind, which, wrapCls = 'balance top') {
+  const sp = slotPlan(kind);
+  const plan = rosterOf(kind)?.players.length ? rosterPlan(kind) : null;
+  if (which === 'd') {
+    if (sp.drops.length >= sp.dropSlots) return '';
+    const req = !!plan && plan.missingDrops > 0;
+    const label = `<span class="slot-tag ${req ? 'slot-d-tag' : 'slot-opt-tag'}">${t('Izbacuješ {a}/{b}', { a: sp.drops.length + 1, b: sp.dropSlots })} · ${req ? t('obavezno') : t('opciono')}</span>`;
+    return `<div class="${wrapCls}">${searchBoxHTML(`${kind}-d`, kind === 'my' ? t('Koga izbacuješ sa svog rostera…') : t('Koga izbacuje sa svog rostera…'), label)}</div>`;
   }
-  return parts.length ? `<div class="balance top">${parts.join('')}</div>` : '';
-}
-/** Dobijaš: waiver dodatak (opciono) kad dajem više nego što dobijam */
-function waiverInputHTML(b) {
-  if (b.waiverSlots <= b.waivers.length) return '';
-  return `<div class="balance top">${searchBoxHTML('my-w', t('Koga uzimaš sa waivera… (opciono)'),
-    `<span class="slot-tag slot-w-tag">${t('Waiver dodatak {a}/{b} · opciono', { a: b.waivers.length + 1, b: b.waiverSlots })}</span>`)}</div>`;
+  if (sp.waivers.length >= sp.waiverSlots) return '';
+  return `<div class="${wrapCls}">${searchBoxHTML(`${kind}-w`, t('Koga uzimaš sa waivera… (opciono)'),
+    `<span class="slot-tag slot-w-tag">${t('Waiver dodatak {a}/{b} · opciono', { a: sp.waivers.length + 1, b: sp.waiverSlots })}</span>`)}</div>`;
 }
 
 /** Podnaslov strane (ime protivnika kad je izabran) */
@@ -1533,9 +1537,11 @@ function tradeWarnings(ti) {
     // Daješ: igrač koji nije na mom rosteru ne utiče na Moj tim; ponudi da ga dodam
     const mine = new Set(rosterIds(state.rosters.my));
     const notMine = giveIds().filter(id => !mine.has(id));
-    if (!notMine.length) return '';
-    return notMine.map(id => `<div class="card-warn row">⚠ ${t('{n} nije na tvom rosteru.', { n: esc(state.byId.get(id)?.name || id) })} ${addMyButton(id)}</div>`).join('')
-      + `<div class="card-warn soft">${t('Dok svi igrači iz Daješ nisu na tvom rosteru, sekcija Moj tim se ne menja.')}</div>`;
+    const dropsOff = slotPlan('my').drops.filter(id => !mine.has(id));
+    const note = id => `<div class="card-warn row">⚠ ${t('{n} nije na tvom rosteru.', { n: esc(state.byId.get(id)?.name || id) })} ${addMyButton(id)}</div>`;
+    return notMine.map(note).join('')
+      + (notMine.length ? `<div class="card-warn soft">${t('Dok svi igrači iz Daješ nisu na tvom rosteru, sekcija Moj tim se ne menja.')}</div>` : '')
+      + dropsOff.map(note).join('');
   }
   const r = rosterOf('opp');
   if (!r || !r.players.length) {
@@ -1662,15 +1668,18 @@ function rosterPlan(kind) {
   const outIds = allIn ? rosterIds(r).filter(id => outSet.has(id)) : [];
   const incoming = allIn ? state.teams[KINDS[kind].in].ids.filter(id => !onRoster.has(id)) : [];
   const pre = [...activeBefore.filter(id => !outIds.includes(id)), ...incoming];
-  const needDrops = Math.max(0, pre.length - ROSTER.ACTIVE);
-  const bal = state.balance[kind];
-  const drops = [...new Set(bal.drops)].filter(id => pre.includes(id)).slice(0, needDrops);
-  const waiverSlots = Math.max(0, ROSTER.ACTIVE - pre.length);
-  const taken = new Set([...onRoster, ...takenIds()]);
-  const waivers = [...new Set(bal.waivers)].filter(id => !taken.has(id)).slice(0, waiverSlots);
+  const sp = slotPlan(kind);
+  // Izabrani "Izbacuješ": oduzima se samo ako je igrač stvarno na rosteru (i samo kad je trejd moj)
+  const dropsRemove = allIn ? sp.drops.filter(id => onRoster.has(id)) : [];   // brišu se sa rostera (i IR)
+  const drops = dropsRemove.filter(id => pre.includes(id));                    // aktivni -> utiču na zbir
+  const dropsOff = sp.drops.filter(id => !onRoster.has(id));                    // nisu na rosteru -> napomena
+  const requiredDrops = allIn ? Math.min(sp.dropSlots, Math.max(0, pre.length - ROSTER.ACTIVE)) : 0;
+  const waivers = allIn ? sp.waivers : [];
   const activeAfter = [...pre.filter(id => !drops.includes(id)), ...waivers];
   const tradeTouches = allIn;
-  return { r, activeBefore, irIds, outIds, incoming, drops, needDrops, waivers, waiverSlots, pre, activeAfter, notOnRoster, tradeTouches, missingDrops: needDrops - drops.length };
+  return { r, activeBefore, irIds, outIds, incoming, drops, dropsRemove, dropsOff, dropSlots: sp.dropSlots, requiredDrops,
+    waivers, waiverSlots: sp.waiverSlots, pre, activeAfter, notOnRoster, tradeTouches,
+    missingDrops: Math.max(0, requiredDrops - drops.length) };
 }
 
 const fmtShortDate = iso => (iso ? new Date(iso).toLocaleDateString(LOCALE(), LANG === 'en' ? { day: 'numeric', month: 'short', year: 'numeric' } : { day: 'numeric', month: 'numeric', year: 'numeric' }) : '—');
@@ -1707,7 +1716,7 @@ function rosterTableHTML(kind, plan) {
   const P = id => state.byId.get(id);
   const rm = (id, label = t('Ukloni sa rostera')) => `<button class="rm" type="button" data-action="r-remove" data-kind="${kind}" data-id="${id}" aria-label="${label}">✕</button>`;
   const irBtn = (id, toIr) => `<button class="mini" type="button" data-action="r-ir" data-kind="${kind}" data-id="${id}" title="${toIr ? t('Prebaci na IR') : t('Vrati sa IR')}">${toIr ? '→IR' : '←IR'}</button>`;
-  const outSet = new Set(plan.outIds), dropSet = new Set(plan.drops);
+  const outSet = new Set(plan.outIds), dropSet = new Set(plan.dropsRemove || []);
   const rows = [];
   for (const id of plan.activeBefore) {
     const p = P(id); if (!p) continue;
@@ -1736,29 +1745,30 @@ function rosterTableHTML(kind, plan) {
 }
 
 function balanceHTML(kind, plan) {
+  const nm = id => esc(state.byId.get(id)?.name || id);
   if (kind === 'my') {
+    // Moj tim: slotovi se biraju gore (Daješ / Dobijaš), ovde samo napomena i upozorenje
     const notes = [];
-    if (plan.needDrops) notes.push(t('Koga izbacuješ ({a}/{b}) biraš gore, u kartici Daješ.', { a: plan.drops.length, b: plan.needDrops }));
+    if (plan.dropSlots) notes.push(t('Koga izbacuješ ({a}/{b}) biraš gore, u kartici Daješ.', { a: slotPlan('my').drops.length, b: plan.dropSlots }));
     if (plan.waiverSlots) notes.push(t('Waiver dodatak (opciono, {a}/{b}) biraš gore, u kartici Dobijaš.', { a: plan.waivers.length, b: plan.waiverSlots }));
     const warn = plan.missingDrops > 0
-      ? `<div class="card-warn strong">⚠ ${t('Posle trejda imaš {n} aktivnih (max {m}). Izaberi koga izbacuješ u kartici Daješ — dotle Razlika nije realna.', { n: plan.pre.length, m: ROSTER.ACTIVE })}</div>` : '';
+      ? `<div class="card-warn strong">⚠ ${t('Posle trejda imaš {n} aktivnih (max {m}). Izaberi koga izbacuješ u kartici Daješ, dotle Razlika nije realna.', { n: plan.pre.length, m: ROSTER.ACTIVE })}</div>` : '';
     return (notes.length ? `<div class="balance"><span class="hint">${notes.join(' ')}</span></div>` : '') + warn;
   }
-  const parts = [];
-  for (let i = 0; i < plan.needDrops; i++) {
-    const cur = plan.drops[i];
-    const opts = plan.pre.filter(id => id === cur || !plan.drops.includes(id))
-      .map(id => `<option value="${id}" ${id === cur ? 'selected' : ''}>${esc(state.byId.get(id)?.name || id)}</option>`).join('');
-    parts.push(`<label class="bal-row"><span class="slot-tag slot-d-tag">${t('Izbacuješ {a}/{b}', { a: i + 1, b: plan.needDrops })}</span>
-      <select data-drop="${kind}" data-idx="${i}"><option value="">${t('— izaberi igrača —')}</option>${opts}</select></label>`);
-  }
-  if (plan.waiverSlots > plan.waivers.length) {
-    parts.push(searchBoxHTML(`${kind}-w`, t('Koga uzimaš sa waivera… (opciono)'),
-      `<span class="slot-tag slot-w-tag">${t('Waiver dodatak {a}/{b} · opciono', { a: plan.waivers.length + 1, b: plan.waiverSlots })}</span>`));
-  }
+  // Protivnik: ista komponenta za slotove, ovde u sekciji
+  const sp = slotPlan(kind);
+  const chosen = [
+    ...sp.drops.map(id => `<span class="chip ${plan.dropsOff.includes(id) ? 'off' : ''}"><span class="slot-tag tag-out">${t('Izbacuje')}</span> ${nm(id)}
+      <button type="button" data-action="bal-d-remove" data-kind="${kind}" data-id="${id}" aria-label="${t('Ukloni')}">✕</button></span>`),
+    ...sp.waivers.map(id => `<span class="chip"><span class="slot-tag tag-in">Waiver</span> ${nm(id)}
+      <button type="button" data-action="bal-w-remove" data-kind="${kind}" data-id="${id}" aria-label="${t('Ukloni')}">✕</button></span>`),
+  ].join('');
+  const offNotes = plan.dropsOff.map(id => `<div class="card-warn row">⚠ ${t('{n} nije na rosteru tima {team}.', { n: nm(id), team: esc(plan.r.name) })}
+    ${addButtonHTML({ action: 'add-to-roster', kind, id, label: t('Dodaj na roster') })}</div>`).join('');
   const warn = plan.missingDrops > 0
-    ? `<div class="card-warn strong">⚠ ${t('Posle trejda imaš {n} aktivnih (max {m}). Izaberi koga izbacuješ ({k}) — dotle Razlika nije realna.', { n: plan.pre.length, m: ROSTER.ACTIVE, k: plan.missingDrops })}</div>` : '';
-  return parts.length || warn ? `<div class="balance">${parts.join('')}</div>${warn}` : '';
+    ? `<div class="card-warn strong">⚠ ${t('Posle trejda imaš {n} aktivnih (max {m}). Izaberi koga izbacuješ ({k}), dotle Razlika nije realna.', { n: plan.pre.length, m: ROSTER.ACTIVE, k: plan.missingDrops })}</div>` : '';
+  const inputs = slotInputHTML(kind, 'd', 'balance') + slotInputHTML(kind, 'w', 'balance');
+  return (chosen ? `<div class="chips slot-chips">${chosen}</div>` : '') + inputs + offNotes + warn;
 }
 
 function renderRosterSection(kind) {
@@ -1802,7 +1812,7 @@ function renderRosterSection(kind) {
         : '';
       body = `${updated}${addBox}${notAll}${toggle}
         <div class="tscroll"><table class="rtable"><thead>${headerRow()}</thead><tbody>${rosterTableHTML(kind, showPlan)}</tbody></table></div>
-        ${view === 'after' ? balanceHTML(kind, plan) : ''}
+        ${view === 'after' || (kind === 'opp' && (plan.dropSlots || plan.waiverSlots)) ? balanceHTML(kind, plan) : ''}
         <div class="tscroll"><table class="rtable sumtable"><tbody>${summaryRows(before, after, view === 'after')}</tbody></table></div>
         ${missing.length ? `<div class="card-warn">⚠ ${t('Bez podataka za izabrani period, ne računa se: {list}', { list: missing.map(esc).join(', ') })}</div>` : ''}
         ${plan.tradeTouches && giveIds().length && getIds().length ? `<div class="r-done"><button type="button" class="btn ok" data-action="trade-done">✔ ${t('Trejd se dogodio — ažuriraj rostere')}</button></div>` : ''}`;
@@ -2030,7 +2040,7 @@ function tradeDone() {
   }
   const block = ([k, pl]) => `<div class="done-block"><b>${k === 'my' ? t('Moj tim') : t('Protivnik: {n}', { n: esc(pl.r.name) })}</b>
     <div>${t('Odlaze')}: ${list(pl.outIds)}</div><div>${t('Dolaze')}: ${list(pl.incoming)}</div>
-    ${pl.drops.length ? `<div>${t('Izbacuješ')}: ${list(pl.drops)}</div>` : ''}${pl.waivers.length ? `<div>Waiver: ${list(pl.waivers)}</div>` : ''}</div>`;
+    ${pl.dropsRemove.length ? `<div>${t('Izbacuješ')}: ${list(pl.dropsRemove)}</div>` : ''}${pl.waivers.length ? `<div>Waiver: ${list(pl.waivers)}</div>` : ''}</div>`;
   const notes = [];
   if (!plans.some(([k]) => k === 'my')) notes.push(t('Tvoj roster nije unet, pa se nijedan roster ne menja — trejd se samo čuva u Istoriju.'));
   else if (!plans.some(([k]) => k === 'opp')) notes.push(t('Protivnik nije izabran, menja se samo tvoj roster.'));
@@ -2049,9 +2059,9 @@ function applyTrade(plans) {
   saveTrade({ done: true, opp: opp?.name || null });
   const now = new Date().toISOString();
   for (const [, pl] of plans) {
-    const gone = new Set([...pl.outIds, ...pl.drops]);
+    const gone = new Set([...pl.outIds, ...pl.dropsRemove]);
     pl.r.players = pl.r.players.filter(x => !gone.has(x.id));
-    for (const id of [...pl.incoming.filter(id => !pl.drops.includes(id)), ...pl.waivers]) pl.r.players.push({ id, ir: false });
+    for (const id of [...pl.incoming, ...pl.waivers]) pl.r.players.push({ id, ir: false });
     pl.r.updated = now;
   }
   state.teams = [newTeam(), newTeam()];
@@ -2109,8 +2119,8 @@ function saveTrade(meta = {}) {
     date: new Date().toISOString(),
     period: state.period,
     teams: state.teams.map((tm, i) => ({ name: SIDES[i].srName, ids: [...tm.ids] })),
-    slots: { drops: myBalance().drops, waivers: myBalance().waivers },
-    names: Object.fromEntries(tradePlayerIds(state.teams, { drops: myBalance().drops, waivers: myBalance().waivers }).map(id => [id, state.byId.get(id)?.name || `#${id}`])),
+    slots: { drops: slotPlan('my').drops, waivers: slotPlan('my').waivers },
+    names: Object.fromEntries(tradePlayerIds(state.teams, slotPlan('my')).map(id => [id, state.byId.get(id)?.name || `#${id}`])),
     snapshot: totals.map(tot => ({ vals: tot.vals, sum: tot.sum, counted: tot.counted })),
   });
   saveHistory();
@@ -2268,6 +2278,8 @@ function searchResults(query, taken = takenIds(), prefer = null) {
 
 /** Za ključ pretrage: koje igrače nuditi prve i kojom oznakom */
 function searchPrefer(key) {
+  const ds = key.match(/^(my|opp)-d$/);
+  if (ds) { const r = rosterOf(ds[1]); return r?.players.length ? { set: new Set(rosterIds(r)), label: ds[1] === 'my' ? t('Moj tim') : r.name } : null; }
   if (key === String(GIVE)) return { set: new Set(rosterIds(state.rosters.my)), label: t('Moj tim') };
   if (key === String(GET) && rosterOf('opp')) return { set: new Set(rosterIds(rosterOf('opp'))), label: rosterOf('opp').name };
   return null;
@@ -2301,27 +2313,31 @@ function updateDropdown(key) {
 
 /** Pretraga zavisi od cilja: roster isključuje samo igrače već na rosteru */
 function searchFor(key, query) {
-  if (key === 'my-d') {
-    const ex = new Set([...takenIds(), ...slotIds()]);
-    return searchResults(query, ex, state.rosters.my.players.length ? new Set(rosterIds(state.rosters.my)) : null);
+  const ds = key.match(/^(my|opp)-d$/);
+  if (ds) {
+    // Izbacuješ: bez igrača iz trejda (Daješ i Dobijaš) i već izabranih; prvo igrači sa rostera
+    const ex = new Set([...takenIds(), ...slotIds(ds[1])]);
+    const r = rosterOf(ds[1]);
+    return searchResults(query, ex, r?.players.length ? new Set(rosterIds(r)) : null);
   }
   const m = key.match(/^(my|opp)-(add|w)$/);
   if (m) {
     const r = rosterOf(m[1]);
     const ex = new Set(rosterIds(r));
-    if (m[2] === 'w') for (const id of [...takenIds(), ...slotIds()]) ex.add(id);
+    if (m[2] === 'w') for (const id of [...takenIds(), ...slotIds(m[1])]) ex.add(id);
     return searchResults(query, ex);
   }
   const pref = searchPrefer(key);
-  return searchResults(query, new Set([...takenIds(), ...slotIds()]), pref?.set || null);
+  return searchResults(query, new Set([...takenIds(), ...slotIds('my')]), pref?.set || null);
 }
 
 /** Ključ pretrage -> gde ide igrač: "0" = tim 0 dobija, "0:d" = izbacuje, "0:w" = waiver */
 function pickPlayer(key, id) {
-  if (key === 'my-d') {
-    state.balance.my.drops.push(id); saveBalance();
+  const ds = key.match(/^(my|opp)-d$/);
+  if (ds) {
+    state.balance[ds[1]].drops.push(id); saveBalance();
     searchUI.set(key, { query: '', sel: 0 }); render();
-    document.querySelector('[data-search="my-d"]')?.focus();
+    document.querySelector(`[data-search="${key}"]`)?.focus();
     return;
   }
   const m = key.match(/^(my|opp)-(add|w)$/);
@@ -2368,6 +2384,7 @@ document.addEventListener('click', e => {
     case 'refresh': loadPlayers(true); loadSchedule(true); break;
     case 'save-trade': saveTrade(); break;
     case 'trade-done': tradeDone(); break;
+    case 'add-to-roster': if (!el.classList.contains('is-disabled')) { addToRoster(el.dataset.kind, +el.dataset.id); render(); } break;
     case 'add-to-my': if (!el.classList.contains('is-disabled')) { addToRoster('my', +el.dataset.id); render(); } break;
     case 'add-all': if (!el.classList.contains('is-disabled')) { addAllToRoster(el.dataset.kind); render(); } break;
     case 'settings': openSettings(); break;
