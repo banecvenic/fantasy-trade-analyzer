@@ -1803,9 +1803,7 @@ function renderWsHead() {
       <span class="pbadge">${esc(platformLabel(lg.platform))}</span>${lg.teamName ? `<span class="wsh-team">${esc(lg.teamName)}</span>` : ''}</div>
       <button type="button" class="linkbtn" data-action="league-settings">⚙ ${t('Podešavanja lige')}</button></div>`;
   } else {
-    const can = giveIds().length || getIds().length;
-    el.innerHTML = `<div class="wsh"><div class="wsh-t"><h1>${t('Brzo poređenje')}</h1><span class="wsh-note">${t('Za {f} lige', { f: formatLabel('h2h-cat', true) })}</span></div>
-      <button type="button" class="linkbtn" data-action="swap-sides" ${can ? '' : 'disabled'} title="${esc(t('Daješ postaje Dobijaš i obrnuto'))}">⇄ ${t('Zameni strane')}</button></div>`;
+    el.innerHTML = `<div class="wsh"><div class="wsh-t"><h1>${t('Brzo poređenje')}</h1><span class="wsh-note">${t('Za {f} lige', { f: formatLabel('h2h-cat', true) })}</span></div></div>`;
   }
 }
 
@@ -2116,8 +2114,8 @@ function renderScore(totals, cmp) {
     <div class="score-verdict ${verdict}">${t('Trejd ti donosi {w} {kat}, gubiš {l}', { w: win, kat: kat(win), l: lose })}${cmp.ties ? ` · ${t('{n} nerešeno', { n: cmp.ties })}` : ''}</div>
     <div class="score-note">${PERIODS.find(p => p.key === state.period).label}${puntNote()}</div>
     ${state.scope === 'quick'
-      // Brzo poređenje: ništa se ne čuva, samo deljenje linka
-      ? `<div class="score-actions"><button type="button" class="linkbtn" data-action="share">🔗 ${t('Kopiraj link')}</button></div>`
+      // Brzo poređenje: ništa se ne čuva; deljenje linka i zamena strana
+      ? `<div class="score-actions"><button type="button" class="linkbtn" data-action="swap-sides" title="${esc(t('Daješ postaje Dobijaš i obrnuto'))}">⇄ ${t('Zameni strane')}</button><button type="button" class="linkbtn" data-action="share">🔗 ${t('Kopiraj link')}</button></div>`
       : `<div class="score-actions"><button type="button" class="linkbtn" data-action="save-trade" title="${t('Čuva samo ideju u Istoriju; rosteri se ne menjaju')}">★ ${t('Sačuvaj ideju')}</button><button type="button" class="linkbtn" data-action="share">🔗 ${t('Kopiraj link')}</button></div>
     <div class="score-actions"><button type="button" class="btn ok" data-action="trade-done" title="${t('Tek ovo menja sačuvane rostere')}">✔ ${t('Trejd se dogodio')}</button></div>
     <div class="score-hint">${t('Ovo je ideja za trejd: tvoj sačuvani roster se ne menja dok ne klikneš „Trejd se dogodio”.')}</div>`}`;
@@ -2514,7 +2512,27 @@ const RT = {
     sr: ['Dobijaš najboljeg igrača u trejdu ({name}), a na oslobođeno mesto dolazi {w}.', 'Najjači igrač u trejdu ({name}) dolazi kod tebe, plus {w} sa waivera.'],
     en: ['You get the best player in the trade ({name}), and {w} fills the open spot.', 'The best player in the trade ({name}) comes to you, plus {w} off waivers.'],
   },
+  bestIn1: {
+    sr: ['Dobijaš jačeg igrača po zbiru brojki: {name} ({line}).', 'Dolazi igrač sa većim ukupnim doprinosom: {name} ({line}).'],
+    en: ['You get the stronger player by total numbers: {name} ({line}).', 'The player with the bigger overall impact is coming to you: {name} ({line}).'],
+  },
   // rizici
+  bestOut1: {
+    sr: ['Daješ jačeg igrača po zbiru brojki: {name} ({line}).', 'Odlazi igrač sa većim ukupnim doprinosom: {name} ({line}).'],
+    en: ['You give the stronger player by total numbers: {name} ({line}).', 'The player with the bigger overall impact is leaving: {name} ({line}).'],
+  },
+  giveRise: {
+    sr: ['Odlazi {name}, a uloga mu raste: {a} → {b} min poslednjih 15 dana.', 'Daješ igrača u usponu: {name}, {a} → {b} min poslednjih 15 dana.'],
+    en: ['{name} is leaving while his role grows: {a} → {b} min over the last 15 days.', 'You give a player on the rise: {name}, {a} → {b} min over the last 15 days.'],
+  },
+  giveHot: {
+    sr: ['{name} odlazi u dobroj formi: poslednjih 15 dana skače u {list}.'],
+    en: ['{name} leaves in good form: up in {list} over the last 15 days.'],
+  },
+  giveSolid: {
+    sr: ['Odlazi {name}, stabilan i pouzdan ({m} min, odigrao {gp} od {n}).', 'Daješ sigurnog igrača: {name}, {m} min i {gp} od {n} utakmica.'],
+    en: ['{name} is leaving, steady and reliable ({m} min, played {gp} of {n}).', 'You give a dependable player: {name}, {m} min and {gp} of {n} games.'],
+  },
   out: { sr: ['{name} je trenutno van stroja ({st}).', '{name} trenutno ne igra ({st}).'], en: ['{name} is currently out ({st}).', '{name} is not playing right now ({st}).'] },
   irCan: { sr: ['Može na IR mesto.'], en: ['He can go to an IR spot.'] },
   irFull: { sr: ['IR mesta su ti puna ({a}/{b}), zauzima aktivno mesto.'], en: ['Your IR spots are full ({a}/{b}), so he takes an active spot.'] },
@@ -2580,6 +2598,7 @@ function rt(key, vars = {}, seed = 0) {
 const joinList = arr => (arr.length <= 1 ? arr.join('') : `${arr.slice(0, -1).join(', ')} ${LANG === 'en' ? 'and' : 'i'} ${arr[arr.length - 1]}`);
 const shortDate = iso => { const d = new Date(iso); return LANG === 'en' ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : `${d.getDate()}.${d.getMonth() + 1}`; };
 const minTxt = v => String(Math.round(v));
+const n1r = v => (+v || 0).toFixed(1);
 
 /** Sve što pravila znaju o jednom igraču */
 function playerFacts(p) {
@@ -2707,6 +2726,27 @@ function reportItems(side, totals, cmp) {
     if (state.period !== 'proj' && f.periodGP > 0 && f.periodGP < REPORT.SMALL_SAMPLE)
       add(risks, 7, rt('sample', { name: nm, n: Math.round(f.periodGP), per: PERIODS.find(x => x.key === state.period).label.toLowerCase() }, s));
     if (f.trends.filter(x => x.good && x.up && x.c.type === 'sum').length >= REPORT.HOT_CATS) add(risks, 8, rt('hot', { name: nm }, s), ['future']);
+  }
+
+  // ---- igrači koje dajem: šta gubim (da izveštaj ne gleda samo igrače koji dolaze) ----
+  const keyLine = f => { const l = playerLine(f.p) || f.S; return l ? `${n1r(l.PTS)} PTS, ${n1r(l.REB)} REB, ${n1r(l.AST)} AST` : ''; };
+  for (const f of me ? send : []) { // samo moj deo (tekst je u drugom licu)
+    if (isOut(f.p)) continue;
+    const nm = esc(f.p.name), s = seed + f.p.id;
+    if (f.minDelta > REPORT.MIN_RISE) add(risks, 3.6, rt('giveRise', { name: nm, a: minTxt(f.minS), b: minTxt(f.minR) }, s), ['future']);
+    const hot = f.trends.filter(x => x.good && x.up && x.c.type === 'sum');
+    if (hot.length >= 2) add(risks, 6.2, rt('giveHot', { name: nm, list: hot.slice(0, 3).map(x => x.c.label).join(', ') }, s), ['future']);
+    if (f.dur && !f.dur.approx && f.dur.pct >= REPORT.GP_GOOD && f.dur.n >= 5 && (f.minR ?? f.minS ?? 0) >= REPORT.BIG_MIN)
+      add(risks, 6.8, rt('giveSolid', { name: nm, m: minTxt(f.minR ?? f.minS), gp: f.dur.gp, n: f.dur.n }, s), ['gp']);
+  }
+  // ravnomeran trejd: ko je jači po zbiru brojki (kod neravnomernog to radi paket ispod)
+  if (me && recvIds.length === sendIds.length) {
+    const all = [...recv, ...send].sort((a, b) => b.value - a.value);
+    const best = all[0], second = all[1];
+    if (best && second && best.value > second.value * 1.05) {
+      if (send.includes(best)) add(risks, 4.2, rt('bestOut1', { name: esc(best.p.name), line: keyLine(best) }, seed), ['bestOut']);
+      else add(pluses, 2.2, rt('bestIn1', { name: esc(best.p.name), line: keyLine(best) }, seed), ['now']);
+    }
   }
 
   // ---- paket: neravnomeran trejd (samo moj deo; izbačeni i waiver već su u zbirovima) ----
