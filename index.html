@@ -83,6 +83,7 @@ fieldset.fmt legend{font-size:12px;color:var(--muted);font-weight:700;padding:0 
 label.radio{flex-direction:row!important;align-items:center;gap:8px!important;font-size:13px!important;color:var(--text)!important;font-weight:500!important}
 label.radio.soon{color:var(--dim)!important}
 .soon-tag{font-size:10px;font-weight:700;text-transform:uppercase;padding:1px 5px;border-radius:3px;background:var(--card2);color:var(--muted)}
+.ls-export{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .ls-actions{display:flex;gap:8px;justify-content:space-between;border-top:1px solid var(--line);padding-top:10px}
 .form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:600}
 .form input,.form select,.form textarea{background:var(--bg2);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:8px 10px;font:inherit;font-size:14px}
@@ -892,6 +893,15 @@ const EN = {
   "{n} (kopija)": "{n} (copy)",
   "Obrisati ligu „{n}”?": "Delete league “{n}”?",
   "Roster, protivnici i istorija ove lige biće trajno obrisani iz ovog browsera. Ovo ne može da se vrati, osim iz rezervne kopije.": "This league's roster, opponents and history will be permanently deleted from this browser. This can't be undone, except from a backup.",
+  "nema liga": "no leagues",
+  "{l}: {names} · istorija: {h}": "{l}: {names} · history: {h}",
+  "{n} igrača": "{n} players",
+  "Dodati ligu „{n}”?": "Add league “{n}”?",
+  "Liga iz kopije{d} biće dodata postojećim ligama; ništa se ne prepisuje.": "The league from the backup{d} will be added to your existing leagues; nothing is overwritten.",
+  "{n} (uvoz)": "{n} (imported)",
+  "Ceo profil sa svim ligama. Trenutno: {s}": "The whole profile with all leagues. Currently: {s}",
+  "Nalepi tekst rezervne kopije. Kopija celog profila zamenjuje postojeće podatke (uz potvrdu); kopija jedne lige se dodaje postojećim.": "Paste the backup text. A whole-profile backup replaces existing data (after confirmation); a single-league backup is added to the existing ones.",
+  "Izvezi samo ovu ligu": "Export this league only",
 };
 function t(sr, vars) {
   let out = (LANG === 'en' && EN[sr]) || sr;
@@ -1658,6 +1668,7 @@ function openLeagueSettings() {
       <label>${t('Stanje mog tima')}<select id="ls-state"><option value="">–</option>${TEAM_STATES.map(s => `<option value="${s.id}" ${s.id === lg.teamState ? 'selected' : ''}>${t(s.sr)}</option>`).join('')}</select></label>
       <label>${t('Napomena')}<textarea id="ls-note" rows="3" maxlength="500">${esc(lg.note || '')}</textarea></label>
       <button type="button" class="btn ghost" disabled>${t('Uvezi rostere sa {p}, uskoro', { p: esc(platformLabel(lg.platform)) })}</button>
+      <div class="ls-export"><button type="button" class="linkbtn" data-action="export-league">⤓ ${t('Izvezi samo ovu ligu')}</button> <span class="hint export-msg"></span></div>
       <div class="ls-actions"><button type="button" class="linkbtn" data-action="league-dup">${t('Dupliraj ligu')}</button>
         <button type="button" class="linkbtn danger" data-action="league-del">${t('Obriši ligu')}</button></div>
     </div>`,
@@ -2398,24 +2409,19 @@ function oppDelete() {
   });
 }
 
-/* ---------- Rezervna kopija: izvoz / uvoz svih podataka aplikacije ---------- */
-/** Ključevi koji se izvoze: sve osim keša ESPN podataka (igrači, raspored), koji se ponovo učitava. */
-function backupKeys() {
-  const out = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (k.startsWith(CONFIG.APP_PREFIX) && k !== CONFIG.CACHE_KEY && k !== CONFIG.SCHEDULE_CACHE_KEY
-      && !k.startsWith(`${CONFIG.APP_PREFIX}players.`) && !k.startsWith(`${CONFIG.APP_PREFIX}schedule.`)) out.push(k);
-  }
-  return out.sort();
-}
-
+/* ---------- Rezervna kopija: izvoz / uvoz (ceo profil ili jedna liga) ---------- */
 const trejdova = n => `${n} ${plural(n, ['trejd', 'trejda', 'trejdova'], ['trade', 'trades'])}`;
+const ligaN = n => `${n} ${plural(n, ['liga', 'lige', 'liga'], ['league', 'leagues'])}`;
 
-function backupSummary(data) {
-  const r = data[CONFIG.ROSTERS_KEY];
-  const opps = r?.opps ? Object.values(r.opps) : [];
-  return t('moj roster: {n} igrača · protivnici: {o}{names} · istorija: {h}', { n: r?.my?.players?.length ?? 0, o: opps.length, names: opps.length ? ` (${opps.map(o => esc(o.name)).join(', ')})` : '', h: trejdova((data[CONFIG.HISTORY_KEY] || []).length) });
+/** Kratak opis profila za izvoz/uvoz */
+function backupSummary(p) {
+  const leagues = p?.leagues || [];
+  if (!leagues.length) return t('nema liga');
+  return t('{l}: {names} · istorija: {h}', {
+    l: ligaN(leagues.length),
+    names: leagues.map(l => `${esc(l.name)} (${t('{n} igrača', { n: l.roster?.players?.length || 0 })})`).join(', '),
+    h: trejdova(leagues.reduce((a, l) => a + (l.history?.length || 0), 0)),
+  });
 }
 
 /* ---------- Panel profila ---------- */
@@ -2433,9 +2439,9 @@ function openProfile() {
       <div class="set-block"><b>${t('Lige')}</b>
         ${leagues.length ? `<div class="pp-leagues">${leagues.map(l => `<button type="button" class="pp-league" data-open-league="${l.id}"><span>${esc(l.name)}</span><span class="pbadge">${esc(platformLabel(l.platform))}</span></button>`).join('')}</div>` : `<p>${t('Još nema liga.')}</p>`}
         <button type="button" class="linkbtn" data-action="add-league">＋ ${t('Dodaj ligu')}</button></div>
-      <div class="set-block"><b>${t('Izvezi podatke')}</b><p>${t('Trenutno: {s}', { s: backupSummary(Object.fromEntries(backupKeys().map(k => [k, lsGet(k)]))) })}</p>
-        <button type="button" class="btn" data-action="export">${t('Kopiraj podatke u clipboard')}</button> <span class="hint" id="export-msg"></span></div>
-      <div class="set-block"><b>${t('Uvezi podatke')}</b><p>${t('Nalepi tekst rezervne kopije. Postojeći podaci biće zamenjeni tek posle potvrde.')}</p>
+      <div class="set-block"><b>${t('Izvezi podatke')}</b><p>${t('Ceo profil sa svim ligama. Trenutno: {s}', { s: backupSummary(profile) })}</p>
+        <div><button type="button" class="btn" data-action="export">${t('Kopiraj podatke u clipboard')}</button> <span class="hint export-msg" id="export-msg"></span></div></div>
+      <div class="set-block"><b>${t('Uvezi podatke')}</b><p>${t('Nalepi tekst rezervne kopije. Kopija celog profila zamenjuje postojeće podatke (uz potvrdu); kopija jedne lige se dodaje postojećim.')}</p>
         <textarea id="import-text" spellcheck="false" placeholder='{"app":"fbaTrade", ...}'></textarea>
         <div id="import-msg" class="hint"></div>
         <button type="button" class="btn" data-action="import">${t('Proveri i uvezi')}</button></div>
@@ -2452,54 +2458,93 @@ function wipeAll() {
     confirm: t('Obriši sve'), danger: true,
     onConfirm: () => {
       Object.keys(localStorage).filter(k => k.startsWith(CONFIG.APP_PREFIX) && k !== CONFIG.CACHE_KEY && k !== CONFIG.SCHEDULE_CACHE_KEY).forEach(k => localStorage.removeItem(k));
-      location.href = `${location.pathname}#quick`;
+      history.replaceState(null, '', `${location.pathname}${location.search}#quick`);
       location.reload();
     },
   });
 }
 
-async function exportData(btn) {
-  const payload = { ...CONFIG.BACKUP_FORMAT, exported: new Date().toISOString(), data: Object.fromEntries(backupKeys().map(k => [k, lsGet(k)])) };
+/** Izvoz: kind 'profile' (ceo profil sa svim ligama) ili 'league' (samo aktivna liga) */
+async function exportData(btn, kind = 'profile') {
+  const lg = currentLeague();
+  const payload = kind === 'league' && lg
+    ? { ...CONFIG.BACKUP_FORMAT, version: SCHEMA_VERSION, kind: 'league', exported: nowISO(), league: lg }
+    : { ...CONFIG.BACKUP_FORMAT, version: SCHEMA_VERSION, kind: 'profile', exported: nowISO(), profile: profile || newProfile('') };
   const text = JSON.stringify(payload);
-  const msg = document.getElementById('export-msg');
+  const msg = btn?.parentElement?.querySelector('.export-msg') || document.getElementById('export-msg');
   try {
     await navigator.clipboard.writeText(text);
-    msg.textContent = `✓ ${t('Kopirano ({k} KB). Sačuvaj ga negde, npr. u beleške ili mejl sebi.', { k: Math.round(text.length / 1024) })}`;
+    if (msg) msg.textContent = `✓ ${t('Kopirano ({k} KB). Sačuvaj ga negde, npr. u beleške ili mejl sebi.', { k: Math.max(1, Math.round(text.length / 1024)) })}`;
   } catch {
-    // clipboard nedostupan: prikaži tekst za ručno kopiranje
     const ta = document.getElementById('import-text');
-    ta.value = text; ta.select();
-    msg.textContent = t('Clipboard nije dostupan: tekst je u polju ispod, kopiraj ga ručno (Ctrl/Cmd+C).');
+    if (ta) { ta.value = text; ta.select(); }
+    if (msg) msg.textContent = t('Clipboard nije dostupan: tekst je u polju ispod, kopiraj ga ručno (Ctrl/Cmd+C).');
   }
 }
 
-/** Provera formata rezervne kopije; vraća { data } ili { error } */
+/** Liga je validna ako ima naziv i roster sa listom igrača */
+const validLeague = l => l && typeof l.name === 'string' && Array.isArray(l.roster?.players) && typeof (l.opps || {}) === 'object' && Array.isArray(l.history || []);
+
+/** Stari format (verzija 1: ključevi localStorage) -> jedna liga */
+function leagueFromLegacy(data) {
+  const r = data[CONFIG.ROSTERS_KEY] || {};
+  return newLeague({
+    name: t('Moja liga'), roster: r.my || emptyRoster('Moj tim'), opps: r.opps || {}, oppSel: r.oppSel || null,
+    history: data[CONFIG.HISTORY_KEY] || [], punt: data[CONFIG.PUNT_KEY] || [], balance: { ...emptyBalance(), ...(data[CONFIG.BALANCE_KEY] || {}) },
+  });
+}
+
+/** Provera rezervne kopije; vraća { kind: 'profile'|'league', profile|league } ili { error } */
 function parseBackup(text) {
   let obj;
   try { obj = JSON.parse(text.trim()); } catch { return { error: t('Tekst nije ispravan JSON. Proveri da si nalepio ceo tekst.') }; }
-  if (obj?.app !== CONFIG.BACKUP_FORMAT.app || typeof obj.data !== 'object' || !obj.data) return { error: t('Ovo nije rezervna kopija ove aplikacije.') };
-  if (obj.version > CONFIG.BACKUP_FORMAT.version) return { error: t('Kopija je iz novije verzije aplikacije.') };
-  const keys = Object.keys(obj.data);
-  if (!keys.length || keys.some(k => !k.startsWith(CONFIG.APP_PREFIX))) return { error: t('Kopija sadrži nepoznate podatke.') };
-  const r = obj.data[CONFIG.ROSTERS_KEY];
-  if (r && (!r.my || !Array.isArray(r.my.players) || typeof r.opps !== 'object')) return { error: t('Roster u kopiji nije u ispravnom formatu.') };
-  if (obj.data[CONFIG.HISTORY_KEY] && !Array.isArray(obj.data[CONFIG.HISTORY_KEY])) return { error: t('Istorija u kopiji nije u ispravnom formatu.') };
-  return { data: obj.data, exported: obj.exported };
+  if (obj?.app !== CONFIG.BACKUP_FORMAT.app) return { error: t('Ovo nije rezervna kopija ove aplikacije.') };
+  if (obj.version > SCHEMA_VERSION) return { error: t('Kopija je iz novije verzije aplikacije.') };
+  if (obj.kind === 'league') return validLeague(obj.league) ? { kind: 'league', league: obj.league, exported: obj.exported } : { error: t('Roster u kopiji nije u ispravnom formatu.') };
+  if (obj.kind === 'profile') {
+    const p = obj.profile;
+    if (!p || !Array.isArray(p.leagues) || !p.leagues.every(validLeague)) return { error: t('Kopija sadrži nepoznate podatke.') };
+    return { kind: 'profile', profile: p, exported: obj.exported };
+  }
+  // stara verzija 1: { data: { ključ: vrednost } } -> uvozi se kao nova liga
+  if (obj.data && typeof obj.data === 'object' && Object.keys(obj.data).every(k => k.startsWith(CONFIG.APP_PREFIX))) {
+    return { kind: 'league', league: leagueFromLegacy(obj.data), exported: obj.exported, legacy: true };
+  }
+  return { error: t('Kopija sadrži nepoznate podatke.') };
 }
 
+/** Uvoz: profil zamenjuje postojeće (uz potvrdu); jedna liga se DODAJE postojećim */
 function importData() {
   const text = document.getElementById('import-text')?.value || '';
   const msg = document.getElementById('import-msg');
   const res = parseBackup(text);
   if (res.error) { msg.textContent = `✕ ${res.error}`; msg.classList.add('err'); return; }
+  const when = res.exported ? t(' od {d}', { d: fmtShortDate(res.exported) }) : '';
+  if (res.kind === 'league') {
+    const lg = res.league;
+    showModal({
+      title: t('Dodati ligu „{n}”?', { n: esc(lg.name) }),
+      body: `<p>${t('Liga iz kopije{d} biće dodata postojećim ligama; ništa se ne prepisuje.', { d: when })}</p>`,
+      confirm: t('Dodaj ligu'),
+      onConfirm: () => {
+        if (!profile) profile = newProfile('');
+        const copy = { ...newLeague(), ...clone(lg), id: uid(), updated: nowISO() };
+        if (profile.leagues.some(l => l.name === copy.name)) copy.name = t('{n} (uvoz)', { n: copy.name });
+        profile.leagues.push(copy); profile.lastLeagueId = copy.id; saveProfile();
+        location.hash = `league-${copy.id}`;
+      },
+    });
+    return;
+  }
   showModal({
     title: t('Zameniti postojeće podatke?'),
-    body: `<p>${t('Uvozi se kopija{d}: <b>{s}</b>.', { d: res.exported ? t(' od {d}', { d: fmtShortDate(res.exported) }) : '', s: backupSummary(res.data) })}</p>
-      <p>${t('Trenutni podaci u ovom browseru ({s}) biće <b>zamenjeni</b>.', { s: backupSummary(Object.fromEntries(backupKeys().map(k => [k, lsGet(k)]))) })}</p>`,
+    body: `<p>${t('Uvozi se kopija{d}: <b>{s}</b>.', { d: when, s: backupSummary(res.profile) })}</p>
+      <p>${t('Trenutni podaci u ovom browseru ({s}) biće <b>zamenjeni</b>.', { s: backupSummary(profile) })}</p>`,
     confirm: t('Zameni i uvezi'), danger: true,
     onConfirm: () => {
-      for (const k of backupKeys()) localStorage.removeItem(k);
-      for (const [k, v] of Object.entries(res.data)) lsSet(k, v);
+      lsSet(CONFIG.PROFILE_KEY, { ...res.profile, schema: SCHEMA_VERSION });
+      localStorage.removeItem(CONFIG.TRADE_KEY);
+      history.replaceState(null, '', `${location.pathname}${location.search}#home`);
       location.reload();
     },
   });
@@ -2943,7 +2988,8 @@ document.addEventListener('click', e => {
     case 'league-settings': openLeagueSettings(); break;
     case 'league-dup': duplicateLeague(); break;
     case 'league-del': deleteLeague(); break;
-    case 'export': exportData(el); break;
+    case 'export': exportData(el, 'profile'); break;
+    case 'export-league': exportData(el, 'league'); break;
     case 'import': importData(); break;
     case 'r-ir': toggleIR(el.dataset.kind, +el.dataset.id); break;
     case 'notice-close': state.notice = null; render(); break;
