@@ -317,7 +317,7 @@ td.dcell{font-weight:600;white-space:nowrap}
 td.dcell.pos{color:var(--win-text)}
 td.dcell.neg{color:var(--lose-text)}
 td.dcell.eq{color:var(--dim)}
-.darr{font-size:11px;margin-right:2px}
+.dsub{font-weight:500!important;color:var(--muted)!important;font-size:10px!important}
 .lowvol{display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:1px 4px;border-radius:3px;background:var(--card2);color:var(--muted);margin-left:4px;cursor:help;vertical-align:middle}
 .cmp th.impact{color:var(--text);background:rgba(225,37,27,.14)}
 td.dcell.impact{background:rgba(225,37,27,.07);font-size:14px}
@@ -716,6 +716,8 @@ const EN = {
   "Dodaj sve ({n})": "Add all ({n})",
   "Dodaj na roster": "Add to roster",
   "Dok svi igrači iz Daješ nisu na tvom rosteru, sekcija Moj tim se ne menja.": "Until all You give players are on your roster, the My team section doesn't change.",
+  "tim: bez promene": "team: no change",
+  "tim: {d}": "team: {d}",
 };
 function t(sr, vars) {
   let out = (LANG === 'en' && EN[sr]) || sr;
@@ -1016,9 +1018,19 @@ function loadState() {
   }
   state.teams = [GIVE, GET].map(i => ({ ...newTeam(), ids: [...new Set(lists?.[i] || [])] }));
   if (hash.get('s') === '1') {
-    state.sharedOpen = true;
-    // izbor Koga izbacuješ / Waiver iz mog prethodnog trejda ne važi za tuđi trejd; rosteri ostaju netaknuti
-    if (state.balance) state.balance.my = { drops: [], waivers: [] };
+    // Deljeni link nosi trejd iz ugla pošiljaoca. Pri otvaranju gledamo MOJ roster:
+    // - svi igrači iz "Daješ" su na mom rosteru -> to je moj trejd (npr. otvorio sam svoj link u novom tabu): ne menjaj ništa
+    // - roster prazan ili ti igrači nisu moji -> link je od druge strane: zameni Daješ/Dobijaš i prikaži traku
+    const mine = new Set((state.rosters?.my?.players || []).map(x => x.id));
+    const give = state.teams[GIVE].ids;
+    const ownTrade = mine.size > 0 && give.length > 0 && give.every(id => mine.has(id));
+    if (!ownTrade) {
+      state.teams = [state.teams[GET], state.teams[GIVE]];
+      state.sharedOpen = true;
+      // izbor Koga izbacuješ / Waiver iz mog prethodnog trejda ne važi za tuđi trejd; rosteri ostaju netaknuti
+      if (state.balance) state.balance.my = { drops: [], waivers: [] };
+    }
+    state.sharedChecked = true; // ukloni s=1 iz adrese (saveState) i kad se ništa ne menja
   }
   // isti igrač ne može biti na obe strane
   state.teams[GET].ids = state.teams[GET].ids.filter(id => !state.teams[GIVE].ids.includes(id));
@@ -1129,8 +1141,21 @@ function teamTotals(team, ti) {
   return sumPlayers([...team.ids, ...(ti === GIVE ? b.drops : b.waivers)]);
 }
 
-/** Upoređuje na prikazanoj preciznosti, da boje odgovaraju brojevima koje korisnik vidi. */
+/** Zaokruživanje na prikazanu preciznost (koristi se samo za prikaz i stara mesta koja porede prikaz). */
 const cmpKey = (cat, v) => (v == null ? null : Math.round(v * (cat.type === 'pct' ? 1000 : 10)));
+/** Razlike se računaju iz nezaokruženih vrednosti; EPS samo uklanja šum zaokruživanja u float-u. */
+const EPS = 1e-9;
+/** FG%/FT%: promena mog tima ispod ovoga (0.1 pp) = "bez promene" i nerešeno u rezultatu */
+const TEAM_PCT_TIE = 0.001;
+
+/** Promena mog tima (posle − pre) za kategoriju, ili null kad roster nije unet / trejd nije moj */
+function myTeamDelta(c) {
+  if (!state.rosters?.my?.players.length) return null;
+  const plan = rosterPlan('my');
+  if (!plan?.tradeTouches) return null;
+  const b = sumPlayers(plan.activeBefore).vals[c.key], a = sumPlayers(plan.activeAfter).vals[c.key];
+  return a == null || b == null ? null : a - b;
+}
 
 /**
  * Za svaku kategoriju: rezultat po timu ('win' | 'lose' | ''), pobednik i razlika.
@@ -1142,19 +1167,21 @@ function compare(totals) {
   for (const cat of CATS) {
     const marks = totals.map(() => '');
     if (isPunt(cat)) { res.cats[cat.key] = { marks, winner: null, runnerUp: null, margin: null, punted: true }; continue; }
-    const entries = active.map(i => ({ i, v: totals[i].vals[cat.key], k: cmpKey(cat, totals[i].vals[cat.key]) })).filter(e => e.k != null);
+    // FG%/FT% sa unetim rosterom: ako se procenat mog tima skoro ne menja, kategorija je nerešena
+    const td = cat.type === 'pct' ? myTeamDelta(cat) : null;
+    if (td != null && Math.abs(td) < TEAM_PCT_TIE) { res.cats[cat.key] = { marks, winner: null, runnerUp: null, margin: null, teamTie: true }; res.ties++; continue; }
+    const entries = active.map(i => ({ i, v: totals[i].vals[cat.key] })).filter(en => en.v != null);
     let winner = null, margin = null, runnerUp = null;
     if (entries.length >= 2) {
-      entries.sort((a, b) => (cat.lowerIsBetter ? a.k - b.k : b.k - a.k));
-      const best = entries[0].k, worst = entries[entries.length - 1].k;
-      if (best !== worst) {
-        const bestOnes = entries.filter(e => e.k === best);
-        const worstOnes = entries.filter(e => e.k === worst);
+      entries.sort((a, b) => (cat.lowerIsBetter ? a.v - b.v : b.v - a.v));
+      const best = entries[0].v, worst = entries[entries.length - 1].v;
+      if (Math.abs(best - worst) > EPS) {
+        const bestOnes = entries.filter(en => Math.abs(en.v - best) <= EPS);
+        const worstOnes = entries.filter(en => Math.abs(en.v - worst) <= EPS);
         if (bestOnes.length === 1) {
           winner = bestOnes[0].i;
           runnerUp = entries[1].i;
-          // Razlika na prikazanoj preciznosti (17.0 - 16.3 = 0.7, ne 0.75 -> 0.8)
-          margin = Math.abs(entries[0].k - entries[1].k) / (cat.type === 'pct' ? 1000 : 10);
+          margin = Math.abs(entries[0].v - entries[1].v); // nezaokruženo
           marks[winner] = 'win';
           res.score[winner]++;
         } else {
@@ -1237,13 +1264,18 @@ function renderTradeWarn() {
 /** Srpski oblik reči "kategorija" uz broj */
 const kat = n => plural(n, ['kategoriju', 'kategorije', 'kategorija'], ['category', 'categories']);
 
-/** Promena kategorije iz moje perspektive (Dobijaš − Daješ), na prikazanoj preciznosti */
+/** Razlika za prikaz: računa se nezaokruženo, zaokružuje tek ovde. zero = prikazana vrednost je 0.0 */
+function fmtDelta(c, v) {
+  const shown = c.type === 'pct' ? Math.abs(v * 100).toFixed(1) : Math.abs(v).toFixed(1);
+  const zero = Number(shown) === 0;
+  return { zero, txt: zero ? '0.0' : `${v > 0 ? '+' : '−'}${shown}${c.type === 'pct' ? ' pp' : ''}` };
+}
+
+/** Promena kategorije iz moje perspektive (Dobijaš − Daješ) */
 function myDeltaText(c, totals) {
-  const g = cmpKey(c, totals[GET].vals[c.key]), d = cmpKey(c, totals[GIVE].vals[c.key]);
+  const g = totals[GET].vals[c.key], d = totals[GIVE].vals[c.key];
   if (g == null || d == null) return '';
-  const v = (g - d) / (c.type === 'pct' ? 1000 : 10);
-  const sign = v > 0 ? '+' : v < 0 ? '−' : '';
-  return c.type === 'pct' ? `${sign}${Math.abs(v * 100).toFixed(1)} pp` : `${sign}${Math.abs(v).toFixed(1)}`;
+  return fmtDelta(c, g - d).txt;
 }
 
 /** Rezultat iz moje perspektive: kategorija je moja ako je Dobijaš bolji od Daješ (TO: manje je bolje). */
@@ -1515,14 +1547,14 @@ function tradeWarnings(ti) {
  * Promena kategorije "od -> do" na prikazanoj preciznosti, iz moje perspektive:
  * zeleno ako je bolje za mene (TO: manje je bolje), crveno ako je lošije, sivo "=" ako je isto.
  */
-function deltaCellHTML(c, from, to, extraCls = '') {
-  const a = cmpKey(c, from?.vals?.[c.key]), b = cmpKey(c, to?.vals?.[c.key]);
-  if (a == null || b == null) return `<td class="dcell ${extraCls}${puntCls(c)}">–</td>`;
-  const v = (b - a) / (c.type === 'pct' ? 1000 : 10);
-  if (v === 0) return `<td class="dcell eq ${extraCls}${puntCls(c)}">=</td>`;
+function deltaCellHTML(c, from, to, extraCls = '', sub = '') {
+  const a = from?.vals?.[c.key], b = to?.vals?.[c.key];
+  const subHTML = sub ? `<span class="sub dsub">${sub}</span>` : '';
+  if (a == null || b == null) return `<td class="dcell ${extraCls}${puntCls(c)}">–${subHTML}</td>`;
+  const v = b - a, f = fmtDelta(c, v);
+  if (Math.abs(v) <= EPS || f.zero) return `<td class="dcell eq ${extraCls}${puntCls(c)}">=${subHTML}</td>`;
   const good = c.lowerIsBetter ? v < 0 : v > 0;
-  const num = c.type === 'pct' ? `${Math.abs(v * 100).toFixed(1)} pp` : Math.abs(v).toFixed(1);
-  return `<td class="dcell ${good ? 'pos' : 'neg'} ${extraCls}${puntCls(c)}"><span class="darr">${v > 0 ? '↑' : '↓'}</span>${v > 0 ? '+' : '−'}${num}</td>`;
+  return `<td class="dcell ${good ? 'pos' : 'neg'} ${extraCls}${puntCls(c)}">${f.txt}${subHTML}</td>`;
 }
 
 /** FG%/FT% na malom broju pokušaja (bilo koja strana) */
@@ -1535,9 +1567,6 @@ function lowVolume(c, totals) {
 function renderCompare(totals, cmp) {
   const el = $('#compare');
   if (cmp.active.length < 2) { el.innerHTML = ''; return; }
-  // Uticaj na moj tim: Razlika iz sekcije Moj tim (pre -> posle), samo kad je trejd stvarno moj
-  const plan = state.rosters.my.players.length ? rosterPlan('my') : null;
-  const impact = plan && plan.tradeTouches ? { before: sumPlayers(plan.activeBefore), after: sumPlayers(plan.activeAfter) } : null;
   const rows = CATS.map(c => {
     const r = cmp.cats[c.key];
     const tds = state.teams.map((_, i) => {
@@ -1545,13 +1574,15 @@ function renderCompare(totals, cmp) {
       return `<td class="${r.marks[i]}${puntCls(c)}">${c.type === 'pct' ? fmtPct(v) : fmt1(v)}</td>`;
     }).join('');
     // Razlika iz moje perspektive: Dobijaš − Daješ
-    let diff = r.punted ? `<td class="dcell punt">punt</td>` : deltaCellHTML(c, totals[GIVE], totals[GET]);
-    if (!r.punted && lowVolume(c, totals)) diff = diff.replace('</td>', ` <span class="lowvol" data-tip="${esc(t('Procenat na malom broju šuteva skoro ne utiče na tim.'))}">${t('mali obim')}</span></td>`);
-    const imp = impact ? (r.punted ? `<td class="dcell impact punt">punt</td>` : deltaCellHTML(c, impact.before, impact.after, 'impact')) : '';
-    return `<tr class="${r.punted ? 'punt-row' : ''}"><td class="catth${puntCls(c)}" data-punt="${c.key}" title="${t('Klik: punt')}"><b>${c.label}</b></td>${tds}${diff}${imp}</tr>`;
+    // FG%/FT% sa unetim rosterom: sitno ispod, koliko se menja procenat mog tima
+    const td = c.type === 'pct' ? myTeamDelta(c) : null;
+    const sub = td == null ? '' : Math.abs(td) < TEAM_PCT_TIE ? t('tim: bez promene') : t('tim: {d}', { d: fmtDelta(c, td).txt });
+    let diff = r.punted ? `<td class="dcell punt">punt</td>` : deltaCellHTML(c, totals[GIVE], totals[GET], '', sub);
+    if (!r.punted && lowVolume(c, totals)) diff = diff.replace(/(<span class="sub dsub">|<\/td>$)/, ` <span class="lowvol" data-tip="${esc(t('Procenat na malom broju šuteva skoro ne utiče na tim.'))}">${t('mali obim')}</span>$1`);
+    return `<tr class="${r.punted ? 'punt-row' : ''}"><td class="catth${puntCls(c)}" data-punt="${c.key}" title="${t('Klik: punt')}"><b>${c.label}</b></td>${tds}${diff}</tr>`;
   }).join('');
   el.innerHTML = `<div class="section-t">${t('Poređenje kategorija')} <span class="hint">· ${t('klik na kategoriju = punt')}</span></div>
-    <div class="card"><div class="tscroll"><table class="cmp"><thead><tr><th>${t('Kat.')}</th>${SIDES.map(sd => `<th style="color:${sd.color}">${sd.name}</th>`).join('')}<th title="${esc(t('Dobijaš − Daješ, iz tvoje perspektive'))}">${t('Razlika')}</th>${impact ? `<th class="impact" title="${esc(t('Razlika u sekciji Moj tim: ceo roster pre i posle trejda (ponderisano)'))}">${t('Uticaj na moj tim')}</th>` : ''}</tr></thead>
+    <div class="card"><div class="tscroll"><table class="cmp"><thead><tr><th>${t('Kat.')}</th>${SIDES.map(sd => `<th style="color:${sd.color}">${sd.name}</th>`).join('')}<th title="${esc(t('Dobijaš − Daješ, iz tvoje perspektive'))}">${t('Razlika')}</th></tr></thead>
     <tbody>${rows}</tbody></table></div></div>`;
 }
 
@@ -1651,12 +1682,11 @@ function summaryRows(before, after, showAfter) {
   }).join('');
   if (!showAfter) return `<tr class="total"><td>${t('Ukupno')} <span class="cnt">(${t('{n} aktivnih', { n: before.counted })})</span></td><td></td>${cells(before)}<td></td></tr>`;
   const diff = CATS.map(c => {
-    const b = cmpKey(c, before.vals[c.key]), a = cmpKey(c, after.vals[c.key]);
+    const b = before.vals[c.key], a = after.vals[c.key];
     if (a == null || b == null) return `<td class="${puntCls(c).trim()}">-</td>`;
-    const d = (a - b) / (c.type === 'pct' ? 1000 : 10);
+    const d = a - b, f = fmtDelta(c, d);
     const better = c.lowerIsBetter ? d < 0 : d > 0;
-    const txt = c.type === 'pct' ? `${d > 0 ? '+' : d < 0 ? '−' : ''}${Math.abs(d * 100).toFixed(1)} pp` : `${d > 0 ? '+' : d < 0 ? '−' : ''}${Math.abs(d).toFixed(1)}`;
-    return `<td class="${d === 0 ? '' : better ? 'win' : 'lose'}${puntCls(c)}">${txt}</td>`;
+    return `<td class="${f.zero ? '' : better ? 'win' : 'lose'}${puntCls(c)}">${f.txt}</td>`;
   }).join('');
   return `<tr class="sumrow"><td>${t('Pre trejda')} <span class="cnt">(${before.counted})</span></td><td></td>${cells(before)}<td></td></tr>
     <tr class="sumrow"><td>${t('Posle trejda')} <span class="cnt">(${after.counted})</span></td><td></td>${cells(after)}<td></td></tr>
@@ -2037,13 +2067,14 @@ const fmtDate = iso => fmtShortDate(iso);
 const tradePlayerIds = (teams, slots) => [...new Set([...teams.flatMap(t => [...t.ids, ...(t.drops || []), ...(t.waivers || [])]), ...(slots?.drops || []), ...(slots?.waivers || [])])];
 
 /**
- * Link za deljenje je iz ugla PRIMAOCA: njegov "Daješ" je moj "Dobijaš" i obrnuto.
+ * Link za deljenje nosi trejd iz MOG ugla + oznaku s=1. Ko ga otvori, aplikacija proveri njegov roster
+ * (loadState): ako su igrači iz Daješ njegovi, prikaz ostaje; inače se strane zamene (ugao primaoca).
  * Sadrži samo trejd (strane i period, + jezik); rosteri, istorija i punt ostaju lokalno.
  */
 function shareURL() {
   const q = new URLSearchParams();
   q.set('per', state.period);
-  q.set('t', `${getIds().join(',')}|${giveIds().join(',')}`);
+  q.set('t', `${giveIds().join(',')}|${getIds().join(',')}`);
   if (LANG === 'en') q.set('lang', 'en');
   q.set('s', '1'); // oznaka: otvoreno preko deljenog linka
   return `${location.origin}${location.pathname}#${q.toString().replace(/%7C/gi, '|').replace(/%2C/gi, ',')}`;
@@ -2425,7 +2456,7 @@ document.addEventListener('change', e => {
 });
 window.addEventListener('hashchange', () => {
   loadState();
-  if (state.sharedOpen) { saveBalance(); saveState(); }
+  if (state.sharedChecked) { saveBalance(); saveState(); state.sharedChecked = false; }
   render();
 });
 
@@ -2502,7 +2533,7 @@ addEventListener('scroll', hideTip, { passive: true });
 
 /* ===================================================================== */
 loadState();
-if (state.sharedOpen) { saveBalance(); saveState(); } // saveState prepisuje adresu bez oznake s=1
+if (state.sharedChecked) { saveBalance(); saveState(); state.sharedChecked = false; } // saveState prepisuje adresu bez oznake s=1
 applyStaticText();
 render();
 loadPlayers();
