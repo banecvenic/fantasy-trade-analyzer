@@ -89,7 +89,10 @@ label.radio.soon{color:var(--dim)!important}
 .form input,.form select,.form textarea{background:var(--bg2);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:8px 10px;font:inherit;font-size:14px}
 @media (max-width:640px){
   header.top .wrap{gap:8px}
-  .hcenter{order:3;width:100%;flex-direction:column;align-items:stretch;gap:6px}
+  .hcenter{order:3;flex:0 0 100%;width:100%;flex-direction:column;align-items:stretch;gap:6px}
+  .hcenter:empty,.hcenter:not(:has(*)){display:none}
+  .brand{min-height:34px}
+  .langsel select{padding:6px 2px;font-size:12px}
   .leaguesel select{max-width:none;width:100%}
   .hright{position:absolute;right:16px;top:8px}
   .pname{display:none}
@@ -293,6 +296,7 @@ tr.irhead td{font-size:11px;color:var(--muted);background:var(--bg2);text-align:
 .modal-box.wide{max-width:640px}
 #modal.panel{place-items:stretch end;padding:0}
 #modal.panel .modal-box{max-width:440px;height:100%;max-height:none;border-radius:0;border-width:0 0 0 1px}
+#modal.panel .modal-box:focus{outline:none}
 .pp-id{display:flex;align-items:center;gap:12px;margin-bottom:12px}
 .pav.big{width:52px;height:52px;font-size:18px;flex:none}
 .pp-name{flex:1;display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:600}
@@ -2448,7 +2452,8 @@ function openProfile() {
       <div class="set-block danger-zone"><b>${t('Obriši sve podatke')}</b><p>${t('Briše profil, sve lige, rostere i istoriju iz ovog browsera.')}</p>
         <button type="button" class="linkbtn danger" data-action="wipe-all">${t('Obriši sve podatke')}</button></div>`,
   });
-  document.getElementById('modal')?.classList.add('panel');
+  const m = document.getElementById('modal');
+  if (m) { m.classList.add('panel'); const box = m.querySelector('.modal-box'); box.scrollTop = 0; box.focus({ preventScroll: true }); }
 }
 
 function wipeAll() {
@@ -2556,7 +2561,7 @@ function showModal({ title, body, confirm = t('U redu'), cancel = t('Otkaži'), 
   const m = document.createElement('div');
   m.id = 'modal';
   m.innerHTML = `<div class="modal-back" data-modal-close></div>
-    <div class="modal-box ${wide ? 'wide' : ''}" role="dialog" aria-modal="true" aria-labelledby="modal-t">
+    <div class="modal-box ${wide ? 'wide' : ''}" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="modal-t">
       <h3 id="modal-t">${title}</h3><div class="modal-body">${body}</div>
       <div class="modal-actions">${cancel ? `<button type="button" class="linkbtn" data-modal-close>${cancel}</button>` : ''}
         ${onConfirm ? `<button type="button" class="btn ${danger ? 'danger' : ''}" data-modal-ok>${confirm}</button>` : ''}</div>
