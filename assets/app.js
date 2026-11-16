@@ -1,581 +1,3 @@
-<!doctype html>
-<html lang="sr">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#131519">
-<title>Fantasy Basketball Trade Analyzer | RosterSwing</title>
-<meta name="application-name" content="RosterSwing">
-<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-<link rel="icon" href="assets/favicon-16.png" sizes="16x16" type="image/png">
-<link rel="icon" href="assets/favicon-32.png" sizes="32x32" type="image/png">
-<link rel="icon" href="assets/favicon-64.png" sizes="64x64" type="image/png">
-<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<style>
-:root{
-  /* RosterSwing paleta, tamna tema (brandbook str. 4). Jedino mesto za boje. */
-  --rs-red:#EE3024; --rs-green:#55DE91; --rs-blue:#75A9FF; --rs-white:#FFFFFF;
-  --rs-red-text:#FF8589; --rs-red-btn:#D9251A;
-  --bg:#131519; --bg2:#181B21; --card:#1E222A; --card2:#262B35; --line:#333A46;
-  --text:#E9EDF3; --muted:#A4AEBD; --dim:#6E7787;
-  --header-bg:rgba(19,21,25,.94);
-  /* aktivni izbor i glavna dugmad: crveno dugme sa belim tekstom */
-  --accent:var(--rs-red-btn); --accent2:var(--rs-red); --accent-rgb:217,37,26;
-  /* smer (oznake): crveno = daješ / odlazi, zeleno = dobijaš / dolazi */
-  --give:var(--rs-red-text); --get:var(--rs-green);
-  /* ishod za mene (brojke): zeleno = bolje, crveno = lošije */
-  --win:#1B8A55; --win-bg:rgba(85,222,145,.14); --win-text:var(--rs-green); --win-rgb:85,222,145;
-  --lose:var(--rs-red); --lose-bg:rgba(238,48,36,.15); --lose-text:var(--rs-red-text); --lose-rgb:238,48,36;
-  /* informacije, linkovi, fokus */
-  --info:var(--rs-blue); --info-bg:rgba(117,169,255,.14); --info-rgb:117,169,255;
-  /* žuta samo za upozorenja */
-  --warn:#F0B429; --warn-bg:rgba(240,180,41,.14);
-  --radius:12px;
-}
-/* Svetla paleta iz brandbooka: upisana za kasnije, svetla tema se još ne koristi */
-:root[data-theme="light"]{
-  --rs-red:#B7241C; --rs-green:#187A4B; --rs-blue:#245BB3;
-  --rs-red-text:#B7241C; --rs-red-btn:#B7241C;
-  --bg:#F4F6F8; --bg2:#EDF0F3; --card:#FFFFFF; --card2:#F4F6F8; --line:#D9DEE5;
-  --text:#131519; --muted:#5A6472; --dim:#8A93A1;
-  --header-bg:rgba(244,246,248,.94);
-}
-*{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;-webkit-text-size-adjust:100%;font-variant-numeric:tabular-nums}
-a{color:var(--info)}
-:focus-visible{outline:2px solid var(--info);outline-offset:2px}
-button,input{font:inherit;color:inherit}
-.wrap{max-width:1280px;margin:0 auto;padding:0 16px calc(32px + env(safe-area-inset-bottom))}
-
-/* Header */
-header.top{position:sticky;top:0;z-index:20;background:var(--header-bg);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
-header.top .wrap{display:flex;align-items:center;gap:12px;padding-top:10px;padding-bottom:10px;flex-wrap:wrap}
-/* Logo: okvir znaka 24 px, razmak 8 px, naziv 16 px; zaštitna zona ≥ četvrtina visine znaka */
-.brand{display:flex;align-items:center;gap:8px;padding:4px;margin:-4px;flex:none;min-height:44px}
-.brand img{display:block;flex:none}
-.brand-mark{width:24px;height:24px}
-.brand-word{height:15.6px;width:auto}
-.brand-desc{display:none;color:var(--muted);font-size:12px;font-weight:500;padding-left:10px;margin-left:2px;border-left:1px solid var(--line);white-space:nowrap}
-@media (min-width:1180px){.brand-desc{display:inline}}
-@media (max-width:359px){.brand-word{display:none}}
-.seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:3px;overflow-x:auto;scrollbar-width:none;margin-left:auto}
-.seg::-webkit-scrollbar{display:none}
-.seg button{background:none;border:0;padding:6px 12px;border-radius:999px;color:var(--muted);font-weight:600;font-size:13px;white-space:nowrap;cursor:pointer}
-.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
-@media (max-width:640px){.seg{margin-left:0;width:100%;justify-content:space-between}.seg button{padding:6px 8px;font-size:12px}}
-
-/* Zaglavlje: logo | liga + period | jezik + profil */
-a.brand{color:var(--text);text-decoration:none}
-.hcenter{display:flex;align-items:center;gap:10px;flex:1;min-width:0;justify-content:center}
-.hright{display:flex;align-items:center;gap:8px;margin-left:auto}
-.hcenter .seg{margin-left:0}
-.linkbtn:disabled{opacity:.4;cursor:default}
-.lc-open{color:var(--accent);font-weight:700}
-.lbar{position:relative;display:flex;align-items:center;gap:6px;margin-top:16px;overflow-x:auto;scrollbar-width:none;padding:2px 0}
-.lbar::-webkit-scrollbar{display:none}
-.lchip{display:flex;align-items:center;gap:7px;flex:0 0 auto;background:var(--card);border:1px solid var(--line);border-radius:999px;color:var(--muted);font:inherit;font-size:13px;font-weight:700;padding:6px 12px;cursor:pointer;white-space:nowrap;max-width:220px}
-.lchip span.nm{overflow:hidden;text-overflow:ellipsis}
-.lchip:hover{border-color:var(--dim);color:var(--text)}
-.lchip.on{background:var(--accent);border-color:var(--accent);color:#fff}
-.lchip.quick{border-style:dashed}
-.lchip.quick.on{border-style:solid}
-.lchip.add{color:var(--accent);padding:6px 11px}
-.lsep{flex:0 0 1px;align-self:stretch;background:var(--line);margin:4px 2px}
-.cnt{flex:none;background:var(--bg2);border:1px solid var(--line);color:var(--muted);border-radius:999px;font-size:11px;font-weight:700;padding:0 6px;line-height:16px}
-.lchip.on .cnt{background:rgba(255,255,255,.22);border-color:transparent;color:#fff}
-.pchip{display:flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:3px 10px 3px 3px;color:var(--text);cursor:pointer;height:34px;flex:none}
-.pchip:hover{border-color:var(--dim)}
-.pav{width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:800}
-.pname{font-size:12px;font-weight:600;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-body[data-view="home"] .hcenter .seg{display:none}
-/* Prikazi */
-body:not([data-view="home"]) .only-home{display:none}
-body[data-view="home"] .only-ws,body[data-view="home"] #tradewarn,body[data-view="home"] #score,body[data-view="home"] #teams,
-body[data-view="home"] #compare,body[data-view="home"] #report,body[data-view="home"] #myteam,body[data-view="home"] #oppteam,body[data-view="home"] #history{display:none}
-body[data-view="quick"] #myteam,body[data-view="quick"] #oppteam,body[data-view="quick"] #history{display:none}
-.ttabs{display:flex;align-items:stretch;gap:4px;margin-top:12px;overflow-x:auto;scrollbar-width:thin;border-bottom:1px solid var(--line);padding-bottom:0}
-.ttab{display:flex;align-items:center;gap:2px;flex:0 0 auto;max-width:230px;background:var(--bg2);border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;color:var(--muted)}
-.ttab.on{background:var(--card,var(--bg));color:var(--text);border-color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
-.ttab-go{background:none;border:none;color:inherit;font:inherit;font-size:13px;font-weight:600;padding:7px 4px 7px 10px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-.ttab-x{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:4px 8px 4px 4px;line-height:1}
-.ttab-x:hover{color:var(--lose-text)}
-.ttab-new{flex:0 0 auto;background:none;border:1px dashed var(--line);border-bottom:none;border-radius:8px 8px 0 0;color:var(--accent);font:inherit;font-size:13px;font-weight:600;padding:7px 12px;cursor:pointer;white-space:nowrap}
-.ttab-new:hover{border-color:var(--accent)}
-.share-pick{display:flex;flex-direction:column;gap:6px;margin-top:10px}
-.share-pick .indep{border-style:dashed}
-.share-pick .hint{color:var(--muted);font-weight:400;font-size:12px}
-.wsh{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px}
-.wsh-t{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;min-width:0}
-.wsh h1{font-size:28px;font-weight:800;margin:0;letter-spacing:-.02em}
-.wsh-team{color:var(--muted);font-size:13px}
-.wsh-note{color:var(--dim);font-size:12px}
-.pbadge{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:4px;background:var(--card2);color:var(--muted);border:1px solid var(--line);white-space:nowrap}
-/* Početni ekran */
-.hello{font-size:30px;font-weight:800;margin:22px 0 14px;letter-spacing:-.02em}
-.lgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
-.lcard{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;text-align:left;color:var(--text);cursor:pointer;display:flex;flex-direction:column;gap:6px;min-height:150px;font:inherit}
-.lcard:hover{border-color:var(--accent)}
-.lc-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.lc-name{font-weight:800;font-size:16px}
-.lc-team{color:var(--muted);font-size:13px}
-.lc-standing{font-size:13px;color:var(--win-text);font-weight:600}
-.lc-stats{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12px;color:var(--muted);margin-top:auto}
-.lc-upd{font-size:11px;color:var(--dim)}
-.lcard.add{align-items:center;justify-content:center;border-style:dashed;color:var(--muted);font-weight:700}
-.lcard.add .plus{font-size:26px;color:var(--accent)}
-.lcard.quick{justify-content:center;background:linear-gradient(180deg,var(--card2),var(--card))}
-.nudge{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px;padding:10px 14px;border:1px dashed var(--line);border-radius:var(--radius);color:var(--muted);font-size:13px}
-.empty-home{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px;max-width:620px}
-.empty-home p{color:var(--muted);margin:0 0 16px;line-height:1.5}
-.eh-actions{display:flex;gap:10px;flex-wrap:wrap}
-.linkbtn.big{font-size:14px;padding:8px 16px}
-.form{display:flex;flex-direction:column;gap:10px}
-.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-fieldset.fmt{border:1px solid var(--line);border-radius:8px;padding:8px 12px 10px;margin:0;display:flex;flex-direction:column;gap:6px}
-fieldset.fmt legend{font-size:12px;color:var(--muted);font-weight:700;padding:0 4px}
-label.radio{flex-direction:row!important;align-items:center;gap:8px!important;font-size:13px!important;color:var(--text)!important;font-weight:500!important}
-label.radio.soon{color:var(--dim)!important}
-.soon-tag{font-size:10px;font-weight:700;text-transform:uppercase;padding:1px 5px;border-radius:3px;background:var(--card2);color:var(--muted)}
-.ls-export{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.ls-actions{display:flex;gap:8px;justify-content:space-between;border-top:1px solid var(--line);padding-top:10px}
-.form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:600}
-.form input,.form select,.form textarea{background:var(--bg2);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:8px 10px;font:inherit;font-size:14px}
-@media (max-width:640px){
-  header.top .wrap{gap:8px}
-  .hcenter{order:3;flex:0 0 100%;width:100%;flex-direction:column;align-items:stretch;gap:6px}
-  .hcenter:empty,.hcenter:not(:has(*)){display:none}
-  .brand{min-height:34px}
-  .langsel select{padding:6px 2px;font-size:12px}
-  .hright{position:absolute;right:16px;top:8px}
-  .pname{display:none}
-  .pchip{padding:3px}
-}
-/* Status bar */
-.status{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px;margin:12px 0}
-.status .grow{flex:1}
-.linkbtn{background:none;border:1px solid var(--line);border-radius:999px;padding:4px 10px;color:var(--muted);cursor:pointer;font-size:12px}
-.linkbtn:hover{color:var(--text);border-color:var(--dim)}
-.banner{border-radius:var(--radius);padding:12px 14px;margin:12px 0;font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.banner.err{background:var(--lose-bg);border:1px solid rgba(var(--lose-rgb),.4);color:#ffd0d0}
-.banner.warn{background:var(--warn-bg);border:1px solid rgba(240,180,41,.35);color:#ffe7a8}
-.banner button{background:var(--accent);border:0;color:#fff;border-radius:999px;padding:6px 14px;font-weight:600;cursor:pointer}
-.spinner{width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;flex:none}
-@keyframes spin{to{transform:rotate(360deg)}}
-
-/* Scoreboard */
-.score{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px}
-.score-row{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap}
-.score-team{display:flex;flex-direction:column;align-items:center;min-width:72px}
-.score-team .nm{font-size:12px;color:var(--muted);font-weight:600;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.score-team .pts{font-size:40px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
-/* Rezultat: brojka uz Dobijaš zelena, uz Daješ neutralna; oznake u boji smera */
-.score-team.get .pts{color:var(--win-text)}
-.score-team.give .pts{color:var(--text)}
-.score-team.get .nm{color:var(--get);font-weight:700}
-.score-team.give .nm{color:var(--give);font-weight:700}
-.score-sep{font-size:24px;color:var(--dim);font-weight:700}
-.score-note{text-align:center;color:var(--muted);font-size:12px;margin-top:6px}
-.score-note b{color:var(--text)}
-.score-empty{text-align:center;color:var(--muted);padding:6px 0}
-
-/* Teams grid */
-/* Timovi uvek jedan ispod drugog: sve kolone vidljive odjednom, kolone se poravnavaju između timova */
-.teams{display:grid;grid-template-columns:1fr;gap:14px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:visible;min-width:0}
-.card-h{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
-.card-h .dot{width:10px;height:10px;border-radius:50%;flex:none}
-.side-title{display:flex;flex-direction:column;flex:1;min-width:0;line-height:1.2}
-.side-title b{font-size:17px;font-weight:700}
-.side-title small{font-size:11px;color:var(--muted);font-weight:500}
-.score-verdict{text-align:center;font-weight:700;font-size:14px;margin-top:6px}
-.score-verdict.good{color:var(--win-text)}
-.score-verdict.bad{color:var(--lose-text)}
-.report .l{color:var(--lose-text);font-weight:600}
-.team-badge{font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap}
-.team-badge.lead{color:var(--win-text)}
-.iconbtn{background:none;border:0;color:var(--dim);cursor:pointer;width:28px;height:28px;border-radius:6px;display:grid;place-items:center;flex:none;font-size:16px}
-.iconbtn:hover{background:var(--card2);color:var(--text)}
-
-/* Search */
-.search{position:relative;padding:10px 12px}
-.search.slot-search{display:flex;flex-direction:column;gap:4px}
-.search-in{position:relative}
-.slot-opt-tag{background:var(--card2);color:var(--muted);border:1px solid var(--line)}
-.chip.off{opacity:.7;border-style:dashed}
-.slot-chips{padding:8px 12px 0}
-.slot-tag{display:inline-block;white-space:nowrap;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:1px 5px;border-radius:3px;width:max-content}
-tr.slot-d td{background:linear-gradient(rgba(var(--lose-rgb),.09),rgba(var(--lose-rgb),.09)),var(--card)}
-tr.slot-w td{background:linear-gradient(rgba(var(--win-rgb),.09),rgba(var(--win-rgb),.09)),var(--card)}
-tr.slot-d .slot-tag,.slot-d-tag{background:var(--lose-bg);color:var(--lose-text)}
-tr.slot-w .slot-tag,.slot-w-tag{background:var(--win-bg);color:var(--win-text)}
-.search input{width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:10px 12px 10px 34px;outline:none;font-size:16px}
-.search input:focus{border-color:var(--info)}
-.search input:disabled{opacity:.5}
-.search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--dim);pointer-events:none}
-.dd{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--card2);border:1px solid var(--line);border-radius:8px;box-shadow:0 12px 30px rgba(0,0,0,.5);z-index:30;max-height:320px;overflow-y:auto;list-style:none;margin:0;padding:4px}
-.dd li{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:6px;cursor:pointer}
-.dd li[aria-selected="true"]{background:rgba(var(--accent-rgb),.18)}
-.dd li .meta{color:var(--muted);font-size:12px}
-.dd .empty{color:var(--muted);cursor:default;padding:10px}
-
-/* Table */
-.tscroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
-table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
-th,td{padding:7px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
-th{font-size:13px;color:var(--muted);font-weight:600;letter-spacing:.02em;background:var(--bg2)}
-td{font-size:13px}
-th:first-child,td:first-child{text-align:left;position:sticky;left:0;z-index:1;background:var(--card);min-width:150px;width:300px;max-width:300px}
-th:first-child{background:var(--bg2)}
-tbody tr.nodata td{color:var(--dim)}
-tbody tr.nodata td:first-child{color:var(--muted)}
-tr.total td{font-weight:700;border-bottom:0;background:var(--card2)}
-tr.total td:first-child{background:var(--card2)}
-td.win{background:var(--win-bg)!important;color:var(--win-text)}
-td.better-me{background:var(--win-bg)!important;color:var(--win-text)}
-td.better-them{background:var(--lose-bg)!important;color:var(--lose-text)}
-td.lose{background:var(--lose-bg)!important;color:var(--lose-text)}
-td .sub{display:block;font-size:10px;font-weight:500;color:var(--muted);margin-top:1px}
-.pl{display:flex;align-items:center;gap:8px;min-width:0}
-.pl .txt{min-width:0;flex:1;overflow:hidden;display:flex;flex-direction:column}
-.pl .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px}
-.pl .meta{font-size:11px;color:var(--muted);display:flex;gap:4px;align-items:center;flex-wrap:nowrap;white-space:nowrap}
-/* tabele svih timova iste širine kolona, da se brojke poravnaju */
-.teams table{table-layout:fixed;min-width:860px}
-.teams th:not(:first-child),.teams td:not(:first-child){width:auto}
-.av{width:30px;height:30px;border-radius:50%;background:var(--card2);flex:none;overflow:hidden;display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line)}
-.av img{width:130%;height:auto;margin-top:6px}
-.inj{font-size:10px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--lose-bg);color:var(--lose-text)}
-.inj.dtd{background:var(--warn-bg);color:var(--warn)}
-.flag{font-size:10px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--warn-bg);color:var(--warn)}
-.badge{font-size:10px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--card2);color:var(--muted);cursor:help;white-space:nowrap}
-.badge.wk{background:rgba(var(--info-rgb),.16);color:var(--info)}
-.badge.gp-good{background:var(--win-bg);color:var(--win-text)}
-.badge.gp-ok{background:var(--warn-bg);color:var(--warn)}
-.badge.gp-bad{background:var(--lose-bg);color:var(--lose-text)}
-#tip .tt-title{font-weight:700;margin-bottom:4px}
-#tip table.tt{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
-#tip table.tt th,#tip table.tt td{padding:2px 6px;border:0;text-align:right;font-size:12px;white-space:nowrap;position:static;background:none;min-width:0;width:auto;max-width:none}
-#tip table.tt th{color:var(--muted);font-weight:600;font-size:10px}
-#tip table.tt td:first-child,#tip table.tt th:first-child{text-align:left;color:var(--muted)}
-#tip table.tt tr.key td{color:var(--text);font-weight:700}
-#tip table.tt tr.key td:first-child{color:var(--text)}
-#tip .up{color:var(--win-text)}
-#tip .down{color:var(--lose-text)}
-#tip .tt-foot{margin-top:5px;padding-top:5px;border-top:1px solid var(--line);font-weight:600;color:var(--muted)}
-#tip .tt-foot.up{color:var(--win-text)}
-#tip .tt-foot.down{color:var(--lose-text)}
-#tip{position:fixed;z-index:100;max-width:260px;background:#0b0d10;border:1px solid var(--line);color:var(--text);font-size:12px;line-height:1.4;padding:7px 9px;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.6);pointer-events:none;white-space:normal}
-@media (max-width:640px){ .badge .frac{display:none} }
-.rm{background:none;border:0;color:var(--dim);cursor:pointer;padding:6px;font-size:14px;margin-left:auto;flex:none}
-@media (max-width:640px){
-  th:first-child,td:first-child{min-width:128px;width:150px;max-width:150px}
-  .teams table{min-width:700px}
-  .pl{gap:6px}
-  .pl .av{width:24px;height:24px}
-  .pl .nm{max-width:96px}
-  .pl .txt{flex:1;overflow:hidden}
-  .pl .meta{flex-wrap:wrap;row-gap:2px}
-  th,td{padding:7px 6px}
-}
-.rm:hover{color:var(--accent2)}
-.empty-team{padding:18px 12px;color:var(--dim);text-align:center;font-size:13px}
-.card-warn{padding:8px 12px;font-size:12px;color:#ffe7a8;background:var(--warn-bg);border-top:1px solid rgba(240,180,41,.25);border-radius:0 0 var(--radius) var(--radius)}
-
-th.catth,td.catth{cursor:pointer;user-select:none}
-th.catth:hover{color:var(--text)}
-th.punt,td.catth.punt{text-decoration:line-through;color:var(--dim)!important}
-td.punt{opacity:.35;background:transparent!important;color:var(--muted)!important}
-td.catth.punt{opacity:1;background:var(--card)!important}
-.punt-note{color:var(--warn)}
-td.mintd{cursor:help;color:var(--muted)}
-td.min-down{color:var(--lose-text)}
-td.min-up{color:var(--win-text)}
-.minarrow{font-weight:800;margin-right:2px;letter-spacing:-2px}
-/* trend minuta je u tooltipu; isprekidana linija i ⓘ u zaglavlju pokazuju da postoji */
-.minval{border-bottom:1px dotted currentColor;padding-bottom:1px}
-th.minth{cursor:help}
-th.minth .i{font-size:10px;opacity:.7;margin-left:2px}
-/* srednji ekrani: uža kolona igrača; ako i dalje ne staje, tabela skroluje u stranu */
-@media (max-width:1000px) and (min-width:641px){
-  th:first-child,td:first-child{width:230px;max-width:230px}
-  .pl .nm{max-width:150px}
-  .teams table{min-width:780px}
-  .pl .meta{flex-wrap:wrap;row-gap:2px}
-}
-.trend{font-size:11px;font-weight:800;margin-right:2px;cursor:help;padding:2px 1px}
-.trend.good{color:var(--win-text)}
-.trend.bad{color:var(--lose-text)}
-.hint{font-weight:500;text-transform:none;letter-spacing:0;color:var(--dim);font-size:11px}
-.fold{margin-top:22px}
-.fold summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:12px 14px;font-weight:700;font-size:17px;min-height:44px}
-.fold summary::-webkit-details-marker{display:none}
-.fold summary::before{content:'▸';color:var(--accent);margin-right:8px;transition:transform .15s}
-.fold[open] summary::before{transform:rotate(90deg)}
-.fold summary span:first-of-type{flex:1}
-.fold[open] summary{border-bottom:1px solid var(--line)}
-.fold-body{padding-bottom:4px}
-.seg.small{margin-left:0}
-.seg.small button{padding:4px 10px;font-size:12px}
-.chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 10px}
-.chip{display:inline-flex;align-items:center;gap:4px;background:var(--card2);border:1px solid var(--line);border-radius:999px;padding:2px 4px 2px 10px;font-size:12px}
-.chip small{color:var(--muted);font-size:10px}
-.chip button{background:none;border:0;color:var(--dim);cursor:pointer;padding:2px 4px}
-.chip button:hover{color:var(--accent2)}
-.rtable{table-layout:fixed;min-width:860px}
-.sumtable td{border-bottom:1px solid var(--line)}
-tr.sumrow td{font-weight:600;background:var(--bg2)}
-tr.sumrow td:first-child{background:var(--bg2)}
-tr.leaving td,tr.ir td{color:var(--dim)}
-tr.leaving .av,tr.ir .av,tr.leaving .badge,tr.ir .badge{opacity:.5}
-tr.leaving .nm{text-decoration:line-through}
-tr.arriving td{background:linear-gradient(rgba(var(--win-rgb),.10),rgba(var(--win-rgb),.10)),var(--card)}
-tr.irhead td{font-size:11px;color:var(--muted);background:var(--bg2);text-align:left;font-weight:600;letter-spacing:.03em}
-.tags{display:flex;gap:3px;margin-bottom:1px}
-.tag-out{background:var(--lose-bg);color:var(--lose-text)}
-.tag-in{background:var(--win-bg);color:var(--win-text)}
-.tag-ir{background:var(--card2);color:var(--muted);border:1px solid var(--line)}
-.tag-mine{background:rgba(var(--accent-rgb),.16);color:var(--give)}
-.mini{background:var(--bg2);border:1px solid var(--line);border-radius:4px;color:var(--muted);font-size:10px;padding:2px 5px;cursor:pointer;flex:none;margin-left:auto}
-.mini:hover{color:var(--text)}
-.mini + .rm{margin-left:0}
-.opp-pick{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px 0}
-.opp-pick select,.opp-form input{background:var(--bg2);border:1px solid var(--line);border-radius:6px;color:var(--text);padding:7px 10px;font-size:14px;min-width:220px}
-.opp-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 12px 0}
-.btn{background:var(--accent);border:0;color:#fff;border-radius:999px;padding:7px 16px;font-weight:600;cursor:pointer;font-size:13px}
-.btn:hover{background:var(--accent2)}
-.btn.danger,.linkbtn.danger{color:#fff}
-.linkbtn.danger{color:var(--lose-text);border-color:rgba(var(--lose-rgb),.4)}
-.btn.danger{background:var(--rs-red-btn)}
-#modal{position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:16px}
-.modal-back{position:absolute;inset:0;background:rgba(0,0,0,.6)}
-.modal-box{position:relative;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.6);max-height:calc(100vh - 32px);overflow:auto}
-.modal-box.wide{max-width:640px}
-#modal.panel{place-items:stretch end;padding:0}
-#modal.panel .modal-box{max-width:440px;height:100%;max-height:none;border-radius:0;border-width:0 0 0 1px}
-#modal.panel .modal-box:focus{outline:none}
-.pp-id{display:flex;align-items:center;gap:12px;margin-bottom:12px}
-.pav.big{width:52px;height:52px;font-size:18px;flex:none}
-.pp-name{flex:1;display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:600}
-.pp-name input{background:var(--bg2);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:8px 10px;font:inherit;font-size:15px}
-.pp-local{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
-.pp-local p{margin:0}
-.local-badge{font-size:12px;font-weight:700;color:var(--text)}
-.btn.ghost{background:var(--card2);color:var(--dim);border:1px solid var(--line);cursor:not-allowed}
-.pp-leagues{display:flex;flex-direction:column;gap:6px;width:100%}
-.pp-league{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;color:var(--text);cursor:pointer;font:inherit;font-size:13px;font-weight:600;width:100%;text-align:left}
-.pp-league:hover{border-color:var(--accent)}
-.danger-zone b{color:var(--lose-text)}
-@media (max-width:640px){ #modal.panel .modal-box{max-width:none;width:100%;border-width:0} }
-.modal-box h3{margin:0 0 10px;font-size:16px}
-.modal-body{font-size:13px;color:var(--muted);line-height:1.5}
-.modal-body p{margin:0 0 8px}
-.modal-body b{color:var(--text)}
-.modal-body textarea{width:100%;min-height:140px;background:var(--bg2);border:1px solid var(--line);border-radius:8px;color:var(--text);font:12px ui-monospace,Menlo,monospace;padding:8px}
-.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
-.btn.ok{background:var(--win);font-size:14px;padding:8px 18px}
-.btn.ok:hover{background:#21A064}
-.score-hint{text-align:center;font-size:11px;color:var(--dim);margin-top:6px}
-.idea-tag{color:var(--muted)}
-.view-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px 2px}
-.preview-note{font-size:11px;color:var(--warn)}
-.r-done{display:flex;justify-content:flex-end;padding:10px 12px}
-.linkbtn.done{color:var(--win-text);border-color:rgba(var(--win-rgb),.45)}
-.notall{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:10px 12px 0;padding:10px 12px;border-radius:8px;background:var(--warn-bg);border:1px solid rgba(240,180,41,.35);color:#ffe7a8;font-size:13px}
-.full-note{margin:10px 12px 0;padding:9px 12px;border-radius:8px;border:1px dashed var(--line);color:var(--muted);font-size:12px;cursor:help}
-.is-disabled{opacity:.45;cursor:not-allowed!important}
-.card-warn.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-radius:0}
-.card-warn.soft{background:transparent;color:var(--muted);border-top:0}
-.linkbtn.addmy{color:var(--text);border-color:rgba(var(--accent-rgb),.5);background:rgba(var(--accent-rgb),.12)}
-.linkbtn.addmy:disabled{opacity:.5;cursor:not-allowed}
-.dd li .dd-main{flex:1;min-width:0}
-.dd-addmy{background:var(--bg2);border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:11px;font-weight:600;padding:3px 8px;cursor:pointer;flex:none}
-.dd-addmy:hover{color:var(--text);border-color:var(--accent)}
-.banner.info{background:rgba(var(--info-rgb),.14);border:1px solid rgba(var(--info-rgb),.4);color:#cfe0ff;justify-content:space-between}
-.banner button.x{background:none;color:inherit;padding:2px 8px;font-size:14px}
-.banner.ok{background:var(--win-bg);border:1px solid rgba(var(--win-rgb),.4);color:#c9f5d9}
-.done-block{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0;display:flex;flex-direction:column;gap:2px}
-.done-tag{color:var(--win-text)}
-.langsel{display:flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:999px;padding:0 4px 0 9px;height:34px;color:var(--muted);flex:none;cursor:pointer}
-.langsel:hover{border-color:var(--dim);color:var(--text)}
-.langsel select{background:transparent;border:0;color:var(--text);font:inherit;font-size:12px;font-weight:600;padding:6px 4px;cursor:pointer;outline:none}
-.langsel select option{background:var(--card);color:var(--text)}
-.langsel.inmodal{width:max-content;margin-top:4px}
-.langsel.inmodal select{font-size:14px}
-.set-block.first{border-top:0;margin-top:0;padding-top:0;margin-bottom:10px}
-.gear{background:none;border:1px solid var(--line);color:var(--muted);border-radius:999px;width:34px;height:34px;font-size:17px;cursor:pointer;flex:none;display:grid;place-items:center}
-.gear:hover{color:var(--text);border-color:var(--dim)}
-.set-block{border-top:1px solid var(--line);padding-top:10px;margin-top:10px;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
-.set-block textarea{margin-top:2px}
-#import-msg.err{color:var(--lose-text)}
-@media (max-width:640px){ header.top .wrap{position:relative} }
-.r-meta{font-size:11px;color:var(--muted);padding:10px 12px 0}
-.r-meta .stale{color:var(--warn)}
-.balance.top{padding:4px 12px 10px}
-tr.slot-d td{background:linear-gradient(rgba(var(--lose-rgb),.09),rgba(var(--lose-rgb),.09)),var(--card)}
-tr.slot-w td{background:linear-gradient(rgba(var(--win-rgb),.09),rgba(var(--win-rgb),.09)),var(--card)}
-.balance{padding:8px 12px 0;display:flex;flex-direction:column;gap:6px}
-.balance .search{padding:0}
-.bal-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.bal-row select{background:var(--bg2);border:1px solid var(--line);border-radius:6px;color:var(--text);padding:6px 8px;font-size:14px;min-width:200px}
-.card-warn.strong{border-radius:0;margin-top:8px}
-.empty-team.cta{color:var(--text);font-weight:600}
-.drag{cursor:grab;color:var(--dim);font-size:16px;line-height:1;padding:6px 4px;margin-left:-4px;touch-action:none;user-select:none;flex:none}
-.drag:hover{color:var(--text)}
-.is-dragging,.is-dragging *{cursor:grabbing!important;user-select:none}
-tr.dragging td{background:var(--card2)!important;opacity:.8}
-tr.drop-before td{box-shadow:inset 0 2px 0 var(--accent)}
-tr.drop-after td{box-shadow:inset 0 -2px 0 var(--accent)}
-.acts{display:flex;align-items:center;gap:4px;margin-left:auto;flex:none}
-.acts .rm,.acts .mini{margin-left:0}
-@media (max-width:640px){
-  .rtable{min-width:700px}
-  .rtable .av{display:none}
-  .acts{flex-direction:column-reverse;gap:2px}
-  .acts .rm{padding:2px 6px}
-}
-@media (max-width:1000px) and (min-width:641px){ .rtable{min-width:780px} }
-.cnt{color:var(--muted);font-weight:500;font-size:11px}
-.score-actions{display:flex;justify-content:center;gap:8px;margin-top:8px;flex-wrap:wrap}
-.hist-list{list-style:none;margin:0;padding:6px 8px}
-.hist-list li{display:flex;align-items:center;gap:6px;border-radius:8px}
-.hist-list li.active{background:rgba(var(--accent-rgb),.12)}
-.hist-open{flex:1;min-width:0;text-align:left;background:none;border:0;padding:8px 6px;cursor:pointer;display:flex;flex-direction:column;gap:2px}
-.hist-open:hover .hist-sides{color:var(--text)}
-.hist-date{font-size:11px;color:var(--muted);font-weight:600}
-.hist-sides{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.hist-sides b{color:var(--text);font-weight:600}
-.hist-detail{border-top:1px solid var(--line);margin-top:4px;padding-top:8px}
-.hist-dh{display:flex;justify-content:space-between;align-items:center;padding:4px 12px;font-weight:700}
-.hist-team{margin-bottom:10px}
-.hist-tn{font-weight:700;font-size:13px;padding:4px 12px}
-
-/* Compare + report */
-.section-t{font-size:18px;font-weight:700;color:var(--text);letter-spacing:-.01em;margin:24px 0 10px}
-.section-t .hint{font-size:13px}
-.cmp td:first-child,.cmp th:first-child{min-width:70px}
-td.dcell{font-weight:600;white-space:nowrap}
-td.dcell.pos{color:var(--win-text)}
-td.dcell.neg{color:var(--lose-text)}
-td.dcell.eq{color:var(--dim)}
-.dsub{font-weight:500!important;color:var(--muted)!important;font-size:10px!important}
-.lowvol{display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:1px 4px;border-radius:3px;background:var(--card2);color:var(--muted);margin-left:4px;cursor:help;vertical-align:middle}
-.cmp th.impact{color:var(--text);background:rgba(var(--accent-rgb),.14)}
-td.dcell.impact{background:rgba(var(--accent-rgb),.07);font-size:14px}
-.report{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;line-height:1.6;font-size:14px}
-.report p{margin:0 0 8px}
-.report p:last-child{margin-bottom:0}
-.report .w{color:var(--win-text);font-weight:600}
-.rp-head{font-weight:800;font-size:15px;margin-bottom:6px}
-.rp-head.small{font-size:14px;margin-bottom:4px}
-.rp-ctx{font-size:12px;color:var(--muted);background:var(--bg2);border-radius:8px;padding:6px 10px;margin-bottom:10px;line-height:1.5}
-.rp-real{color:var(--muted);font-size:13px;margin-bottom:8px}
-.rp-cand{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--bg2);border:1px dashed var(--line);border-radius:8px;padding:8px 10px;margin:6px 0 10px;font-size:13px}
-.rp-cand span{flex:1;min-width:200px}
-.rp-block{margin-top:10px}
-.rp-t{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
-.rp-block.plus .rp-t{color:var(--win-text)}
-.rp-block.risk .rp-t{color:var(--warn)}
-.rp-block ul{margin:0;padding-left:18px}
-.rp-block li{margin:3px 0}
-.rp-block li.has-tip{cursor:help}
-.rp-i{color:var(--muted);font-size:12px}
-.rp-opp{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
-.rp-note{color:var(--muted);font-size:12px;margin-top:12px !important}
-.btn.small{padding:5px 12px;font-size:12px}
-.aibtn{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;margin-top:12px;background:linear-gradient(135deg,#3E6FD8,#2A54B5);border:0;border-radius:var(--radius);color:#fff;padding:16px 18px;cursor:pointer;font:inherit;text-align:center;box-shadow:0 6px 18px rgba(42,84,181,.3)}
-.aibtn:hover{filter:brightness(1.08)}
-.aibtn-t{font-size:17px;font-weight:800}
-.aibtn-s{font-size:13px;opacity:.9;max-width:520px;line-height:1.4}
-.ai-wait{display:flex;align-items:center;gap:10px;color:var(--muted)}
-.spin{width:18px;height:18px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;flex:none}
-@keyframes spin{to{transform:rotate(360deg)}}
-.ai-ok{font-size:26px;color:var(--win-text)}
-.ai-steps{margin:8px 0 0;padding-left:22px;line-height:1.7;font-size:15px}
-.ai-text{width:100%;box-sizing:border-box;background:var(--bg2);border:1px solid var(--line);border-radius:8px;color:var(--text);font:12px/1.4 ui-monospace,Menlo,monospace;padding:8px;margin:6px 0}
-footer{color:var(--dim);font-size:11px;text-align:center;margin-top:28px}
-.skeleton{height:120px;border-radius:var(--radius);background:linear-gradient(90deg,var(--card),var(--card2),var(--card));background-size:200% 100%;animation:sh 1.2s infinite}
-@keyframes sh{to{background-position:-200% 0}}
-
-/* Imena igrača se nikad ne seku: prelaze u drugi red */
-.pl .nm{white-space:normal;overflow:visible;text-overflow:clip;max-width:none;overflow-wrap:break-word;line-height:1.25}
-
-/* Telefon: manji rezultat, Poređenje kategorija odmah ispod njega */
-@media (max-width:640px){
-  .score{padding:10px 12px;margin-bottom:10px}
-  .score-row{gap:10px}
-  .score-team .pts{font-size:30px}
-  .score-sep{font-size:20px}
-  .score-verdict{font-size:13px;margin-top:2px}
-  .score-note{margin-top:2px}
-  .score-actions{margin-top:6px;gap:6px}
-  .score-hint{font-size:10px;margin-top:4px}
-  .wsh h1{font-size:22px}
-  .hello{font-size:26px}
-  .section-t{font-size:16px;margin:16px 0 8px}
-  main.wrap{display:flex;flex-direction:column}
-  main.wrap > *{order:2}
-  #home,#leaguebar,#wshead,#tradetabs,#status,#banner,#tradewarn,#score{order:0}
-  #compare{order:1}
-  #compare .section-t{margin-top:4px}
-  .pl .nm{max-width:none}
-  .teams .pl .av{display:none}
-}
-
-/* Sve što se tapka: najmanje 44 px */
-@media (max-width:640px),(pointer:coarse){
-  .seg button,.lchip,.ttab-go,.ttab-new,.linkbtn,.btn,.banner button,.dd-addmy,.hist-open,.pp-league{min-height:44px}
-  .seg button{display:inline-flex;align-items:center}
-  .linkbtn,.btn{display:inline-flex;align-items:center;justify-content:center;gap:4px}
-  .langsel,.pchip,.gear{height:44px;min-width:44px}
-  .gear{width:44px}
-  .pchip{padding:3px 10px 3px 6px}
-  .pav{width:32px;height:32px}
-  .ttab-x,.iconbtn,.rm{min-width:44px;min-height:44px;display:inline-grid;place-items:center}
-  .mini{min-height:44px;min-width:44px;padding:2px 6px}
-  .chip button{min-width:44px;min-height:40px}
-  .chip{padding:0 0 0 10px}
-  .drag{min-height:44px;display:inline-grid;place-items:center;padding:0 6px}
-  .dd li{min-height:44px}
-  .search input,.form input,.form select,.opp-pick select,.opp-form input,.bal-row select{min-height:44px}
-  td.catth{height:44px}
-  .acts{flex-direction:row}
-}
-</style>
-</head>
-<body>
-<header class="top">
-  <div class="wrap">
-    <a class="brand" href="#home" data-nav="home" aria-label="RosterSwing"><img class="brand-mark" src="assets/favicon.svg" width="24" height="24" alt="RosterSwing"><img class="brand-word" src="assets/wordmark.svg" width="96" height="16" alt=""><span class="brand-desc">Fantasy Basketball Tools</span></a>
-    <div class="hcenter"><span id="hleague"></span><div class="seg" id="periods" role="group" aria-label="Period"></div></div>
-    <div class="hright">
-    <label class="langsel" title="Jezik / Language"><svg class="globe" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.8 3.8 5.8 3.8 9s-1.3 6.2-3.8 9c-2.5-2.8-3.8-5.8-3.8-9S9.5 5.8 12 3z"/></svg><select data-langsel aria-label="Jezik / Language"><option value="sr">Srpski</option><option value="en">English</option></select></label>
-    <button type="button" class="pchip" data-action="profile" id="pchip"></button>
-    </div>
-  </div>
-</header>
-
-<main class="wrap">
-  <section id="home" class="only-home"></section>
-  <div id="leaguebar" class="only-ws"></div>
-  <div id="wshead" class="only-ws"></div>
-  <div id="tradetabs" class="only-ws"></div>
-  <div class="status" id="status"></div>
-  <div id="banner"></div>
-  <div id="tradewarn"></div>
-  <div class="score" id="score"></div>
-  <div class="teams" id="teams"></div>
-  <div id="compare"></div>
-  <div id="nudge"></div>
-  <div id="report"></div>
-  <div id="myteam"></div>
-  <div id="oppteam"></div>
-  <div id="history"></div>
-  <footer></footer>
-</main>
-
-<script>
 'use strict';
 /* =====================================================================
    KONFIGURACIJA — sve što zavisi od (nezvaničnog) ESPN API-ja je ovde.
@@ -749,8 +171,16 @@ const TEAM_COLORS = SIDES.map(x => x.color);
    (ključ = srpski tekst, {x} = vrednost). Nedostajući prevod -> srpski tekst.
    ===================================================================== */
 const LANG_KEY = 'fbaTrade.lang.v1';
+/**
+ * Ugrađen alat na javnoj početnoj (/ i /sr/): samo brzo poređenje, jezik određuje stranica,
+ * adresa se ne menja (hash ostaje za aplikaciju). window.RS_EMBED = { lang, app: '<putanja do /app/>' }
+ */
+const EMBED = window.RS_EMBED || null;
+/** Javna početna za jezik, relativno od /app/ (sajt ne zavisi od osnovne putanje) */
+const publicHome = () => (LANG === 'sr' ? '../sr/' : '../');
 /** Link (?lang) > sačuvan izbor > browser: srpski za jezike regiona, inače engleski */
 function detectLang() {
+  if (EMBED) return EMBED.lang === 'sr' ? 'sr' : 'en';
   const q = new URLSearchParams(location.hash.slice(1)).get('lang');
   if (q === 'sr' || q === 'en') return q;
   try { const saved = JSON.parse(localStorage.getItem(LANG_KEY)); if (saved === 'sr' || saved === 'en') return saved; } catch {}
@@ -1020,7 +450,9 @@ const EN = {
   "Obrisati sve podatke?": "Delete all data?",
   "Profil, sve lige, rosteri, protivnici i istorija biće trajno obrisani iz ovog browsera. Ovo ne može da se vrati, osim iz rezervne kopije.": "The profile, all leagues, rosters, opponents and history will be permanently deleted from this browser. This can't be undone, except from a backup.",
   "Obriši sve": "Delete all",
-  "Sačuvaj svoj tim i vidi kako trejd utiče na njega": "Save your team and see how the trade affects it",
+  "Sačuvaj svoj tim i vidi kako trejd utiče na njega": "Save your team and see how this trade changes it",
+  "Dodaj svoju ligu": "Add your league",
+  "Moje lige": "My leagues",
   "Naziv mog tima": "My team name",
   "Format": "Format",
   "uskoro": "coming soon",
@@ -1102,7 +534,11 @@ function setLang(l) {
 function applyStaticText() {
   const gear = document.querySelector('.gear');
   if (gear) { gear.title = t('Podešavanja i rezervna kopija'); gear.setAttribute('aria-label', t('Podešavanja')); }
-  const ft = document.querySelector('footer');
+  if (EMBED) return;
+  document.title = t('Moje lige') + ' | RosterSwing';
+  const brand = document.querySelector('a.brand');
+  if (brand) brand.href = publicHome();
+  const ft = document.querySelector('footer.appfoot');
   if (ft) ft.textContent = t('Podaci: javni {src} fantasy API (nezvaničan). Prosek po utakmici.', { src: DATA_SOURCE.name });
   document.querySelectorAll('[data-langsel]').forEach(sel => { sel.value = LANG; });
 }
@@ -1530,7 +966,21 @@ function defaultRoute() {
 const routeToken = () => (state.view === 'home' ? 'home' : state.scope === 'quick' ? 'quick' : `league-${state.scope}`);
 
 function applyRoute() {
+  if (EMBED) {
+    state.view = 'quick';
+    document.body.dataset.view = 'quick';
+    if (state.scope !== 'quick' || !state.rosters) bindScope('quick');
+    loadState();
+    persistTrades();
+    render();
+    return;
+  }
   const hp = new URLSearchParams(location.hash.slice(1));
+  // sa javne početne: "Add your league" otvara dodavanje lige, trejd iz brzog poređenja prelazi u nju
+  if (hp.get('addleague') === '1') {
+    history.replaceState(null, '', location.hash.replace(/&addleague=1/, ''));
+    setTimeout(openAddLeague, 0);
+  }
   if (hp.get('s') === '1') { handleSharedLink(hp); return; }
   let r = parseRoute() || defaultRoute();
   if (r.view === 'league' && !profile?.leagues.some(l => l.id === r.id)) r = { view: 'home' };
@@ -1622,6 +1072,7 @@ function openSharedIn(scope, lists) {
 /** Link sadrži samo trejd: per=period, t=daješ|dobijaš (isti format kao ranije, stari linkovi rade). */
 function saveState() {
   persistTrades();
+  if (EMBED) return; // ugrađen alat ne menja adresu javne stranice
   const q = new URLSearchParams();
   q.set('per', state.period);
   q.set('t', state.teams.map(tm => tm.ids.join(',')).join('|'));
@@ -1632,7 +1083,7 @@ function saveState() {
 
 /** Aktivni tab opsega; adresa (osvežavanje stranice) nosi trejd aktivnog taba. Period je zajednički. */
 function loadState() {
-  const hash = new URLSearchParams(location.hash.slice(1));
+  const hash = new URLSearchParams(EMBED ? '' : location.hash.slice(1));
   const period = hash.get('per') || tradeStoreGet().period;
   activateTab(scopeTabs().active);
   if (hash.has('t')) {
@@ -1930,8 +1381,11 @@ function closeTab(id) {
 function renderNudge() {
   const el = $('#nudge');
   const show = state.view === 'quick' && (giveIds().length || getIds().length);
-  el.innerHTML = show ? `<div class="nudge"><span>${t('Sačuvaj svoj tim i vidi kako trejd utiče na njega')}</span>
-    <button type="button" class="linkbtn" data-action="add-league">＋ ${t('Dodaj ligu')}</button></div>` : '';
+  el.innerHTML = !show ? '' : EMBED
+    ? `<div class="nudge"><span>${t('Sačuvaj svoj tim i vidi kako trejd utiče na njega')}</span>
+      <a class="btn" href="${esc(EMBED.app)}#quick&addleague=1${LANG === 'en' ? '&lang=en' : '&lang=sr'}">＋ ${t('Dodaj svoju ligu')}</a></div>`
+    : `<div class="nudge"><span>${t('Sačuvaj svoj tim i vidi kako trejd utiče na njega')}</span>
+    <button type="button" class="linkbtn" data-action="add-league">＋ ${t('Dodaj ligu')}</button></div>`;
 }
 
 /* ---------- Početni ekran ---------- */
@@ -2431,6 +1885,7 @@ function addButtonHTML({ action, kind = 'my', id = '', label, n = 1, cls = 'link
 const addMyButton = id => addButtonHTML({ action: 'add-to-my', id, label: t('Dodaj u moj tim') });
 
 function tradeWarnings(ti) {
+  if (EMBED) return ''; // javna početna: bez rostera, nema upozorenja o rosteru
   if (ti === GIVE) {
     // Daješ: igrač koji nije na mom rosteru ne utiče na Moj tim; ponudi da ga dodam
     const mine = new Set(rosterIds(state.rosters.my));
@@ -4068,7 +3523,8 @@ function shareURL() {
   q.set('t', `${giveIds().join(',')}|${getIds().join(',')}`);
   if (LANG === 'en') q.set('lang', 'en');
   q.set('s', '1'); // oznaka: otvoreno preko deljenog linka
-  return `${location.origin}${location.pathname}#${q.toString().replace(/%7C/gi, '|').replace(/%2C/gi, ',')}`;
+  const base = EMBED ? new URL(EMBED.app, location.href).href : `${location.origin}${location.pathname}`;
+  return `${base}#${q.toString().replace(/%7C/gi, '|').replace(/%2C/gi, ',')}`;
 }
 
 async function shareLink(btn) {
@@ -4570,7 +4026,7 @@ document.addEventListener('change', e => {
   state.balance[k].drops = d.filter(Boolean);
   saveBalance(); render();
 });
-window.addEventListener('hashchange', applyRoute);
+if (!EMBED) window.addEventListener('hashchange', applyRoute);
 
 /* ---------- Pomeranje igrača u rosteru (≡): miš i dodir ---------- */
 let drag = null;
@@ -4653,6 +4109,3 @@ applyStaticText();
 applyRoute();
 loadPlayers();
 loadSchedule();
-</script>
-</body>
-</html>
