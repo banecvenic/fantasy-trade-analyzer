@@ -906,6 +906,7 @@ const EN = {
   "Ceo profil sa svim ligama. Trenutno: {s}": "The whole profile with all leagues. Currently: {s}",
   "Nalepi tekst rezervne kopije. Kopija celog profila zamenjuje postojeće podatke (uz potvrdu); kopija jedne lige se dodaje postojećim.": "Paste the backup text. A whole-profile backup replaces existing data (after confirmation); a single-league backup is added to the existing ones.",
   "Izvezi samo ovu ligu": "Export this league only",
+  "kako se tvoj tim zove u ligi": "what your team is called in the league",
 };
 function t(sr, vars) {
   let out = (LANG === 'en' && EN[sr]) || sr;
@@ -1636,6 +1637,15 @@ function renderHome() {
   </div>`;
 }
 
+/** Izbor formata lige: ključan podatak, od njega kasnije zavisi šta se računa i prikazuje
+ *  (kategorije vs poeni, broj kategorija). Neaktivni formati su vidljivi sa oznakom "uskoro". */
+function formatFieldHTML(name, current) {
+  return `<fieldset class="fmt"><legend>${t('Format')}</legend>
+    ${FORMATS.map(f => `<label class="radio ${f.active ? '' : 'soon'}"><input type="radio" name="${name}" value="${f.id}" ${f.id === current ? 'checked' : ''} ${f.active ? '' : 'disabled'}>
+      ${esc(formatLabel(f.id))}${f.active ? '' : ` <span class="soon-tag">${t('uskoro')}</span>`}</label>`).join('')}
+  </fieldset>`;
+}
+
 /* ---------- Podešavanja lige ---------- */
 const TEAM_STATES = [
   { id: 'contend', sr: 'Borim se za vrh' }, { id: 'middle', sr: 'Sredina' }, { id: 'rebuild', sr: 'Rebuild' },
@@ -1655,10 +1665,7 @@ function openLeagueSettings() {
         <label>${t('Platforma')}<select id="ls-platform">${PLATFORMS.map(p => `<option value="${p.id}" ${p.id === lg.platform ? 'selected' : ''}>${esc(platformLabel(p.id))}</option>`).join('')}</select></label>
         <label>${t('Broj timova')}<input type="number" id="ls-teams" min="2" max="30" value="${num(lg.teams)}"></label>
       </div>
-      <fieldset class="fmt"><legend>${t('Format')}</legend>
-        ${FORMATS.map(f => `<label class="radio ${f.active ? '' : 'soon'}"><input type="radio" name="ls-format" value="${f.id}" ${f.id === lg.format ? 'checked' : ''} ${f.active ? '' : 'disabled'}>
-          ${esc(formatLabel(f.id))}${f.active ? '' : ` <span class="soon-tag">${t('uskoro')}</span>`}</label>`).join('')}
-      </fieldset>
+      ${formatFieldHTML('ls-format', lg.format)}
       <fieldset class="fmt"><legend>${t('Tabela (opciono)')}${st.updated ? ` <span class="hint">${t('Ažurirano: {d}', { d: fmtShortDate(st.updated) })}</span>` : ''}</legend>
         <div class="form-row">
           <label>${t('Mesto')}<input type="number" id="ls-rank" min="1" max="30" value="${num(st.rank)}"></label>
@@ -1728,8 +1735,12 @@ function openAddLeague() {
     title: t('Dodaj ligu'),
     body: `<div class="form">
       <label>${t('Naziv lige')}<input type="text" id="al-name" maxlength="40" placeholder="${t('npr. Liga sa posla')}"></label>
-      <label>${t('Platforma')}<select id="al-platform">${PLATFORMS.map(p => `<option value="${p.id}">${esc(platformLabel(p.id))}</option>`).join('')}</select></label>
-      <label>${t('Broj timova')}<input type="number" id="al-teams" min="2" max="30" value="12"></label>
+      <label>${t('Naziv mog tima')}<input type="text" id="al-team" maxlength="40" placeholder="${t('kako se tvoj tim zove u ligi')}"></label>
+      <div class="form-row">
+        <label>${t('Platforma')}<select id="al-platform">${PLATFORMS.map(p => `<option value="${p.id}">${esc(platformLabel(p.id))}</option>`).join('')}</select></label>
+        <label>${t('Broj timova')}<input type="number" id="al-teams" min="2" max="30" value="12"></label>
+      </div>
+      ${formatFieldHTML('al-format', FORMATS.find(f => f.active).id)}
       ${needName ? `<label>${t('Tvoje ime (opciono)')}<input type="text" id="al-me" maxlength="30"></label>` : ''}
       </div>`,
     confirm: t('Napravi ligu'),
@@ -1738,6 +1749,8 @@ function openAddLeague() {
       if (!name) { document.getElementById('al-name').focus(); return false; }
       createLeague({
         name,
+        teamName: document.getElementById('al-team').value.trim(),
+        format: document.querySelector('input[name="al-format"]:checked')?.value || FORMATS[0].id,
         platform: document.getElementById('al-platform').value,
         teams: Math.max(2, Math.min(30, +document.getElementById('al-teams').value || 12)),
       }, document.getElementById('al-me')?.value.trim());
