@@ -40,7 +40,30 @@ a.brand{color:var(--text);text-decoration:none}
 .hright{display:flex;align-items:center;gap:8px;margin-left:auto}
 .hcenter .seg{margin-left:0}
 .hlabel{font-weight:700;font-size:13px;color:var(--muted);white-space:nowrap}
-.leaguesel select{background:var(--card);border:1px solid var(--line);border-radius:999px;color:var(--text);font:inherit;font-weight:700;font-size:13px;padding:7px 12px;max-width:220px;cursor:pointer}
+.lc-open{color:var(--accent);font-weight:700}
+.lsw{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:999px;color:var(--text);font:inherit;font-weight:700;font-size:13px;padding:7px 12px;max-width:280px;cursor:pointer;min-width:0}
+.lsw:hover,.lsw[aria-expanded="true"]{border-color:var(--accent)}
+.lsw-name{text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.lsw-caret{color:var(--muted);font-size:10px;flex:none}
+.cnt{flex:none;background:var(--bg2);border:1px solid var(--line);color:var(--muted);border-radius:999px;font-size:11px;font-weight:700;padding:0 7px;line-height:18px}
+.cnt.on{background:var(--accent);border-color:var(--accent);color:#fff}
+#switcher{position:fixed;inset:0;z-index:60}
+.sw-back{position:absolute;inset:0}
+.sw-pop{position:absolute;width:320px;max-width:calc(100vw - 32px);max-height:min(70vh,520px);overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.45);padding:6px}
+.sw-h{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:8px 10px 4px}
+.sw-row{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;border-radius:8px;color:var(--text);font:inherit;text-align:left;padding:8px 10px;cursor:pointer}
+.sw-row:hover,.sw-row:focus-visible{background:var(--bg2);outline:none}
+.sw-row.on{background:var(--bg2);box-shadow:inset 3px 0 0 var(--accent)}
+.sw-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.sw-name{font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sw-sub{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sw-sep{height:1px;background:var(--line);margin:6px 4px}
+.sw-add{color:var(--accent);font-weight:700;font-size:13px}
+@media (max-width:640px){
+  #switcher .sw-back{background:rgba(0,0,0,.5)}
+  .sw-pop{left:0 !important;right:0;top:auto !important;bottom:0;width:auto;max-width:none;max-height:75vh;border-radius:16px 16px 0 0;padding:8px 8px calc(12px + env(safe-area-inset-bottom))}
+  .sw-row{padding:12px 10px}
+}
 .pchip{display:flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:3px 10px 3px 3px;color:var(--text);cursor:pointer;height:34px;flex:none}
 .pchip:hover{border-color:var(--dim)}
 .pav{width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:800}
@@ -104,7 +127,8 @@ label.radio.soon{color:var(--dim)!important}
   .hcenter:empty,.hcenter:not(:has(*)){display:none}
   .brand{min-height:34px}
   .langsel select{padding:6px 2px;font-size:12px}
-  .leaguesel select{max-width:none;width:100%}
+  .lsw{max-width:none;width:100%}
+  .lsw-name{flex:1}
   .hright{position:absolute;right:16px;top:8px}
   .pname{display:none}
   .pchip{padding:3px}
@@ -931,6 +955,9 @@ const EN = {
   "brzo poređenje": "quick compare",
   "Igrača u rosteru (bez IR)": "Roster spots (without IR)",
   "IR mesta": "IR spots",
+  "Lige i trejdovi": "Leagues and trades",
+  "Trejd bez lige": "Trade without a league",
+  "Početna": "Home",
 };
 function t(sr, vars) {
   let out = (LANG === 'en' && EN[sr]) || sr;
@@ -1693,17 +1720,85 @@ const initialsOf = name => (name || '').trim().split(/\s+/).filter(Boolean).slic
 function renderHeader() {
   const lg = currentLeague();
   const hl = $('#hleague');
-  if (state.view === 'league' && lg) {
-    hl.innerHTML = `<label class="leaguesel"><select data-leaguesel aria-label="${t('Liga')}">
-      ${profile.leagues.map(l => `<option value="${l.id}" ${l.id === lg.id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}
-      <option value="__new">＋ ${t('Dodaj ligu…')}</option></select></label>`;
-  } else if (state.view === 'quick') {
-    hl.innerHTML = `<span class="hlabel">${t('Brzo poređenje')}</span>`;
+  if (state.view === 'league' || state.view === 'quick') {
+    const name = state.view === 'league' && lg ? lg.name : t('Brzo poređenje');
+    const n = openTrades(state.scope);
+    hl.innerHTML = `<button type="button" class="lsw" data-action="switcher" aria-haspopup="dialog" aria-expanded="${!!document.getElementById('switcher')}" aria-label="${t('Lige i trejdovi')}">
+      <span class="lsw-name">${esc(name)}</span>${n ? `<span class="cnt on" title="${esc(openN(n))}">${n}</span>` : ''}<span class="lsw-caret">▼</span></button>`;
   } else hl.innerHTML = '';
   const nm = profile?.name?.trim();
   $('#pchip').innerHTML = `<span class="pav">${nm ? esc(initialsOf(nm)) : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>'}</span><span class="pname">${nm ? esc(nm) : t('Profil')}</span>`;
   $('#pchip').setAttribute('aria-label', t('Profil'));
 }
+
+/* ---------- Izbirač: lige + brzo poređenje, sa brojem otvorenih trejdova ---------- */
+/** Broj otvorenih trejdova (tabova sa igračima) u ligi / brzom poređenju */
+const openTrades = scope => (tradeStoreGet().scopes[scope]?.tabs || []).filter(tabHasPlayers).length;
+const openN = n => `${n} ${plural(n, ['otvoren trejd', 'otvorena trejda', 'otvorenih trejdova'], ['open trade', 'open trades'])}`;
+
+function openSwitcher() {
+  closeSwitcher();
+  const btn = document.querySelector('[data-action="switcher"]');
+  const row = (target, name, sub, scope) => {
+    const n = openTrades(scope);
+    const on = scope === state.scope && state.view !== 'home';
+    return `<button type="button" class="sw-row ${on ? 'on' : ''}" data-sw="${target}" ${on ? 'aria-current="true"' : ''}>
+      <span class="sw-main"><span class="sw-name">${name}</span>${sub ? `<span class="sw-sub">${sub}</span>` : ''}</span>
+      ${n ? `<span class="cnt ${on ? 'on' : ''}" title="${esc(openN(n))}">${n}</span>` : ''}</button>`;
+  };
+  const leagues = profile?.leagues || [];
+  const m = document.createElement('div');
+  m.id = 'switcher';
+  m.innerHTML = `<div class="sw-back" data-sw-close></div>
+    <div class="sw-pop" role="dialog" aria-label="${t('Lige i trejdovi')}">
+      ${leagues.length ? `<div class="sw-h">${t('Lige')}</div>` : ''}
+      ${leagues.map(l => row(`league:${l.id}`, esc(l.name), [esc(platformLabel(l.platform)), esc(l.teamName || '')].filter(Boolean).join(' · '), l.id)).join('')}
+      ${leagues.length ? '<div class="sw-sep"></div>' : ''}
+      ${row('quick', t('Brzo poređenje'), t('Trejd bez lige'), 'quick')}
+      <div class="sw-sep"></div>
+      <button type="button" class="sw-row sw-add" data-sw="new">＋ ${t('Dodaj ligu')}</button>
+      <button type="button" class="sw-row" data-sw="home"><span class="sw-sub">⌂ ${t('Početna')}</span></button>
+    </div>`;
+  document.body.appendChild(m);
+  const pop = m.querySelector('.sw-pop');
+  if (btn) {
+    const r = btn.getBoundingClientRect();
+    pop.style.top = `${r.bottom + 6}px`;
+    pop.style.left = `${Math.max(16, Math.min(r.left, window.innerWidth - pop.offsetWidth - 16))}px`;
+    btn.setAttribute('aria-expanded', 'true');
+  }
+  (pop.querySelector('.sw-row.on') || pop.querySelector('.sw-row'))?.focus();
+}
+function closeSwitcher() {
+  const m = document.getElementById('switcher');
+  if (!m) return;
+  m.remove();
+  const btn = document.querySelector('[data-action="switcher"]');
+  btn?.setAttribute('aria-expanded', 'false');
+}
+function pickSwitcher(v) {
+  closeSwitcher();
+  if (v === 'new') openAddLeague();
+  else if (v === 'home') navigate('home');
+  else if (v === 'quick') navigate('quick');
+  else navigate('league', v.slice('league:'.length));
+}
+document.addEventListener('click', e => {
+  if (e.target.closest('[data-sw-close]')) { closeSwitcher(); return; }
+  const s = e.target.closest('[data-sw]');
+  if (s) pickSwitcher(s.dataset.sw);
+});
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('switcher')) return;
+  if (e.key === 'Escape') { closeSwitcher(); document.querySelector('[data-action="switcher"]')?.focus(); }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    const rows = [...document.querySelectorAll('#switcher .sw-row')];
+    const i = rows.indexOf(document.activeElement);
+    rows[(i + (e.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length]?.focus();
+    e.preventDefault();
+  }
+});
+window.addEventListener('resize', closeSwitcher);
 
 /** Naslov radnog prostora: liga (naziv, tim, platforma) ili brzo poređenje */
 function renderWsHead() {
@@ -1773,6 +1868,7 @@ function leagueCardHTML(lg) {
       <span>${t('{a}/{b} igrača', { a: active, b: lg.slots?.active ?? ROSTER_DEFAULT.ACTIVE })}</span>
       <span>${(n => `${n} ${plural(n, ['protivnik', 'protivnika', 'protivnika'], ['opponent', 'opponents'])}`)(Object.keys(lg.opps || {}).length)}</span>
       <span>${trejdova((lg.history || []).length)}</span>
+      ${openTrades(lg.id) ? `<span class="lc-open">${openN(openTrades(lg.id))}</span>` : ''}
     </div>
     <div class="lc-upd">${t('Ažurirano: {d}', { d: fmtShortDate(lg.updated) })}</div>
   </button>`;
@@ -3178,6 +3274,7 @@ document.addEventListener('click', e => {
   const ti = +el.dataset.team;
   switch (el.dataset.action) {
     case 'refresh': loadPlayers(true); loadSchedule(true); break;
+    case 'switcher': if (document.getElementById('switcher')) closeSwitcher(); else openSwitcher(); break;
     case 'tab-new': addTab(); state.sharedOpen = false; state.histView = null; searchUI.clear(); saveState(); render(); break;
     case 'save-trade': if (currentLeague()) saveTrade(); break;
     case 'trade-done': if (currentLeague()) tradeDone(); break;
@@ -3270,12 +3367,6 @@ document.addEventListener('toggle', e => {
   if (f === 'hist') { state.histOpen = e.target.open; }
 }, true);
 document.addEventListener('change', e => {
-  if (e.target.matches('[data-leaguesel]')) {
-    const v = e.target.value;
-    if (v === '__new') { e.target.value = state.scope; openAddLeague(); return; }
-    if (!navigate('league', v)) e.target.value = state.scope; // otkazano (potvrda) -> vrati izbor
-    return;
-  }
   if (e.target.matches('[data-langsel]')) {
     const inModal = !!e.target.closest('#modal');
     setLang(e.target.value);
