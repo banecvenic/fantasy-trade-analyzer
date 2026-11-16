@@ -299,6 +299,14 @@ tr.drop-after td{box-shadow:inset 0 -2px 0 var(--accent)}
 /* Compare + report */
 .section-t{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:22px 0 8px}
 .cmp td:first-child,.cmp th:first-child{min-width:70px}
+td.dcell{font-weight:600;white-space:nowrap}
+td.dcell.pos{color:var(--win-text)}
+td.dcell.neg{color:var(--lose-text)}
+td.dcell.eq{color:var(--dim)}
+.darr{font-size:11px;margin-right:2px}
+.lowvol{display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:1px 4px;border-radius:3px;background:var(--card2);color:var(--muted);margin-left:4px;cursor:help;vertical-align:middle}
+.cmp th.impact{color:var(--text);background:rgba(225,37,27,.14)}
+td.dcell.impact{background:rgba(225,37,27,.07);font-size:14px}
 .report{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;line-height:1.6;font-size:14px}
 .report p{margin:0 0 8px}
 .report p:last-child{margin-bottom:0}
@@ -415,6 +423,8 @@ const WEEK_TZ = 'America/New_York';
 const ROSTER = { ACTIVE: 13, IR: 2, STALE_DAYS: 7 };
 /** Pragovi boje za trajnost (GP%) */
 const DURABILITY = { GOOD: 0.85, OK: 0.70 };
+/** "Mali obim" za FG%/FT% u poređenju: ukupno pokušaja po utakmici na bilo kojoj strani ispod praga */
+const LOW_VOLUME = { FGA: 3, FTA: 1.5 };
 
 /** 9 kategorija, redosled kolona. type: 'sum' (zbir proseka) ili 'pct' (ponderisano). */
 const CATS = [
@@ -676,6 +686,11 @@ const EN = {
   "prazno": "empty",
   "Još nema sačuvanih trejdova. Klikni „Sačuvaj ideju” ili „Trejd se dogodio” ispod rezultata.": "No saved trades yet. Click “Save idea” or “Trade happened” below the score.",
   "Nema igrača za „{q}“": "No players for “{q}”",
+  "Procenat na malom broju šuteva skoro ne utiče na tim.": "A percentage on very few shots barely affects the team.",
+  "mali obim": "low volume",
+  "Dobijaš − Daješ, iz tvoje perspektive": "You get − You give, from your perspective",
+  "Razlika u sekciji Moj tim: ceo roster pre i posle trejda (ponderisano)": "Difference from the My team section: whole roster before and after the trade (weighted)",
+  "Uticaj na moj tim": "Impact on my team",
 };
 function t(sr, vars) {
   let out = (LANG === 'en' && EN[sr]) || sr;
@@ -1446,20 +1461,47 @@ function tradeWarnings(ti) {
   ].join('');
 }
 
+/**
+ * Promena kategorije "od -> do" na prikazanoj preciznosti, iz moje perspektive:
+ * zeleno ako je bolje za mene (TO: manje je bolje), crveno ako je lošije, sivo "=" ako je isto.
+ */
+function deltaCellHTML(c, from, to, extraCls = '') {
+  const a = cmpKey(c, from?.vals?.[c.key]), b = cmpKey(c, to?.vals?.[c.key]);
+  if (a == null || b == null) return `<td class="dcell ${extraCls}${puntCls(c)}">–</td>`;
+  const v = (b - a) / (c.type === 'pct' ? 1000 : 10);
+  if (v === 0) return `<td class="dcell eq ${extraCls}${puntCls(c)}">=</td>`;
+  const good = c.lowerIsBetter ? v < 0 : v > 0;
+  const num = c.type === 'pct' ? `${Math.abs(v * 100).toFixed(1)} pp` : Math.abs(v).toFixed(1);
+  return `<td class="dcell ${good ? 'pos' : 'neg'} ${extraCls}${puntCls(c)}"><span class="darr">${v > 0 ? '↑' : '↓'}</span>${v > 0 ? '+' : '−'}${num}</td>`;
+}
+
+/** FG%/FT% na malom broju pokušaja (bilo koja strana) */
+function lowVolume(c, totals) {
+  if (c.type !== 'pct') return false;
+  const lim = c.att === 'FGA' ? LOW_VOLUME.FGA : LOW_VOLUME.FTA;
+  return totals.some(tot => tot.counted > 0 && tot.sum[c.att] < lim);
+}
+
 function renderCompare(totals, cmp) {
   const el = $('#compare');
   if (cmp.active.length < 2) { el.innerHTML = ''; return; }
+  // Uticaj na moj tim: Razlika iz sekcije Moj tim (pre -> posle), samo kad je trejd stvarno moj
+  const plan = state.rosters.my.players.length ? rosterPlan('my') : null;
+  const impact = plan && plan.tradeTouches ? { before: sumPlayers(plan.activeBefore), after: sumPlayers(plan.activeAfter) } : null;
   const rows = CATS.map(c => {
     const r = cmp.cats[c.key];
     const tds = state.teams.map((_, i) => {
       const v = totals[i].vals[c.key];
       return `<td class="${r.marks[i]}${puntCls(c)}">${c.type === 'pct' ? fmtPct(v) : fmt1(v)}</td>`;
     }).join('');
-    const diff = r.punted ? 'punt' : r.winner == null ? '–' : (c.type === 'pct' ? `${(r.margin * 100).toFixed(1)} pp` : r.margin.toFixed(1));
-    return `<tr class="${r.punted ? 'punt-row' : ''}"><td class="catth${puntCls(c)}" data-punt="${c.key}" title="${t('Klik: punt')}"><b>${c.label}</b></td>${tds}<td class="${puntCls(c).trim()}" style="color:var(--muted)">${diff}</td></tr>`;
+    // Razlika iz moje perspektive: Dobijaš − Daješ
+    let diff = r.punted ? `<td class="dcell punt">punt</td>` : deltaCellHTML(c, totals[GIVE], totals[GET]);
+    if (!r.punted && lowVolume(c, totals)) diff = diff.replace('</td>', ` <span class="lowvol" data-tip="${esc(t('Procenat na malom broju šuteva skoro ne utiče na tim.'))}">${t('mali obim')}</span></td>`);
+    const imp = impact ? (r.punted ? `<td class="dcell impact punt">punt</td>` : deltaCellHTML(c, impact.before, impact.after, 'impact')) : '';
+    return `<tr class="${r.punted ? 'punt-row' : ''}"><td class="catth${puntCls(c)}" data-punt="${c.key}" title="${t('Klik: punt')}"><b>${c.label}</b></td>${tds}${diff}${imp}</tr>`;
   }).join('');
   el.innerHTML = `<div class="section-t">${t('Poređenje kategorija')} <span class="hint">· ${t('klik na kategoriju = punt')}</span></div>
-    <div class="card"><div class="tscroll"><table class="cmp"><thead><tr><th>${t('Kat.')}</th>${SIDES.map(sd => `<th style="color:${sd.color}">${sd.name}</th>`).join('')}<th>${t('Razlika')}</th></tr></thead>
+    <div class="card"><div class="tscroll"><table class="cmp"><thead><tr><th>${t('Kat.')}</th>${SIDES.map(sd => `<th style="color:${sd.color}">${sd.name}</th>`).join('')}<th title="${esc(t('Dobijaš − Daješ, iz tvoje perspektive'))}">${t('Razlika')}</th>${impact ? `<th class="impact" title="${esc(t('Razlika u sekciji Moj tim: ceo roster pre i posle trejda (ponderisano)'))}">${t('Uticaj na moj tim')}</th>` : ''}</tr></thead>
     <tbody>${rows}</tbody></table></div></div>`;
 }
 
