@@ -432,6 +432,7 @@ td.dcell.impact{background:rgba(225,37,27,.07);font-size:14px}
 .report .w{color:var(--win-text);font-weight:600}
 .rp-head{font-weight:800;font-size:15px;margin-bottom:6px}
 .rp-head.small{font-size:14px;margin-bottom:4px}
+.rp-ctx{font-size:12px;color:var(--muted);background:var(--bg2);border-radius:8px;padding:6px 10px;margin-bottom:10px;line-height:1.5}
 .rp-real{color:var(--muted);font-size:13px;margin-bottom:8px}
 .rp-cand{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--bg2);border:1px dashed var(--line);border-radius:8px;padding:8px 10px;margin:6px 0 10px;font-size:13px}
 .rp-cand span{flex:1;min-width:200px}
@@ -2410,6 +2411,101 @@ function renderCompare(totals, cmp) {
 }
 
 /* =====================================================================
+   Liga kao merilo: rang igrača po kategorijama i profil mog tima (z-score),
+   i situacija tima iz tabele (mesto, skor, plejof).
+   ===================================================================== */
+const BENCH = {
+  MIN_GP: 5,            // igrač ulazi u rang liste sa bar 5 utakmica u periodu
+  RANK_TOP: 15,         // "vrh lige" u kategoriji: top 15
+  TEAM_Z: 1.5,          // jača / slabija kategorija tima: z-zbir iznad / ispod ±1.5
+};
+let benchCache = null;
+/**
+ * Merilo za izabrani period: "realno posedovani" igrači (top teams × aktivna mesta po % owned).
+ * sum kategorije: z = (v − prosek) / sd; FG% / FT%: uticaj = pogođeni − prosečan% × pokušaji (kao u fantasy rangiranju).
+ */
+function bench() {
+  const lg = currentLeague();
+  const size = (lg?.teams || 12) * ROSTER.ACTIVE;
+  const key = `${state.period}|${state.loadedAt}|${size}`;
+  if (benchCache?.key === key) return benchCache;
+  const withLine = state.players.map(p => ({ p, l: playerLine(p) })).filter(x => x.l && x.l.GP >= BENCH.MIN_GP);
+  const pool = [...withLine].sort((a, b) => (b.p.own?.pct || 0) - (a.p.own?.pct || 0)).slice(0, size);
+  const cats = {};
+  for (const c of CATS) {
+    let pp = null, vals;
+    if (c.type === 'pct') {
+      const m = pool.reduce((a, x) => a + x.l[c.made], 0), at = pool.reduce((a, x) => a + x.l[c.att], 0);
+      pp = at ? m / at : 0;
+      vals = pool.map(x => x.l[c.made] - pp * x.l[c.att]);
+    } else vals = pool.map(x => x.l[c.key]);
+    const mean = vals.reduce((a, b) => a + b, 0) / (vals.length || 1);
+    const sd = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / (vals.length || 1)) || 1;
+    cats[c.key] = { mean, sd, pp };
+  }
+  const raw = (l, c) => (c.type === 'pct' ? l[c.made] - cats[c.key].pp * l[c.att] : l[c.key]);
+  // rang lista po kategoriji među svim igračima sa dovoljno utakmica
+  const ranks = {};
+  for (const c of CATS) {
+    const sorted = [...withLine].sort((a, b) => (c.lowerIsBetter ? raw(a.l, c) - raw(b.l, c) : raw(b.l, c) - raw(a.l, c)));
+    ranks[c.key] = new Map(sorted.map((x, i) => [x.p.id, i + 1]));
+  }
+  benchCache = { key, size: pool.length, cats, raw, ranks, total: withLine.length };
+  return benchCache;
+}
+/** z-score igrača u kategoriji (TO: manje je bolje, pa je z obrnut) */
+function playerZ(p, c) {
+  const l = playerLine(p); if (!l) return null;
+  const b = bench(), s = b.cats[c.key];
+  const z = (b.raw(l, c) - s.mean) / s.sd;
+  return c.lowerIsBetter ? -z : z;
+}
+/** Kategorije u kojima je igrač u vrhu lige: [{ c, rank }] (najviše 3, samo aktivne kategorije) */
+function leaderCats(p) {
+  const b = bench();
+  return CATS.filter(c => !isPunt(c) && !c.lowerIsBetter).map(c => ({ c, rank: b.ranks[c.key].get(p.id) }))
+    .filter(x => x.rank && x.rank <= BENCH.RANK_TOP).sort((a, b) => a.rank - b.rank).slice(0, 3);
+}
+/** Profil tima: zbir z-score-ova po kategoriji (0 = prosečan tim lige) */
+function teamZ(ids) {
+  const out = {};
+  for (const c of CATS) out[c.key] = ids.reduce((a, id) => { const p = state.byId.get(id); const z = p ? playerZ(p, c) : null; return a + (z || 0); }, 0);
+  return out;
+}
+/** Jače / slabije kategorije mog tima (bez punta), ili null kad roster nije unet */
+function myTeamProfile() {
+  const r = currentLeague() ? state.rosters?.my : null;
+  if (!r || !r.players.length) return null;
+  const ids = r.players.filter(x => !x.ir).map(x => x.id);
+  const z = teamZ(ids);
+  const list = CATS.filter(c => !isPunt(c)).map(c => ({ c, z: z[c.key] })).sort((a, b) => b.z - a.z);
+  return { z, strong: list.filter(x => x.z >= BENCH.TEAM_Z), weak: list.filter(x => x.z <= -BENCH.TEAM_Z).reverse(), list };
+}
+
+/** Situacija tima: izabrano stanje ima prednost; ako nije izabrano, procena iz tabele (mesto / skor / plejof) */
+function teamSituation(lg = currentLeague()) {
+  if (!lg) return null;
+  const st = lg.standings || {}, teams = lg.teams || 0;
+  let inferred = null, inPO = null, pct = null;
+  if (st.record) {
+    const [w, l, tie] = st.record.split(/[-–\s/]+/).map(Number);
+    if (Number.isFinite(w) && Number.isFinite(l) && w + l + (tie || 0) > 0) pct = (w + (tie || 0) / 2) / (w + l + (tie || 0));
+  }
+  if (st.rank && teams) {
+    if (st.playoffTeams) inPO = st.rank <= st.playoffTeams;
+    const frac = st.rank / teams;
+    inferred = frac <= 1 / 3 ? 'contend' : frac > 2 / 3 ? 'rebuild' : 'middle';
+    if (inPO === false && frac > 0.5) inferred = 'rebuild';
+  } else if (pct != null) {
+    inferred = pct >= 0.6 ? 'contend' : pct < 0.4 ? 'rebuild' : 'middle';
+  }
+  const explicit = lg.teamState || null;
+  if (!explicit && !inferred) return null;
+  return { state: explicit || inferred, explicit, inferred, rank: st.rank, teams, record: st.record, inPO, pct };
+}
+const stateLabel = id => { const s = TEAM_STATES.find(x => x.id === id); return s ? t(s.sr) : ''; };
+
+/* =====================================================================
    Izveštaj o trejdu: pravila u kodu, samo ESPN podaci, bez presude.
    Sve što zavisi od lige čita se iz aktivne lige (ROSTER, punt, stanje tima, rosteri).
    ===================================================================== */
@@ -2541,6 +2637,21 @@ const RT = {
     sr: ['Posle trejda ostaješ sa {n} igrača na poziciji {pos}.'],
     en: ['After the trade you are left with {n} players at {pos}.'],
   },
+  leaderIn: { sr: ['{name} je u vrhu lige: {list}.', 'Dolazi igrač iz vrha lige: {name} ({list}).'], en: ['{name} is among the league leaders: {list}.', 'A league leader is coming: {name} ({list}).'] },
+  leaderOut: { sr: ['Daješ igrača iz vrha lige: {name} ({list}).', '{name} je u vrhu lige ({list}), a odlazi.'], en: ['You give a league leader: {name} ({list}).', '{name} is among the league leaders ({list}), and he is leaving.'] },
+  needFix: { sr: ['Popravljaš slabu tačku tima: {list}.', 'Trejd pogađa ono što ti fali: {list}.'], en: ['You fix a weak spot of your team: {list}.', 'The trade hits what you lack: {list}.'] },
+  lossStrong: { sr: ['Gubiš u {list}, ali tu ti je tim jak, pa to lakše podnosi.'], en: ['You lose in {list}, but your team is strong there, so it can absorb it.'] },
+  lossWeak: { sr: ['Gubiš u kategoriji koja ti je već slaba: {list}.', 'Pazi, slabiš ono što ti već fali: {list}.'], en: ['You lose in a category that is already weak for you: {list}.', 'Careful, you weaken what you already lack: {list}.'] },
+  teamLine: { sr: ['Tvoj tim u odnosu na ligu: jak u {strong}{weakPart}.'], en: ['Your team vs the league: strong in {strong}{weakPart}.'] },
+  teamLineWeak: { sr: ['Tvoj tim u odnosu na ligu: slab u {weak}.'], en: ['Your team vs the league: weak in {weak}.'] },
+  weakPart: { sr: [', slab u {weak}'], en: [', weak in {weak}'] },
+  sitLine: { sr: ['{table}Naglasak: {state}{how}.'], en: ['{table}Focus: {state}{how}.'] },
+  sitTable: { sr: ['Tabela: {rank}. od {teams}{rec}{po}. '], en: ['Standings: {rank} of {teams}{rec}{po}. '] },
+  sitRec: { sr: [', skor {r}'], en: [', record {r}'] },
+  sitIn: { sr: [', u zoni plejofa'], en: [', in a playoff spot'] },
+  sitOut: { sr: [', van zone plejofa'], en: [', outside the playoff spots'] },
+  sitGuess: { sr: [' (procena iz tabele)'], en: [' (estimated from the standings)'] },
+  sitMismatch: { sr: ['. Po tabeli bi više odgovaralo: {s}'], en: ['. The standings point more to: {s}'] },
   bestIn1: {
     sr: ['Dobijaš jačeg igrača po zbiru brojki: {name} ({line}).', 'Dolazi igrač sa većim ukupnim doprinosom: {name} ({line}).'],
     en: ['You get the stronger player by total numbers: {name} ({line}).', 'The player with the bigger overall impact is coming to you: {name} ({line}).'],
@@ -2815,6 +2926,23 @@ function reportItems(side, totals, cmp) {
     }
   }
 
+  // ---- igrači u odnosu na vrh lige ----
+  if (me) {
+    const lc = f => leaderCats(f.p).map(x => `#${x.rank} ${x.c.label}`).join(', ');
+    for (const f of recv) { const l = lc(f); if (l) add(pluses, 2.6, rt('leaderIn', { name: esc(f.p.name), list: l }, seed + f.p.id), ['now']); }
+    for (const f of send) { const l = lc(f); if (l) add(risks, 3.9, rt('leaderOut', { name: esc(f.p.name), list: l }, seed + f.p.id), ['now']); }
+  }
+  // ---- kategorije tima: gde sam jak / slab u odnosu na ligu ----
+  const prof = me ? myTeamProfile() : null;
+  if (prof) {
+    const weakKeys = new Set(prof.weak.map(x => x.c.key)), strongKeys = new Set(prof.strong.map(x => x.c.key));
+    const fix = gains.filter(x => weakKeys.has(x.c.key)), hitWeak = losses.filter(x => weakKeys.has(x.c.key)), hitStrong = losses.filter(x => strongKeys.has(x.c.key));
+    const lbl = list => joinList(list.map(x => `${x.c.label} (${x.label})`));
+    if (fix.length) add(pluses, 1.8, rt('needFix', { list: lbl(fix) }, seed), ['now', 'future']);
+    if (hitWeak.length) add(risks, 2.8, rt('lossWeak', { list: lbl(hitWeak) }, seed), ['now']);
+    if (hitStrong.length) add(pluses, 4.6, rt('lossStrong', { list: joinList(hitStrong.map(x => x.c.label)) }, seed), ['now']);
+  }
+
   // ---- pozicije: šta daješ / dobijaš i uklapanje u roster ----
   let posLine = '';
   const posOf = list => [...new Set(list.flatMap(f => { const ps = slotPositions(f.p); return ps.length ? ps : [f.p.pos]; }))];
@@ -2876,7 +3004,7 @@ function reportItems(side, totals, cmp) {
   }
 
   // ---- stanje tima menja naglasak ----
-  const ts = me ? lg?.teamState : null;
+  const ts = me ? teamSituation(lg)?.state : null; // izabrano stanje, ili procena iz tabele
   const shift = it => {
     let pri = it.pri;
     if (ts === 'rebuild') { if (it.tags.includes('future')) pri -= 2.2; if (it.tags.includes('bestOut')) pri += 20; }
@@ -2895,7 +3023,7 @@ function buildReport(totals, cmp) {
   const my = reportItems('my', totals, cmp);
   const res = {
     head: rt('head', { get: esc(names(getIds())), give: esc(names(giveIds())) }),
-    real: my.real, candidate: my.candidate, posLine: my.posLine,
+    real: my.real, candidate: my.candidate, posLine: my.posLine, ctx: reportContext(),
     pluses: my.pluses.slice(0, REPORT.MAX_PLUS), risks: my.risks.slice(0, REPORT.MAX_RISK), opp: null,
   };
   const oppR = currentLeague() ? rosterOf('opp') : null;
@@ -2904,6 +3032,24 @@ function buildReport(totals, cmp) {
     res.opp = { name: oppR.name || rt('oppAnon'), pluses: o.pluses.slice(0, REPORT.OPP_PLUS), risks: o.risks.slice(0, REPORT.OPP_RISK) };
   }
   return res;
+}
+
+/** Redovi konteksta: situacija iz tabele i profil tima u odnosu na ligu */
+function reportContext() {
+  const out = [];
+  const sit = teamSituation();
+  if (sit) {
+    const table = sit.rank && sit.teams ? rt('sitTable', { rank: sit.rank, teams: sit.teams, rec: sit.record ? rt('sitRec', { r: esc(sit.record) }) : '', po: sit.inPO == null ? '' : rt(sit.inPO ? 'sitIn' : 'sitOut') })
+      : sit.record ? `${LANG === 'en' ? 'Record' : 'Skor'} ${esc(sit.record)}. ` : '';
+    const opposite = sit.explicit && sit.inferred && sit.explicit !== sit.inferred && [sit.explicit, sit.inferred].includes('contend') && [sit.explicit, sit.inferred].includes('rebuild');
+    out.push(rt('sitLine', { table, state: stateLabel(sit.state), how: sit.explicit ? (opposite ? rt('sitMismatch', { s: stateLabel(sit.inferred) }) : '') : rt('sitGuess') }));
+  }
+  const prof = myTeamProfile();
+  if (prof && (prof.strong.length || prof.weak.length)) {
+    const s = prof.strong.slice(0, 3).map(x => x.c.label).join(', '), w = prof.weak.slice(0, 3).map(x => x.c.label).join(', ');
+    out.push(s ? rt('teamLine', { strong: s, weakPart: w ? rt('weakPart', { weak: w }) : '' }) : rt('teamLineWeak', { weak: w }));
+  }
+  return out;
 }
 
 function reportListHTML(cls, title, items) {
@@ -2921,6 +3067,7 @@ function renderReport(totals, cmp) {
   const missing = cmp.active.flatMap(i => totals[i].missing);
   el.innerHTML = `<div class="section-t">${t('Izveštaj')}</div>
     <div class="report rp">
+      ${r.ctx.length ? `<div class="rp-ctx">${r.ctx.map(x => `<div>${x}</div>`).join('')}</div>` : ''}
       <div class="rp-head">${r.head}</div>
       ${r.real ? `<div class="rp-real">${r.real}</div>` : ''}
       ${r.posLine ? `<div class="rp-real">${r.posLine}</div>` : ''}
@@ -2981,6 +3128,8 @@ function aiPlayerBlock(p, tag = '') {
   const pr = statOf(p, 'proj');
   if (pr) lines.push(`  ${L('Projekcija za sezonu', 'Season projection')}: ${catLineTxt(pr)}`);
   if (f.missed) lines.push(`  ${L('Propustio utakmica tima zaredom', 'Missed team games in a row')}: ${f.missed}`);
+  const rk = CATS.map(c => ({ c, r: bench().ranks[c.key].get(p.id) })).filter(x => x.r);
+  if (rk.length) lines.push(`  ${L(`Rang u ligi (od ${bench().total} igrača, izabrani period)`, `League rank (of ${bench().total} players, selected period)`)}: ${rk.map(x => `${x.c.label} #${x.r}`).join(', ')}`);
   if (p.own) { const ch = Math.abs(p.own.chg) < 0.05 ? '0.0' : `${p.own.chg > 0 ? '+' : '−'}${Math.abs(p.own.chg).toFixed(1)}`; lines.push(`  ${L('% u ligama', '% rostered')}: ${n1(p.own.pct)}% (${ch} ${L('za 7 dana', 'over 7 days')})`); }
   return lines.join('\n');
 }
@@ -3165,6 +3314,11 @@ function buildAIText(shortRosterNews = false) {
     const base = plan ? plan.activeBefore : act.map(x => x.id);
     const prof = teamValsTxt(base);
     lines.push(`\n${L('Profil mog tima (zbir pre trejda)', 'My team profile (totals before the trade)')}: ${prof}`);
+    const tz = teamZ(base), b = bench();
+    const zl = CATS.filter(c => !isPunt(c)).map(c => ({ c, z: tz[c.key] })).sort((a, c2) => c2.z - a.z);
+    const zf = x => `${x.c.label} ${x.z >= 0 ? '+' : '−'}${Math.abs(x.z).toFixed(1)}`;
+    lines.push(L(`Moj tim u odnosu na ligu (zbir z-score-ova po kategoriji, merilo: ${b.size} najposedovanijih igrača; 0 = prosečan tim, + jače, − slabije): ${zl.map(zf).join(', ')}`,
+      `My team vs the league (sum of z-scores per category, benchmark: the ${b.size} most rostered players; 0 = average team, + stronger, − weaker): ${zl.map(zf).join(', ')}`));
     const tp = teamProfile(base);
     if (tp) lines.push(L(`Najjače kategorije (u odnosu na ${tp.n} uneta tima): ${tp.best.join(', ')}. Najslabije: ${tp.worst.join(', ')}.`, `Strongest categories (vs ${tp.n} entered teams): ${tp.best.join(', ')}. Weakest: ${tp.worst.join(', ')}.`));
     sec(L('MOJ ROSTER', 'MY ROSTER'), lines.join('\n'));
@@ -3183,7 +3337,7 @@ function buildAIText(shortRosterNews = false) {
   // 4.7 Osnovni izveštaj
   if (rep) {
     const li = items => items.map(it => `- ${stripTags(it.text)}`).join('\n');
-    const parts = [stripTags(rep.head)];
+    const parts = [...(rep.ctx || []).map(stripTags), stripTags(rep.head)];
     if (rep.real) parts.push(stripTags(rep.real));
     if (rep.posLine) parts.push(stripTags(rep.posLine));
     if (rep.candidate) parts.push(stripTags(rep.candidate.text));
