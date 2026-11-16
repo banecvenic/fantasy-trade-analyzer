@@ -241,6 +241,8 @@ tr.irhead td{font-size:11px;color:var(--muted);background:var(--bg2);text-align:
 .preview-note{font-size:11px;color:var(--warn)}
 .r-done{display:flex;justify-content:flex-end;padding:10px 12px}
 .linkbtn.done{color:var(--win-text);border-color:rgba(31,157,85,.45)}
+.banner.info{background:rgba(59,130,246,.14);border:1px solid rgba(59,130,246,.4);color:#cfe0ff;justify-content:space-between}
+.banner button.x{background:none;color:inherit;padding:2px 8px;font-size:14px}
 .banner.ok{background:var(--win-bg);border:1px solid rgba(31,157,85,.4);color:#c9f5d9}
 .done-block{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0;display:flex;flex-direction:column;gap:2px}
 .done-tag{color:var(--win-text)}
@@ -691,6 +693,7 @@ const EN = {
   "Dobijaš − Daješ, iz tvoje perspektive": "You get − You give, from your perspective",
   "Razlika u sekciji Moj tim: ceo roster pre i posle trejda (ponderisano)": "Difference from the My team section: whole roster before and after the trade (weighted)",
   "Uticaj na moj tim": "Impact on my team",
+  "Otvoren deljeni trejd, prikazan iz tvog ugla.": "Shared trade opened, shown from your side.",
 };
 function t(sr, vars) {
   let out = (LANG === 'en' && EN[sr]) || sr;
@@ -990,6 +993,11 @@ function loadState() {
     lists = saved.teams.map(t => t.ids || []);
   }
   state.teams = [GIVE, GET].map(i => ({ ...newTeam(), ids: [...new Set(lists?.[i] || [])] }));
+  if (hash.get('s') === '1') {
+    state.sharedOpen = true;
+    // izbor Koga izbacuješ / Waiver iz mog prethodnog trejda ne važi za tuđi trejd; rosteri ostaju netaknuti
+    if (state.balance) state.balance.my = { drops: [], waivers: [] };
+  }
   // isti igrač ne može biti na obe strane
   state.teams[GET].ids = state.teams[GET].ids.filter(id => !state.teams[GIVE].ids.includes(id));
   state.period = PERIODS.some(p => p.key === period) ? period : 'season';
@@ -1187,7 +1195,8 @@ function renderStatus() {
 
 function renderBanner() {
   const el = $('#banner');
-  const notice = state.notice ? `<div class="banner ok"><span>✔ ${esc(t(state.notice))}</span><button type="button" data-action="notice-close">${t('U redu')}</button></div>` : '';
+  const notice = (state.sharedOpen ? `<div class="banner info"><span>🔗 ${t('Otvoren deljeni trejd, prikazan iz tvog ugla.')}</span><button type="button" class="x" data-action="shared-close" aria-label="${t('Zatvori')}">✕</button></div>` : '')
+    + (state.notice ? `<div class="banner ok"><span>✔ ${esc(t(state.notice))}</span><button type="button" data-action="notice-close">${t('U redu')}</button></div>` : '');
   if (!state.error) { el.innerHTML = notice; return; }
   el.innerHTML = state.stale
     ? `<div class="banner warn"><span>⚠ ${esc(state.error)}. ${t('Prikazujem sačuvane podatke od {ago}.', { ago: timeAgo(state.loadedAt) })}</span><button data-action="refresh" type="button">${t('Pokušaj ponovo')}</button></div>`
@@ -1970,10 +1979,22 @@ const clone = o => JSON.parse(JSON.stringify(o));
 const fmtDate = iso => fmtShortDate(iso);
 const tradePlayerIds = (teams, slots) => [...new Set([...teams.flatMap(t => [...t.ids, ...(t.drops || []), ...(t.waivers || [])]), ...(slots?.drops || []), ...(slots?.waivers || [])])];
 
-/** Link sadrži samo trejd (strane, slotove, period). Moj tim, istorija i punt ostaju lokalno. */
+/**
+ * Link za deljenje je iz ugla PRIMAOCA: njegov "Daješ" je moj "Dobijaš" i obrnuto.
+ * Sadrži samo trejd (strane i period, + jezik); rosteri, istorija i punt ostaju lokalno.
+ */
+function shareURL() {
+  const q = new URLSearchParams();
+  q.set('per', state.period);
+  q.set('t', `${getIds().join(',')}|${giveIds().join(',')}`);
+  if (LANG === 'en') q.set('lang', 'en');
+  q.set('s', '1'); // oznaka: otvoreno preko deljenog linka
+  return `${location.origin}${location.pathname}#${q.toString().replace(/%7C/gi, '|').replace(/%2C/gi, ',')}`;
+}
+
 async function shareLink(btn) {
   saveState();
-  const url = location.href;
+  const url = shareURL();
   try {
     if (navigator.share && matchMedia('(hover: none)').matches) await navigator.share({ title: t('Trejd'), url });
     else { await navigator.clipboard.writeText(url); btn.textContent = `✓ ${t('Link kopiran')}`; setTimeout(() => render(), 1500); }
@@ -2255,6 +2276,7 @@ document.addEventListener('click', e => {
     case 'import': importData(); break;
     case 'r-ir': toggleIR(el.dataset.kind, +el.dataset.id); break;
     case 'notice-close': state.notice = null; render(); break;
+    case 'shared-close': state.sharedOpen = false; render(); break;
     case 'share': shareLink(el); break;
     case 'hist-open': openTrade(+el.dataset.id); break;
     case 'hist-del': deleteTrade(+el.dataset.id); break;
@@ -2327,7 +2349,11 @@ document.addEventListener('change', e => {
   state.balance[k].drops = d.filter(Boolean);
   saveBalance(); render();
 });
-window.addEventListener('hashchange', () => { loadState(); render(); });
+window.addEventListener('hashchange', () => {
+  loadState();
+  if (state.sharedOpen) { saveBalance(); saveState(); }
+  render();
+});
 
 /* ---------- Pomeranje igrača u rosteru (≡): miš i dodir ---------- */
 let drag = null;
@@ -2402,6 +2428,7 @@ addEventListener('scroll', hideTip, { passive: true });
 
 /* ===================================================================== */
 loadState();
+if (state.sharedOpen) { saveBalance(); saveState(); } // saveState prepisuje adresu bez oznake s=1
 applyStaticText();
 render();
 loadPlayers();
