@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#121418">
-<title>Trade Analyzer 9-cat</title>
+<title>Trade Analyzer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -77,6 +77,13 @@ body[data-view="quick"] #myteam,body[data-view="quick"] #oppteam,body[data-view=
 .eh-actions{display:flex;gap:10px;flex-wrap:wrap}
 .linkbtn.big{font-size:14px;padding:8px 16px}
 .form{display:flex;flex-direction:column;gap:10px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+fieldset.fmt{border:1px solid var(--line);border-radius:8px;padding:8px 12px 10px;margin:0;display:flex;flex-direction:column;gap:6px}
+fieldset.fmt legend{font-size:12px;color:var(--muted);font-weight:700;padding:0 4px}
+label.radio{flex-direction:row!important;align-items:center;gap:8px!important;font-size:13px!important;color:var(--text)!important;font-weight:500!important}
+label.radio.soon{color:var(--dim)!important}
+.soon-tag{font-size:10px;font-weight:700;text-transform:uppercase;padding:1px 5px;border-radius:3px;background:var(--card2);color:var(--muted)}
+.ls-actions{display:flex;gap:8px;justify-content:space-between;border-top:1px solid var(--line);padding-top:10px}
 .form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:600}
 .form input,.form select,.form textarea{background:var(--bg2);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:8px 10px;font:inherit;font-size:14px}
 @media (max-width:640px){
@@ -427,7 +434,7 @@ footer{color:var(--dim);font-size:11px;text-align:center;margin-top:28px}
   <div id="myteam"></div>
   <div id="oppteam"></div>
   <div id="history"></div>
-  <footer>Podaci: javni ESPN fantasy API (nezvaničan). Prosek po utakmici.</footer>
+  <footer></footer>
 </main>
 
 <script>
@@ -602,7 +609,7 @@ const EN = {
   "pre {n} d": "{n} d ago",
   "Podešavanja i rezervna kopija": "Settings and backup",
   "Podešavanja": "Settings",
-  "Podaci: javni ESPN fantasy API (nezvaničan). Prosek po utakmici.": "Data: public ESPN fantasy API (unofficial). Per-game averages.",
+  "Podaci: javni {src} fantasy API (nezvaničan). Prosek po utakmici.": "Data: public {src} fantasy API (unofficial). Per-game averages.",
   "Sezona": "Season",
   "7 dana": "7 days",
   "15 dana": "15 days",
@@ -612,9 +619,9 @@ const EN = {
   "Dobijaš": "You get",
   "Moj tim": "My team",
   "Protivnik": "Opponent",
-  "ESPN je vratio grešku {n}": "ESPN returned error {n}",
-  "ESPN je vratio praznu listu igrača": "ESPN returned an empty player list",
-  "ESPN ne odgovara (isteklo vreme)": "ESPN is not responding (timed out)",
+  "{src} je vratio grešku {n}": "{src} returned error {n}",
+  "{src} je vratio praznu listu igrača": "{src} returned an empty player list",
+  "{src} ne odgovara (isteklo vreme)": "{src} is not responding (timed out)",
   "Mrežna greška: proveri internet konekciju": "Network error: check your internet connection",
   "{n} ut. ove nedelje ({a}–{b}, pon–ned) · preostalo: {left}": "{n} games this week ({a}–{b}, Mon–Sun) · remaining: {left}",
   "{n} ut.": "{n} G",
@@ -622,8 +629,8 @@ const EN = {
   "prošla sezona: nema podataka": "last season: no data",
   "Ove sezone: {a}/{b} utakmica ({p}%)": "This season: {a}/{b} games ({p}%)",
   " · približno, raspored nedostupan": " · approximate, schedule unavailable",
-  "ESPN sporo odgovara, još učitavam…": "ESPN is slow, still loading…",
-  "Učitavam igrače sa ESPN-a…": "Loading players from ESPN…",
+  "{src} sporo odgovara, još učitavam…": "{src} is slow, still loading…",
+  "Učitavam igrače ({src})…": "Loading players ({src})…",
   "{n} igrača · ažurirano {ago} · sezona {s}": "{n} players · updated {ago} · season {s}",
   "Osveži podatke": "Refresh data",
   "U redu": "OK",
@@ -775,7 +782,7 @@ const EN = {
   "Kopiraj link:": "Copy link:",
   "Obrisati sačuvani trejd od {d}?": "Delete the saved trade from {d}?",
   "raspored nije dostupan (potreban za datume utakmica)": "schedule unavailable (needed for game dates)",
-  "ESPN ne odgovara": "ESPN is not responding",
+  "{src} ne odgovara": "{src} is not responding",
   "obavljen sa {n}": "completed with {n}",
   "obavljen": "completed",
   "ideja": "idea",
@@ -788,7 +795,7 @@ const EN = {
   "Snimak": "Snapshot",
   "Sada": "Now",
   "Trejd od {d}": "Trade from {d}",
-  "„Od trejda” = prosek samo utakmica posle datuma čuvanja, iz ESPN statistike po utakmici.": "“Since trade” = average of only the games after the save date, from ESPN per-game stats.",
+  "„Od trejda” = prosek samo utakmica posle datuma čuvanja, iz statistike po utakmici ({src}).": "“Since trade” = average of only the games after the save date, from per-game stats ({src}).",
   "Istorija trejdova": "Trade history",
   "{n} sačuvano": "{n} saved",
   "prazno": "empty",
@@ -865,6 +872,26 @@ const EN = {
   "Profil, sve lige, rosteri, protivnici i istorija biće trajno obrisani iz ovog browsera. Ovo ne može da se vrati, osim iz rezervne kopije.": "The profile, all leagues, rosters, opponents and history will be permanently deleted from this browser. This can't be undone, except from a backup.",
   "Obriši sve": "Delete all",
   "Sačuvaj svoj tim i vidi kako trejd utiče na njega": "Save your team and see how the trade affects it",
+  "Naziv mog tima": "My team name",
+  "Format": "Format",
+  "uskoro": "coming soon",
+  "Tabela (opciono)": "Standings (optional)",
+  "Mesto": "Place",
+  "Skor": "Record",
+  "npr. 42-30-3": "e.g. 42-30-3",
+  "Timova u plejofu": "Playoff teams",
+  "Nedelja plejofa": "Playoff week",
+  "Stanje mog tima": "My team status",
+  "Borim se za vrh": "Contending",
+  "Sredina": "Middle",
+  "Rebuild": "Rebuilding",
+  "Napomena": "Note",
+  "Uvezi rostere sa {p}, uskoro": "Import rosters from {p}, coming soon",
+  "Dupliraj ligu": "Duplicate league",
+  "Obriši ligu": "Delete league",
+  "{n} (kopija)": "{n} (copy)",
+  "Obrisati ligu „{n}”?": "Delete league “{n}”?",
+  "Roster, protivnici i istorija ove lige biće trajno obrisani iz ovog browsera. Ovo ne može da se vrati, osim iz rezervne kopije.": "This league's roster, opponents and history will be permanently deleted from this browser. This can't be undone, except from a backup.",
 };
 function t(sr, vars) {
   let out = (LANG === 'en' && EN[sr]) || sr;
@@ -890,7 +917,7 @@ function applyStaticText() {
   const gear = document.querySelector('.gear');
   if (gear) { gear.title = t('Podešavanja i rezervna kopija'); gear.setAttribute('aria-label', t('Podešavanja')); }
   const ft = document.querySelector('footer');
-  if (ft) ft.textContent = t('Podaci: javni ESPN fantasy API (nezvaničan). Prosek po utakmici.');
+  if (ft) ft.textContent = t('Podaci: javni {src} fantasy API (nezvaničan). Prosek po utakmici.', { src: DATA_SOURCE.name });
   document.querySelectorAll('[data-langsel]').forEach(sel => { sel.value = LANG; });
 }
 
@@ -990,13 +1017,13 @@ async function fetchPlayers() {
       headers: { 'X-Fantasy-Filter': JSON.stringify(CONFIG.FILTER) },
       signal: ctrl.signal,
     });
-    if (!res.ok) throw new Error(t('ESPN je vratio grešku {n}', { n: res.status }));
+    if (!res.ok) throw new Error(t('{src} je vratio grešku {n}', { src: DATA_SOURCE.name, n: res.status }));
     const data = await res.json();
     const list = Array.isArray(data) ? data : data.players;
-    if (!Array.isArray(list) || list.length === 0) throw new Error(t('ESPN je vratio praznu listu igrača'));
+    if (!Array.isArray(list) || list.length === 0) throw new Error(t('{src} je vratio praznu listu igrača', { src: DATA_SOURCE.name }));
     return list.map(compactPlayer).filter(p => p.id && p.name);
   } catch (e) {
-    if (e.name === 'AbortError') throw new Error(t('ESPN ne odgovara (isteklo vreme)'));
+    if (e.name === 'AbortError') throw new Error(t('{src} ne odgovara (isteklo vreme)', { src: DATA_SOURCE.name }));
     if (e instanceof TypeError) throw new Error(t('Mrežna greška: proveri internet konekciju'));
     throw e;
   } finally {
@@ -1595,6 +1622,90 @@ function renderHome() {
   </div>`;
 }
 
+/* ---------- Podešavanja lige ---------- */
+const TEAM_STATES = [
+  { id: 'contend', sr: 'Borim se za vrh' }, { id: 'middle', sr: 'Sredina' }, { id: 'rebuild', sr: 'Rebuild' },
+];
+
+function openLeagueSettings() {
+  const lg = currentLeague(); if (!lg) return;
+  const st = lg.standings || {};
+  const num = v => (v == null || v === '' ? '' : v);
+  showModal({
+    title: t('Podešavanja lige'),
+    wide: true,
+    body: `<div class="form">
+      <label>${t('Naziv lige')}<input type="text" id="ls-name" maxlength="40" value="${esc(lg.name)}"></label>
+      <label>${t('Naziv mog tima')}<input type="text" id="ls-team" maxlength="40" value="${esc(lg.teamName || '')}"></label>
+      <div class="form-row">
+        <label>${t('Platforma')}<select id="ls-platform">${PLATFORMS.map(p => `<option value="${p.id}" ${p.id === lg.platform ? 'selected' : ''}>${esc(platformLabel(p.id))}</option>`).join('')}</select></label>
+        <label>${t('Broj timova')}<input type="number" id="ls-teams" min="2" max="30" value="${num(lg.teams)}"></label>
+      </div>
+      <fieldset class="fmt"><legend>${t('Format')}</legend>
+        ${FORMATS.map(f => `<label class="radio ${f.active ? '' : 'soon'}"><input type="radio" name="ls-format" value="${f.id}" ${f.id === lg.format ? 'checked' : ''} ${f.active ? '' : 'disabled'}>
+          ${esc(formatLabel(f.id))}${f.active ? '' : ` <span class="soon-tag">${t('uskoro')}</span>`}</label>`).join('')}
+      </fieldset>
+      <fieldset class="fmt"><legend>${t('Tabela (opciono)')}${st.updated ? ` <span class="hint">${t('Ažurirano: {d}', { d: fmtShortDate(st.updated) })}</span>` : ''}</legend>
+        <div class="form-row">
+          <label>${t('Mesto')}<input type="number" id="ls-rank" min="1" max="30" value="${num(st.rank)}"></label>
+          <label>${t('Skor')}<input type="text" id="ls-record" maxlength="20" placeholder="${t('npr. 42-30-3')}" value="${esc(st.record || '')}"></label>
+        </div>
+        <div class="form-row">
+          <label>${t('Timova u plejofu')}<input type="number" id="ls-pteams" min="1" max="30" value="${num(st.playoffTeams)}"></label>
+          <label>${t('Nedelja plejofa')}<input type="number" id="ls-pweek" min="1" max="30" value="${num(st.playoffWeek)}"></label>
+        </div>
+      </fieldset>
+      <label>${t('Stanje mog tima')}<select id="ls-state"><option value="">–</option>${TEAM_STATES.map(s => `<option value="${s.id}" ${s.id === lg.teamState ? 'selected' : ''}>${t(s.sr)}</option>`).join('')}</select></label>
+      <label>${t('Napomena')}<textarea id="ls-note" rows="3" maxlength="500">${esc(lg.note || '')}</textarea></label>
+      <button type="button" class="btn ghost" disabled>${t('Uvezi rostere sa {p}, uskoro', { p: esc(platformLabel(lg.platform)) })}</button>
+      <div class="ls-actions"><button type="button" class="linkbtn" data-action="league-dup">${t('Dupliraj ligu')}</button>
+        <button type="button" class="linkbtn danger" data-action="league-del">${t('Obriši ligu')}</button></div>
+    </div>`,
+    confirm: t('Sačuvaj'),
+    onConfirm: () => {
+      const v = id => document.getElementById(id).value;
+      const name = v('ls-name').trim();
+      if (!name) { document.getElementById('ls-name').focus(); return false; }
+      const toNum = x => (x === '' ? null : Math.max(0, Math.round(+x)) || null);
+      const newSt = { rank: toNum(v('ls-rank')), record: v('ls-record').trim(), playoffTeams: toNum(v('ls-pteams')), playoffWeek: toNum(v('ls-pweek')) };
+      const changed = ['rank', 'record', 'playoffTeams', 'playoffWeek'].some(k => (newSt[k] ?? '') !== (st[k] ?? ''));
+      Object.assign(lg, {
+        name, teamName: v('ls-team').trim(), platform: v('ls-platform'),
+        teams: Math.max(2, Math.min(30, +v('ls-teams') || lg.teams || 12)),
+        format: document.querySelector('input[name="ls-format"]:checked')?.value || lg.format,
+        teamState: v('ls-state') || null, note: v('ls-note').trim(),
+        standings: { ...newSt, updated: changed ? nowISO() : st.updated || null },
+      });
+      touchLeague(lg); saveProfile(); render();
+    },
+  });
+}
+
+function duplicateLeague() {
+  const lg = currentLeague(); if (!lg) return;
+  const copy = { ...clone(lg), id: uid(), name: t('{n} (kopija)', { n: lg.name }), created: nowISO(), updated: nowISO(), externalLeagueId: null, accountId: null };
+  profile.leagues.push(copy); saveProfile();
+  closeModal();
+  navigate('league', copy.id);
+}
+
+function deleteLeague() {
+  const lg = currentLeague(); if (!lg) return;
+  showModal({
+    title: t('Obrisati ligu „{n}”?', { n: esc(lg.name) }),
+    body: `<p>${t('Roster, protivnici i istorija ove lige biće trajno obrisani iz ovog browsera. Ovo ne može da se vrati, osim iz rezervne kopije.')}</p>`,
+    confirm: t('Obriši'), danger: true,
+    onConfirm: () => {
+      profile.leagues = profile.leagues.filter(l => l.id !== lg.id);
+      if (profile.lastLeagueId === lg.id) profile.lastLeagueId = profile.leagues[0]?.id || null;
+      saveProfile();
+      state.teams = [newTeam(), newTeam()];
+      bindScope('quick');
+      location.hash = 'home';
+    },
+  });
+}
+
 /* ---------- Dodaj ligu (kratak korak; profil se pravi u pozadini) ---------- */
 function openAddLeague() {
   const needName = !profile?.name?.trim();
@@ -1643,7 +1754,7 @@ function renderPeriods() {
 function renderStatus() {
   const el = $('#status');
   if (state.loading) {
-    el.innerHTML = `<div class="spinner"></div><span>${state.slow ? t('ESPN sporo odgovara, još učitavam…') : t('Učitavam igrače sa ESPN-a…')}</span>`;
+    el.innerHTML = `<div class="spinner"></div><span>${state.slow ? t('{src} sporo odgovara, još učitavam…', { src: DATA_SOURCE.name }) : t('Učitavam igrače ({src})…', { src: DATA_SOURCE.name })}</span>`;
     return;
   }
   const info = state.loadedAt
@@ -2598,7 +2709,7 @@ async function loadGameLogs(ids) {
     const timer = setTimeout(() => ctrl.abort(), CONFIG.FETCH_TIMEOUT_MS);
     const res = await fetch(CONFIG.API_URL, { headers: { 'X-Fantasy-Filter': JSON.stringify(CONFIG.GAMELOG_FILTER(need)) }, signal: ctrl.signal });
     clearTimeout(timer);
-    if (!res.ok) throw new Error(t('ESPN je vratio grešku {n}', { n: res.status }));
+    if (!res.ok) throw new Error(t('{src} je vratio grešku {n}', { src: DATA_SOURCE.name, n: res.status }));
     const data = await res.json();
     for (const raw of data.players || []) {
       const p = raw.player, games = [];
@@ -2615,7 +2726,7 @@ async function loadGameLogs(ids) {
     for (const id of need) if (!state.gameLogs.has(id)) state.gameLogs.set(id, []);
     state.gameLogStatus = { loading: false, error: null };
   } catch (e) {
-    state.gameLogStatus = { loading: false, error: e.name === 'AbortError' ? t('ESPN ne odgovara') : e.message };
+    state.gameLogStatus = { loading: false, error: e.name === 'AbortError' ? t('{src} ne odgovara', { src: DATA_SOURCE.name }) : e.message };
   }
   render();
 }
@@ -2677,7 +2788,7 @@ function renderHistory() {
     }).join('');
     detail = `<div class="hist-detail">
       <div class="hist-dh">${t('Trejd od {d}', { d: fmtDate(h.date) })} <button type="button" class="linkbtn" data-action="hist-close">${t('Zatvori')}</button></div>
-      <p class="hint" style="padding:0 12px">${t('„Od trejda” = prosek samo utakmica posle datuma čuvanja, iz ESPN statistike po utakmici.')}</p>
+      <p class="hint" style="padding:0 12px">${t('„Od trejda” = prosek samo utakmica posle datuma čuvanja, iz statistike po utakmici ({src}).', { src: DATA_SOURCE.name })}</p>
       ${blocks}</div>`;
   }
 
@@ -2826,6 +2937,9 @@ document.addEventListener('click', e => {
     case 'profile': openProfile(); break;
     case 'wipe-all': wipeAll(); break;
     case 'add-league': openAddLeague(); break;
+    case 'league-settings': openLeagueSettings(); break;
+    case 'league-dup': duplicateLeague(); break;
+    case 'league-del': deleteLeague(); break;
     case 'export': exportData(el); break;
     case 'import': importData(); break;
     case 'r-ir': toggleIR(el.dataset.kind, +el.dataset.id); break;
