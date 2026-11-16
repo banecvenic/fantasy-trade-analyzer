@@ -282,6 +282,21 @@ tr.irhead td{font-size:11px;color:var(--muted);background:var(--bg2);text-align:
 .modal-back{position:absolute;inset:0;background:rgba(0,0,0,.6)}
 .modal-box{position:relative;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.6);max-height:calc(100vh - 32px);overflow:auto}
 .modal-box.wide{max-width:640px}
+#modal.panel{place-items:stretch end;padding:0}
+#modal.panel .modal-box{max-width:440px;height:100%;max-height:none;border-radius:0;border-width:0 0 0 1px}
+.pp-id{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.pav.big{width:52px;height:52px;font-size:18px;flex:none}
+.pp-name{flex:1;display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:600}
+.pp-name input{background:var(--bg2);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:8px 10px;font:inherit;font-size:15px}
+.pp-local{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.pp-local p{margin:0}
+.local-badge{font-size:12px;font-weight:700;color:var(--text)}
+.btn.ghost{background:var(--card2);color:var(--dim);border:1px solid var(--line);cursor:not-allowed}
+.pp-leagues{display:flex;flex-direction:column;gap:6px;width:100%}
+.pp-league{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;color:var(--text);cursor:pointer;font:inherit;font-size:13px;font-weight:600;width:100%;text-align:left}
+.pp-league:hover{border-color:var(--accent)}
+.danger-zone b{color:var(--lose-text)}
+@media (max-width:640px){ #modal.panel .modal-box{max-width:none;width:100%;border-width:0} }
 .modal-box h3{margin:0 0 10px;font-size:16px}
 .modal-body{font-size:13px;color:var(--muted);line-height:1.5}
 .modal-body p{margin:0 0 8px}
@@ -835,6 +850,18 @@ const EN = {
   "Broj timova": "Number of teams",
   "Tvoje ime (opciono)": "Your name (optional)",
   "Napravi ligu": "Create league",
+  "Ime": "Name",
+  "Tvoje ime": "Your name",
+  "Sačuvano na ovom uređaju": "Saved on this device",
+  "Podaci postoje samo u ovom browseru; na drugim uređajima ih nema dok ih ne preneseš izvozom i uvozom.": "Your data exists only in this browser; other devices don't have it until you move it with export and import.",
+  "Prijava i sinhronizacija, uskoro": "Sign in and sync, coming soon",
+  "Lige": "Leagues",
+  "Još nema liga.": "No leagues yet.",
+  "Obriši sve podatke": "Delete all data",
+  "Briše profil, sve lige, rostere i istoriju iz ovog browsera.": "Deletes the profile, all leagues, rosters and history from this browser.",
+  "Obrisati sve podatke?": "Delete all data?",
+  "Profil, sve lige, rosteri, protivnici i istorija biće trajno obrisani iz ovog browsera. Ovo ne može da se vrati, osim iz rezervne kopije.": "The profile, all leagues, rosters, opponents and history will be permanently deleted from this browser. This can't be undone, except from a backup.",
+  "Obriši sve": "Delete all",
 };
 function t(sr, vars) {
   let out = (LANG === 'en' && EN[sr]) || sr;
@@ -1217,6 +1244,7 @@ function applyRoute() {
   if (r.view === 'league' && state.scope !== r.id) bindScope(r.id);
   if (r.view === 'quick' && state.scope !== 'quick') bindScope('quick');
   if (r.view === 'home') {
+    if (!state.teams.length) state.teams = [newTeam(), newTeam()]; // početni ekran direktno: prazan trejd
     history.replaceState(null, '', '#home');
   } else {
     loadState();
@@ -2263,18 +2291,43 @@ function backupSummary(data) {
   return t('moj roster: {n} igrača · protivnici: {o}{names} · istorija: {h}', { n: r?.my?.players?.length ?? 0, o: opps.length, names: opps.length ? ` (${opps.map(o => esc(o.name)).join(', ')})` : '', h: trejdova((data[CONFIG.HISTORY_KEY] || []).length) });
 }
 
-function openSettings() {
+/* ---------- Panel profila ---------- */
+function openProfile() {
+  const nm = profile?.name?.trim() || '';
+  const leagues = profile?.leagues || [];
   showModal({
-    title: t('Podešavanja i rezervna kopija'),
+    title: t('Profil'),
     wide: true, cancel: t('Zatvori'),
-    body: `<div class="set-block first"><b>${t('Jezik')}</b><label class="langsel inmodal" title="Jezik / Language"><svg class="globe" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.8 3.8 5.8 3.8 9s-1.3 6.2-3.8 9c-2.5-2.8-3.8-5.8-3.8-9S9.5 5.8 12 3z"/></svg><select data-langsel aria-label="Jezik / Language"><option value="sr">Srpski</option><option value="en">English</option></select></label></div>
-      <p>${t('Svi tvoji podaci (moj roster, protivnici, IR oznake, istorija, punt i podešavanja) čuvaju se samo u ovom browseru. Napravi rezervnu kopiju pre brisanja podataka ili prelaska na drugi uređaj.')}</p>
+    body: `<div class="pp-id"><span class="pav big" id="pp-av">${nm ? esc(initialsOf(nm)) : '?'}</span>
+        <label class="pp-name">${t('Ime')}<input type="text" data-pname maxlength="30" value="${esc(nm)}" placeholder="${t('Tvoje ime')}"></label></div>
+      <div class="pp-local"><span class="local-badge">🔒 ${t('Sačuvano na ovom uređaju')}</span>
+        <p>${t('Podaci postoje samo u ovom browseru; na drugim uređajima ih nema dok ih ne preneseš izvozom i uvozom.')}</p>
+        <button type="button" class="btn ghost" disabled>${t('Prijava i sinhronizacija, uskoro')}</button></div>
+      <div class="set-block"><b>${t('Lige')}</b>
+        ${leagues.length ? `<div class="pp-leagues">${leagues.map(l => `<button type="button" class="pp-league" data-open-league="${l.id}"><span>${esc(l.name)}</span><span class="pbadge">${esc(platformLabel(l.platform))}</span></button>`).join('')}</div>` : `<p>${t('Još nema liga.')}</p>`}
+        <button type="button" class="linkbtn" data-action="add-league">＋ ${t('Dodaj ligu')}</button></div>
       <div class="set-block"><b>${t('Izvezi podatke')}</b><p>${t('Trenutno: {s}', { s: backupSummary(Object.fromEntries(backupKeys().map(k => [k, lsGet(k)]))) })}</p>
         <button type="button" class="btn" data-action="export">${t('Kopiraj podatke u clipboard')}</button> <span class="hint" id="export-msg"></span></div>
       <div class="set-block"><b>${t('Uvezi podatke')}</b><p>${t('Nalepi tekst rezervne kopije. Postojeći podaci biće zamenjeni tek posle potvrde.')}</p>
         <textarea id="import-text" spellcheck="false" placeholder='{"app":"fbaTrade", ...}'></textarea>
         <div id="import-msg" class="hint"></div>
-        <button type="button" class="btn" data-action="import">${t('Proveri i uvezi')}</button></div>`,
+        <button type="button" class="btn" data-action="import">${t('Proveri i uvezi')}</button></div>
+      <div class="set-block danger-zone"><b>${t('Obriši sve podatke')}</b><p>${t('Briše profil, sve lige, rostere i istoriju iz ovog browsera.')}</p>
+        <button type="button" class="linkbtn danger" data-action="wipe-all">${t('Obriši sve podatke')}</button></div>`,
+  });
+  document.getElementById('modal')?.classList.add('panel');
+}
+
+function wipeAll() {
+  showModal({
+    title: t('Obrisati sve podatke?'),
+    body: `<p>${t('Profil, sve lige, rosteri, protivnici i istorija biće trajno obrisani iz ovog browsera. Ovo ne može da se vrati, osim iz rezervne kopije.')}</p>`,
+    confirm: t('Obriši sve'), danger: true,
+    onConfirm: () => {
+      Object.keys(localStorage).filter(k => k.startsWith(CONFIG.APP_PREFIX) && k !== CONFIG.CACHE_KEY && k !== CONFIG.SCHEDULE_CACHE_KEY).forEach(k => localStorage.removeItem(k));
+      location.href = `${location.pathname}#quick`;
+      location.reload();
+    },
   });
 }
 
@@ -2757,8 +2810,8 @@ document.addEventListener('click', e => {
     case 'add-to-roster': if (!el.classList.contains('is-disabled')) { addToRoster(el.dataset.kind, +el.dataset.id); render(); } break;
     case 'add-to-my': if (!el.classList.contains('is-disabled')) { addToRoster('my', +el.dataset.id); render(); } break;
     case 'add-all': if (!el.classList.contains('is-disabled')) { addAllToRoster(el.dataset.kind); render(); } break;
-    case 'settings': openSettings(); break;
-    case 'profile': openSettings(); break; // panel profila (sledeći korak)
+    case 'profile': openProfile(); break;
+    case 'wipe-all': wipeAll(); break;
     case 'add-league': openAddLeague(); break;
     case 'export': exportData(el); break;
     case 'import': importData(); break;
@@ -2802,6 +2855,15 @@ document.addEventListener('input', e => {
   if (e.target.dataset.search != null) { const key = e.target.dataset.search; const ui = searchUI.get(key) || {}; ui.sel = 0; searchUI.set(key, ui); updateDropdown(key); }
 });
 
+document.addEventListener('input', e => {
+  if (!e.target.matches?.('[data-pname]')) return;
+  if (!profile) profile = newProfile('');
+  profile.name = e.target.value.trim();
+  saveProfile();
+  const av = document.getElementById('pp-av'); if (av) av.textContent = profile.name ? initialsOf(profile.name) : '?';
+  renderHeader();
+  if (state.view === 'home') renderHome();
+});
 document.addEventListener('keydown', e => {
   const inp = e.target;
   if (inp.matches?.('[data-opp-name]')) { inp.setCustomValidity(''); if (e.key === 'Enter') { e.preventDefault(); oppSave(); } return; }
@@ -2839,7 +2901,7 @@ document.addEventListener('change', e => {
   if (e.target.matches('[data-langsel]')) {
     const inModal = !!e.target.closest('#modal');
     setLang(e.target.value);
-    if (inModal) openSettings(); // osveži i modal podešavanja
+    if (inModal) openProfile();
     return;
   }
   if (e.target.matches('[data-opp-select]')) {
