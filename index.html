@@ -71,6 +71,7 @@ body[data-view="quick"] #myteam,body[data-view="quick"] #oppteam,body[data-view=
 .lcard.add{align-items:center;justify-content:center;border-style:dashed;color:var(--muted);font-weight:700}
 .lcard.add .plus{font-size:26px;color:var(--accent)}
 .lcard.quick{justify-content:center;background:linear-gradient(180deg,var(--card2),var(--card))}
+.nudge{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px;padding:10px 14px;border:1px dashed var(--line);border-radius:var(--radius);color:var(--muted);font-size:13px}
 .empty-home{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px;max-width:620px}
 .empty-home p{color:var(--muted);margin:0 0 16px;line-height:1.5}
 .eh-actions{display:flex;gap:10px;flex-wrap:wrap}
@@ -421,6 +422,7 @@ footer{color:var(--dim);font-size:11px;text-align:center;margin-top:28px}
   <div class="score" id="score"></div>
   <div class="teams" id="teams"></div>
   <div id="compare"></div>
+  <div id="nudge"></div>
   <div id="report"></div>
   <div id="myteam"></div>
   <div id="oppteam"></div>
@@ -862,6 +864,7 @@ const EN = {
   "Obrisati sve podatke?": "Delete all data?",
   "Profil, sve lige, rosteri, protivnici i istorija biće trajno obrisani iz ovog browsera. Ovo ne može da se vrati, osim iz rezervne kopije.": "The profile, all leagues, rosters, opponents and history will be permanently deleted from this browser. This can't be undone, except from a backup.",
   "Obriši sve": "Delete all",
+  "Sačuvaj svoj tim i vidi kako trejd utiče na njega": "Save your team and see how the trade affects it",
 };
 function t(sr, vars) {
   let out = (LANG === 'en' && EN[sr]) || sr;
@@ -1242,7 +1245,8 @@ function applyRoute() {
   state.view = r.view;
   document.body.dataset.view = r.view;
   if (r.view === 'league' && state.scope !== r.id) bindScope(r.id);
-  if (r.view === 'quick' && state.scope !== 'quick') bindScope('quick');
+  if (r.view === 'quick' && (state.scope !== 'quick' || !state.rosters)) bindScope('quick');
+  if (!state.rosters) bindScope('quick'); // početni ekran pri prvom učitavanju: prazan radni prostor
   if (r.view === 'home') {
     if (!state.teams.length) state.teams = [newTeam(), newTeam()]; // početni ekran direktno: prazan trejd
     history.replaceState(null, '', '#home');
@@ -1504,6 +1508,7 @@ function render() {
   renderScore(totals, cmp);
   renderTeams(totals, cmp);
   renderCompare(totals, cmp);
+  renderNudge();
   renderReport(totals, cmp);
   renderRosterSection('my');
   renderRosterSection('opp');
@@ -1543,6 +1548,14 @@ function renderWsHead() {
   } else {
     el.innerHTML = `<div class="wsh"><div class="wsh-t"><h1>${t('Brzo poređenje')}</h1><span class="wsh-note">${t('Za {f} lige', { f: formatLabel('h2h-cat', true) })}</span></div></div>`;
   }
+}
+
+/** Brzo poređenje: kad se doda prvi igrač, jedan nenametljiv red sa pozivom da se sačuva liga */
+function renderNudge() {
+  const el = $('#nudge');
+  const show = state.view === 'quick' && (giveIds().length || getIds().length);
+  el.innerHTML = show ? `<div class="nudge"><span>${t('Sačuvaj svoj tim i vidi kako trejd utiče na njega')}</span>
+    <button type="button" class="linkbtn" data-action="add-league">＋ ${t('Dodaj ligu')}</button></div>` : '';
 }
 
 /* ---------- Početni ekran ---------- */
