@@ -1146,7 +1146,7 @@ function teamTotals(team, ti) {
 const cmpKey = (cat, v) => (v == null ? null : Math.round(v * (cat.type === 'pct' ? 1000 : 10)));
 /** Razlike se računaju iz nezaokruženih vrednosti; EPS samo uklanja šum zaokruživanja u float-u. */
 const EPS = 1e-9;
-/** FG%/FT%: promena mog tima ispod ovoga (0.1 pp) = "bez promene" i nerešeno u rezultatu */
+/** FG%/FT%: promena mog tima ispod ovoga (.001) = "bez promene" i nerešeno u rezultatu */
 const TEAM_PCT_TIE = 0.001;
 
 /** Vrednost kategorije mog tima pre i posle trejda, ili null kad roster nije unet / trejd nije moj */
@@ -1270,11 +1270,13 @@ function renderTradeWarn() {
 /** Srpski oblik reči "kategorija" uz broj */
 const kat = n => plural(n, ['kategoriju', 'kategorije', 'kategorija'], ['category', 'categories']);
 
-/** Razlika za prikaz: računa se nezaokruženo, zaokružuje tek ovde. zero = prikazana vrednost je 0.0 */
+/** Apsolutna vrednost razlike u formatu procenta: .035 (tri decimale, bez vodeće nule) */
+const fmtPctAbs = v => Math.abs(v).toFixed(3).replace(/^0/, '');
+/** Razlika za prikaz: računa se nezaokruženo, zaokružuje tek ovde. FG%/FT%: "+.035"; ostalo: "+1.6". zero = prikaz je nula */
 function fmtDelta(c, v) {
-  const shown = c.type === 'pct' ? Math.abs(v * 100).toFixed(1) : Math.abs(v).toFixed(1);
+  const shown = c.type === 'pct' ? fmtPctAbs(v) : Math.abs(v).toFixed(1);
   const zero = Number(shown) === 0;
-  return { zero, txt: zero ? '0.0' : `${v > 0 ? '+' : '−'}${shown}${c.type === 'pct' ? ' pp' : ''}` };
+  return { zero, txt: zero ? shown : `${v > 0 ? '+' : '−'}${shown}` };
 }
 
 /** Promena kategorije iz moje perspektive (Dobijaš − Daješ) */
@@ -1351,7 +1353,7 @@ function catTipHTML(p, c, sv, rv) {
   const labels = Object.fromEntries(PERIODS.map(x => [x.key, x.label]));
   const fmt = c.type === 'pct' ? fmtPct : fmt1;
   const diffTxt = d => (c.type === 'pct'
-    ? `${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d * 100).toFixed(1)} pp`
+    ? `${d > 0 ? '+' : d < 0 ? '−' : '±'}${fmtPctAbs(d)}`
     : `${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d).toFixed(1)}`);
   const goodDir = d => (c.lowerIsBetter ? d < 0 : d > 0);
   const rows = MINUTES.TREND_KEYS.map(k => {
@@ -1363,7 +1365,7 @@ function catTipHTML(p, c, sv, rv) {
       <td class="${cls}">${d == null ? '' : diffTxt(d)}</td><td>${st?.GP > 0 ? Math.round(st.GP) : 0}</td></tr>`;
   }).join('');
   const d = rv - sv, good = goodDir(d);
-  const rule = c.type === 'pct' ? `±${TREND.PCT_ABS * 100} pp` : `±${TREND.COUNT_REL * 100}%`;
+  const rule = c.type === 'pct' ? `±${fmtPctAbs(TREND.PCT_ABS)}` : `±${TREND.COUNT_REL * 100}%`;
   return `<div class="tt-title">${t('{c} po periodu', { c: c.label })}</div>
     <table class="tt"><thead><tr><th></th><th>${c.label}</th><th>${t('vs sez.')}</th><th>${t('ut.')}</th></tr></thead><tbody>${rows}</tbody></table>
     <div class="tt-foot ${good ? 'up' : 'down'}">${d > 0 ? '↑' : '↓'} ${good ? t('Bolje u poslednjih 15 dana: {d} (prag {r})', { d: diffTxt(d), r: rule }) : t('Lošije u poslednjih 15 dana: {d} (prag {r})', { d: diffTxt(d), r: rule })}</div>`;
@@ -1584,7 +1586,7 @@ function renderCompare(totals, cmp) {
     const tv = c.type === 'pct' ? myTeamValues(c) : null;
     const sub = tv == null ? '' : Math.abs(tv.after - tv.before) < TEAM_PCT_TIE
       ? t('tim: bez promene')
-      : t('tim: {a} → {b}', { a: fmtPct(tv.before), b: fmtPct(tv.after) });
+      : t('tim: {d}', { d: fmtDelta(c, tv.after - tv.before).txt });
     let diff = r.punted ? `<td class="dcell punt">punt</td>` : deltaCellHTML(c, totals[GIVE], totals[GET], '', sub);
     if (!r.punted && lowVolume(c, totals)) diff = diff.replace(/(<span class="sub dsub">|<\/td>$)/, ` <span class="lowvol" data-tip="${esc(t('Procenat na malom broju šuteva skoro ne utiče na tim.'))}">${t('mali obim')}</span>$1`);
     return `<tr class="${r.punted ? 'punt-row' : ''}"><td class="catth${puntCls(c)}" data-punt="${c.key}" title="${t('Klik: punt')}"><b>${c.label}</b></td>${tds}${diff}</tr>`;
@@ -1595,7 +1597,7 @@ function renderCompare(totals, cmp) {
 }
 
 function catMarginText(c, margin) {
-  if (c.type === 'pct') return `+${(margin * 100).toFixed(1)} pp`;
+  if (c.type === 'pct') return `+${fmtPctAbs(margin)}`;
   return `${c.lowerIsBetter ? '−' : '+'}${margin.toFixed(1)}`;
 }
 
