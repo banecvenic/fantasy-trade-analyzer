@@ -241,6 +241,13 @@ tr.irhead td{font-size:11px;color:var(--muted);background:var(--bg2);text-align:
 .preview-note{font-size:11px;color:var(--warn)}
 .r-done{display:flex;justify-content:flex-end;padding:10px 12px}
 .linkbtn.done{color:var(--win-text);border-color:rgba(31,157,85,.45)}
+.card-warn.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-radius:0}
+.card-warn.soft{background:transparent;color:var(--muted);border-top:0}
+.linkbtn.addmy{color:var(--text);border-color:rgba(225,37,27,.5);background:rgba(225,37,27,.12)}
+.linkbtn.addmy:disabled{opacity:.5;cursor:not-allowed}
+.dd li .dd-main{flex:1;min-width:0}
+.dd-addmy{background:var(--bg2);border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:11px;font-weight:600;padding:3px 8px;cursor:pointer;flex:none}
+.dd-addmy:hover{color:var(--text);border-color:var(--accent)}
 .banner.info{background:rgba(59,130,246,.14);border:1px solid rgba(59,130,246,.4);color:#cfe0ff;justify-content:space-between}
 .banner button.x{background:none;color:inherit;padding:2px 8px;font-size:14px}
 .banner.ok{background:var(--win-bg);border:1px solid rgba(31,157,85,.4);color:#c9f5d9}
@@ -694,6 +701,9 @@ const EN = {
   "Razlika u sekciji Moj tim: ceo roster pre i posle trejda (ponderisano)": "Difference from the My team section: whole roster before and after the trade (weighted)",
   "Uticaj na moj tim": "Impact on my team",
   "Otvoren deljeni trejd, prikazan iz tvog ugla.": "Shared trade opened, shown from your side.",
+  "Dodaj u moj tim": "Add to my team",
+  "{n} nije na tvom rosteru.": "{n} is not on your roster.",
+  "Dok u Daješ nema igrača sa tvog rostera, sekcija Moj tim ne menja ništa (nije tvoj trejd).": "Until You give has a player from your roster, the My team section doesn't change anything (it's not your trade).",
 };
 function t(sr, vars) {
   let out = (LANG === 'en' && EN[sr]) || sr;
@@ -1458,14 +1468,32 @@ function waiverInputHTML(b) {
 /** Podnaslov strane (ime protivnika kad je izabran) */
 const sideSubtitle = ti => (ti === GET && rosterOf('opp') ? t('Protivnik: {n}', { n: rosterOf('opp').name }) : SIDES[ti].sub);
 /** Upozorenja ispod strane trejda: igrač nije na rosteru koji ga daje */
+function addMyButton(id) {
+  const r = state.rosters.my;
+  const full = activeCount(r) >= ROSTER.ACTIVE && irCount(r) >= ROSTER.IR;
+  return `<button type="button" class="linkbtn addmy" data-action="add-to-my" data-id="${id}" ${full ? `disabled title="${esc(t('Roster je pun ({a} + {b} IR). Ukloni igrača da dodaš novog.', { a: ROSTER.ACTIVE, b: ROSTER.IR }))}"` : ''}>＋ ${t('Dodaj u moj tim')}</button>`;
+}
+
 function tradeWarnings(ti) {
-  const r = ti === GIVE ? state.rosters.my : rosterOf('opp');
-  if (!r || !r.players.length) return '';
+  if (ti === GIVE) {
+    // Daješ: igrač koji nije na mom rosteru ne utiče na Moj tim; ponudi da ga dodam
+    const mine = new Set(rosterIds(state.rosters.my));
+    const notMine = giveIds().filter(id => !mine.has(id));
+    if (!notMine.length) return '';
+    const anyMine = giveIds().some(id => mine.has(id));
+    return notMine.map(id => `<div class="card-warn row">⚠ ${t('{n} nije na tvom rosteru.', { n: esc(state.byId.get(id)?.name || id) })} ${addMyButton(id)}</div>`).join('')
+      + (anyMine ? '' : `<div class="card-warn soft">${t('Dok u Daješ nema igrača sa tvog rostera, sekcija Moj tim ne menja ništa (nije tvoj trejd).')}</div>`);
+  }
+  const r = rosterOf('opp');
+  if (!r || !r.players.length) {
+    const alreadyMine = getIds().filter(id => rosterIds(state.rosters.my).includes(id));
+    return alreadyMine.length ? `<div class="card-warn">⚠ ${t('Već je na tvom rosteru: {list}', { list: alreadyMine.map(id => esc(state.byId.get(id)?.name || id)).join(', ') })}</div>` : '';
+  }
   const notOn = state.teams[ti].ids.filter(id => !rosterIds(r).includes(id));
   const alreadyMine = ti === GET ? state.teams[GET].ids.filter(id => rosterIds(state.rosters.my).includes(id)) : [];
   const nm = id => esc(state.byId.get(id)?.name || id);
   return [
-    notOn.length ? `<div class="card-warn">⚠ ${ti === GIVE ? t('Nije na rosteru tvog tima: {list}', { list: notOn.map(nm).join(', ') }) : t('Nije na rosteru {team}: {list}', { team: esc(r.name), list: notOn.map(nm).join(', ') })}</div>` : '',
+    notOn.length ? `<div class="card-warn">⚠ ${t('Nije na rosteru {team}: {list}', { team: esc(r.name), list: notOn.map(nm).join(', ') })}</div>` : '',
     alreadyMine.length ? `<div class="card-warn">⚠ ${t('Već je na tvom rosteru: {list}', { list: alreadyMine.map(nm).join(', ') })}</div>` : '',
   ].join('');
 }
@@ -1577,7 +1605,8 @@ function rosterPlan(kind) {
   const activeBefore = r.players.filter(x => !x.ir).map(x => x.id);
   const irIds = r.players.filter(x => x.ir).map(x => x.id);
   const outIds = rosterIds(r).filter(id => outSet.has(id));
-  const incoming = state.teams[KINDS[kind].in].ids.filter(id => !onRoster.has(id));
+  // Trejd je "moj" tek kad dajem bar jednog igrača sa ovog rostera; inače niko ne dolazi i ništa se ne oduzima.
+  const incoming = outIds.length ? state.teams[KINDS[kind].in].ids.filter(id => !onRoster.has(id)) : [];
   const pre = [...activeBefore.filter(id => !outSet.has(id)), ...incoming];
   const needDrops = Math.max(0, pre.length - ROSTER.ACTIVE);
   const bal = state.balance[kind];
@@ -1587,7 +1616,7 @@ function rosterPlan(kind) {
   const waivers = [...new Set(bal.waivers)].filter(id => !taken.has(id)).slice(0, waiverSlots);
   const activeAfter = [...pre.filter(id => !drops.includes(id)), ...waivers];
   const notOnRoster = [...outSet].filter(id => !onRoster.has(id));
-  const tradeTouches = outIds.length + incoming.length > 0;
+  const tradeTouches = outIds.length > 0;
   return { r, activeBefore, irIds, outIds, incoming, drops, needDrops, waivers, waiverSlots, pre, activeAfter, notOnRoster, tradeTouches, missingDrops: needDrops - drops.length };
 }
 
@@ -2186,12 +2215,16 @@ function updateDropdown(key) {
   ui.sel = Math.min(ui.sel || 0, Math.max(results.length - 1, 0));
   searchUI.set(key, ui);
   const pref = searchPrefer(key);
+  // "Dodaj u moj tim" u rezultatima, osim u pretrazi koja već dodaje na roster
+  const showAddMy = !/^(my|opp)-add$/.test(key);
+  const myIds = new Set(rosterIds(state.rosters.my));
   if (!results.length && !norm(ui.query)) { dd.hidden = true; inp.setAttribute('aria-expanded', 'false'); return; }
   dd.hidden = false;
   inp.setAttribute('aria-expanded', 'true');
   dd.innerHTML = results.length
     ? results.map((p, k) => `<li role="option" data-pick="${p.id}" data-key="${key}" aria-selected="${k === ui.sel}">
-        ${avatarHTML(p)}<div><div>${esc(p.name)} ${pref?.set.has(p.id) ? `<span class="slot-tag tag-mine">${esc(pref.label)}</span>` : ''}</div><div class="meta">${p.team} · ${p.pos} ${injHTML(p)}</div></div></li>`).join('')
+        ${avatarHTML(p)}<div class="dd-main"><div>${esc(p.name)} ${pref?.set.has(p.id) ? `<span class="slot-tag tag-mine">${esc(pref.label)}</span>` : ''}</div><div class="meta">${p.team} · ${p.pos} ${injHTML(p)}</div></div>
+        ${showAddMy && !myIds.has(p.id) ? `<button type="button" class="dd-addmy" data-addmy="${p.id}" title="${esc(t('Dodaj u moj tim'))}">＋ ${t('Moj tim')}</button>` : ''}</li>`).join('')
     : `<li class="empty">${t('Nema igrača za „{q}“', { q: esc(ui.query) })}</li>`;
   dd.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
 }
@@ -2271,6 +2304,7 @@ document.addEventListener('click', e => {
     case 'refresh': loadPlayers(true); loadSchedule(true); break;
     case 'save-trade': saveTrade(); break;
     case 'trade-done': tradeDone(); break;
+    case 'add-to-my': addToRoster('my', +el.dataset.id); render(); break;
     case 'settings': openSettings(); break;
     case 'export': exportData(el); break;
     case 'import': importData(); break;
@@ -2294,6 +2328,15 @@ document.addEventListener('click', e => {
 
 // mousedown (ne click) da blur inputa ne zatvori dropdown pre izbora
 document.addEventListener('mousedown', e => {
+  const add = e.target.closest('[data-addmy]');
+  if (add) {
+    e.preventDefault(); e.stopPropagation();
+    const key = add.closest('[data-key]')?.dataset.key;
+    addToRoster('my', +add.dataset.addmy);
+    render();
+    if (key) { document.querySelector(`[data-search="${key}"]`)?.focus(); updateDropdown(key); }
+    return;
+  }
   const li = e.target.closest('[data-pick]');
   if (!li) return;
   e.preventDefault();
