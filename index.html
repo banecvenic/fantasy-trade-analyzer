@@ -396,6 +396,9 @@ const CONFIG = (() => {
     BALANCE_KEY: 'fbaTrade.balance.v1', // izbor Koga izbacuješ / Waiver, samo lokalno
     UI_KEY: 'fbaTrade.ui.v1',           // otvorene sekcije, samo lokalno
     APP_PREFIX: 'fbaTrade.',            // svi ključevi aplikacije u localStorage
+    PROFILE_KEY: 'fbaTrade.profile.v2', // profil sa svim ligama (šema SCHEMA_VERSION)
+    TRADE_KEY: 'fbaTrade.trade.v2',     // trenutni trejd { scope, period, teams } (scope = id lige ili 'quick')
+    LEGACY_BACKUP_KEY: 'fbaTrade.legacyBackup.v1', // kopija podataka stare verzije pre migracije
     BACKUP_FORMAT: { app: 'fbaTrade', version: 1 },
     HISTORY_KEY: 'fbaTrade.history.v1', // samo lokalno, ne ide u link
     // Statistika po utakmici (split 5) za izabrane igrače. NAPOMENA: filterStatsForExternalIds
@@ -437,7 +440,12 @@ const MINUTES = { TREND_KEYS: ['season', 'l30', 'l15', 'l7'], ALERT: 3, STRONG: 
  *  da utakmica u nedelju uveče (ET) ne pređe u sledeću nedelju po našem vremenu. */
 const WEEK_TZ = 'America/New_York';
 /** Roster kao u ESPN-u: 13 aktivnih + 2 IR. IR igrači se ne računaju u zbirove. */
-const ROSTER = { ACTIVE: 13, IR: 2, STALE_DAYS: 7 };
+const ROSTER_DEFAULT = { ACTIVE: 13, IR: 2 };
+const ROSTER = {
+  get ACTIVE() { return currentLeague()?.slots?.active ?? ROSTER_DEFAULT.ACTIVE; },
+  get IR() { return currentLeague()?.slots?.ir ?? ROSTER_DEFAULT.IR; },
+  STALE_DAYS: 7,
+};
 /** Pragovi boje za trajnost (GP%) */
 const DURABILITY = { GOOD: 0.85, OK: 0.70 };
 /** "Mali obim" za FG%/FT% u poređenju: ukupno pokušaja po utakmici na bilo kojoj strani ispod praga */
@@ -479,6 +487,22 @@ const SIDES = [
   { srName: 'Dobijaš', srSub: 'Protivnik', color: '#3b82f6' },
 ].map(x => Object.defineProperties(x, { name: { get() { return t(this.srName); } }, sub: { get() { return t(this.srSub); } } }));
 const GIVE = 0, GET = 1;
+
+/** Izvor statistike: jedan za sve platforme (tekstovi ga uzimaju odavde, nigde nije zakucan) */
+const DATA_SOURCE = { name: 'ESPN' };
+/** Platforme lige: utiču samo na tekstove (statistika uvek dolazi iz DATA_SOURCE) */
+const PLATFORMS = [
+  { id: 'espn', label: 'ESPN' }, { id: 'yahoo', label: 'Yahoo' }, { id: 'fantrax', label: 'Fantrax' },
+  { id: 'cbs', label: 'CBS' }, { id: 'sleeper', label: 'Sleeper' }, { id: 'other', srLabel: 'Drugo' },
+];
+const platformLabel = id => { const p = PLATFORMS.find(x => x.id === id) || PLATFORMS[PLATFORMS.length - 1]; return p.label || t(p.srLabel); };
+/** Formati lige. Kategorije su u CATS (jedna konfiguracija); za sada je aktivan samo H2H kategorije. */
+const FORMATS = [
+  { id: 'h2h-cat', srLabel: 'H2H kategorije ({n}-cat)', srShort: '{n}-cat H2H', active: true },
+  { id: 'roto', srLabel: 'Roto', active: false },
+  { id: 'h2h-pts', srLabel: 'H2H poeni', active: false },
+];
+const formatLabel = (id, short = false) => { const f = FORMATS.find(x => x.id === id) || FORMATS[0]; return t(short && f.srShort ? f.srShort : f.srLabel, { n: CATS.length }); };
 const TEAM_COLORS = SIDES.map(x => x.color);
 
 /* =====================================================================
@@ -724,6 +748,12 @@ const EN = {
   "Posle trejda imaš {n} aktivnih (max {m}). Izaberi koga izbacuješ u kartici Daješ, dotle Razlika nije realna.": "After the trade you have {n} active (max {m}). Pick who you drop in the You give card; until then the Difference isn't realistic.",
   "Posle trejda tim ima {n} aktivnih (max {m}). Izaberi koga izbacuje ({k}), dotle Razlika nije realna.": "After the trade they have {n} active (max {m}). Pick who they drop ({k}); until then the Difference isn't realistic.",
   "Izbačen": "Dropped",
+  "Moja liga": "My league",
+  "Drugo": "Other",
+  "H2H kategorije ({n}-cat)": "H2H categories ({n}-cat)",
+  "{n}-cat H2H": "{n}-cat H2H",
+  "Roto": "Roto",
+  "H2H poeni": "H2H points",
 };
 function t(sr, vars) {
   let out = (LANG === 'en' && EN[sr]) || sr;
@@ -877,36 +907,111 @@ const state = {
   period: 'season',
   teams: [],            // [{ name, ids: [playerId] }]
   schedule: null,       // { [proTeamId]: [{ id, date }] } ili null ako nije učitan
-  punt: new Set(lsGet(CONFIG.PUNT_KEY) || []), // ključevi kategorija isključenih iz rezultata
+  punt: new Set(),      // ključevi kategorija isključenih iz rezultata (iz aktivne lige)
+  scope: 'quick',       // id aktivne lige ili 'quick' (brzo poređenje, ništa se ne čuva)
 };
-/* ---------- Istorija trejdova (samo lokalno) ---------- */
-state.history = lsGet(CONFIG.HISTORY_KEY) || [];   // [{ id, date, period, teams, snapshot }]
 state.histView = null;                              // id otvorenog trejda
 state.histOpen = false;
 state.gameLogs = new Map();                         // playerId -> [{ date, line }]
 state.gameLogStatus = { loading: false, error: null };
-const saveHistory = () => lsSet(CONFIG.HISTORY_KEY, state.history);
-
-/* ---------- Rosteri (samo lokalno) ----------
- * rosters.my / rosters.opps[oid] = { name?, players: [{ id, ir }], updated: ISO }
- * balance[kind] = { drops: [id], waivers: [id] } — izbor za trenutni trejd */
-const emptyRoster = name => ({ name, players: [], updated: null });
-function loadRosters() {
-  const r = lsGet(CONFIG.ROSTERS_KEY) || { my: emptyRoster('Moj tim'), opps: {}, oppSel: null };
-  // migracija starog "Moj tim" (lista ID-jeva) u novi format
-  const old = lsGet(CONFIG.MYTEAM_KEY);
-  if (!r.my.players.length && old?.roster?.length) {
-    r.my.players = old.roster.slice(0, ROSTER.ACTIVE + ROSTER.IR).map((id, i) => ({ id, ir: i >= ROSTER.ACTIVE }));
-    r.my.updated = new Date().toISOString();
-  }
-  return r;
-}
-state.rosters = loadRosters();
-state.balance = { my: { drops: [], waivers: [] }, opp: { drops: [], waivers: [] }, ...(lsGet(CONFIG.BALANCE_KEY) || {}) };
 state.ui = { myOpen: true, oppOpen: false, ...(lsGet(CONFIG.UI_KEY) || {}) };
-const saveRosters = () => lsSet(CONFIG.ROSTERS_KEY, state.rosters);
-const saveBalance = () => lsSet(CONFIG.BALANCE_KEY, state.balance);
 const saveUI = () => lsSet(CONFIG.UI_KEY, state.ui);
+
+/* =====================================================================
+   Profil i lige (samo lokalno; struktura je spremna da profil kasnije postane nalog)
+   profil { schema, id, name, created, settings{lang}, leagues[], lastLeagueId }
+   liga { id, name, teamName, platform, format, teams, slots{active, ir}, standings{...}, teamState, note,
+          punt[], roster, opps{}, oppSel, history[], balance, externalLeagueId, accountId, created, updated }
+   Keš igrača i rasporeda je globalan (van profila).
+   ===================================================================== */
+const SCHEMA_VERSION = 2;
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const nowISO = () => new Date().toISOString();
+const emptyRoster = name => ({ name, players: [], updated: null });
+const emptyBalance = () => ({ my: { drops: [], waivers: [] }, opp: { drops: [], waivers: [] } });
+
+function newLeague(fields = {}) {
+  return {
+    id: uid(), name: '', teamName: '', platform: PLATFORMS[0].id, format: FORMATS[0].id, teams: 12,
+    slots: { active: ROSTER_DEFAULT.ACTIVE, ir: ROSTER_DEFAULT.IR },
+    standings: { rank: null, record: '', playoffTeams: null, playoffWeek: null, updated: null },
+    teamState: null, note: '', punt: [],
+    roster: emptyRoster('Moj tim'), opps: {}, oppSel: null, history: [], balance: emptyBalance(),
+    externalLeagueId: null, accountId: null, // čekaju prijavu i uvoz lige
+    created: nowISO(), updated: nowISO(),
+    ...fields,
+  };
+}
+function newProfile(name = '') {
+  return { schema: SCHEMA_VERSION, id: uid(), name, created: nowISO(), settings: { lang: LANG }, leagues: [], lastLeagueId: null };
+}
+
+let profile = lsGet(CONFIG.PROFILE_KEY);
+const saveProfile = () => { if (profile) lsSet(CONFIG.PROFILE_KEY, profile); };
+const currentLeague = () => (state.scope !== 'quick' && profile ? profile.leagues.find(l => l.id === state.scope) || null : null);
+const touchLeague = lg => { if (lg) lg.updated = nowISO(); };
+
+/** Podaci stare verzije (pre profila): roster, protivnici, istorija, punt, balans, trejd */
+const LEGACY_KEYS = () => [CONFIG.ROSTERS_KEY, CONFIG.MYTEAM_KEY, CONFIG.HISTORY_KEY, CONFIG.PUNT_KEY, CONFIG.BALANCE_KEY, CONFIG.STATE_KEY];
+const hasLegacy = () => LEGACY_KEYS().some(k => localStorage.getItem(k) != null);
+
+/**
+ * Migracija: stari podaci -> profil + liga "Moja liga". Pre toga sve stare ključeve čuva
+ * pod LEGACY_BACKUP_KEY, da se ništa ne izgubi. Vraća id nove lige ili null.
+ */
+function migrateLegacy() {
+  if (!hasLegacy()) return null;
+  const old = Object.fromEntries(LEGACY_KEYS().map(k => [k, lsGet(k)]).filter(([, v]) => v != null));
+  lsSet(CONFIG.LEGACY_BACKUP_KEY, { date: nowISO(), data: old });
+  const r = old[CONFIG.ROSTERS_KEY] || { my: emptyRoster('Moj tim'), opps: {}, oppSel: null };
+  if (!r.my?.players?.length && old[CONFIG.MYTEAM_KEY]?.roster?.length) {
+    // još stariji format "Moj tim": lista ID-jeva
+    r.my = { ...emptyRoster('Moj tim'), players: old[CONFIG.MYTEAM_KEY].roster.slice(0, 15).map((id, i) => ({ id, ir: i >= 13 })), updated: nowISO() };
+  }
+  const lg = newLeague({
+    name: t('Moja liga'), roster: r.my || emptyRoster('Moj tim'), opps: r.opps || {}, oppSel: r.oppSel || null,
+    history: old[CONFIG.HISTORY_KEY] || [], punt: old[CONFIG.PUNT_KEY] || [], balance: { ...emptyBalance(), ...(old[CONFIG.BALANCE_KEY] || {}) },
+  });
+  if (!profile) profile = newProfile('');
+  profile.leagues.push(lg);
+  profile.lastLeagueId = lg.id;
+  const st = old[CONFIG.STATE_KEY];
+  if (st) lsSet(CONFIG.TRADE_KEY, { scope: lg.id, period: st.period || 'season', teams: (st.teams || []).map(x => ({ ids: x.ids || [] })) });
+  saveProfile();
+  LEGACY_KEYS().forEach(k => localStorage.removeItem(k));
+  return lg.id;
+}
+
+/** Poveži radni prostor sa ligom (ili sa brzim poređenjem, koje ništa ne čuva) */
+function bindScope(scope) {
+  state.scope = scope;
+  const lg = currentLeague();
+  if (!lg) {
+    state.scope = 'quick';
+    state.rosters = { my: emptyRoster('Moj tim'), opps: {}, oppSel: null };
+    state.history = [];
+    state.punt = new Set();
+    state.balance = emptyBalance();
+  } else {
+    state.rosters = { my: lg.roster, opps: lg.opps, oppSel: lg.oppSel };
+    state.history = lg.history;
+    state.punt = new Set(lg.punt || []);
+    state.balance = { ...emptyBalance(), ...(lg.balance || {}) };
+    profile.lastLeagueId = lg.id;
+    saveProfile();
+  }
+  state.histView = null;
+  state.gameLogs = new Map();
+}
+
+/* Čuvanje ide u aktivnu ligu; u brzom poređenju se ništa ne čuva */
+function saveRosters() {
+  const lg = currentLeague(); if (!lg) return;
+  lg.roster = state.rosters.my; lg.opps = state.rosters.opps; lg.oppSel = state.rosters.oppSel;
+  touchLeague(lg); saveProfile();
+}
+function saveHistory() { const lg = currentLeague(); if (!lg) return; lg.history = state.history; touchLeague(lg); saveProfile(); }
+function saveBalance() { const lg = currentLeague(); if (!lg) return; lg.balance = state.balance; saveProfile(); }
 
 const isPunt = c => state.punt.has(c.key);
 const puntCls = c => (isPunt(c) ? ' punt' : '');
@@ -914,7 +1019,8 @@ function togglePunt(key) {
   if (state.punt.has(key)) state.punt.delete(key); else state.punt.add(key);
   // ne dozvoli punt svih kategorija
   if (state.punt.size >= CATS.length) state.punt.delete(key);
-  lsSet(CONFIG.PUNT_KEY, [...state.punt]);
+  const lg = currentLeague();
+  if (lg) { lg.punt = [...state.punt]; saveProfile(); }
   render();
 }
 
@@ -1004,7 +1110,7 @@ const ids = s => (s || '').split(',').map(Number).filter(Boolean);
 
 /** Link sadrži samo trejd: per=period, t=daješ|dobijaš (isti format kao ranije, stari linkovi rade). */
 function saveState() {
-  lsSet(CONFIG.STATE_KEY, { period: state.period, teams: state.teams.map(t => ({ ids: t.ids })) });
+  lsSet(CONFIG.TRADE_KEY, { scope: state.scope, period: state.period, teams: state.teams.map(t => ({ ids: t.ids })) });
   const q = new URLSearchParams();
   q.set('per', state.period);
   q.set('t', state.teams.map(tm => tm.ids.join(',')).join('|'));
@@ -1013,7 +1119,9 @@ function saveState() {
 }
 
 function loadState() {
-  const saved = lsGet(CONFIG.STATE_KEY);
+  // sačuvan trejd važi samo za isti opseg (istu ligu / brzo poređenje); period je zajednički
+  const raw = lsGet(CONFIG.TRADE_KEY);
+  const saved = raw && raw.scope === state.scope ? raw : (raw ? { period: raw.period } : null);
   const hash = new URLSearchParams(location.hash.slice(1));
   let lists = null, period = saved?.period;
   if (hash.has('t')) {
@@ -2564,6 +2672,13 @@ document.addEventListener('mouseover', e => {
 addEventListener('scroll', hideTip, { passive: true });
 
 /* ===================================================================== */
+/* Pokretanje: migracija starih podataka, pa poslednja korišćena liga */
+if (!profile || profile.schema !== SCHEMA_VERSION) {
+  if (profile && profile.schema !== SCHEMA_VERSION) profile.schema = SCHEMA_VERSION; // buduće migracije šeme idu ovde
+  migrateLegacy();
+}
+if (!profile) { profile = newProfile(''); const lg = newLeague({ name: t('Moja liga') }); profile.leagues.push(lg); profile.lastLeagueId = lg.id; saveProfile(); }
+bindScope(profile.lastLeagueId || profile.leagues[0]?.id || 'quick');
 loadState();
 if (state.sharedChecked) { saveBalance(); saveState(); state.sharedChecked = false; } // saveState prepisuje adresu bez oznake s=1
 applyStaticText();
