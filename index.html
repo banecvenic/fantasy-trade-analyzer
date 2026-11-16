@@ -496,7 +496,12 @@ const CONFIG = (() => {
     PREV_SEASON_GAMES: 82,
     FETCH_TIMEOUT_MS: 25000,
     SLOW_NOTICE_MS: 5000,
-    CACHE_KEY: `fbaTrade.players.v2.${SEASON}`,
+    CACHE_KEY: `fbaTrade.players.v3.${SEASON}`, // v3: + pozicije (eligibleSlots), % owned, vesti, outlook
+    OLD_CACHE_KEYS: [`fbaTrade.players.v2.${SEASON}`],
+    // Vesti po igraču (Rotowire preko ESPN-a, na engleskom). Javno, CORS radi.
+    NEWS_URL: id => `https://site.api.espn.com/apis/fantasy/v2/games/fba/news/players?limit=3&playerId=${id}`,
+    NEWS_TTL_MS: 30 * 60 * 1000,   // keš po igraču (prebacivanje tabova i liga ne povlači ponovo)
+    NEWS_RECENT_DAYS: 7,           // "skorašnja" vest (rizici, roster u tekstu za AI)
     STATE_KEY: 'fbaTrade.state.v1',
     PUNT_KEY: 'fbaTrade.punt.v1',      // samo lokalno, ne ide u link
     MYTEAM_KEY: 'fbaTrade.myteam.v1',  // stari format (samo za migraciju)
@@ -580,6 +585,16 @@ const PRO_TEAMS = {
   19: 'ORL', 20: 'PHI', 21: 'PHX', 22: 'POR', 23: 'SAC', 24: 'SAS', 25: 'OKC', 26: 'UTA', 27: 'WAS',
   28: 'TOR', 29: 'MEM', 30: 'CHA',
 };
+
+/** ESPN lineup slot ID -> naziv (eligibleSlots). 13 = IR; ESPN ga daje svakom igraču, a na IR
+ *  može samo igrač koji je van stroja (OUT / IR), pa se gleda i slot i status. */
+const SLOT_NAMES = { 0: 'PG', 1: 'SG', 2: 'SF', 3: 'PF', 4: 'C', 5: 'G', 6: 'F', 7: 'SG/SF', 8: 'G/F', 9: 'PF/C', 10: 'F/C', 11: 'UT', 12: 'BE', 13: 'IR' };
+const IR_SLOT = 13;
+const IR_STATUSES = ['OUT', 'INJURY_RESERVE'];
+/** Pozicije igrača iz eligibleSlots (bez UT/BE/IR) */
+const slotPositions = p => (p.slots || []).filter(s => s <= 10).map(s => SLOT_NAMES[s]);
+const isOut = p => ['OUT', 'INJURY_RESERVE', 'SUSPENSION'].includes(p.inj);
+const canIR = p => (p.slots || []).includes(IR_SLOT) && IR_STATUSES.includes(p.inj);
 
 /** defaultPositionId -> pozicija */
 const POSITIONS = { 1: 'PG', 2: 'SG', 3: 'SF', 4: 'PF', 5: 'C' };
@@ -1018,6 +1033,10 @@ function compactPlayer(raw) {
     team: PRO_TEAMS[p.proTeamId] ?? '?',
     pos: POSITIONS[p.defaultPositionId] ?? '?',
     inj: p.injuryStatus || 'ACTIVE',
+    slots: p.eligibleSlots || [],
+    own: p.ownership ? { pct: +p.ownership.percentOwned || 0, chg: +p.ownership.percentChange || 0 } : null,
+    newsTs: p.lastNewsDate || null,
+    outlook: (p.seasonOutlook || '').replace(/<[^>]+>/g, '').slice(0, 600),
     prevGP,
     stats,
   };
@@ -1510,6 +1529,7 @@ const getIds = () => state.teams[GET].ids;
 const takenIds = () => new Set([...giveIds(), ...getIds()]);
 
 async function loadPlayers(force = false) {
+  CONFIG.OLD_CACHE_KEYS.forEach(k => localStorage.removeItem(k));
   const cached = lsGet(CONFIG.CACHE_KEY);
   if (!force && cached?.players?.length && Date.now() - cached.ts < CONFIG.CACHE_TTL_MS) {
     setPlayers(cached.players, cached.ts);
@@ -2995,7 +3015,7 @@ async function loadGameLogs(ids) {
         if (date == null) continue; // utakmica nije u rasporedu -> ne možemo pouzdano da je datiramo
         const line = {};
         for (const [k, sid] of Object.entries(STAT)) line[k] = +st.stats[sid] || 0;
-        if (line.GP > 0) games.push({ date, line });
+        if (line.GP > 0 && line.MIN > 0) games.push({ date, line }); // računaju se samo utakmice sa minutima
       }
       state.gameLogs.set(p.id, games.sort((a, b) => a.date - b.date));
     }
@@ -3005,6 +3025,79 @@ async function loadGameLogs(ids) {
     state.gameLogStatus = { loading: false, error: e.name === 'AbortError' ? t('{src} ne odgovara', { src: DATA_SOURCE.name }) : e.message };
   }
   render();
+}
+
+/* ---------- Vesti i propuštene utakmice (za izveštaj i tekst za AI) ---------- */
+state.news = new Map(); // playerId -> { ts, items: [{ headline, story, published }] }
+const stripTags = s => String(s || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+async function fetchNews(id) {
+  const c = state.news.get(id);
+  if (c && Date.now() - c.ts < CONFIG.NEWS_TTL_MS) return c.items;
+  try {
+    const res = await fetch(CONFIG.NEWS_URL(id));
+    if (!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    const items = (data.feed || []).map(f => ({ headline: stripTags(f.headline), story: stripTags(f.story || f.description), published: f.published })).filter(x => x.headline);
+    state.news.set(id, { ts: Date.now(), items });
+    return items;
+  } catch (e) {
+    console.warn('Vesti nisu učitane:', id, e.message); // izveštaj radi i bez vesti
+    if (!c) state.news.set(id, { ts: Date.now() - CONFIG.NEWS_TTL_MS + 60000, items: [] }); // probaj ponovo za minut
+    return c?.items || [];
+  }
+}
+const newsOf = id => state.news.get(id)?.items || [];
+const isRecent = (iso, days = CONFIG.NEWS_RECENT_DAYS) => iso && Date.now() - new Date(iso).getTime() <= days * 864e5;
+
+/** Broj utakmica tima zaredom koje igrač nije odigrao (od poslednje utakmice sa minutima), ili null */
+function missedStreak(p) {
+  const games = state.gameLogs.get(p?.id), team = state.schedule?.[p?.tid];
+  if (!games || !team) return null;
+  const last = games.length ? games[games.length - 1].date : 0;
+  const cutoff = Date.now() - CONFIG.GAME_DONE_AFTER_MS;
+  return team.filter(g => g.date > last && g.date <= cutoff).length;
+}
+
+/** Igrači u trejdu (obe strane + Izbacuješ / Waiver): vesti i utakmice se povlače u pozadini, bez greške na ekranu */
+let reportDataBusy = false;
+function ensureReportData() {
+  if (reportDataBusy || !state.players.length) return;
+  const ids = [...new Set([...giveIds(), ...getIds(), ...slotIds('my')])];
+  const needNews = ids.filter(id => { const c = state.news.get(id); return !c || Date.now() - c.ts >= CONFIG.NEWS_TTL_MS; });
+  const needLogs = ids.filter(id => !state.gameLogs.has(id));
+  if (!needNews.length && !needLogs.length) return;
+  reportDataBusy = true;
+  Promise.all([
+    Promise.all(needNews.map(fetchNews)),
+    needLogs.length ? fetchGameLogsQuiet(needLogs) : null,
+  ]).finally(() => { reportDataBusy = false; render(); });
+}
+/** Statistika po utakmici bez statusa i bez greške na ekranu (za propuštene utakmice) */
+async function fetchGameLogsQuiet(ids) {
+  try {
+    if (!state.schedule) await loadSchedule();
+    if (!state.schedule) return;
+    const gameDate = new Map(Object.values(state.schedule).flat().map(g => [String(g.id), g.date]));
+    const res = await fetch(CONFIG.API_URL, { headers: { 'X-Fantasy-Filter': JSON.stringify(CONFIG.GAMELOG_FILTER(ids)) } });
+    if (!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    for (const raw of data.players || []) {
+      const p = raw.player, games = [];
+      for (const st of p.stats || []) {
+        if (st.statSplitTypeId !== 5 || st.seasonId !== CONFIG.SEASON || !st.stats) continue;
+        const date = gameDate.get(String(st.externalId));
+        if (date == null) continue;
+        const line = {};
+        for (const [k, sid] of Object.entries(STAT)) line[k] = +st.stats[sid] || 0;
+        if (line.GP > 0 && line.MIN > 0) games.push({ date, line });
+      }
+      state.gameLogs.set(p.id, games.sort((a, b) => a.date - b.date));
+    }
+    for (const id of ids) if (!state.gameLogs.has(id)) state.gameLogs.set(id, []);
+  } catch (e) {
+    console.warn('Utakmice nisu učitane:', e.message);
+    for (const id of ids) if (!state.gameLogs.has(id)) state.gameLogs.set(id, null); // ne pokušavaj u krug
+  }
 }
 
 /** Prosek igrača samo za utakmice POSLE datuma trejda (utakmice tog dana se ne računaju). */
