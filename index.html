@@ -537,7 +537,7 @@ const MINUTES = { TREND_KEYS: ['season', 'l30', 'l15', 'l7'], ALERT: 3, STRONG: 
 /** Nedelja = ponedeljak–nedelja po američkom istočnom vremenu (kao ESPN fantasy nedelje),
  *  da utakmica u nedelju uveče (ET) ne pređe u sledeću nedelju po našem vremenu. */
 const WEEK_TZ = 'America/New_York';
-/** Roster kao u ESPN-u: 13 aktivnih + 2 IR. IR igrači se ne računaju u zbirove. */
+/** Podrazumevani roster (ESPN): 13 aktivnih + 2 IR. Svaka liga bira svoj broj u podešavanjima. IR igrači se ne računaju u zbirove. */
 const ROSTER_DEFAULT = { ACTIVE: 13, IR: 2 };
 const ROSTER = {
   get ACTIVE() { return currentLeague()?.slots?.active ?? ROSTER_DEFAULT.ACTIVE; },
@@ -929,6 +929,8 @@ const EN = {
   "prepoznato": "recognized",
   "Neovisan trejd (bez lige)": "Standalone trade (no league)",
   "brzo poređenje": "quick compare",
+  "Igrača u rosteru (bez IR)": "Roster spots (without IR)",
+  "IR mesta": "IR spots",
 };
 function t(sr, vars) {
   let out = (LANG === 'en' && EN[sr]) || sr;
@@ -1571,7 +1573,7 @@ function sumPlayers(plusIds, minusIds = [], lineOf = playerLine) {
  * Slotovi za neravnomeran trejd, jedno pravilo za sva stanja rostera (kind: 'my' ili 'opp'):
  * - "Izbacuješ": kad strana dobija više igrača nego što daje; broj slotova = razlika u broju igrača
  * - "Waiver dodatak": kad daje više nego što dobija; broj = razlika; uvek opciono
- * Da li je "Izbacuješ" obavezan (roster bi imao > 13 aktivnih) računa rosterPlan.
+ * Da li je "Izbacuješ" obavezan (roster bi imao više aktivnih nego što liga dozvoljava) računa rosterPlan.
  */
 function slotPlan(kind) {
   const outSide = state.teams[KINDS[kind].out].ids, inSide = state.teams[KINDS[kind].in].ids;
@@ -1797,6 +1799,17 @@ function renderHome() {
 
 /** Izbor formata lige: ključan podatak, od njega kasnije zavisi šta se računa i prikazuje
  *  (kategorije vs poeni, broj kategorija). Neaktivni formati su vidljivi sa oznakom "uskoro". */
+/** Broj mesta u rosteru (aktivni + IR), po pravilima lige */
+const SLOT_RANGE = { active: [8, 20], ir: [0, 6] };
+function slotsFieldHTML(prefix, slots = {}) {
+  const opts = (k, cur) => { const [a, b] = SLOT_RANGE[k]; let h = ''; for (let n = a; n <= b; n++) h += `<option value="${n}" ${n === cur ? 'selected' : ''}>${n}</option>`; return h; };
+  return `<div class="form-row">
+      <label>${t('Igrača u rosteru (bez IR)')}<select id="${prefix}-sa">${opts('active', slots.active ?? ROSTER_DEFAULT.ACTIVE)}</select></label>
+      <label>${t('IR mesta')}<select id="${prefix}-si">${opts('ir', slots.ir ?? ROSTER_DEFAULT.IR)}</select></label>
+    </div>`;
+}
+const readSlots = prefix => ({ active: +document.getElementById(`${prefix}-sa`).value || ROSTER_DEFAULT.ACTIVE, ir: +document.getElementById(`${prefix}-si`).value });
+
 function formatFieldHTML(name, current) {
   return `<fieldset class="fmt"><legend>${t('Format')}</legend>
     ${FORMATS.map(f => `<label class="radio ${f.active ? '' : 'soon'}"><input type="radio" name="${name}" value="${f.id}" ${f.id === current ? 'checked' : ''} ${f.active ? '' : 'disabled'}>
@@ -1824,6 +1837,7 @@ function openLeagueSettings() {
         <label>${t('Broj timova')}<input type="number" id="ls-teams" min="2" max="30" value="${num(lg.teams)}"></label>
       </div>
       ${formatFieldHTML('ls-format', lg.format)}
+      ${slotsFieldHTML('ls', lg.slots)}
       <fieldset class="fmt"><legend>${t('Tabela (opciono)')}${st.updated ? ` <span class="hint">${t('Ažurirano: {d}', { d: fmtShortDate(st.updated) })}</span>` : ''}</legend>
         <div class="form-row">
           <label>${t('Mesto')}<input type="number" id="ls-rank" min="1" max="30" value="${num(st.rank)}"></label>
@@ -1853,6 +1867,7 @@ function openLeagueSettings() {
         name, teamName: v('ls-team').trim(), platform: v('ls-platform'),
         teams: Math.max(2, Math.min(30, +v('ls-teams') || lg.teams || 12)),
         format: document.querySelector('input[name="ls-format"]:checked')?.value || lg.format,
+        slots: readSlots('ls'),
         teamState: v('ls-state') || null, note: v('ls-note').trim(),
         standings: { ...newSt, updated: changed ? nowISO() : st.updated || null },
       });
@@ -1899,6 +1914,7 @@ function openAddLeague() {
         <label>${t('Broj timova')}<input type="number" id="al-teams" min="2" max="30" value="12"></label>
       </div>
       ${formatFieldHTML('al-format', FORMATS.find(f => f.active).id)}
+      ${slotsFieldHTML('al')}
       ${needName ? `<label>${t('Tvoje ime (opciono)')}<input type="text" id="al-me" maxlength="30"></label>` : ''}
       </div>`,
     confirm: t('Napravi ligu'),
@@ -1911,6 +1927,7 @@ function openAddLeague() {
         format: document.querySelector('input[name="al-format"]:checked')?.value || FORMATS[0].id,
         platform: document.getElementById('al-platform').value,
         teams: Math.max(2, Math.min(30, +document.getElementById('al-teams').value || 12)),
+        slots: readSlots('al'),
       }, document.getElementById('al-me')?.value.trim());
     },
   });
@@ -2205,7 +2222,7 @@ function renderTeams(totals, cmp) {
 /**
  * Polje za sledeći slobodan slot (which: 'd' = Izbacuješ, 'w' = Waiver dodatak).
  * Ista komponenta za sva stanja rostera: pretraga koja prvo nudi igrače sa rostera.
- * "Izbacuješ" je obavezan (crveno) samo dok bi roster imao više od 13 aktivnih; inače opcion.
+ * "Izbacuješ" je obavezan (crveno) samo dok bi roster imao više aktivnih od limita lige; inače opcion.
  */
 function slotInputHTML(kind, which, wrapCls = 'balance top') {
   const sp = slotPlan(kind);
@@ -2352,7 +2369,7 @@ const irCount = r => r.players.filter(x => x.ir).length;
  * - odlaze: igrači sa rostera koji su na izlaznoj strani trejda (moj: Daješ, protivnik: Dobijaš)
  * - dolaze: igrači sa ulazne strane, idu na aktivna mesta
  * - IR igrači se ne računaju; IR igrač koji odlazi ne oslobađa aktivno mesto
- * - više od 13 aktivnih -> obavezno "Koga izbacuješ"; manje -> opcioni "Waiver dodatak"
+ * - više aktivnih od limita lige -> obavezno "Koga izbacuješ"; manje -> opcioni "Waiver dodatak"
  */
 function rosterPlan(kind) {
   const r = rosterOf(kind);
@@ -2756,7 +2773,7 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.getElementById('modal')) closeModal(); });
 
-/** Ima li mesta za još n aktivnih igrača (max 13). Novi igrač uvek ide na aktivno mesto; na IR se prebacuje dugmetom. */
+/** Ima li mesta za još n aktivnih igrača (limit lige, ROSTER.ACTIVE). Novi igrač uvek ide na aktivno mesto; na IR se prebacuje dugmetom. */
 const hasRoom = (r, n = 1) => !!r && activeCount(r) + n <= ROSTER.ACTIVE;
 const fullTip = () => t('Maksimalan broj igrača u timu ({n}). Izbaci nekoga ili ga prebaci na IR da bi dodao novog.', { n: ROSTER.ACTIVE });
 
@@ -2776,7 +2793,7 @@ function addAllToRoster(kind) {
   for (const id of plan.notOnRoster) addToRoster(kind, id);
 }
 
-/** Prebaci na IR / vrati sa IR (poštuje 13 aktivnih + 2 IR) */
+/** Prebaci na IR / vrati sa IR (poštuje limit aktivnih i IR mesta lige) */
 function toggleIR(kind, id) {
   const r = rosterOf(kind);
   const x = r?.players.find(y => y.id === id);
