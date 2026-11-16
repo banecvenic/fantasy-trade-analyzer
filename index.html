@@ -51,6 +51,17 @@ body:not([data-view="home"]) .only-home{display:none}
 body[data-view="home"] .only-ws,body[data-view="home"] #tradewarn,body[data-view="home"] #score,body[data-view="home"] #teams,
 body[data-view="home"] #compare,body[data-view="home"] #report,body[data-view="home"] #myteam,body[data-view="home"] #oppteam,body[data-view="home"] #history{display:none}
 body[data-view="quick"] #myteam,body[data-view="quick"] #oppteam,body[data-view="quick"] #history{display:none}
+.ttabs{display:flex;align-items:stretch;gap:4px;margin-top:12px;overflow-x:auto;scrollbar-width:thin;border-bottom:1px solid var(--line);padding-bottom:0}
+.ttab{display:flex;align-items:center;gap:2px;flex:0 0 auto;max-width:230px;background:var(--bg2);border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;color:var(--muted)}
+.ttab.on{background:var(--card,var(--bg));color:var(--text);border-color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
+.ttab-go{background:none;border:none;color:inherit;font:inherit;font-size:13px;font-weight:600;padding:7px 4px 7px 10px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ttab-x{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:4px 8px 4px 4px;line-height:1}
+.ttab-x:hover{color:var(--lose-text)}
+.ttab-new{flex:0 0 auto;background:none;border:1px dashed var(--line);border-bottom:none;border-radius:8px 8px 0 0;color:var(--accent);font:inherit;font-size:13px;font-weight:600;padding:7px 12px;cursor:pointer;white-space:nowrap}
+.ttab-new:hover{border-color:var(--accent)}
+.share-pick{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.share-pick .indep{border-style:dashed}
+.share-pick .hint{color:var(--muted);font-weight:400;font-size:12px}
 .wsh{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:16px}
 .wsh-t{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;min-width:0}
 .wsh h1{font-size:20px;margin:0;letter-spacing:-.01em}
@@ -428,6 +439,7 @@ footer{color:var(--dim);font-size:11px;text-align:center;margin-top:28px}
 <main class="wrap">
   <section id="home" class="only-home"></section>
   <div id="wshead" class="only-ws"></div>
+  <div id="tradetabs" class="only-ws"></div>
   <div class="status" id="status"></div>
   <div id="banner"></div>
   <div id="tradewarn"></div>
@@ -482,7 +494,8 @@ const CONFIG = (() => {
     UI_KEY: 'fbaTrade.ui.v1',           // otvorene sekcije, samo lokalno
     APP_PREFIX: 'fbaTrade.',            // svi ključevi aplikacije u localStorage
     PROFILE_KEY: 'fbaTrade.profile.v2', // profil sa svim ligama (šema SCHEMA_VERSION)
-    TRADE_KEY: 'fbaTrade.trade.v2',     // trenutni trejd { scope, period, teams } (scope = id lige ili 'quick')
+    TRADE_KEY: 'fbaTrade.trade.v2',     // stari format jednog trejda (samo za migraciju u tabove)
+    TRADES_KEY: 'fbaTrade.trades.v1',   // tabovi trejdova { period, scopes: { [liga|quick]: { active, tabs[] } } }
     LEGACY_BACKUP_KEY: 'fbaTrade.legacyBackup.v1', // kopija podataka stare verzije pre migracije
     BACKUP_FORMAT: { app: 'fbaTrade', version: 1 },
     HISTORY_KEY: 'fbaTrade.history.v1', // samo lokalno, ne ide u link
@@ -839,8 +852,6 @@ const EN = {
   "{n}-cat H2H": "{n}-cat H2H",
   "Roto": "Roto",
   "H2H poeni": "H2H points",
-  "Promeniti ligu?": "Switch league?",
-  "Trenutni trejd (Daješ / Dobijaš) biće ispražnjen.": "The current trade (You give / You get) will be cleared.",
   "Nastavi": "Continue",
   "Liga": "League",
   "Dodaj ligu…": "Add league…",
@@ -907,6 +918,17 @@ const EN = {
   "Nalepi tekst rezervne kopije. Kopija celog profila zamenjuje postojeće podatke (uz potvrdu); kopija jedne lige se dodaje postojećim.": "Paste the backup text. A whole-profile backup replaces existing data (after confirmation); a single-league backup is added to the existing ones.",
   "Izvezi samo ovu ligu": "Export this league only",
   "kako se tvoj tim zove u ligi": "what your team is called in the league",
+  "Novi trejd": "New trade",
+  "Trejdovi": "Trades",
+  "Zatvori trejd": "Close trade",
+  "Planiraj novi trejd": "Plan a new trade",
+  "Zatvoriti trejd?": "Close trade?",
+  "Trejd {x} biće uklonjen. Sačuvani trejdovi u istoriji ostaju.": "Trade {x} will be removed. Saved trades in history stay.",
+  "U koju ligu da svrstam trejd?": "Which league should this trade go to?",
+  "Otvara se deljeni trejd, u novom tabu. Postojeći trejdovi ostaju netaknuti.": "The shared trade opens in a new tab. Your existing trades stay untouched.",
+  "prepoznato": "recognized",
+  "Neovisan trejd (bez lige)": "Standalone trade (no league)",
+  "brzo poređenje": "quick compare",
 };
 function t(sr, vars) {
   let out = (LANG === 'en' && EN[sr]) || sr;
@@ -1144,15 +1166,15 @@ function bindScope(scope) {
     state.rosters = { my: emptyRoster('Moj tim'), opps: {}, oppSel: null };
     state.history = [];
     state.punt = new Set();
-    state.balance = emptyBalance();
   } else {
     state.rosters = { my: lg.roster, opps: lg.opps, oppSel: lg.oppSel };
     state.history = lg.history;
     state.punt = new Set(lg.punt || []);
-    state.balance = { ...emptyBalance(), ...(lg.balance || {}) };
     profile.lastLeagueId = lg.id;
     saveProfile();
   }
+  activateTab(scopeTabs().active);
+  state.sharedOpen = false;
   state.histView = null;
   state.gameLogs = new Map();
 }
@@ -1164,7 +1186,80 @@ function saveRosters() {
   touchLeague(lg); saveProfile();
 }
 function saveHistory() { const lg = currentLeague(); if (!lg) return; lg.history = state.history; touchLeague(lg); saveProfile(); }
-function saveBalance() { const lg = currentLeague(); if (!lg) return; lg.balance = state.balance; saveProfile(); }
+/* =====================================================================
+   Tabovi trejdova: više nacrta po ligi (i u brzom poređenju), da se ništa ne gubi.
+   tab { id, teams: [Daješ, Dobijaš], balance: izbor Izbacuješ/Waiver, created, shared? }
+   state.teams i state.balance uvek pokazuju na AKTIVNI tab, pa ostatak koda radi kao ranije.
+   ===================================================================== */
+let tradeStore = null;
+const newTab = (lists = [[], []], balance = null) => ({
+  id: uid(), created: nowISO(),
+  teams: [GIVE, GET].map(i => ({ ...newTeam(), ids: [...new Set(lists[i] || [])] })),
+  balance: balance || emptyBalance(),
+});
+function tradeStoreGet() {
+  if (tradeStore) return tradeStore;
+  tradeStore = lsGet(CONFIG.TRADES_KEY);
+  if (!tradeStore) {
+    // migracija: jedan stari trejd -> prvi tab te lige
+    tradeStore = { period: 'season', scopes: {} };
+    const old = lsGet(CONFIG.TRADE_KEY);
+    if (old?.scope) {
+      const lg = profile?.leagues.find(l => l.id === old.scope);
+      const tab = newTab((old.teams || []).map(x => x.ids || []), lg?.balance ? { ...emptyBalance(), ...lg.balance } : null);
+      tradeStore.period = old.period || 'season';
+      tradeStore.scopes[old.scope] = { active: tab.id, tabs: [tab] };
+    }
+    lsSet(CONFIG.TRADES_KEY, tradeStore);
+    if (lsGet(CONFIG.TRADES_KEY)) localStorage.removeItem(CONFIG.TRADE_KEY); // stari ključ tek kad je novi upisan
+  }
+  if (PERIODS.some(p => p.key === tradeStore.period)) state.period = tradeStore.period;
+  // normalizacija jednom pri učitavanju (state.teams mora ostati ista referenca kao tab.teams)
+  Object.values(tradeStore.scopes || {}).forEach(s => (s.tabs || []).forEach(tb => {
+    tb.teams = [GIVE, GET].map(i => normTeam(tb.teams?.[i]));
+    tb.balance = { ...emptyBalance(), ...(tb.balance || {}) };
+  }));
+  return tradeStore;
+}
+/** Tabovi opsega (lige ili 'quick'); uvek bar jedan */
+function scopeTabs(scope = state.scope) {
+  const st = tradeStoreGet();
+  let s = st.scopes[scope];
+  if (!s || !s.tabs?.length) { const tab = newTab(); s = st.scopes[scope] = { active: tab.id, tabs: [tab] }; }
+  return s;
+}
+const activeTab = () => { const s = scopeTabs(); return s.tabs.find(x => x.id === s.active) || s.tabs[0]; };
+function activateTab(id) {
+  const s = scopeTabs();
+  const tab = s.tabs.find(x => x.id === id) || s.tabs[0];
+  s.active = tab.id;
+  state.teams = tab.teams;
+  state.balance = tab.balance;
+}
+function persistTrades() { const st = tradeStoreGet(); st.period = state.period; lsSet(CONFIG.TRADES_KEY, st); }
+const saveBalance = () => persistTrades();
+
+/** Novi tab (prazan ili sa trejdom) u aktivnom opsegu, i postaje aktivan */
+function addTab(lists, balance, extra = {}) {
+  const s = scopeTabs();
+  const tab = { ...newTab(lists, balance), ...extra };
+  s.tabs.push(tab);
+  activateTab(tab.id);
+  persistTrades();
+  return tab;
+}
+/** Zatvori tab; ako je bio aktivan, aktivan postaje susedni; uvek ostaje bar jedan */
+function removeTab(id) {
+  const s = scopeTabs();
+  const i = s.tabs.findIndex(x => x.id === id);
+  if (i < 0) return;
+  s.tabs.splice(i, 1);
+  if (!s.tabs.length) s.tabs.push(newTab());
+  if (s.active === id) s.active = s.tabs[Math.max(0, i - 1)].id;
+  activateTab(s.active);
+  persistTrades();
+}
+const tabHasPlayers = tb => tb.teams.some(x => x.ids.length);
 
 const isPunt = c => state.punt.has(c.key);
 const puntCls = c => (isPunt(c) ? ' punt' : '');
@@ -1282,6 +1377,8 @@ function defaultRoute() {
 const routeToken = () => (state.view === 'home' ? 'home' : state.scope === 'quick' ? 'quick' : `league-${state.scope}`);
 
 function applyRoute() {
+  const hp = new URLSearchParams(location.hash.slice(1));
+  if (hp.get('s') === '1') { handleSharedLink(hp); return; }
   let r = parseRoute() || defaultRoute();
   if (r.view === 'league' && !profile?.leagues.some(l => l.id === r.id)) r = { view: 'home' };
   state.view = r.view;
@@ -1290,43 +1387,88 @@ function applyRoute() {
   if (r.view === 'quick' && (state.scope !== 'quick' || !state.rosters)) bindScope('quick');
   if (!state.rosters) bindScope('quick'); // početni ekran pri prvom učitavanju: prazan radni prostor
   if (r.view === 'home') {
-    if (!state.teams.length) state.teams = [newTeam(), newTeam()]; // početni ekran direktno: prazan trejd
+    if (!state.teams?.length) activateTab(scopeTabs().active); // početni ekran direktno
     history.replaceState(null, '', '#home');
   } else {
     loadState();
-    if (state.sharedChecked) { saveBalance(); state.sharedChecked = false; }
-    saveState(); // normalizuje adresu: ruta + trejd
+    saveState(); // normalizuje adresu: ruta + trejd aktivnog taba
   }
   hideTip(); closeModal();
   render();
   window.scrollTo(0, 0);
 }
 
-function clearTrade() {
-  state.teams = [newTeam(), newTeam()];
-  state.balance = emptyBalance(); saveBalance();
-  lsSet(CONFIG.TRADE_KEY, { scope: state.scope, period: state.period, teams: [{ ids: [] }, { ids: [] }] });
-}
-/** Navigacija; promena lige prazni trenutni trejd, uz potvrdu ako nije prazan */
+/** Navigacija. Svaka liga čuva svoje tabove trejdova, pa promena lige ništa ne briše. */
 function navigate(view, id) {
-  const target = view === 'quick' ? 'quick' : view === 'league' ? id : state.scope;
-  const go = () => { location.hash = view === 'league' ? `league-${id}` : view; };
-  if (view !== 'home' && target !== state.scope && (giveIds().length || getIds().length)) {
-    showModal({
-      title: t('Promeniti ligu?'),
-      body: `<p>${t('Trenutni trejd (Daješ / Dobijaš) biće ispražnjen.')}</p>`,
-      confirm: t('Nastavi'),
-      onConfirm: () => { clearTrade(); go(); },
-    });
-    return false;
-  }
-  go();
+  location.hash = view === 'league' ? `league-${id}` : view;
   return true;
+}
+
+/* ---------- Deljeni link: uvek novi tab, uz izbor lige ---------- */
+/** Da li je trejd "prepoznat" u ligi: igrači sa jedne strane su svi na mom rosteru */
+function shareMatch(lg, lists) {
+  const mine = new Set(rosterIds(lg.roster && { players: lg.roster.players }));
+  const all = arr => arr.length > 0 && arr.every(id => mine.has(id));
+  return { own: all(lists[GIVE]), theirs: all(lists[GET]) };
+}
+
+function handleSharedLink(hp) {
+  const lists = (hp.get('t') || '|').split('|').map(ids);
+  const per = hp.get('per');
+  if (PERIODS.some(p => p.key === per)) { state.period = per; tradeStoreGet().period = per; persistTrades(); }
+  const leagues = profile?.leagues || [];
+  // osnovni prikaz ispod pitanja: poslednja liga / brzo poređenje
+  const base = defaultRoute();
+  history.replaceState(null, '', base.view === 'league' ? `#league-${base.id}` : `#${base.view}`);
+  if (!leagues.length) { openSharedIn('quick', lists); return; }
+  const matches = leagues.map(lg => ({ lg, m: shareMatch(lg, lists) })).map(x => ({ ...x, ok: x.m.own || x.m.theirs }));
+  if (leagues.length === 1 && matches[0].ok) { openSharedIn(leagues[0].id, lists); return; }
+  state.sharedOpen = false;
+  applyRoute(); // prikaži osnovni ekran, pa pitaj
+  const ordered = [...matches.filter(x => x.ok), ...matches.filter(x => !x.ok)];
+  showModal({
+    title: t('U koju ligu da svrstam trejd?'),
+    body: `<p>${t('Otvara se deljeni trejd, u novom tabu. Postojeći trejdovi ostaju netaknuti.')}</p>
+      <div class="share-pick">
+        ${ordered.map(({ lg, ok }) => `<button type="button" class="pp-league" data-share-to="${lg.id}"><span>${esc(lg.name)} ${ok ? `<span class="slot-tag tag-in">${t('prepoznato')}</span>` : ''}</span><span class="pbadge">${esc(platformLabel(lg.platform))}</span></button>`).join('')}
+        <button type="button" class="pp-league indep" data-share-to="quick"><span>${t('Neovisan trejd (bez lige)')}</span><span class="hint">${t('brzo poređenje')}</span></button>
+      </div>`,
+    cancel: t('Otkaži'),
+  });
+  state.pendingShare = lists;
+}
+
+/** Otvori deljeni trejd u novom tabu izabrane lige (ili brzog poređenja). Strane se okreću po rosteru te lige. */
+function openSharedIn(scope, lists) {
+  closeModal();
+  state.pendingShare = null;
+  state.view = scope === 'quick' ? 'quick' : 'league';
+  document.body.dataset.view = state.view;
+  bindScope(scope);
+  const lg = currentLeague();
+  const own = lg ? shareMatch(lg, lists).own : false; // moji igrači su u "Daješ" -> moj trejd, bez okretanja
+  const oriented = own ? lists : [lists[GET], lists[GIVE]];
+  const s = scopeTabs();
+  const key = lists2 => lists2.map(l => [...l].sort().join(',')).join('|');
+  const same = s.tabs.find(tb => key(tb.teams.map(x => x.ids)) === key(oriented));
+  if (same) activateTab(same.id); // isti trejd je već otvoren: samo ga prikaži
+  else {
+    addTab(oriented, null, { shared: true });
+    s.tabs = s.tabs.filter(x => x.id === s.active || tabHasPlayers(x)); // prazni tabovi nemaju svrhu
+    persistTrades();
+  }
+  state.sharedOpen = !own;
+  // isti igrač ne može biti na obe strane
+  state.teams[GET].ids = state.teams[GET].ids.filter(id => !state.teams[GIVE].ids.includes(id));
+  saveState();
+  hideTip();
+  render();
+  window.scrollTo(0, 0);
 }
 
 /** Link sadrži samo trejd: per=period, t=daješ|dobijaš (isti format kao ranije, stari linkovi rade). */
 function saveState() {
-  lsSet(CONFIG.TRADE_KEY, { scope: state.scope, period: state.period, teams: state.teams.map(t => ({ ids: t.ids })) });
+  persistTrades();
   const q = new URLSearchParams();
   q.set('per', state.period);
   q.set('t', state.teams.map(tm => tm.ids.join(',')).join('|'));
@@ -1335,33 +1477,14 @@ function saveState() {
   history.replaceState(null, '', `#${routeToken()}&${q.toString().replace(/%7C/gi, '|').replace(/%2C/gi, ',')}`);
 }
 
+/** Aktivni tab opsega; adresa (osvežavanje stranice) nosi trejd aktivnog taba. Period je zajednički. */
 function loadState() {
-  // sačuvan trejd važi samo za isti opseg (istu ligu / brzo poređenje); period je zajednički
-  const raw = lsGet(CONFIG.TRADE_KEY);
-  const saved = raw && raw.scope === state.scope ? raw : (raw ? { period: raw.period } : null);
   const hash = new URLSearchParams(location.hash.slice(1));
-  let lists = null, period = saved?.period;
+  const period = hash.get('per') || tradeStoreGet().period;
+  activateTab(scopeTabs().active);
   if (hash.has('t')) {
-    lists = hash.get('t').split('|').map(ids);
-    period = hash.get('per') || period;
-  } else if (Array.isArray(saved?.teams)) {
-    lists = saved.teams.map(t => t.ids || []);
-  }
-  state.teams = [GIVE, GET].map(i => ({ ...newTeam(), ids: [...new Set(lists?.[i] || [])] }));
-  if (hash.get('s') === '1') {
-    // Deljeni link nosi trejd iz ugla pošiljaoca. Pri otvaranju gledamo MOJ roster:
-    // - svi igrači iz "Daješ" su na mom rosteru -> to je moj trejd (npr. otvorio sam svoj link u novom tabu): ne menjaj ništa
-    // - roster prazan ili ti igrači nisu moji -> link je od druge strane: zameni Daješ/Dobijaš i prikaži traku
-    const mine = new Set((state.rosters?.my?.players || []).map(x => x.id));
-    const give = state.teams[GIVE].ids;
-    const ownTrade = mine.size > 0 && give.length > 0 && give.every(id => mine.has(id));
-    if (!ownTrade) {
-      state.teams = [state.teams[GET], state.teams[GIVE]];
-      state.sharedOpen = true;
-      // izbor Koga izbacuješ / Waiver iz mog prethodnog trejda ne važi za tuđi trejd; rosteri ostaju netaknuti
-      if (state.balance) state.balance.my = { drops: [], waivers: [] };
-    }
-    state.sharedChecked = true; // ukloni s=1 iz adrese (saveState) i kad se ništa ne menja
+    const lists = hash.get('t').split('|').map(ids);
+    state.teams.forEach((tm, i) => { tm.ids = [...new Set(lists[i] || [])]; });
   }
   // isti igrač ne može biti na obe strane
   state.teams[GET].ids = state.teams[GET].ids.filter(id => !state.teams[GIVE].ids.includes(id));
@@ -1544,6 +1667,7 @@ function render() {
   if (state.view === 'home') { renderHome(); return; }
   renderPeriods();
   renderWsHead();
+  renderTradeTabs();
   const totals = state.teams.map(teamTotals);
   const cmp = compare(totals);
   renderTradeWarn();
@@ -1590,6 +1714,40 @@ function renderWsHead() {
   } else {
     el.innerHTML = `<div class="wsh"><div class="wsh-t"><h1>${t('Brzo poređenje')}</h1><span class="wsh-note">${t('Za {f} lige', { f: formatLabel('h2h-cat', true) })}</span></div></div>`;
   }
+}
+
+/* ---------- Tabovi trejdova ---------- */
+const lastName = id => { const n = state.byId.get(id)?.name || ''; const w = n.trim().split(/\s+/); return w.length > 1 ? w.slice(1).join(' ') : n; };
+function tabTitle(tb) {
+  const side = list => !list.length ? '…' : list.length === 1 ? lastName(list[0]) : `${lastName(list[0])} +${list.length - 1}`;
+  if (!tabHasPlayers(tb)) return t('Novi trejd');
+  return `${side(tb.teams[GIVE].ids)} ⇄ ${side(tb.teams[GET].ids)}`;
+}
+function renderTradeTabs() {
+  const s = scopeTabs();
+  $('#tradetabs').innerHTML = `<div class="ttabs" role="tablist" aria-label="${t('Trejdovi')}">
+    ${s.tabs.map(tb => `<div class="ttab ${tb.id === s.active ? 'on' : ''}">
+      <button type="button" class="ttab-go" role="tab" aria-selected="${tb.id === s.active}" data-tab="${tb.id}" title="${esc(tabTitle(tb))}">${tb.shared ? '🔗 ' : ''}${esc(tabTitle(tb))}</button>
+      <button type="button" class="ttab-x" data-tab-close="${tb.id}" aria-label="${t('Zatvori trejd')}" title="${t('Zatvori trejd')}">✕</button></div>`).join('')}
+    <button type="button" class="ttab-new" data-action="tab-new">＋ ${t('Planiraj novi trejd')}</button></div>`;
+}
+function switchTab(id) {
+  activateTab(id);
+  state.sharedOpen = false;
+  state.histView = null;
+  searchUI.clear();
+  saveState(); render();
+}
+function closeTab(id) {
+  const tb = scopeTabs().tabs.find(x => x.id === id);
+  if (!tb) return;
+  const go = () => { removeTab(id); state.sharedOpen = false; saveState(); render(); };
+  if (!tabHasPlayers(tb)) { go(); return; }
+  showModal({
+    title: t('Zatvoriti trejd?'),
+    body: `<p>${t('Trejd {x} biće uklonjen. Sačuvani trejdovi u istoriji ostaju.', { x: `<b>${esc(tabTitle(tb))}</b>` })}</p>`,
+    confirm: t('Zatvori'), danger: true, onConfirm: go,
+  });
 }
 
 /** Brzo poređenje: kad se doda prvi igrač, jedan nenametljiv red sa pozivom da se sačuva liga */
@@ -1721,7 +1879,7 @@ function deleteLeague() {
       profile.leagues = profile.leagues.filter(l => l.id !== lg.id);
       if (profile.lastLeagueId === lg.id) profile.lastLeagueId = profile.leagues[0]?.id || null;
       saveProfile();
-      state.teams = [newTeam(), newTeam()];
+      delete tradeStoreGet().scopes[lg.id]; persistTrades();
       bindScope('quick');
       location.hash = 'home';
     },
@@ -1767,7 +1925,10 @@ function createLeague(fields, myName = '') {
   profile.leagues.push(lg);
   profile.lastLeagueId = lg.id;
   if (state.scope === 'quick' && (giveIds().length || getIds().length)) {
-    lsSet(CONFIG.TRADE_KEY, { scope: lg.id, period: state.period, teams: state.teams.map(x => ({ ids: [...x.ids] })) });
+    // trenutni trejd iz brzog poređenja prelazi u novu ligu (kao njen prvi tab)
+    const tab = activeTab();
+    tradeStoreGet().scopes[lg.id] = { active: tab.id, tabs: [{ ...clone(tab), balance: emptyBalance() }] };
+    removeTab(tab.id);
   }
   saveProfile();
   location.hash = `league-${lg.id}`;
@@ -2561,7 +2722,7 @@ function importData() {
     confirm: t('Zameni i uvezi'), danger: true,
     onConfirm: () => {
       lsSet(CONFIG.PROFILE_KEY, { ...res.profile, schema: SCHEMA_VERSION });
-      localStorage.removeItem(CONFIG.TRADE_KEY);
+      localStorage.removeItem(CONFIG.TRADE_KEY); localStorage.removeItem(CONFIG.TRADES_KEY);
       history.replaceState(null, '', `${location.pathname}${location.search}#home`);
       location.reload();
     },
@@ -2673,9 +2834,8 @@ function applyTrade(plans) {
     for (const id of [...pl.incoming, ...pl.waivers]) pl.r.players.push({ id, ir: false });
     pl.r.updated = now;
   }
-  state.teams = [newTeam(), newTeam()];
-  state.balance = { my: { drops: [], waivers: [] }, opp: { drops: [], waivers: [] } };
-  saveRosters(); saveBalance(); saveState();
+  removeTab(activeTab().id); // trejd je obavljen: njegov tab se zatvara, ostali tabovi vide novi roster
+  saveRosters(); saveState();
   state.notice = 'Trejd se dogodio: sačuvani rosteri su ažurirani, a trejd je u Istoriji kao obavljen.';
   render();
 }
@@ -2741,8 +2901,8 @@ function openTrade(id) {
   const h = state.history.find(x => x.id === id);
   if (!h) return;
   // stari trejdovi (Tim A/B) se otvaraju kao Daješ/Dobijaš: prve dve strane
-  state.teams = [GIVE, GET].map(i => ({ ...newTeam(), ids: [...(h.teams[i]?.ids || [])] }));
-  state.balance.my = { drops: [...(h.slots?.drops || [])], waivers: [...(h.slots?.waivers || [])] }; saveBalance();
+  // sačuvan trejd se otvara u NOVOM tabu, postojeći nacrti ostaju
+  addTab([GIVE, GET].map(i => h.teams[i]?.ids || []), { ...emptyBalance(), my: { drops: [...(h.slots?.drops || [])], waivers: [...(h.slots?.waivers || [])] } });
   state.period = h.period;
   state.histView = id;
   state.histOpen = true;
@@ -2981,6 +3141,12 @@ document.addEventListener('click', e => {
   if (nav) { e.preventDefault(); navigate(nav.dataset.nav); return; }
   const ol = e.target.closest('[data-open-league]');
   if (ol) { navigate('league', ol.dataset.openLeague); return; }
+  const tg = e.target.closest('[data-tab]');
+  if (tg) { switchTab(tg.dataset.tab); return; }
+  const tx = e.target.closest('[data-tab-close]');
+  if (tx) { closeTab(tx.dataset.tabClose); return; }
+  const sh = e.target.closest('[data-share-to]');
+  if (sh && state.pendingShare) { openSharedIn(sh.dataset.shareTo, state.pendingShare); return; }
   const rv = e.target.closest('[data-rview]');
   if (rv) {
     const [k, v] = rv.dataset.rview.split(':');
@@ -2995,6 +3161,7 @@ document.addEventListener('click', e => {
   const ti = +el.dataset.team;
   switch (el.dataset.action) {
     case 'refresh': loadPlayers(true); loadSchedule(true); break;
+    case 'tab-new': addTab(); state.sharedOpen = false; state.histView = null; searchUI.clear(); saveState(); render(); break;
     case 'save-trade': if (currentLeague()) saveTrade(); break;
     case 'trade-done': if (currentLeague()) tradeDone(); break;
     case 'add-to-roster': if (!el.classList.contains('is-disabled')) { addToRoster(el.dataset.kind, +el.dataset.id); render(); } break;
