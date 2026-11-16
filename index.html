@@ -3,31 +3,63 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#121418">
-<title>Trade Analyzer</title>
+<meta name="theme-color" content="#131519">
+<title>Fantasy Basketball Trade Analyzer | RosterSwing</title>
+<meta name="application-name" content="RosterSwing">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="assets/favicon-16.png" sizes="16x16" type="image/png">
+<link rel="icon" href="assets/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="assets/favicon-64.png" sizes="64x64" type="image/png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#121418; --bg2:#181b21; --card:#1f232b; --card2:#262b34; --line:#323844;
-  --text:#e9ecf1; --muted:#9aa3b2; --dim:#6b7383;
-  --accent:#e1251b; --accent2:#ff4136;
-  --win:#1f9d55; --win-bg:rgba(31,157,85,.18); --win-text:#5be38f;
-  --lose:#d64545; --lose-bg:rgba(214,69,69,.16); --lose-text:#ff8a8a;
-  --warn:#f0b429; --warn-bg:rgba(240,180,41,.14);
+  /* RosterSwing paleta, tamna tema (brandbook str. 4). Jedino mesto za boje. */
+  --rs-red:#EE3024; --rs-green:#55DE91; --rs-blue:#75A9FF; --rs-white:#FFFFFF;
+  --rs-red-text:#FF8589; --rs-red-btn:#D9251A;
+  --bg:#131519; --bg2:#181B21; --card:#1E222A; --card2:#262B35; --line:#333A46;
+  --text:#E9EDF3; --muted:#A4AEBD; --dim:#6E7787;
+  --header-bg:rgba(19,21,25,.94);
+  /* aktivni izbor i glavna dugmad: crveno dugme sa belim tekstom */
+  --accent:var(--rs-red-btn); --accent2:var(--rs-red); --accent-rgb:217,37,26;
+  /* smer (oznake): crveno = daješ / odlazi, zeleno = dobijaš / dolazi */
+  --give:var(--rs-red-text); --get:var(--rs-green);
+  /* ishod za mene (brojke): zeleno = bolje, crveno = lošije */
+  --win:#1B8A55; --win-bg:rgba(85,222,145,.14); --win-text:var(--rs-green); --win-rgb:85,222,145;
+  --lose:var(--rs-red); --lose-bg:rgba(238,48,36,.15); --lose-text:var(--rs-red-text); --lose-rgb:238,48,36;
+  /* informacije, linkovi, fokus */
+  --info:var(--rs-blue); --info-bg:rgba(117,169,255,.14); --info-rgb:117,169,255;
+  /* žuta samo za upozorenja */
+  --warn:#F0B429; --warn-bg:rgba(240,180,41,.14);
   --radius:12px;
 }
+/* Svetla paleta iz brandbooka: upisana za kasnije, svetla tema se još ne koristi */
+:root[data-theme="light"]{
+  --rs-red:#B7241C; --rs-green:#187A4B; --rs-blue:#245BB3;
+  --rs-red-text:#B7241C; --rs-red-btn:#B7241C;
+  --bg:#F4F6F8; --bg2:#EDF0F3; --card:#FFFFFF; --card2:#F4F6F8; --line:#D9DEE5;
+  --text:#131519; --muted:#5A6472; --dim:#8A93A1;
+  --header-bg:rgba(244,246,248,.94);
+}
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;-webkit-text-size-adjust:100%}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;-webkit-text-size-adjust:100%;font-variant-numeric:tabular-nums}
+a{color:var(--info)}
+:focus-visible{outline:2px solid var(--info);outline-offset:2px}
 button,input{font:inherit;color:inherit}
 .wrap{max-width:1280px;margin:0 auto;padding:0 16px calc(32px + env(safe-area-inset-bottom))}
 
 /* Header */
-header.top{position:sticky;top:0;z-index:20;background:rgba(18,20,24,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+header.top{position:sticky;top:0;z-index:20;background:var(--header-bg);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
 header.top .wrap{display:flex;align-items:center;gap:12px;padding-top:10px;padding-bottom:10px;flex-wrap:wrap}
-.brand{font-weight:800;font-size:16px;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
-.brand i{display:inline-block;width:8px;height:20px;background:var(--accent);border-radius:2px}
-.brand small{color:var(--muted);font-weight:500;font-size:12px}
+/* Logo: okvir znaka 24 px, razmak 8 px, naziv 16 px; zaštitna zona ≥ četvrtina visine znaka */
+.brand{display:flex;align-items:center;gap:8px;padding:4px;margin:-4px;flex:none;min-height:44px}
+.brand img{display:block;flex:none}
+.brand-mark{width:24px;height:24px}
+.brand-word{height:15.6px;width:auto}
+.brand-desc{display:none;color:var(--muted);font-size:12px;font-weight:500;padding-left:10px;margin-left:2px;border-left:1px solid var(--line);white-space:nowrap}
+@media (min-width:1180px){.brand-desc{display:inline}}
+@media (max-width:359px){.brand-word{display:none}}
 .seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:3px;overflow-x:auto;scrollbar-width:none;margin-left:auto}
 .seg::-webkit-scrollbar{display:none}
 .seg button{background:none;border:0;padding:6px 12px;border-radius:999px;color:var(--muted);font-weight:600;font-size:13px;white-space:nowrap;cursor:pointer}
@@ -76,12 +108,12 @@ body[data-view="quick"] #myteam,body[data-view="quick"] #oppteam,body[data-view=
 .share-pick .hint{color:var(--muted);font-weight:400;font-size:12px}
 .wsh{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px}
 .wsh-t{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;min-width:0}
-.wsh h1{font-size:20px;margin:0;letter-spacing:-.01em}
+.wsh h1{font-size:28px;font-weight:800;margin:0;letter-spacing:-.02em}
 .wsh-team{color:var(--muted);font-size:13px}
 .wsh-note{color:var(--dim);font-size:12px}
 .pbadge{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:4px;background:var(--card2);color:var(--muted);border:1px solid var(--line);white-space:nowrap}
 /* Početni ekran */
-.hello{font-size:24px;margin:22px 0 14px;letter-spacing:-.01em}
+.hello{font-size:30px;font-weight:800;margin:22px 0 14px;letter-spacing:-.02em}
 .lgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
 .lcard{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;text-align:left;color:var(--text);cursor:pointer;display:flex;flex-direction:column;gap:6px;min-height:150px;font:inherit}
 .lcard:hover{border-color:var(--accent)}
@@ -126,7 +158,7 @@ label.radio.soon{color:var(--dim)!important}
 .linkbtn{background:none;border:1px solid var(--line);border-radius:999px;padding:4px 10px;color:var(--muted);cursor:pointer;font-size:12px}
 .linkbtn:hover{color:var(--text);border-color:var(--dim)}
 .banner{border-radius:var(--radius);padding:12px 14px;margin:12px 0;font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.banner.err{background:var(--lose-bg);border:1px solid rgba(214,69,69,.4);color:#ffd0d0}
+.banner.err{background:var(--lose-bg);border:1px solid rgba(var(--lose-rgb),.4);color:#ffd0d0}
 .banner.warn{background:var(--warn-bg);border:1px solid rgba(240,180,41,.35);color:#ffe7a8}
 .banner button{background:var(--accent);border:0;color:#fff;border-radius:999px;padding:6px 14px;font-weight:600;cursor:pointer}
 .spinner{width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;flex:none}
@@ -137,9 +169,12 @@ label.radio.soon{color:var(--dim)!important}
 .score-row{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap}
 .score-team{display:flex;flex-direction:column;align-items:center;min-width:72px}
 .score-team .nm{font-size:12px;color:var(--muted);font-weight:600;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.score-team .pts{font-size:34px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
-.score-team.lead .pts{color:var(--win-text)}
-.score-team.lead .nm{color:var(--text)}
+.score-team .pts{font-size:40px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+/* Rezultat: brojka uz Dobijaš zelena, uz Daješ neutralna; oznake u boji smera */
+.score-team.get .pts{color:var(--win-text)}
+.score-team.give .pts{color:var(--text)}
+.score-team.get .nm{color:var(--get);font-weight:700}
+.score-team.give .nm{color:var(--give);font-weight:700}
 .score-sep{font-size:24px;color:var(--dim);font-weight:700}
 .score-note{text-align:center;color:var(--muted);font-size:12px;margin-top:6px}
 .score-note b{color:var(--text)}
@@ -152,12 +187,11 @@ label.radio.soon{color:var(--dim)!important}
 .card-h{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
 .card-h .dot{width:10px;height:10px;border-radius:50%;flex:none}
 .side-title{display:flex;flex-direction:column;flex:1;min-width:0;line-height:1.2}
-.side-title b{font-size:15px}
+.side-title b{font-size:17px;font-weight:700}
 .side-title small{font-size:11px;color:var(--muted);font-weight:500}
 .score-verdict{text-align:center;font-weight:700;font-size:14px;margin-top:6px}
 .score-verdict.good{color:var(--win-text)}
 .score-verdict.bad{color:var(--lose-text)}
-.score-team.lead-bad .pts{color:var(--lose-text)}
 .report .l{color:var(--lose-text);font-weight:600}
 .team-badge{font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap}
 .team-badge.lead{color:var(--win-text)}
@@ -172,17 +206,17 @@ label.radio.soon{color:var(--dim)!important}
 .chip.off{opacity:.7;border-style:dashed}
 .slot-chips{padding:8px 12px 0}
 .slot-tag{display:inline-block;white-space:nowrap;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:1px 5px;border-radius:3px;width:max-content}
-tr.slot-d td{background:linear-gradient(rgba(214,69,69,.09),rgba(214,69,69,.09)),var(--card)}
-tr.slot-w td{background:linear-gradient(rgba(31,157,85,.09),rgba(31,157,85,.09)),var(--card)}
+tr.slot-d td{background:linear-gradient(rgba(var(--lose-rgb),.09),rgba(var(--lose-rgb),.09)),var(--card)}
+tr.slot-w td{background:linear-gradient(rgba(var(--win-rgb),.09),rgba(var(--win-rgb),.09)),var(--card)}
 tr.slot-d .slot-tag,.slot-d-tag{background:var(--lose-bg);color:var(--lose-text)}
 tr.slot-w .slot-tag,.slot-w-tag{background:var(--win-bg);color:var(--win-text)}
 .search input{width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:10px 12px 10px 34px;outline:none;font-size:16px}
-.search input:focus{border-color:var(--accent)}
+.search input:focus{border-color:var(--info)}
 .search input:disabled{opacity:.5}
 .search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--dim);pointer-events:none}
 .dd{position:absolute;left:0;right:0;top:calc(100% + 4px);background:var(--card2);border:1px solid var(--line);border-radius:8px;box-shadow:0 12px 30px rgba(0,0,0,.5);z-index:30;max-height:320px;overflow-y:auto;list-style:none;margin:0;padding:4px}
 .dd li{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:6px;cursor:pointer}
-.dd li[aria-selected="true"]{background:rgba(225,37,27,.18)}
+.dd li[aria-selected="true"]{background:rgba(var(--accent-rgb),.18)}
 .dd li .meta{color:var(--muted);font-size:12px}
 .dd .empty{color:var(--muted);cursor:default;padding:10px}
 
@@ -190,7 +224,7 @@ tr.slot-w .slot-tag,.slot-w-tag{background:var(--win-bg);color:var(--win-text)}
 .tscroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
 th,td{padding:7px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
-th{font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.03em;background:var(--bg2)}
+th{font-size:13px;color:var(--muted);font-weight:600;letter-spacing:.02em;background:var(--bg2)}
 td{font-size:13px}
 th:first-child,td:first-child{text-align:left;position:sticky;left:0;z-index:1;background:var(--card);min-width:150px;width:300px;max-width:300px}
 th:first-child{background:var(--bg2)}
@@ -199,6 +233,8 @@ tbody tr.nodata td:first-child{color:var(--muted)}
 tr.total td{font-weight:700;border-bottom:0;background:var(--card2)}
 tr.total td:first-child{background:var(--card2)}
 td.win{background:var(--win-bg)!important;color:var(--win-text)}
+td.better-me{background:var(--win-bg)!important;color:var(--win-text)}
+td.better-them{background:var(--lose-bg)!important;color:var(--lose-text)}
 td.lose{background:var(--lose-bg)!important;color:var(--lose-text)}
 td .sub{display:block;font-size:10px;font-weight:500;color:var(--muted);margin-top:1px}
 .pl{display:flex;align-items:center;gap:8px;min-width:0}
@@ -214,7 +250,7 @@ td .sub{display:block;font-size:10px;font-weight:500;color:var(--muted);margin-t
 .inj.dtd{background:var(--warn-bg);color:var(--warn)}
 .flag{font-size:10px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--warn-bg);color:var(--warn)}
 .badge{font-size:10px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--card2);color:var(--muted);cursor:help;white-space:nowrap}
-.badge.wk{background:rgba(59,130,246,.16);color:#8fb8ff}
+.badge.wk{background:rgba(var(--info-rgb),.16);color:var(--info)}
 .badge.gp-good{background:var(--win-bg);color:var(--win-text)}
 .badge.gp-ok{background:var(--warn-bg);color:var(--warn)}
 .badge.gp-bad{background:var(--lose-bg);color:var(--lose-text)}
@@ -273,7 +309,7 @@ th.minth .i{font-size:10px;opacity:.7;margin-left:2px}
 .trend.bad{color:var(--lose-text)}
 .hint{font-weight:500;text-transform:none;letter-spacing:0;color:var(--dim);font-size:11px}
 .fold{margin-top:22px}
-.fold summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:12px 14px;font-weight:700;font-size:14px}
+.fold summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:12px 14px;font-weight:700;font-size:17px;min-height:44px}
 .fold summary::-webkit-details-marker{display:none}
 .fold summary::before{content:'▸';color:var(--accent);margin-right:8px;transition:transform .15s}
 .fold[open] summary::before{transform:rotate(90deg)}
@@ -294,13 +330,13 @@ tr.sumrow td:first-child{background:var(--bg2)}
 tr.leaving td,tr.ir td{color:var(--dim)}
 tr.leaving .av,tr.ir .av,tr.leaving .badge,tr.ir .badge{opacity:.5}
 tr.leaving .nm{text-decoration:line-through}
-tr.arriving td{background:linear-gradient(rgba(31,157,85,.10),rgba(31,157,85,.10)),var(--card)}
+tr.arriving td{background:linear-gradient(rgba(var(--win-rgb),.10),rgba(var(--win-rgb),.10)),var(--card)}
 tr.irhead td{font-size:11px;color:var(--muted);background:var(--bg2);text-align:left;font-weight:600;letter-spacing:.03em}
 .tags{display:flex;gap:3px;margin-bottom:1px}
 .tag-out{background:var(--lose-bg);color:var(--lose-text)}
 .tag-in{background:var(--win-bg);color:var(--win-text)}
 .tag-ir{background:var(--card2);color:var(--muted);border:1px solid var(--line)}
-.tag-mine{background:rgba(225,37,27,.16);color:#ff9b94}
+.tag-mine{background:rgba(var(--accent-rgb),.16);color:var(--give)}
 .mini{background:var(--bg2);border:1px solid var(--line);border-radius:4px;color:var(--muted);font-size:10px;padding:2px 5px;cursor:pointer;flex:none;margin-left:auto}
 .mini:hover{color:var(--text)}
 .mini + .rm{margin-left:0}
@@ -310,8 +346,8 @@ tr.irhead td{font-size:11px;color:var(--muted);background:var(--bg2);text-align:
 .btn{background:var(--accent);border:0;color:#fff;border-radius:999px;padding:7px 16px;font-weight:600;cursor:pointer;font-size:13px}
 .btn:hover{background:var(--accent2)}
 .btn.danger,.linkbtn.danger{color:#fff}
-.linkbtn.danger{color:var(--lose-text);border-color:rgba(214,69,69,.4)}
-.btn.danger{background:#b83232}
+.linkbtn.danger{color:var(--lose-text);border-color:rgba(var(--lose-rgb),.4)}
+.btn.danger{background:var(--rs-red-btn)}
 #modal{position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:16px}
 .modal-back{position:absolute;inset:0;background:rgba(0,0,0,.6)}
 .modal-box{position:relative;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.6);max-height:calc(100vh - 32px);overflow:auto}
@@ -339,26 +375,26 @@ tr.irhead td{font-size:11px;color:var(--muted);background:var(--bg2);text-align:
 .modal-body textarea{width:100%;min-height:140px;background:var(--bg2);border:1px solid var(--line);border-radius:8px;color:var(--text);font:12px ui-monospace,Menlo,monospace;padding:8px}
 .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 .btn.ok{background:var(--win);font-size:14px;padding:8px 18px}
-.btn.ok:hover{background:#25b863}
+.btn.ok:hover{background:#21A064}
 .score-hint{text-align:center;font-size:11px;color:var(--dim);margin-top:6px}
 .idea-tag{color:var(--muted)}
 .view-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px 2px}
 .preview-note{font-size:11px;color:var(--warn)}
 .r-done{display:flex;justify-content:flex-end;padding:10px 12px}
-.linkbtn.done{color:var(--win-text);border-color:rgba(31,157,85,.45)}
+.linkbtn.done{color:var(--win-text);border-color:rgba(var(--win-rgb),.45)}
 .notall{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:10px 12px 0;padding:10px 12px;border-radius:8px;background:var(--warn-bg);border:1px solid rgba(240,180,41,.35);color:#ffe7a8;font-size:13px}
 .full-note{margin:10px 12px 0;padding:9px 12px;border-radius:8px;border:1px dashed var(--line);color:var(--muted);font-size:12px;cursor:help}
 .is-disabled{opacity:.45;cursor:not-allowed!important}
 .card-warn.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-radius:0}
 .card-warn.soft{background:transparent;color:var(--muted);border-top:0}
-.linkbtn.addmy{color:var(--text);border-color:rgba(225,37,27,.5);background:rgba(225,37,27,.12)}
+.linkbtn.addmy{color:var(--text);border-color:rgba(var(--accent-rgb),.5);background:rgba(var(--accent-rgb),.12)}
 .linkbtn.addmy:disabled{opacity:.5;cursor:not-allowed}
 .dd li .dd-main{flex:1;min-width:0}
 .dd-addmy{background:var(--bg2);border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:11px;font-weight:600;padding:3px 8px;cursor:pointer;flex:none}
 .dd-addmy:hover{color:var(--text);border-color:var(--accent)}
-.banner.info{background:rgba(59,130,246,.14);border:1px solid rgba(59,130,246,.4);color:#cfe0ff;justify-content:space-between}
+.banner.info{background:rgba(var(--info-rgb),.14);border:1px solid rgba(var(--info-rgb),.4);color:#cfe0ff;justify-content:space-between}
 .banner button.x{background:none;color:inherit;padding:2px 8px;font-size:14px}
-.banner.ok{background:var(--win-bg);border:1px solid rgba(31,157,85,.4);color:#c9f5d9}
+.banner.ok{background:var(--win-bg);border:1px solid rgba(var(--win-rgb),.4);color:#c9f5d9}
 .done-block{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0;display:flex;flex-direction:column;gap:2px}
 .done-tag{color:var(--win-text)}
 .langsel{display:flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:999px;padding:0 4px 0 9px;height:34px;color:var(--muted);flex:none;cursor:pointer}
@@ -377,8 +413,8 @@ tr.irhead td{font-size:11px;color:var(--muted);background:var(--bg2);text-align:
 .r-meta{font-size:11px;color:var(--muted);padding:10px 12px 0}
 .r-meta .stale{color:var(--warn)}
 .balance.top{padding:4px 12px 10px}
-tr.slot-d td{background:linear-gradient(rgba(214,69,69,.09),rgba(214,69,69,.09)),var(--card)}
-tr.slot-w td{background:linear-gradient(rgba(31,157,85,.09),rgba(31,157,85,.09)),var(--card)}
+tr.slot-d td{background:linear-gradient(rgba(var(--lose-rgb),.09),rgba(var(--lose-rgb),.09)),var(--card)}
+tr.slot-w td{background:linear-gradient(rgba(var(--win-rgb),.09),rgba(var(--win-rgb),.09)),var(--card)}
 .balance{padding:8px 12px 0;display:flex;flex-direction:column;gap:6px}
 .balance .search{padding:0}
 .bal-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -404,7 +440,7 @@ tr.drop-after td{box-shadow:inset 0 -2px 0 var(--accent)}
 .score-actions{display:flex;justify-content:center;gap:8px;margin-top:8px;flex-wrap:wrap}
 .hist-list{list-style:none;margin:0;padding:6px 8px}
 .hist-list li{display:flex;align-items:center;gap:6px;border-radius:8px}
-.hist-list li.active{background:rgba(225,37,27,.12)}
+.hist-list li.active{background:rgba(var(--accent-rgb),.12)}
 .hist-open{flex:1;min-width:0;text-align:left;background:none;border:0;padding:8px 6px;cursor:pointer;display:flex;flex-direction:column;gap:2px}
 .hist-open:hover .hist-sides{color:var(--text)}
 .hist-date{font-size:11px;color:var(--muted);font-weight:600}
@@ -416,7 +452,8 @@ tr.drop-after td{box-shadow:inset 0 -2px 0 var(--accent)}
 .hist-tn{font-weight:700;font-size:13px;padding:4px 12px}
 
 /* Compare + report */
-.section-t{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:22px 0 8px}
+.section-t{font-size:18px;font-weight:700;color:var(--text);letter-spacing:-.01em;margin:24px 0 10px}
+.section-t .hint{font-size:13px}
 .cmp td:first-child,.cmp th:first-child{min-width:70px}
 td.dcell{font-weight:600;white-space:nowrap}
 td.dcell.pos{color:var(--win-text)}
@@ -424,8 +461,8 @@ td.dcell.neg{color:var(--lose-text)}
 td.dcell.eq{color:var(--dim)}
 .dsub{font-weight:500!important;color:var(--muted)!important;font-size:10px!important}
 .lowvol{display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:1px 4px;border-radius:3px;background:var(--card2);color:var(--muted);margin-left:4px;cursor:help;vertical-align:middle}
-.cmp th.impact{color:var(--text);background:rgba(225,37,27,.14)}
-td.dcell.impact{background:rgba(225,37,27,.07);font-size:14px}
+.cmp th.impact{color:var(--text);background:rgba(var(--accent-rgb),.14)}
+td.dcell.impact{background:rgba(var(--accent-rgb),.07);font-size:14px}
 .report{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;line-height:1.6;font-size:14px}
 .report p{margin:0 0 8px}
 .report p:last-child{margin-bottom:0}
@@ -439,7 +476,7 @@ td.dcell.impact{background:rgba(225,37,27,.07);font-size:14px}
 .rp-block{margin-top:10px}
 .rp-t{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
 .rp-block.plus .rp-t{color:var(--win-text)}
-.rp-block.risk .rp-t{color:#f59e0b}
+.rp-block.risk .rp-t{color:var(--warn)}
 .rp-block ul{margin:0;padding-left:18px}
 .rp-block li{margin:3px 0}
 .rp-block li.has-tip{cursor:help}
@@ -447,7 +484,7 @@ td.dcell.impact{background:rgba(225,37,27,.07);font-size:14px}
 .rp-opp{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
 .rp-note{color:var(--muted);font-size:12px;margin-top:12px !important}
 .btn.small{padding:5px 12px;font-size:12px}
-.aibtn{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;margin-top:12px;background:linear-gradient(135deg,#7c3aed,#2563eb);border:0;border-radius:var(--radius);color:#fff;padding:16px 18px;cursor:pointer;font:inherit;text-align:center;box-shadow:0 6px 18px rgba(37,99,235,.25)}
+.aibtn{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;margin-top:12px;background:linear-gradient(135deg,#3E6FD8,#2A54B5);border:0;border-radius:var(--radius);color:#fff;padding:16px 18px;cursor:pointer;font:inherit;text-align:center;box-shadow:0 6px 18px rgba(42,84,181,.3)}
 .aibtn:hover{filter:brightness(1.08)}
 .aibtn-t{font-size:17px;font-weight:800}
 .aibtn-s{font-size:13px;opacity:.9;max-width:520px;line-height:1.4}
@@ -460,12 +497,57 @@ td.dcell.impact{background:rgba(225,37,27,.07);font-size:14px}
 footer{color:var(--dim);font-size:11px;text-align:center;margin-top:28px}
 .skeleton{height:120px;border-radius:var(--radius);background:linear-gradient(90deg,var(--card),var(--card2),var(--card));background-size:200% 100%;animation:sh 1.2s infinite}
 @keyframes sh{to{background-position:-200% 0}}
+
+/* Imena igrača se nikad ne seku: prelaze u drugi red */
+.pl .nm{white-space:normal;overflow:visible;text-overflow:clip;max-width:none;overflow-wrap:break-word;line-height:1.25}
+
+/* Telefon: manji rezultat, Poređenje kategorija odmah ispod njega */
+@media (max-width:640px){
+  .score{padding:10px 12px;margin-bottom:10px}
+  .score-row{gap:10px}
+  .score-team .pts{font-size:30px}
+  .score-sep{font-size:20px}
+  .score-verdict{font-size:13px;margin-top:2px}
+  .score-note{margin-top:2px}
+  .score-actions{margin-top:6px;gap:6px}
+  .score-hint{font-size:10px;margin-top:4px}
+  .wsh h1{font-size:22px}
+  .hello{font-size:26px}
+  .section-t{font-size:16px;margin:16px 0 8px}
+  main.wrap{display:flex;flex-direction:column}
+  main.wrap > *{order:2}
+  #home,#leaguebar,#wshead,#tradetabs,#status,#banner,#tradewarn,#score{order:0}
+  #compare{order:1}
+  #compare .section-t{margin-top:4px}
+  .pl .nm{max-width:none}
+  .teams .pl .av{display:none}
+}
+
+/* Sve što se tapka: najmanje 44 px */
+@media (max-width:640px),(pointer:coarse){
+  .seg button,.lchip,.ttab-go,.ttab-new,.linkbtn,.btn,.banner button,.dd-addmy,.hist-open,.pp-league{min-height:44px}
+  .seg button{display:inline-flex;align-items:center}
+  .linkbtn,.btn{display:inline-flex;align-items:center;justify-content:center;gap:4px}
+  .langsel,.pchip,.gear{height:44px;min-width:44px}
+  .gear{width:44px}
+  .pchip{padding:3px 10px 3px 6px}
+  .pav{width:32px;height:32px}
+  .ttab-x,.iconbtn,.rm{min-width:44px;min-height:44px;display:inline-grid;place-items:center}
+  .mini{min-height:44px;min-width:44px;padding:2px 6px}
+  .chip button{min-width:44px;min-height:40px}
+  .chip{padding:0 0 0 10px}
+  .drag{min-height:44px;display:inline-grid;place-items:center;padding:0 6px}
+  .dd li{min-height:44px}
+  .search input,.form input,.form select,.opp-pick select,.opp-form input,.bal-row select{min-height:44px}
+  td.catth{height:44px}
+  .acts{flex-direction:row}
+}
 </style>
 </head>
 <body>
 <header class="top">
   <div class="wrap">
-    <a class="brand" href="#home" data-nav="home"><i></i>Trade Analyzer</a>
+    <a class="brand" href="#home" data-nav="home" aria-label="RosterSwing"><img class="brand-mark" src="assets/favicon.svg" width="24" height="24" alt="RosterSwing"><img class="brand-word" src="assets/wordmark.svg" width="96" height="16" alt=""><span class="brand-desc">Fantasy Basketball Tools</span></a>
     <div class="hcenter"><span id="hleague"></span><div class="seg" id="periods" role="group" aria-label="Period"></div></div>
     <div class="hright">
     <label class="langsel" title="Jezik / Language"><svg class="globe" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.8 3.8 5.8 3.8 9s-1.3 6.2-3.8 9c-2.5-2.8-3.8-5.8-3.8-9S9.5 5.8 12 3z"/></svg><select data-langsel aria-label="Jezik / Language"><option value="sr">Srpski</option><option value="en">English</option></select></label>
@@ -639,8 +721,8 @@ const INJURY = {
 
 /** Trejd ima uvek dve strane iz moje perspektive: teams[0] = Daješ (moj tim), teams[1] = Dobijaš (protivnik). */
 const SIDES = [
-  { srName: 'Daješ', srSub: 'Moj tim', color: '#e1251b' },
-  { srName: 'Dobijaš', srSub: 'Protivnik', color: '#3b82f6' },
+  { srName: 'Daješ', srSub: 'Moj tim', color: 'var(--give)' },
+  { srName: 'Dobijaš', srSub: 'Protivnik', color: 'var(--get)' },
 ].map(x => Object.defineProperties(x, { name: { get() { return t(this.srName); } }, sub: { get() { return t(this.srSub); } } }));
 const GIVE = 0, GET = 1;
 
@@ -1698,6 +1780,8 @@ function compare(totals) {
     // FG%/FT% sa unetim rosterom: ako se procenat mog tima skoro ne menja, kategorija je nerešena
     const td = cat.type === 'pct' ? myTeamDelta(cat) : null;
     if (td != null && Math.abs(td) < TEAM_PCT_TIE) { res.cats[cat.key] = { marks, winner: null, runnerUp: null, margin: null, teamTie: true }; res.ties++; continue; }
+    // Bez rostera: FG%/FT% sa oznakom "mali obim" skoro ne utiče na tim, pa je nerešeno
+    if (td == null && !state.rosters?.my?.players.length && lowVolume(cat, totals)) { res.cats[cat.key] = { marks, winner: null, runnerUp: null, margin: null, lowVolTie: true }; res.ties++; continue; }
     const entries = active.map(i => ({ i, v: totals[i].vals[cat.key] })).filter(en => en.v != null);
     let winner = null, margin = null, runnerUp = null;
     if (entries.length >= 2) {
@@ -2108,9 +2192,9 @@ function renderScore(totals, cmp) {
   const win = cmp.score[GET], lose = cmp.score[GIVE];
   const verdict = win > lose ? 'good' : win < lose ? 'bad' : '';
   el.innerHTML = `<div class="score-row">
-      <div class="score-team ${verdict === 'good' ? 'lead' : ''}"><span class="pts">${win}</span><span class="nm">${SIDES[GET].name}</span></div>
+      <div class="score-team get"><span class="pts">${win}</span><span class="nm">${SIDES[GET].name}</span></div>
       <span class="score-sep">:</span>
-      <div class="score-team ${verdict === 'bad' ? 'lead-bad' : ''}"><span class="pts">${lose}</span><span class="nm">${SIDES[GIVE].name}</span></div>
+      <div class="score-team give"><span class="pts">${lose}</span><span class="nm">${SIDES[GIVE].name}</span></div>
     </div>
     <div class="score-verdict ${verdict}">${t('Trejd ti donosi {w} {kat}, gubiš {l}', { w: win, kat: kat(win), l: lose })}${cmp.ties ? ` · ${t('{n} nerešeno', { n: cmp.ties })}` : ''}</div>
     <div class="score-note">${PERIODS.find(p => p.key === state.period).label}${puntNote()}</div>
@@ -2265,10 +2349,16 @@ function searchBoxHTML(key, placeholder, label = '') {
   </div>`;
 }
 
+/**
+ * Ćelija zbira strane: blaga pozadina samo za stranu koja je bolja u kategoriji, lošija ostaje neutralna.
+ * Boja je ishod za mene: bolji Dobijaš = zeleno, bolji Daješ (gubim tu kategoriju) = crveno.
+ */
+const sideCellCls = (mark, ti) => (mark === 'win' ? (ti === GET ? 'better-me' : 'better-them') : '');
+
 function totalRow(t, cmp, ti) {
   const tt = window.t; // parametar t zaklanja funkciju prevoda
   const cells = CATS.map(c => {
-    const mark = cmp.cats[c.key].marks[ti];
+    const mark = sideCellCls(cmp.cats[c.key].marks[ti], ti);
     const v = t.vals[c.key];
     if (c.type === 'pct') {
       return `<td class="${mark}${puntCls(c)}">${fmtPct(v)}<span class="sub">${t.sum[c.made].toFixed(1)}/${t.sum[c.att].toFixed(1)}</span></td>`;
@@ -2294,7 +2384,7 @@ function renderTeams(totals, cmp) {
     return `<section class="card" data-team-card="${ti}">
       <div class="card-h">
         <span class="dot" style="background:${SIDES[ti].color}"></span>
-        <div class="side-title"><b>${SIDES[ti].name}</b><small>${esc(sideSubtitle(ti))}</small></div>
+        <div class="side-title"><b style="color:${SIDES[ti].color}">${SIDES[ti].name}</b><small>${esc(sideSubtitle(ti))}</small></div>
         ${better != null ? `<span class="team-badge ${ti === GET && cmp.score[GET] > cmp.score[GIVE] ? 'lead' : ''}">${t('bolje u {n} kat.', { n: better })}</span>` : ''}
       </div>
       ${searchBoxHTML(String(ti), ti === GIVE ? t('Koga daješ…') : t('Koga dobijaš…'))}
@@ -2393,7 +2483,7 @@ function renderCompare(totals, cmp) {
     const r = cmp.cats[c.key];
     const tds = state.teams.map((_, i) => {
       const v = totals[i].vals[c.key];
-      return `<td class="${r.marks[i]}${puntCls(c)}">${c.type === 'pct' ? fmtPct(v) : fmt1(v)}</td>`;
+      return `<td class="${sideCellCls(r.marks[i], i)}${puntCls(c)}">${c.type === 'pct' ? fmtPct(v) : fmt1(v)}</td>`;
     }).join('');
     // Razlika iz moje perspektive: Dobijaš − Daješ
     // FG%/FT% sa unetim rosterom: sitno ispod, koliko se menja procenat mog tima
