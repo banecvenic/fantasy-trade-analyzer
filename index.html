@@ -429,6 +429,22 @@ td.dcell.impact{background:rgba(225,37,27,.07);font-size:14px}
 .report p{margin:0 0 8px}
 .report p:last-child{margin-bottom:0}
 .report .w{color:var(--win-text);font-weight:600}
+.rp-head{font-weight:800;font-size:15px;margin-bottom:6px}
+.rp-head.small{font-size:14px;margin-bottom:4px}
+.rp-real{color:var(--muted);font-size:13px;margin-bottom:8px}
+.rp-cand{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--bg2);border:1px dashed var(--line);border-radius:8px;padding:8px 10px;margin:6px 0 10px;font-size:13px}
+.rp-cand span{flex:1;min-width:200px}
+.rp-block{margin-top:10px}
+.rp-t{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.rp-block.plus .rp-t{color:var(--win-text)}
+.rp-block.risk .rp-t{color:#f59e0b}
+.rp-block ul{margin:0;padding-left:18px}
+.rp-block li{margin:3px 0}
+.rp-block li.has-tip{cursor:help}
+.rp-i{color:var(--muted);font-size:12px}
+.rp-opp{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.rp-note{color:var(--muted);font-size:12px;margin-top:12px !important}
+.btn.small{padding:5px 12px;font-size:12px}
 footer{color:var(--dim);font-size:11px;text-align:center;margin-top:28px}
 .skeleton{height:120px;border-radius:var(--radius);background:linear-gradient(90deg,var(--card),var(--card2),var(--card));background-size:200% 100%;animation:sh 1.2s infinite}
 @keyframes sh{to{background-position:-200% 0}}
@@ -499,7 +515,10 @@ const CONFIG = (() => {
     CACHE_KEY: `fbaTrade.players.v3.${SEASON}`, // v3: + pozicije (eligibleSlots), % owned, vesti, outlook
     OLD_CACHE_KEYS: [`fbaTrade.players.v2.${SEASON}`],
     // Vesti po igraču (Rotowire preko ESPN-a, na engleskom). Javno, CORS radi.
-    NEWS_URL: id => `https://site.api.espn.com/apis/fantasy/v2/games/fba/news/players?limit=3&playerId=${id}`,
+    // feed meša Rotowire beleške sa opštim ESPN člancima i video snimcima, zato se traži 8 i zadržavaju 3 Rotowire
+    NEWS_URL: id => `https://site.api.espn.com/apis/fantasy/v2/games/fba/news/players?limit=8&playerId=${id}`,
+    NEWS_TYPE: 'Rotowire',
+    NEWS_KEEP: 3,
     NEWS_TTL_MS: 30 * 60 * 1000,   // keš po igraču (prebacivanje tabova i liga ne povlači ponovo)
     NEWS_RECENT_DAYS: 7,           // "skorašnja" vest (rizici, roster u tekstu za AI)
     STATE_KEY: 'fbaTrade.state.v1',
@@ -738,12 +757,6 @@ const EN = {
   "Na osnovu proseka ({per}) trejd ti se <span class=\"w\">isplati</span>: dobijaš {w}, gubiš {l} {kat}.": "Based on averages ({per}) the trade <span class=\"w\">pays off</span>: you gain {w}, lose {l} {kat}.",
   "Na osnovu proseka ({per}) trejd ti se <span class=\"l\">ne isplati</span>: dobijaš {w}, gubiš {l} {kat}.": "Based on averages ({per}) the trade <span class=\"l\">doesn't pay off</span>: you gain {w}, lose {l} {kat}.",
   "Na osnovu proseka ({per}) trejd je izjednačen: {w} : {l}.": "Based on averages ({per}) the trade is even: {w} : {l}.",
-  "Popravljaš: {list}.": "You improve: {list}.",
-  "Ne popravljaš nijednu kategoriju.": "You don't improve any category.",
-  "Kvariš: {list}.": "You get worse in: {list}.",
-  "Tesno: {list}.": "Close: {list}.",
-  "Nerešeno: {list}.": "Tied: {list}.",
-  "Punt (ne računa se): {list}.": "Punt (not counted): {list}.",
   "Napomena: bez podataka za ovaj period i ne računaju se: {list}.": "Note: no data for this period, not counted: {list}.",
   "Izveštaj": "Report",
   "punt {list}": "punt {list}",
@@ -854,7 +867,6 @@ const EN = {
   "Dodaj u moj tim": "Add to my team",
   "{n} nije na tvom rosteru.": "{n} is not on your roster.",
   "Dok u Daješ nema igrača sa tvog rostera, sekcija Moj tim ne menja ništa (nije tvoj trejd).": "Until You give has a player from your roster, the My team section doesn't change anything (it's not your trade).",
-  "Dobijaš {w} {kw}, gubiš {l} ({per}).": "You gain {w} {kw}, lose {l} ({per}).",
   "Maksimalan broj igrača u timu ({n}). Izbaci nekoga ili ga prebaci na IR da bi dodao novog.": "Maximum number of players on the team ({n}). Drop someone or move them to IR to add a new one.",
   "Nisu svi igrači iz Daješ na tvom rosteru ({list}), pa se Moj tim ne menja.": "Not all You give players are on your roster ({list}), so My team doesn't change.",
   "Nisu svi igrači iz Dobijaš na rosteru tima {team} ({list}), pa se njegov roster ne menja.": "Not all You get players are on {team}'s roster ({list}), so their roster doesn't change.",
@@ -2372,37 +2384,404 @@ function renderCompare(totals, cmp) {
     <tbody>${rows}</tbody></table></div></div>`;
 }
 
-function catMarginText(c, margin) {
-  if (c.type === 'pct') return `+${fmtPctAbs(margin)}`;
-  return `${c.lowerIsBetter ? '−' : '+'}${margin.toFixed(1)}`;
+/* =====================================================================
+   Izveštaj o trejdu: pravila u kodu, samo ESPN podaci, bez presude.
+   Sve što zavisi od lige čita se iz aktivne lige (ROSTER, punt, stanje tima, rosteri).
+   ===================================================================== */
+const REPORT = {
+  MAX_PLUS: 5, MAX_RISK: 3,        // moj deo
+  OPP_PLUS: 3, OPP_RISK: 2,        // deo za protivnika
+  MIN_RISE: 3,                     // uloga raste: 15 dana > sezona + 3 min
+  BIG_MIN: 30,                     // stabilna uloga
+  GP_GOOD: 0.85, GP_BAD: 0.70,     // pouzdan / nepouzdan (GP%)
+  MISSED: 3,                       // propustio 3+ utakmice tima zaredom
+  OWN_DROP: -3,                    // % owned pada više od 3 (ESPN: promena za 7 dana)
+  SMALL_SAMPLE: 5,                 // manje od 5 utakmica u izabranom periodu
+  REGULAR_MIN: 25,                 // "igra redovno": GP% 85%+ i 25+ min
+  BENCH_MIN: 20,                   // izbačeni "igra malo": manje od 20 min ili GP% ispod 70%
+  HOT_CATS: 3, COLD_CATS: 3,       // trend u 3+ kategorije
+  LOSS_REL: 0.2, LOSS_ABS: 0.5,    // velika razlika u counting kategoriji
+  LOSS_PCT_TEAM: 0.004, LOSS_PCT_RAW: 0.02,
+  VALUE_W: { PTS: 1, REB: 1.2, AST: 1.5, STL: 3, BLK: 3, TPM: 1, TO: -1 }, // "najbolji igrač u trejdu" (gruba vrednost)
+};
+/** Vesti iz poslednjih 7 dana: pojmovi (u naslovu ili tekstu) -> kratka činjenica. Bez nagađanja povratka. */
+const NEWS_FLAGS = [
+  { terms: ['requested a trade', 'trade request', 'request a trade', 'requests a trade'], sr: 'zatražio trejd', en: 'requested a trade' },
+  { terms: ['season-ending', 'out for the season', 'miss the rest of the season'], sr: 'van stroja do kraja sezone', en: 'out for the season' },
+  { terms: ['out indefinitely'], sr: 'van stroja na neodređeno', en: 'out indefinitely' },
+  { terms: ['surgery'], sr: 'vest o operaciji', en: 'surgery news' },
+  { terms: ['suspended', 'suspension'], sr: 'suspendovan', en: 'suspended' },
+  { terms: ['g league'], skip: ['recalled'], sr: 'poslat u G ligu', en: 'sent to the G League' },
+  { terms: ['minutes restriction', 'minute restriction', 'minutes limit'], sr: 'igra sa ograničenjem minuta', en: 'on a minutes restriction' },
+  { terms: ['personal reasons'], sr: 'odsutan iz ličnih razloga', en: 'away for personal reasons' },
+];
+
+/** Tekstovi izveštaja: 2-3 varijante po pravilu, da ne zvuči šablonski. {x} = vrednost. */
+const RT = {
+  head: { sr: ['Dobijaš: {get} · Daješ: {give}'], en: ['You get: {get} · You give: {give}'] },
+  real: { sr: ['Stvarna razmena: {give} za {get}.'], en: ['Actual swap: {give} for {get}.'] },
+  freeSpot: { sr: ['slobodno mesto'], en: ['an open roster spot'] },
+  plus: { sr: ['Plusevi'], en: ['Upside'] },
+  risk: { sr: ['Rizici'], en: ['Risks'] },
+  oppHead: { sr: ['Za protivnika ({name})'], en: ['For your opponent ({name})'] },
+  oppAnon: { sr: ['protivnik'], en: ['opponent'] },
+  // plusevi
+  minRise: {
+    sr: ['{name}: uloga mu raste, {a} → {b} min poslednjih 15 dana.', '{name} dobija sve više minuta: {a} → {b} min u poslednjih 15 dana.', 'Minutaža {name} ide gore: {a} → {b} min poslednjih 15 dana.'],
+    en: ['{name}: role is growing, {a} → {b} min over the last 15 days.', '{name} is getting more minutes: {a} → {b} min in the last 15 days.', '{name}\'s minutes are trending up: {a} → {b} min over the last 15 days.'],
+  },
+  bigMin: {
+    sr: ['{name} igra {m} min po utakmici, stabilna uloga.', '{name} je sigurno na terenu: {m} min po utakmici.'],
+    en: ['{name} plays {m} min a game, a stable role.', '{name} is locked into the rotation: {m} min a game.'],
+  },
+  giveUnsure: {
+    sr: ['Rešavaš se igrača čiji povratak je neizvestan ({name}, {why}).', 'Odlazi {name}, a njegov povratak je neizvestan ({why}).'],
+    en: ['You move on from a player whose return is uncertain ({name}, {why}).', '{name} is leaving, and his return is uncertain ({why}).'],
+  },
+  giveMinDown: {
+    sr: ['Odlazi {name}, minutaža mu pada: {a} → {b} min poslednjih 15 dana.', 'Rešavaš se {name}, uloga mu se smanjuje ({a} → {b} min).'],
+    en: ['{name} is leaving while his minutes drop: {a} → {b} min over the last 15 days.', 'You move on from {name}, whose role is shrinking ({a} → {b} min).'],
+  },
+  giveLowGp: {
+    sr: ['Odlazi {name}, koji je odigrao {gp} od {n} utakmica tima.', 'Rešavaš se {name}: igrao je samo {gp} od {n} utakmica.'],
+    en: ['{name} is leaving after playing {gp} of {n} team games.', 'You move on from {name}, who played only {gp} of {n} games.'],
+  },
+  cats: {
+    sr: ['Dobijaš u {list}.', 'Popravljaš {list}.', 'Najveći dobitak: {list}.'],
+    en: ['You gain in {list}.', 'You improve {list}.', 'Biggest gains: {list}.'],
+  },
+  oCats: { sr: ['Dobija u {list}.', 'Popravlja {list}.'], en: ['Gains in {list}.', 'Improves {list}.'] },
+  oCatLoss: { sr: ['Gubi najviše u {list}.'], en: ['Loses the most in {list}.'] },
+  oGiveUnsure: { sr: ['Rešava se igrača čiji povratak je neizvestan ({name}, {why}).'], en: ['Moves on from a player whose return is uncertain ({name}, {why}).'] },
+  oGiveMinDown: { sr: ['Rešava se {name}, uloga mu se smanjuje ({a} → {b} min).'], en: ['Moves on from {name}, whose role is shrinking ({a} → {b} min).'] },
+  oGiveLowGp: { sr: ['Rešava se {name}, koji je odigrao {gp} od {n} utakmica.'], en: ['Moves on from {name}, who played {gp} of {n} games.'] },
+  gpGood: {
+    sr: ['{name} je pouzdan: odigrao {gp} od {n} utakmica tima.', '{name} skoro nikad ne propušta: {gp} od {n} utakmica.'],
+    en: ['{name} is reliable: played {gp} of {n} team games.', '{name} rarely misses: {gp} of {n} games.'],
+  },
+  trendUp: {
+    sr: ['Poslednjih 15 dana {name} skače u {cat} ({r} vs {s} sezona).', '{name} je u usponu u {cat}: {r} poslednjih 15 dana, {s} za sezonu.'],
+    en: ['Over the last 15 days {name} is up in {cat} ({r} vs {s} season).', '{name} is trending up in {cat}: {r} over the last 15 days, {s} for the season.'],
+  },
+  dtd: {
+    sr: ['{name}: sitna povreda ({st}), uloga ostaje ista kad se vrati.', '{name} je {st}, ali sa {m} min po utakmici uloga ga čeka.'],
+    en: ['{name}: minor injury ({st}), the role stays the same when he returns.', '{name} is {st}, but with {m} min a game the role is waiting for him.'],
+  },
+  regularPack: {
+    sr: ['{n} igrača koji igraju redovno, za jednog boljeg i jednog koji ne igra.', 'Dobijaš {n} igrača koji redovno igraju, a izbacuješ nekoga ko skoro ne igra.'],
+    en: ['{n} players who play regularly, for one better player and one who barely plays.', 'You get {n} regular rotation players and drop someone who barely plays.'],
+  },
+  dropVs: {
+    sr: ['Umesto {drop} ({dm} min, igrao {dg} od {dn}) dobijaš {inc} ({im} min, {ig} od {in}).'],
+    en: ['Instead of {drop} ({dm} min, played {dg} of {dn}) you get {inc} ({im} min, {ig} of {in}).'],
+  },
+  room: {
+    sr: ['Imaš mesta, ne moraš nikoga da izbaciš. {who} su čist dodatak.', 'Roster ima mesta ({n}/{max} posle trejda), pa ne izbacuješ nikoga. {who} su čist dodatak.'],
+    en: ['You have room, no need to drop anyone. {who} are pure additions.', 'Your roster has room ({n}/{max} after the trade), so nobody gets dropped. {who} are pure additions.'],
+  },
+  bestIn: {
+    sr: ['Dobijaš najboljeg igrača u trejdu ({name}) i oslobađaš mesto za waiver.', 'Najjači igrač u trejdu ({name}) dolazi kod tebe, a dobijaš i slobodno mesto.'],
+    en: ['You get the best player in the trade ({name}) and open a spot for the waiver wire.', 'The best player in the trade ({name}) comes to you, plus a free roster spot.'],
+  },
+  bestInW: {
+    sr: ['Dobijaš najboljeg igrača u trejdu ({name}), a na oslobođeno mesto dolazi {w}.', 'Najjači igrač u trejdu ({name}) dolazi kod tebe, plus {w} sa waivera.'],
+    en: ['You get the best player in the trade ({name}), and {w} fills the open spot.', 'The best player in the trade ({name}) comes to you, plus {w} off waivers.'],
+  },
+  // rizici
+  out: { sr: ['{name} je trenutno van stroja ({st}).', '{name} trenutno ne igra ({st}).'], en: ['{name} is currently out ({st}).', '{name} is not playing right now ({st}).'] },
+  irCan: { sr: ['Može na IR mesto.'], en: ['He can go to an IR spot.'] },
+  irFull: { sr: ['IR mesta su ti puna ({a}/{b}), zauzima aktivno mesto.'], en: ['Your IR spots are full ({a}/{b}), so he takes an active spot.'] },
+  outStats: { sr: ['Brojke su iz utakmica koje je odigrao, sada ne donosi ništa.'], en: ['His numbers come from games he played, right now he adds nothing.'] },
+  missed: {
+    sr: ['{name} nije igrao poslednjih {n} utakmica tima.', '{name} je propustio {n} utakmica tima zaredom.'],
+    en: ['{name} has missed the last {n} team games.', '{name} has sat out {n} straight team games.'],
+  },
+  missedShort: { sr: ['propustio {n} utakmica zaredom'], en: ['missed {n} straight games'] },
+  news: { sr: ['{name}: {fact} ({d}).'], en: ['{name}: {fact} ({d}).'] },
+  trendDown: {
+    sr: ['Brojke {name} u padu poslednjih 15 dana: {list}.', 'Pazi na pad {name} poslednjih 15 dana: {list}.'],
+    en: ['{name}\'s numbers are down over the last 15 days: {list}.', 'Watch the dip for {name} over the last 15 days: {list}.'],
+  },
+  ownDrop: {
+    sr: ['Ljudi masovno izbacuju {name} u {src} ligama ({chg}% za 7 dana).'],
+    en: ['Managers are dropping {name} in {src} leagues ({chg}% over 7 days).'],
+  },
+  catLoss: {
+    sr: ['Pazi na {list}, tu gubiš najviše.', 'Rizik je {list}, tu si najviše u minusu.'],
+    en: ['Watch {list}, that is where you lose the most.', 'The risk is {list}, where you drop the most.'],
+  },
+  sample: {
+    sr: ['Mali uzorak: {name} ima samo {n} utakmica u periodu {per}.'],
+    en: ['Small sample: {name} has only {n} games in the {per} window.'],
+  },
+  hot: {
+    sr: ['Ako {name} zadrži ovaj ritam, ovo je krađa. Pazi, uzorak je 15 dana.', '{name} igra iznad svog proseka poslednjih 15 dana. Pazi, uzorak je mali.'],
+    en: ['If {name} keeps this pace, it is a steal. Careful, the sample is 15 days.', '{name} is playing above his average over the last 15 days. Careful, the sample is small.'],
+  },
+  overLimit: {
+    sr: ['Posle trejda imaš {n} igrača, limit je {max}. Izaberi koga izbacuješ.'],
+    en: ['After the trade you have {n} players, the limit is {max}. Pick who you drop.'],
+  },
+  bestOut: {
+    sr: ['Daješ najboljeg igrača u trejdu ({name}). Zajedno donose više, ali u H2H kategorijama jedan jak igrač često vredi više od dva prosečna.'],
+    en: ['You give the best player in the trade ({name}). Together they add more, but in H2H categories one strong player is often worth more than two average ones.'],
+  },
+  depth: {
+    sr: ['Gubiš dubinu: {list} igraju redovno.', 'Pazi na dubinu rostera, odlaze igrači koji igraju redovno ({list}).'],
+    en: ['You lose depth: {list} play regularly.', 'Watch your depth, regular rotation players are leaving ({list}).'],
+  },
+  candidate: {
+    sr: ['Najmanje igra na tvom rosteru: {name} ({m} min poslednjih 15 dana). Ako njega izbaciš, menjaš {give} za {get}.'],
+    en: ['Lowest minutes on your roster: {name} ({m} min over the last 15 days). If you drop him, you swap {give} for {get}.'],
+  },
+  pickHim: { sr: ['Izaberi ga'], en: ['Pick him'] },
+  newsTip: { sr: ['Vest'], en: ['News'] },
+  ruleNote: { sr: ['Automatska analiza po pravilima, iz {src} podataka. Ne presuđuje, samo opisuje.'], en: ['Automatic rule-based analysis from {src} data. It describes, it does not judge.'] },
+  noData: { sr: ['Nema dovoljno podataka za izveštaj.'], en: ['Not enough data for a report.'] },
+};
+/** Varijanta teksta: stabilna za isti trejd (seed), da se ne menja pri svakom osvežavanju */
+function rt(key, vars = {}, seed = 0) {
+  const list = RT[key][LANG] || RT[key].sr;
+  let s = list[Math.abs(seed) % list.length];
+  for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(v);
+  return s;
+}
+const joinList = arr => (arr.length <= 1 ? arr.join('') : `${arr.slice(0, -1).join(', ')} ${LANG === 'en' ? 'and' : 'i'} ${arr[arr.length - 1]}`);
+const shortDate = iso => { const d = new Date(iso); return LANG === 'en' ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : `${d.getDate()}.${d.getMonth() + 1}`; };
+const minTxt = v => String(Math.round(v));
+
+/** Sve što pravila znaju o jednom igraču */
+function playerFacts(p) {
+  const st = k => { const s = p.stats[PERIODS.find(x => x.key === k).statId(CONFIG.SEASON)]; return s && s.GP > 0 ? s : null; };
+  const S = st('season'), R = st('l15');
+  const recentOk = R && R.GP >= MINUTES.MIN_GP;
+  const minS = S ? S.MIN : null, minR = recentOk ? R.MIN : null;
+  const minDelta = minS != null && minR != null ? Math.round((minR - minS) * 10) / 10 : 0;
+  const dur = durability(p);
+  const trends = S && recentOk ? CATS.filter(c => !isPunt(c)).map(c => {
+    const sv = catValue(S, c), rv = catValue(R, c);
+    if (!bigChange(c, sv, rv)) return null;
+    const up = rv > sv;
+    return { c, sv, rv, up, good: c.lowerIsBetter ? !up : up, rel: c.type === 'pct' ? Math.abs(rv - sv) / 0.03 : Math.abs(rv - sv) / (sv || 1) };
+  }).filter(Boolean) : [];
+  const line = playerLine(p) || S;
+  const value = line ? Object.entries(REPORT.VALUE_W).reduce((a, [k, w]) => a + w * (line[k] || 0), 0) : 0;
+  const flags = [];
+  for (const n of newsOf(p.id)) {
+    if (!isRecent(n.published)) continue;
+    const txt = `${n.headline} ${n.story}`.toLowerCase();
+    for (const f of NEWS_FLAGS) {
+      if (flags.some(x => x.f === f)) continue;
+      if (f.terms.some(term => txt.includes(term)) && !(f.skip || []).some(s => txt.includes(s))) flags.push({ f, n });
+    }
+  }
+  return { p, S, R, minS, minR, minDelta, dur, trends, value, flags, missed: missedStreak(p), periodGP: playerLine(p)?.GP ?? 0 };
+}
+
+const statusLabel = p => INJURY[p.inj]?.short === 'O' ? 'OUT' : (INJURY[p.inj]?.short || p.inj);
+const newsTipHTML = n => `<b>${esc(shortDate(n.published))}</b> ${esc(n.headline)}`;
+const seedOf = (...ids) => ids.flat().reduce((a, x) => (a * 31 + (+x || 0)) % 100003, 7);
+
+/**
+ * Stavke izveštaja za jednu stranu.
+ * side: 'my' (dobijam Dobijaš, dajem Daješ) ili 'opp' (obrnuto).
+ * Vraća { pluses, risks, real, candidate }; stavka = { text, pri, tags[], tip?, action? }
+ */
+function reportItems(side, totals, cmp) {
+  const me = side === 'my';
+  const recvIds = me ? getIds() : giveIds(), sendIds = me ? giveIds() : getIds();
+  const recv = recvIds.map(id => state.byId.get(id)).filter(Boolean).map(playerFacts);
+  const send = sendIds.map(id => state.byId.get(id)).filter(Boolean).map(playerFacts);
+  const pluses = [], risks = [];
+  const add = (list, pri, text, tags = [], extra = {}) => list.push({ pri, text, tags, ...extra });
+  const seed = seedOf(recvIds, sendIds);
+  const lg = currentLeague();
+  const irOn = !!lg && ROSTER.IR > 0;
+  const myRoster = me ? rosterOf('my') : rosterOf('opp');
+  const winSide = me ? GET : GIVE, loseSide = me ? GIVE : GET;
+  const K = key => (me ? key : `o${key[0].toUpperCase()}${key.slice(1)}`); // protivnik: tekst u trećem licu
+
+  // ---- plusevi: igrači koji dolaze ----
+  for (const f of recv) {
+    const nm = esc(f.p.name), s = seed + f.p.id;
+    if (f.minDelta > REPORT.MIN_RISE) add(pluses, 1, rt('minRise', { name: nm, a: minTxt(f.minS), b: minTxt(f.minR) }, s), ['future']);
+    else if ((f.minR ?? f.minS ?? 0) >= REPORT.BIG_MIN && !isOut(f.p)) add(pluses, 2, rt('bigMin', { name: nm, m: minTxt(f.minR ?? f.minS) }, s), ['future']);
+    if (f.dur && !f.dur.approx && f.dur.pct >= REPORT.GP_GOOD && f.dur.n >= 5 && !isOut(f.p)) add(pluses, 5, rt('gpGood', { name: nm, gp: f.dur.gp, n: f.dur.n }, s), ['gp', 'future']);
+    const up = f.trends.filter(x => x.good && x.up && x.c.type === 'sum').sort((a, b) => b.rel - a.rel)[0]; // rast (ne pad TO)
+    if (up) add(pluses, 6, rt('trendUp', { name: nm, cat: up.c.label, r: up.rv.toFixed(1), s: up.sv.toFixed(1) }, s), ['future']);
+    if (['DAY_TO_DAY', 'QUESTIONABLE', 'PROBABLE'].includes(f.p.inj) && (f.minS ?? 0) >= REPORT.REGULAR_MIN)
+      add(pluses, 7, rt('dtd', { name: nm, st: statusLabel(f.p), m: minTxt(f.minS) }, s));
+  }
+  // ---- plusevi: igrači koji odlaze (neizvestan povratak, pad minuta, nizak GP%) ----
+  for (const f of send) {
+    const nm = esc(f.p.name), s = seed + f.p.id;
+    const why = isOut(f.p) ? statusLabel(f.p) : f.flags[0] ? (LANG === 'en' ? f.flags[0].f.en : f.flags[0].f.sr) : f.missed >= REPORT.MISSED ? rt('missedShort', { n: f.missed }) : null;
+    if (why) add(pluses, 3, rt(K('giveUnsure'), { name: nm, why: esc(why) }, s), ['future'], f.flags[0] ? { tip: newsTipHTML(f.flags[0].n) } : {});
+    else if (f.minDelta < -REPORT.MIN_RISE) add(pluses, 3, rt(K('giveMinDown'), { name: nm, a: minTxt(f.minS), b: minTxt(f.minR) }, s), ['future']);
+    else if (f.dur && !f.dur.approx && f.dur.pct < REPORT.GP_BAD && f.dur.n >= 5) add(pluses, 3, rt(K('giveLowGp'), { name: nm, gp: f.dur.gp, n: f.dur.n }, s), ['gp']);
+  }
+  // ---- kategorije (samo aktivne kategorije lige) ----
+  const gains = [], losses = [];
+  for (const c of CATS) {
+    if (isPunt(c)) continue;
+    const g = totals[winSide].vals[c.key], d = totals[loseSide].vals[c.key];
+    if (g == null || d == null) continue;
+    let diff = g - d, label = '', rel;
+    if (c.type === 'pct') {
+      const td = me ? myTeamDelta(c) : null;
+      if (td != null) { // roster unet: računa se promena mog tima, ne sirova razlika igrača
+        if (Math.abs(td) < TEAM_PCT_TIE) continue;
+        diff = td; label = LANG === 'en' ? `team ${fmtDelta(c, td).txt}` : `tim ${fmtDelta(c, td).txt}`; rel = Math.abs(td) / 0.01;
+      } else {
+        if (lowVolume(c, totals)) continue; // mali obim šuteva: procenat nije ni plus ni rizik
+        label = fmtDelta(c, diff).txt; rel = Math.abs(diff) / 0.03;
+      }
+    } else {
+      if (fmtDelta(c, diff).zero) continue;
+      label = fmtDelta(c, diff).txt; rel = Math.abs(diff) / Math.max(Math.abs(g), Math.abs(d), 1);
+    }
+    const good = c.lowerIsBetter ? diff < 0 : diff > 0;
+    const big = c.type === 'pct' ? (me && myTeamDelta(c) != null ? Math.abs(diff) >= REPORT.LOSS_PCT_TEAM : Math.abs(diff) >= REPORT.LOSS_PCT_RAW)
+      : rel >= REPORT.LOSS_REL && Math.abs(diff) >= REPORT.LOSS_ABS;
+    (good ? gains : losses).push({ c, label, rel, big });
+  }
+  gains.sort((a, b) => b.rel - a.rel); losses.sort((a, b) => b.rel - a.rel);
+  if (gains.length) add(pluses, 4, rt(K('cats'), { list: joinList(gains.slice(0, 3).map(x => `${x.c.label} (${x.label})`)) }, seed), ['now']);
+  const bigLoss = losses.filter(x => x.big).slice(0, 2);
+  if (bigLoss.length) add(risks, 6, rt(K('catLoss'), { list: joinList(bigLoss.map(x => `${x.c.label} (${x.label})`)) }, seed), ['now']);
+
+  // ---- rizici: igrači koji dolaze ----
+  for (const f of recv) {
+    const nm = esc(f.p.name), s = seed + f.p.id;
+    if (isOut(f.p)) {
+      let txt = rt('out', { name: nm, st: statusLabel(f.p) }, s);
+      if (me && irOn && canIR(f.p)) {
+        const r = myRoster;
+        txt += ' ' + (r && r.players.length && irCount(r) >= ROSTER.IR ? rt('irFull', { a: irCount(r), b: ROSTER.IR }) : rt('irCan'));
+      }
+      if (['season', 'l30'].includes(state.period)) txt += ' ' + rt('outStats');
+      add(risks, 1, txt, ['now']);
+    }
+    if (f.missed != null && f.missed >= REPORT.MISSED) add(risks, 2, rt('missed', { name: nm, n: f.missed }, s), ['gp']);
+    if (f.flags.length) {
+      const facts = f.flags.map(x => (LANG === 'en' ? x.f.en : x.f.sr));
+      const news = [...new Set(f.flags.map(x => x.n))];
+      add(risks, 3, rt('news', { name: nm, fact: joinList(facts), d: shortDate(news[0].published) }, s), [], { tip: news.map(newsTipHTML).join('<br>') });
+    }
+    const down = f.trends.filter(x => !x.good);
+    if (down.length >= REPORT.COLD_CATS) add(risks, 4, rt('trendDown', { name: nm, list: down.map(x => x.c.label).join(', ') }, s));
+    if (f.p.own && f.p.own.chg < REPORT.OWN_DROP) add(risks, 5, rt('ownDrop', { name: nm, src: DATA_SOURCE.name, chg: f.p.own.chg.toFixed(1) }, s));
+    if (state.period !== 'proj' && f.periodGP > 0 && f.periodGP < REPORT.SMALL_SAMPLE)
+      add(risks, 7, rt('sample', { name: nm, n: Math.round(f.periodGP), per: PERIODS.find(x => x.key === state.period).label.toLowerCase() }, s));
+    if (f.trends.filter(x => x.good && x.up && x.c.type === 'sum').length >= REPORT.HOT_CATS) add(risks, 8, rt('hot', { name: nm }, s), ['future']);
+  }
+
+  // ---- paket: neravnomeran trejd (samo moj deo; izbačeni i waiver već su u zbirovima) ----
+  let real = '', candidate = null;
+  if (me) {
+    const plan = rosterPlan('my');
+    const sp = slotPlan('my');
+    const names = ids => joinList(ids.map(id => esc(state.byId.get(id)?.name || '?')));
+    const best = [...recv, ...send].sort((a, b) => b.value - a.value)[0];
+    if (sp.dropSlots > 0) {
+      if (sp.drops.length) {
+        real = rt('real', { give: `${names(sendIds)} + ${names(sp.drops)}`, get: names(recvIds) });
+        const drop = playerFacts(state.byId.get(sp.drops[0]));
+        const weakest = [...recv].sort((a, b) => (a.minR ?? a.minS ?? 0) - (b.minR ?? b.minS ?? 0))[0];
+        if (weakest && drop.dur && weakest.dur) {
+          const better = (weakest.minR ?? weakest.minS ?? 0) >= (drop.minR ?? drop.minS ?? 0) && weakest.dur.pct >= drop.dur.pct;
+          add(better ? pluses : risks, better ? 2.5 : 6.5, rt('dropVs', {
+            drop: esc(drop.p.name), dm: minTxt(drop.minR ?? drop.minS ?? 0), dg: drop.dur.gp, dn: drop.dur.n,
+            inc: esc(weakest.p.name), im: minTxt(weakest.minR ?? weakest.minS ?? 0), ig: weakest.dur.gp, in: weakest.dur.n,
+          }), ['future', 'gp']);
+        }
+        const regular = recv.every(f => f.dur && f.dur.pct >= REPORT.GP_GOOD && (f.minR ?? f.minS ?? 0) >= REPORT.REGULAR_MIN);
+        const benchDrop = (drop.minR ?? drop.minS ?? 0) < REPORT.BENCH_MIN || (drop.dur && drop.dur.pct < REPORT.GP_BAD);
+        if (regular && benchDrop && recv.length >= 2) add(pluses, 1.5, rt('regularPack', { n: recv.length === 2 ? (LANG === 'en' ? 'Two' : 'Dva') : recv.length }, seed), ['future', 'gp']);
+      } else if (plan?.tradeTouches && plan.pre.length > ROSTER.ACTIVE) {
+        // kandidat za izbacivanje: najmanje minuta poslednjih 15 dana, bez igrača iz trejda i OUT igrača koji mogu na slobodno IR mesto
+        const trade = takenIds();
+        const freeIR = irOn && irCount(plan.r) < ROSTER.IR;
+        const pool = plan.pre.filter(id => !trade.has(id)).map(id => state.byId.get(id)).filter(Boolean)
+          .filter(p => !(freeIR && canIR(p))).map(playerFacts);
+        const c = pool.sort((a, b) => (a.minR ?? a.minS ?? 0) - (b.minR ?? b.minS ?? 0))[0];
+        if (c) candidate = { id: c.p.id, text: rt('candidate', { name: esc(c.p.name), m: minTxt(c.minR ?? c.minS ?? 0), give: `${names(sendIds)} + ${esc(c.p.name)}`, get: names(recvIds) }) };
+        add(risks, 9, rt('overLimit', { n: plan.pre.length, max: ROSTER.ACTIVE }));
+      } else if (plan?.tradeTouches) {
+        add(pluses, 3.5, rt('room', { who: names(plan.incoming.length ? plan.incoming : recvIds), n: plan.pre.length, max: ROSTER.ACTIVE }, seed), ['future']);
+      }
+      if (best && send.includes(best)) add(risks, 4.5, rt('bestOut', { name: esc(best.p.name) }), ['bestOut']);
+    } else if (sp.waiverSlots > 0) {
+      real = rt('real', { give: names(sendIds), get: `${names(recvIds)} + ${sp.waivers.length ? names(sp.waivers) : rt('freeSpot')}` });
+      if (best && recv.includes(best)) add(pluses, 2, sp.waivers.length ? rt('bestInW', { name: esc(best.p.name), w: names(sp.waivers) }, seed) : rt('bestIn', { name: esc(best.p.name) }, seed), ['now']);
+      const regularOut = send.filter(f => f.dur && f.dur.pct >= REPORT.GP_GOOD && (f.minR ?? f.minS ?? 0) >= REPORT.REGULAR_MIN);
+      if (regularOut.length >= 2 || (regularOut.length && send.length > recv.length)) add(risks, 5.5, rt('depth', { list: joinList(regularOut.map(f => esc(f.p.name))) }, seed), ['depth']);
+    }
+  }
+
+  // ---- stanje tima menja naglasak ----
+  const ts = me ? lg?.teamState : null;
+  const shift = it => {
+    let pri = it.pri;
+    if (ts === 'rebuild') { if (it.tags.includes('future')) pri -= 2.2; if (it.tags.includes('bestOut')) pri += 20; }
+    if (ts === 'contend') { if (it.tags.includes('now') || it.tags.includes('gp')) pri -= 2.2; if (it.tags.includes('bestOut')) pri = -1; }
+    return pri;
+  };
+  const order = list => list.map((it, i) => ({ ...it, i, p2: shift(it) })).sort((a, b) => a.p2 - b.p2 || a.i - b.i);
+  const uniq = list => { const seen = new Set(); return list.filter(it => !seen.has(it.text) && seen.add(it.text)); };
+  return { pluses: uniq(order(pluses)), risks: uniq(order(risks)), real, candidate };
+}
+
+/** Izveštaj kao podaci (koristi ga i prikaz i tekst za AI) */
+function buildReport(totals, cmp) {
+  if (cmp.active.length < 2) return null;
+  const names = ids => ids.map(id => state.byId.get(id)?.name).filter(Boolean).join(', ');
+  const my = reportItems('my', totals, cmp);
+  const res = {
+    head: rt('head', { get: esc(names(getIds())), give: esc(names(giveIds())) }),
+    real: my.real, candidate: my.candidate,
+    pluses: my.pluses.slice(0, REPORT.MAX_PLUS), risks: my.risks.slice(0, REPORT.MAX_RISK), opp: null,
+  };
+  const oppR = currentLeague() ? rosterOf('opp') : null;
+  if (oppR) {
+    const o = reportItems('opp', totals, cmp);
+    res.opp = { name: oppR.name || rt('oppAnon'), pluses: o.pluses.slice(0, REPORT.OPP_PLUS), risks: o.risks.slice(0, REPORT.OPP_RISK) };
+  }
+  return res;
+}
+
+function reportListHTML(cls, title, items) {
+  if (!items.length) return '';
+  return `<div class="rp-block ${cls}"><div class="rp-t">${title}</div><ul>${items.map(it =>
+    `<li${it.tip ? ` class="has-tip" data-tip="${esc(rt('newsTip'))}" data-tip-html="${esc(it.tip)}"` : ''}>${it.text}${it.tip ? ' <span class="rp-i">ⓘ</span>' : ''}</li>`).join('')}</ul></div>`;
 }
 
 function renderReport(totals, cmp) {
   const el = $('#report');
-  if (cmp.active.length < 2) { el.innerHTML = ''; return; }
-  const per = PERIODS.find(p => p.key === state.period).label.toLowerCase();
-  const win = cmp.score[GET], lose = cmp.score[GIVE];
-  const paras = [];
-  // Neutralno, bez presude (faza 3 menja ceo izveštaj)
-  paras.push(t('Dobijaš {w} {kw}, gubiš {l} ({per}).', { w: win, kw: kat(win), l: lose, per }));
-  const listFor = side => CATS.filter(c => cmp.cats[c.key].winner === side).map(c => `${c.label} (${myDeltaText(c, totals)})`);
-  const gain = listFor(GET), loss = listFor(GIVE);
-  paras.push(gain.length ? t('Popravljaš: {list}.', { list: gain.join(', ') }) : t('Ne popravljaš nijednu kategoriju.'));
-  if (loss.length) paras.push(t('Kvariš: {list}.', { list: loss.join(', ') }));
-  const close = CATS.filter(c => {
-    const r = cmp.cats[c.key];
-    if (r.winner == null) return false;
-    const base = Math.abs(totals[r.winner].vals[c.key]) || 1;
-    return (c.type === 'pct' ? r.margin / 0.02 : r.margin / base / 0.05) < 1;
-  }).map(c => c.label);
-  if (close.length) paras.push(t('Tesno: {list}.', { list: close.join(', ') }));
-  const tied = CATS.filter(c => !isPunt(c) && cmp.cats[c.key].winner == null).map(c => c.label);
-  if (tied.length) paras.push(t('Nerešeno: {list}.', { list: tied.join(', ') }));
-  if (state.punt.size) paras.push(t('Punt (ne računa se): {list}.', { list: CATS.filter(isPunt).map(c => c.label).join(', ') }));
+  const r = buildReport(totals, cmp);
+  ensureReportData();
+  if (!r) { el.innerHTML = ''; return; }
+  state.lastReport = r;
   const missing = cmp.active.flatMap(i => totals[i].missing);
-  if (missing.length) paras.push(t('Napomena: bez podataka za ovaj period i ne računaju se: {list}.', { list: missing.map(esc).join(', ') }));
-  el.innerHTML = `<div class="section-t">${t('Izveštaj')}</div><div class="report">${paras.map(p => `<p>${p}</p>`).join('')}</div>`;
+  el.innerHTML = `<div class="section-t">${t('Izveštaj')}</div>
+    <div class="report rp">
+      <div class="rp-head">${r.head}</div>
+      ${r.real ? `<div class="rp-real">${r.real}</div>` : ''}
+      ${r.candidate ? `<div class="rp-cand"><span>${r.candidate.text}</span> <button type="button" class="btn small" data-action="pick-drop" data-id="${r.candidate.id}">${rt('pickHim')}</button></div>` : ''}
+      ${reportListHTML('plus', rt('plus'), r.pluses)}
+      ${reportListHTML('risk', rt('risk'), r.risks)}
+      ${!r.pluses.length && !r.risks.length ? `<p class="hint">${rt('noData')}</p>` : ''}
+      ${r.opp && (r.opp.pluses.length || r.opp.risks.length) ? `<div class="rp-opp"><div class="rp-head small">${rt('oppHead', { name: esc(r.opp.name) })}</div>
+        ${reportListHTML('plus', rt('plus'), r.opp.pluses)}${reportListHTML('risk', rt('risk'), r.opp.risks)}</div>` : ''}
+      ${missing.length ? `<p class="hint">${t('Napomena: bez podataka za ovaj period i ne računaju se: {list}.', { list: missing.map(esc).join(', ') })}</p>` : ''}
+      <p class="rp-note">${rt('ruleNote', { src: DATA_SOURCE.name })}</p>
+    </div>
+    <div id="aicopy"></div>`;
+  renderAICopy();
 }
+
+/** Dugme "Kopiraj za AI analizu" (popunjava se u sledećem delu) */
+function renderAICopy() { const el = $('#aicopy'); if (el) el.innerHTML = ''; }
 
 /* =====================================================================
    Rosteri: Moj tim (i protivnik) pre i posle trejda
@@ -3037,7 +3416,9 @@ async function fetchNews(id) {
     const res = await fetch(CONFIG.NEWS_URL(id));
     if (!res.ok) throw new Error(res.status);
     const data = await res.json();
-    const items = (data.feed || []).map(f => ({ headline: stripTags(f.headline), story: stripTags(f.story || f.description), published: f.published })).filter(x => x.headline);
+    const items = (data.feed || []).filter(f => f.type === CONFIG.NEWS_TYPE)
+      .map(f => ({ headline: stripTags(f.headline), story: stripTags(f.story || f.description), published: f.published }))
+      .filter(x => x.headline).slice(0, CONFIG.NEWS_KEEP);
     state.news.set(id, { ts: Date.now(), items });
     return items;
   } catch (e) {
@@ -3304,6 +3685,11 @@ document.addEventListener('click', e => {
   const ti = +el.dataset.team;
   switch (el.dataset.action) {
     case 'refresh': loadPlayers(true); loadSchedule(true); break;
+    case 'pick-drop': {
+      const sp = slotPlan('my'), id = +el.dataset.id;
+      state.balance.my.drops = [...sp.drops, id].slice(0, Math.max(1, sp.dropSlots));
+      saveBalance(); render(); break;
+    }
     case 'tab-new': addTab(); state.sharedOpen = false; state.histView = null; searchUI.clear(); saveState(); render(); break;
     case 'save-trade': if (currentLeague()) saveTrade(); break;
     case 'trade-done': if (currentLeague()) tradeDone(); break;
