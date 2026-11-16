@@ -2521,10 +2521,48 @@ const REPORT = {
   REGULAR_MIN: 25,                 // "igra redovno": GP% 85%+ i 25+ min
   BENCH_MIN: 20,                   // izbačeni "igra malo": manje od 20 min ili GP% ispod 70%
   HOT_CATS: 3, COLD_CATS: 3,       // trend u 3+ kategorije
-  LOSS_REL: 0.2, LOSS_ABS: 0.5,    // velika razlika u counting kategoriji
-  LOSS_PCT_TEAM: 0.004, LOSS_PCT_RAW: 0.02,
+  // pragovi razlika po kategoriji: CAT_STEPS
   VALUE_W: { PTS: 1, REB: 1.2, AST: 1.5, STL: 3, BLK: 3, TPM: 1, TO: -1 }, // "najbolji igrač u trejdu" (gruba vrednost)
 };
+/**
+ * Koliko razlike je "vredno pomena" po kategoriji (po utakmici): n = primetno, b = veliko.
+ * team = FG% / FT% kao promena procenta mog tima (kad je roster unet); bez rostera važe n / b za razliku igrača.
+ * tr = trend poslednjih 15 dana u odnosu na sezonu (minAtt = najmanje pokušaja po utakmici da bi procenat bio trend).
+ * Ispod n se razlika u izveštaju ne pominje. Uključene su i kategorije koje sadašnji format nema (za buduće formate).
+ */
+const CAT_STEPS = {
+  PTS: { n: 3, b: 6, tr: 3 },
+  REB: { n: 1.5, b: 3, tr: 1.5 },
+  AST: { n: 1.2, b: 2.5, tr: 1.2 },
+  TPM: { n: 0.6, b: 1.2, tr: 0.6 },
+  STL: { n: 0.3, b: 0.6, tr: 0.4 },
+  BLK: { n: 0.3, b: 0.6, tr: 0.4 },
+  TO: { n: 1.0, b: 2.0, tr: 0.8 },
+  FGP: { n: 0.02, b: 0.04, team: [0.003, 0.006], tr: 0.04, minAtt: 5 },
+  FTP: { n: 0.03, b: 0.06, team: [0.003, 0.006], tr: 0.06, minAtt: 2 },
+  // budući formati (još nisu u CATS)
+  OREB: { n: 0.7, b: 1.5, tr: 0.7 }, DREB: { n: 1.2, b: 2.5, tr: 1.2 },
+  FGM: { n: 1, b: 2, tr: 1 }, FTM: { n: 1, b: 2, tr: 1 }, TPP: { n: 0.03, b: 0.06, team: [0.003, 0.006], tr: 0.05, minAtt: 3 },
+  ATO: { n: 0.4, b: 0.8, tr: 0.4 }, DD: { n: 0.15, b: 0.3, tr: 0.15 }, TD: { n: 0.05, b: 0.1, tr: 0.05 },
+  MIN: { n: 3, b: 5, tr: 3 }, PF: { n: 0.5, b: 1, tr: 0.5 },
+};
+/** 0 = zanemarljivo, 1 = primetno, 2 = veliko */
+function catStep(c, diff, team = false) {
+  const s = CAT_STEPS[c.key];
+  if (!s || diff == null) return 0;
+  const [n, b] = team && s.team ? s.team : [s.n, s.b];
+  const a = Math.abs(diff);
+  return a >= b - EPS ? 2 : a >= n - EPS ? 1 : 0;
+}
+/** Trend kategorije za izveštaj (strožiji od strelica u tabeli): razlika ≥ tr, a za procente i dovoljno pokušaja */
+function reportTrend(c, S, R) {
+  const s = CAT_STEPS[c.key]; if (!s) return false;
+  const sv = catValue(S, c), rv = catValue(R, c);
+  if (sv == null || rv == null) return false;
+  if (c.type === 'pct' && Math.min(S[c.att], R[c.att]) < (s.minAtt || 0)) return false;
+  return Math.abs(rv - sv) >= s.tr - EPS;
+}
+
 /** Vesti iz poslednjih 7 dana: pojmovi (u naslovu ili tekstu) -> kratka činjenica. Bez nagađanja povratka. */
 const NEWS_FLAGS = [
   { terms: ['requested a trade', 'trade request', 'request a trade', 'requests a trade'], sr: 'zatražio trejd', en: 'requested a trade' },
@@ -2625,6 +2663,11 @@ const RT = {
     sr: ['{name} je mnogo bolji strelac koga daješ ({list}).', 'Daješ mnogo boljeg strelca: {name} ({list}).'],
     en: ['{name} is the much better scorer you give up ({list}).', 'You give up the much better scorer: {name} ({list}).'],
   },
+  shooterOut: { sr: ['{name} daje više trojki ({list}).'], en: ['{name} makes more threes ({list}).'] },
+  scorerOutMild: { sr: ['{name} je bolji strelac ({list}).'], en: ['{name} is the better scorer ({list}).'] },
+  lossProfileMild: { sr: ['Posle trejda imaš nešto {list}.'], en: ['After the trade you have somewhat {list}.'] },
+  needHelp: { sr: ['Malo pomaže tamo gde si slab: {list}.'], en: ['It helps a bit where you are weak: {list}.'] },
+  lossWeakMild: { sr: ['Malo slabiš kategoriju koja ti već fali: {list}.'], en: ['You slightly weaken a category you already lack: {list}.'] },
   lossProfile: { sr: ['Posle trejda imaš {list}.', 'Pazi, posle trejda imaš {list}.'], en: ['After the trade you have {list}.', 'Careful, after the trade you have {list}.'] },
   oLossProfile: { sr: ['Posle trejda ima {list}.'], en: ['After the trade he has {list}.'] },
   posLine: { sr: ['Pozicije: daješ {give}, dobijaš {get}.'], en: ['Positions: you give {give}, you get {get}.'] },
@@ -2761,7 +2804,7 @@ function playerFacts(p) {
   const dur = durability(p);
   const trends = S && recentOk ? CATS.filter(c => !isPunt(c)).map(c => {
     const sv = catValue(S, c), rv = catValue(R, c);
-    if (!bigChange(c, sv, rv)) return null;
+    if (!reportTrend(c, S, R)) return null;
     const up = rv > sv;
     return { c, sv, rv, up, good: c.lowerIsBetter ? !up : up, rel: c.type === 'pct' ? Math.abs(rv - sv) / 0.03 : Math.abs(rv - sv) / (sv || 1) };
   }).filter(Boolean) : [];
@@ -2838,25 +2881,21 @@ function reportItems(side, totals, cmp) {
     if (isPunt(c)) continue;
     const g = totals[winSide].vals[c.key], d = totals[loseSide].vals[c.key];
     if (g == null || d == null) continue;
-    let diff = g - d, label = '', rel;
+    let diff = g - d, label = '', team = false;
     if (c.type === 'pct') {
       const td = me ? myTeamDelta(c) : null;
       if (td != null) { // roster unet: računa se promena mog tima, ne sirova razlika igrača
-        if (Math.abs(td) < TEAM_PCT_TIE) continue;
-        diff = td; label = LANG === 'en' ? `team ${fmtDelta(c, td).txt}` : `tim ${fmtDelta(c, td).txt}`; rel = Math.abs(td) / 0.01;
+        diff = td; team = true; label = LANG === 'en' ? `team ${fmtDelta(c, td).txt}` : `tim ${fmtDelta(c, td).txt}`;
       } else {
         if (lowVolume(c, totals)) continue; // mali obim šuteva: procenat nije ni plus ni rizik
-        label = fmtDelta(c, diff).txt; rel = Math.abs(diff) / 0.03;
+        label = fmtDelta(c, diff).txt;
       }
-    } else {
-      if (fmtDelta(c, diff).zero) continue;
-      label = fmtDelta(c, diff).txt; rel = Math.abs(diff) / Math.max(Math.abs(g), Math.abs(d), 1);
-    }
+    } else label = fmtDelta(c, diff).txt;
+    const step = catStep(c, diff, team);
+    if (!step) continue; // razlika ispod praga za tu kategoriju se ne pominje
+    const s = CAT_STEPS[c.key], bigAt = team && s.team ? s.team[1] : s.b;
     const good = c.lowerIsBetter ? diff < 0 : diff > 0;
-    const big = c.type === 'pct' ? (me && myTeamDelta(c) != null ? Math.abs(diff) >= REPORT.LOSS_PCT_TEAM : Math.abs(diff) >= REPORT.LOSS_PCT_RAW)
-      : rel >= REPORT.LOSS_REL && Math.abs(diff) >= REPORT.LOSS_ABS;
-    if (good && rel < 0.1) continue; // sitna razlika nije plus
-    (good ? gains : losses).push({ c, label, rel, big });
+    (good ? gains : losses).push({ c, label, rel: Math.abs(diff) / bigAt, big: step === 2, step });
   }
   gains.sort((a, b) => b.rel - a.rel); losses.sort((a, b) => b.rel - a.rel);
   // profil: šta donose igrači koji dolaze (sve kategorije gde dobijam, rečima + brojka)
@@ -2866,14 +2905,15 @@ function reportItems(side, totals, cmp) {
     add(pluses, 2.4, rt(key, { who: recv[0] ? esc(recv[0].p.name) : '', list }, seed), ['now']);
   }
   // šta gubim: strelac (PTS / 3PM) posebno, ostalo kao profil
-  const bigLoss = losses.filter(x => x.big);
+  const bigLoss = losses; // svi gubici iznad praga kategorije (primetni i veliki)
   const scoring = bigLoss.filter(x => ['PTS', 'TPM'].includes(x.c.key));
   const rest = bigLoss.filter(x => !scoring.includes(x));
   const vsTxt = x => `${x.c.label} ${valTxt(x.c, totals[loseSide].vals[x.c.key])} ${LANG === 'en' ? 'vs' : 'naspram'} ${valTxt(x.c, totals[winSide].vals[x.c.key])}`;
   const oneForOne = send.length === 1 && recv.length === 1 && !slotIds('my').length; // zbirovi = baš ta dva igrača
-  if (me && scoring.length && oneForOne) add(risks, 3.8, rt('scorerOut', { name: esc(send[0].p.name), list: scoring.map(vsTxt).join(', ') }, seed), ['now']);
+  const scoreKey = !scoring.some(x => x.c.key === 'PTS') ? 'shooterOut' : scoring.some(x => x.big) ? 'scorerOut' : 'scorerOutMild'; // "strelac" samo uz PTS
+  if (me && scoring.length && oneForOne) add(risks, 3.8, rt(scoreKey, { name: esc(send[0].p.name), list: scoring.map(vsTxt).join(', ') }, seed), ['now']);
   const lossList = me && oneForOne ? rest : bigLoss;
-  if (lossList.length) add(risks, 6, rt(me ? 'lossProfile' : 'oLossProfile', { list: profilePhrase(lossList, false) }, seed), ['now']);
+  if (lossList.length) add(risks, lossList.some(x => x.big) ? 6 : 7.5, rt(me ? (lossList.some(x => x.big) ? 'lossProfile' : 'lossProfileMild') : 'oLossProfile', { list: profilePhrase(lossList, false) }, seed), ['now']);
 
   // ---- rizici: igrači koji dolaze ----
   for (const f of recv) {
@@ -2938,8 +2978,8 @@ function reportItems(side, totals, cmp) {
     const weakKeys = new Set(prof.weak.map(x => x.c.key)), strongKeys = new Set(prof.strong.map(x => x.c.key));
     const fix = gains.filter(x => weakKeys.has(x.c.key)), hitWeak = losses.filter(x => weakKeys.has(x.c.key)), hitStrong = losses.filter(x => strongKeys.has(x.c.key));
     const lbl = list => joinList(list.map(x => `${x.c.label} (${x.label})`));
-    if (fix.length) add(pluses, 1.8, rt('needFix', { list: lbl(fix) }, seed), ['now', 'future']);
-    if (hitWeak.length) add(risks, 2.8, rt('lossWeak', { list: lbl(hitWeak) }, seed), ['now']);
+    if (fix.length) { const big = fix.some(x => x.big); add(pluses, big ? 1.8 : 4.4, rt(big ? 'needFix' : 'needHelp', { list: lbl(fix) }, seed), ['now', 'future']); }
+    if (hitWeak.length) { const big = hitWeak.some(x => x.big); add(risks, big ? 2.8 : 5.6, rt(big ? 'lossWeak' : 'lossWeakMild', { list: lbl(hitWeak) }, seed), ['now']); }
     if (hitStrong.length) add(pluses, 4.6, rt('lossStrong', { list: joinList(hitStrong.map(x => x.c.label)) }, seed), ['now']);
   }
 
