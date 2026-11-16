@@ -445,6 +445,16 @@ td.dcell.impact{background:rgba(225,37,27,.07);font-size:14px}
 .rp-opp{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
 .rp-note{color:var(--muted);font-size:12px;margin-top:12px !important}
 .btn.small{padding:5px 12px;font-size:12px}
+.aibtn{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;margin-top:12px;background:linear-gradient(135deg,#7c3aed,#2563eb);border:0;border-radius:var(--radius);color:#fff;padding:16px 18px;cursor:pointer;font:inherit;text-align:center;box-shadow:0 6px 18px rgba(37,99,235,.25)}
+.aibtn:hover{filter:brightness(1.08)}
+.aibtn-t{font-size:17px;font-weight:800}
+.aibtn-s{font-size:13px;opacity:.9;max-width:520px;line-height:1.4}
+.ai-wait{display:flex;align-items:center;gap:10px;color:var(--muted)}
+.spin{width:18px;height:18px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ai-ok{font-size:26px;color:var(--win-text)}
+.ai-steps{margin:8px 0 0;padding-left:22px;line-height:1.7;font-size:15px}
+.ai-text{width:100%;box-sizing:border-box;background:var(--bg2);border:1px solid var(--line);border-radius:8px;color:var(--text);font:12px/1.4 ui-monospace,Menlo,monospace;padding:8px;margin:6px 0}
 footer{color:var(--dim);font-size:11px;text-align:center;margin-top:28px}
 .skeleton{height:120px;border-radius:var(--radius);background:linear-gradient(90deg,var(--card),var(--card2),var(--card));background-size:200% 100%;animation:sh 1.2s infinite}
 @keyframes sh{to{background-position:-200% 0}}
@@ -610,8 +620,8 @@ const PRO_TEAMS = {
 const SLOT_NAMES = { 0: 'PG', 1: 'SG', 2: 'SF', 3: 'PF', 4: 'C', 5: 'G', 6: 'F', 7: 'SG/SF', 8: 'G/F', 9: 'PF/C', 10: 'F/C', 11: 'UT', 12: 'BE', 13: 'IR' };
 const IR_SLOT = 13;
 const IR_STATUSES = ['OUT', 'INJURY_RESERVE'];
-/** Pozicije igrača iz eligibleSlots (bez UT/BE/IR) */
-const slotPositions = p => (p.slots || []).filter(s => s <= 10).map(s => SLOT_NAMES[s]);
+/** Osnovne pozicije igrača iz eligibleSlots (PG, SG, SF, PF, C; bez kombinovanih, UT, BE, IR) */
+const slotPositions = p => (p.slots || []).filter(s => s <= 4).map(s => SLOT_NAMES[s]);
 const isOut = p => ['OUT', 'INJURY_RESERVE', 'SUSPENSION'].includes(p.inj);
 const canIR = p => (p.slots || []).includes(IR_SLOT) && IR_STATUSES.includes(p.inj);
 
@@ -970,6 +980,17 @@ const EN = {
   "Igrača u rosteru (bez IR)": "Roster spots (without IR)",
   "IR mesta": "IR spots",
   "Trejd bez lige": "Trade without a league",
+  "Kopiraj za AI analizu": "Copy for AI analysis",
+  "Zalepi u ChatGPT, Claude, Gemini ili bilo koji AI čet i dobićeš dugoročno mišljenje o trejdu": "Paste into ChatGPT, Claude, Gemini or any AI chat and get a long-term opinion on the trade",
+  "Pripremam podatke...": "Preparing data...",
+  "Povlačim vesti i sastavljam tekst.": "Fetching news and building the text.",
+  "Otvori svoj AI (ChatGPT, Claude, Gemini...)": "Open your AI (ChatGPT, Claude, Gemini...)",
+  "Zalepi tekst (dugo pritisni na telefonu i izaberi Zalepi, ili Ctrl+V / Cmd+V na računaru)": "Paste the text (long-press on your phone and choose Paste, or Ctrl+V / Cmd+V on a computer)",
+  "Pošalji i sačekaj odgovor": "Send it and wait for the answer",
+  "Kopirano!": "Copied!",
+  "Kopiraj tekst": "Copy the text",
+  "Automatsko kopiranje nije uspelo. Označi tekst i kopiraj ga.": "Automatic copy did not work. Select the text and copy it.",
+  "Označi sve": "Select all",
 };
 function t(sr, vars) {
   let out = (LANG === 'en' && EN[sr]) || sr;
@@ -2427,7 +2448,7 @@ const RT = {
   oppAnon: { sr: ['protivnik'], en: ['opponent'] },
   // plusevi
   minRise: {
-    sr: ['{name}: uloga mu raste, {a} → {b} min poslednjih 15 dana.', '{name} dobija sve više minuta: {a} → {b} min u poslednjih 15 dana.', 'Minutaža {name} ide gore: {a} → {b} min poslednjih 15 dana.'],
+    sr: ['{name}: uloga mu raste, {a} → {b} min poslednjih 15 dana.', '{name} dobija sve više minuta: {a} → {b} min u poslednjih 15 dana.', '{name}: minutaža ide gore, {a} → {b} min poslednjih 15 dana.'],
     en: ['{name}: role is growing, {a} → {b} min over the last 15 days.', '{name} is getting more minutes: {a} → {b} min in the last 15 days.', '{name}\'s minutes are trending up: {a} → {b} min over the last 15 days.'],
   },
   bigMin: {
@@ -2439,11 +2460,11 @@ const RT = {
     en: ['You move on from a player whose return is uncertain ({name}, {why}).', '{name} is leaving, and his return is uncertain ({why}).'],
   },
   giveMinDown: {
-    sr: ['Odlazi {name}, minutaža mu pada: {a} → {b} min poslednjih 15 dana.', 'Rešavaš se {name}, uloga mu se smanjuje ({a} → {b} min).'],
+    sr: ['Odlazi {name}, minutaža mu pada: {a} → {b} min poslednjih 15 dana.', 'Odlazi {name}, a uloga mu se smanjuje ({a} → {b} min).'],
     en: ['{name} is leaving while his minutes drop: {a} → {b} min over the last 15 days.', 'You move on from {name}, whose role is shrinking ({a} → {b} min).'],
   },
   giveLowGp: {
-    sr: ['Odlazi {name}, koji je odigrao {gp} od {n} utakmica tima.', 'Rešavaš se {name}: igrao je samo {gp} od {n} utakmica.'],
+    sr: ['Odlazi {name}, koji je odigrao {gp} od {n} utakmica tima.', 'Odlazi {name}: igrao je samo {gp} od {n} utakmica.'],
     en: ['{name} is leaving after playing {gp} of {n} team games.', 'You move on from {name}, who played only {gp} of {n} games.'],
   },
   cats: {
@@ -2453,8 +2474,8 @@ const RT = {
   oCats: { sr: ['Dobija u {list}.', 'Popravlja {list}.'], en: ['Gains in {list}.', 'Improves {list}.'] },
   oCatLoss: { sr: ['Gubi najviše u {list}.'], en: ['Loses the most in {list}.'] },
   oGiveUnsure: { sr: ['Rešava se igrača čiji povratak je neizvestan ({name}, {why}).'], en: ['Moves on from a player whose return is uncertain ({name}, {why}).'] },
-  oGiveMinDown: { sr: ['Rešava se {name}, uloga mu se smanjuje ({a} → {b} min).'], en: ['Moves on from {name}, whose role is shrinking ({a} → {b} min).'] },
-  oGiveLowGp: { sr: ['Rešava se {name}, koji je odigrao {gp} od {n} utakmica.'], en: ['Moves on from {name}, who played {gp} of {n} games.'] },
+  oGiveMinDown: { sr: ['Odlazi {name}, a uloga mu se smanjuje ({a} → {b} min).'], en: ['Moves on from {name}, whose role is shrinking ({a} → {b} min).'] },
+  oGiveLowGp: { sr: ['Odlazi {name}, koji je odigrao {gp} od {n} utakmica.'], en: ['Moves on from {name}, who played {gp} of {n} games.'] },
   gpGood: {
     sr: ['{name} je pouzdan: odigrao {gp} od {n} utakmica tima.', '{name} skoro nikad ne propušta: {gp} od {n} utakmica.'],
     en: ['{name} is reliable: played {gp} of {n} team games.', '{name} rarely misses: {gp} of {n} games.'],
@@ -2472,7 +2493,7 @@ const RT = {
     en: ['{n} players who play regularly, for one better player and one who barely plays.', 'You get {n} regular rotation players and drop someone who barely plays.'],
   },
   dropVs: {
-    sr: ['Umesto {drop} ({dm} min, igrao {dg} od {dn}) dobijaš {inc} ({im} min, {ig} od {in}).'],
+    sr: ['Odlazi {drop} ({dm} min, igrao {dg} od {dn}), a dolazi {inc} ({im} min, {ig} od {in}).'],
     en: ['Instead of {drop} ({dm} min, played {dg} of {dn}) you get {inc} ({im} min, {ig} of {in}).'],
   },
   room: {
@@ -2496,14 +2517,18 @@ const RT = {
     sr: ['{name} nije igrao poslednjih {n} utakmica tima.', '{name} je propustio {n} utakmica tima zaredom.'],
     en: ['{name} has missed the last {n} team games.', '{name} has sat out {n} straight team games.'],
   },
+  minDown: {
+    sr: ['{name}: minutaža pada, {a} → {b} min poslednjih 15 dana.', '{name}: pazi na ulogu, {a} → {b} min u poslednjih 15 dana.'],
+    en: ['{name}\'s minutes are dropping: {a} → {b} min over the last 15 days.', 'Watch {name}\'s role: {a} → {b} min over the last 15 days.'],
+  },
   missedShort: { sr: ['propustio {n} utakmica zaredom'], en: ['missed {n} straight games'] },
   news: { sr: ['{name}: {fact} ({d}).'], en: ['{name}: {fact} ({d}).'] },
   trendDown: {
-    sr: ['Brojke {name} u padu poslednjih 15 dana: {list}.', 'Pazi na pad {name} poslednjih 15 dana: {list}.'],
+    sr: ['{name}: brojke u padu poslednjih 15 dana ({list}).', '{name} je u padu poslednjih 15 dana: {list}.'],
     en: ['{name}\'s numbers are down over the last 15 days: {list}.', 'Watch the dip for {name} over the last 15 days: {list}.'],
   },
   ownDrop: {
-    sr: ['Ljudi masovno izbacuju {name} u {src} ligama ({chg}% za 7 dana).'],
+    sr: ['{name}: ljudi ga masovno izbacuju u {src} ligama ({chg}% za 7 dana).'],
     en: ['Managers are dropping {name} in {src} leagues ({chg}% over 7 days).'],
   },
   catLoss: {
@@ -2643,6 +2668,7 @@ function reportItems(side, totals, cmp) {
     const good = c.lowerIsBetter ? diff < 0 : diff > 0;
     const big = c.type === 'pct' ? (me && myTeamDelta(c) != null ? Math.abs(diff) >= REPORT.LOSS_PCT_TEAM : Math.abs(diff) >= REPORT.LOSS_PCT_RAW)
       : rel >= REPORT.LOSS_REL && Math.abs(diff) >= REPORT.LOSS_ABS;
+    if (good && rel < 0.1) continue; // sitna razlika nije plus
     (good ? gains : losses).push({ c, label, rel, big });
   }
   gains.sort((a, b) => b.rel - a.rel); losses.sort((a, b) => b.rel - a.rel);
@@ -2663,10 +2689,11 @@ function reportItems(side, totals, cmp) {
       add(risks, 1, txt, ['now']);
     }
     if (f.missed != null && f.missed >= REPORT.MISSED) add(risks, 2, rt('missed', { name: nm, n: f.missed }, s), ['gp']);
+    if (f.minDelta < -REPORT.MIN_RISE && !isOut(f.p)) add(risks, 2.5, rt('minDown', { name: nm, a: minTxt(f.minS), b: minTxt(f.minR) }, s), ['future']);
     if (f.flags.length) {
       const facts = f.flags.map(x => (LANG === 'en' ? x.f.en : x.f.sr));
       const news = [...new Set(f.flags.map(x => x.n))];
-      add(risks, 3, rt('news', { name: nm, fact: joinList(facts), d: shortDate(news[0].published) }, s), [], { tip: news.map(newsTipHTML).join('<br>') });
+      add(risks, 3, rt('news', { name: nm, fact: facts.join(', '), d: shortDate(news[0].published) }, s), [], { tip: news.map(newsTipHTML).join('<br>') });
     }
     const down = f.trends.filter(x => !x.good);
     if (down.length >= REPORT.COLD_CATS) add(risks, 4, rt('trendDown', { name: nm, list: down.map(x => x.c.label).join(', ') }, s));
@@ -2780,8 +2807,319 @@ function renderReport(totals, cmp) {
   renderAICopy();
 }
 
-/** Dugme "Kopiraj za AI analizu" (popunjava se u sledećem delu) */
-function renderAICopy() { const el = $('#aicopy'); if (el) el.innerHTML = ''; }
+/* =====================================================================
+   Kopiraj za AI analizu: svi podaci + uputstvo kao običan tekst, za lepljenje u bilo koji AI čet.
+   Na sajtu nema AI-a ni API ključeva. Sve se čita iz aktivne lige i aktivnog taba.
+   ===================================================================== */
+const AI = { MAX_CHARS: 12000, NEWS_SENTENCES: 2 };
+const L = (sr, en) => (LANG === 'en' ? en : sr);
+const STATUS_TXT = {
+  ACTIVE: ['aktivan', 'active'], DAY_TO_DAY: ['DTD (dnevna procena)', 'DTD (day-to-day)'], QUESTIONABLE: ['upitan', 'questionable'],
+  PROBABLE: ['verovatno igra', 'probable'], OUT: ['OUT (van stroja)', 'OUT'], INJURY_RESERVE: ['IR (povređen)', 'injured reserve'], SUSPENSION: ['suspendovan', 'suspended'],
+};
+const statusTxt = p => { const s = STATUS_TXT[p.inj]; return s ? L(s[0], s[1]) : p.inj; };
+const n1 = v => (v == null ? '-' : (+v).toFixed(1));
+const pct3 = v => (v == null ? '-' : fmtPct(v));
+/** Prve rečenice teksta (kraj rečenice = . ! ? pa razmak i veliko slovo; "averaging 23.5" se ne seče) */
+const firstSentences = (s, n) => String(s || '').trim().split(/(?<=[.!?])\s+(?=[A-Z"“(])/).slice(0, n).join(' ').trim();
+const aiDate = iso => { const d = new Date(iso); return d.toLocaleDateString(LANG === 'en' ? 'en-US' : 'sr-Latn', { day: 'numeric', month: LANG === 'en' ? 'short' : 'numeric', year: 'numeric' }); };
+
+/** Kategorije jednog reda statistike, npr. "PTS 23.9, REB 6.1, ... FG% .500 (7.8/15.5), FT% .720 (6.4/8.9)" */
+function catLineTxt(st) {
+  if (!st || !(st.GP > 0)) return L('nema podataka', 'no data');
+  return CATS.map(c => (c.type === 'pct'
+    ? `${c.label} ${pct3(st[c.att] > 0 ? st[c.made] / st[c.att] : null)} (${n1(st[c.made])}/${n1(st[c.att])})`
+    : `${c.label} ${n1(st[c.key])}`)).join(', ');
+}
+const statOf = (p, key) => { const s = p.stats[PERIODS.find(x => x.key === key).statId(CONFIG.SEASON)]; return s && s.GP > 0 ? s : null; };
+
+/** Blok jednog igrača u trejdu */
+function aiPlayerBlock(p, tag = '') {
+  const f = playerFacts(p);
+  const pos = slotPositions(p);
+  const lines = [`- ${p.name}${tag ? ` [${tag}]` : ''} (${p.team}, ${p.pos})`];
+  lines.push(`  ${L('Pozicije', 'Positions')}: ${pos.length ? pos.join(', ') : p.pos} · ${L('Status', 'Status')}: ${statusTxt(p)}`);
+  const gp = [];
+  if (f.dur) gp.push(L(`ova sezona ${f.dur.gp}/${f.dur.n} (${Math.round(f.dur.pct * 100)}%)`, `this season ${f.dur.gp}/${f.dur.n} (${Math.round(f.dur.pct * 100)}%)`));
+  if (p.prevGP != null) gp.push(L(`prošla sezona ${Math.round(p.prevGP)}/${CONFIG.PREV_SEASON_GAMES} (${Math.round(p.prevGP / CONFIG.PREV_SEASON_GAMES * 100)}%)`, `last season ${Math.round(p.prevGP)}/${CONFIG.PREV_SEASON_GAMES} (${Math.round(p.prevGP / CONFIG.PREV_SEASON_GAMES * 100)}%)`));
+  if (gp.length) lines.push(`  GP%: ${gp.join(' · ')}`);
+  const mins = MINUTES.TREND_KEYS.map(k => { const s = statOf(p, k); return s ? `${PERIODS.find(x => x.key === k).label.toLowerCase()} ${n1(s.MIN)}` : null; }).filter(Boolean);
+  if (mins.length) lines.push(`  MIN: ${mins.join(' · ')}`);
+  lines.push(`  ${L('Sezona', 'Season')}: ${catLineTxt(statOf(p, 'season'))}`);
+  const r = statOf(p, 'l15');
+  if (r) lines.push(`  ${L('Poslednjih 15 dana', 'Last 15 days')} (${Math.round(r.GP)} ${L('ut.', 'g')}): ${catLineTxt(r)}`);
+  const pr = statOf(p, 'proj');
+  if (pr) lines.push(`  ${L('Projekcija za sezonu', 'Season projection')}: ${catLineTxt(pr)}`);
+  if (f.missed) lines.push(`  ${L('Propustio utakmica tima zaredom', 'Missed team games in a row')}: ${f.missed}`);
+  if (p.own) { const ch = Math.abs(p.own.chg) < 0.05 ? '0.0' : `${p.own.chg > 0 ? '+' : '−'}${Math.abs(p.own.chg).toFixed(1)}`; lines.push(`  ${L('% u ligama', '% rostered')}: ${n1(p.own.pct)}% (${ch} ${L('za 7 dana', 'over 7 days')})`); }
+  return lines.join('\n');
+}
+
+function aiRosterLine(id, ir) {
+  const p = state.byId.get(id); if (!p) return null;
+  const f = playerFacts(p);
+  const pos = slotPositions(p);
+  return `- ${p.name} (${p.team}, ${pos.length ? pos.join('/') : p.pos})${p.inj !== 'ACTIVE' ? ` · ${statusTxt(p)}` : ''} · MIN ${n1(f.minS)}${f.minR != null ? ` / 15d ${n1(f.minR)}` : ''}${f.dur ? ` · GP% ${Math.round(f.dur.pct * 100)}%` : ''} · ${catLineTxt(f.S)}${ir ? ' · IR' : ''}`;
+}
+
+/** Zbir tima po kategorijama (aktivni igrači) */
+const teamVals = ids => sumPlayers(ids).vals;
+const valTxt = (c, v) => (v == null ? '-' : c.type === 'pct' ? pct3(v) : n1(v));
+
+/** Tri najjače i tri najslabije kategorije mog tima, samo ako postoje bar 3 uneta tima (z-score zbira) */
+function teamProfile(myIds) {
+  const teams = [myIds, ...Object.values(state.rosters.opps || {}).map(r => r.players.filter(x => !x.ir).map(x => x.id))].filter(x => x.length);
+  if (teams.length < 3) return null;
+  const vals = teams.map(teamVals);
+  const z = CATS.filter(c => !isPunt(c)).map(c => {
+    const arr = vals.map(v => v[c.key]).filter(v => v != null);
+    const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+    const sd = Math.sqrt(arr.reduce((a, b) => a + (b - mean) ** 2, 0) / arr.length) || 1;
+    const zz = ((vals[0][c.key] ?? mean) - mean) / sd;
+    return { c, z: c.lowerIsBetter ? -zz : zz };
+  }).sort((a, b) => b.z - a.z);
+  return { best: z.slice(0, 3).map(x => x.c.label), worst: z.slice(-3).reverse().map(x => x.c.label), n: teams.length };
+}
+
+/** 4.1 Uputstvo za AI, sastavljeno iz aktivne lige */
+function aiInstructions(uneven) {
+  const lg = currentLeague();
+  const plan = lg ? rosterPlan('my') : null;
+  const sp = slotPlan('my');
+  // "predloži koga da izbacim" samo kad izbacivanje treba, a nije izabrano (ili roster nije unet)
+  const askDrop = sp.dropSlots > 0 && !sp.drops.length && (!plan?.tradeTouches || plan.pre.length > ROSTER.ACTIVE);
+  const cats = CATS.map(c => c.label).join(', ');
+  const inv = CATS.filter(c => c.lowerIsBetter).map(c => c.label).join(', ');
+  const out = [L('Ti si iskusan analitičar za fantasy NBA košarku.', 'You are an experienced fantasy NBA basketball analyst.')];
+  if (!lg) {
+    out.push(L('Nemam podatke o ligi i rosteru korisnika. Pretpostavi standardnu H2H ligu sa 9 kategorija, proceni trejd samostalno i reci koja pitanja bi promenila odgovor.',
+      'I have no data about the user\'s league or roster. Assume a standard 9-category H2H league, evaluate the trade on its own, and say which questions would change your answer.'));
+    out.push(L(`Kategorije: ${cats} (${inv}: manje je bolje). FG% i FT% se računaju ponderisano (ukupno pogođeno / ukupno pokušano). Trejdovi se rade na duže staze, za ostatak sezone.`,
+      `Categories: ${cats} (${inv}: lower is better). FG% and FT% are weighted (total made / total attempted). Trades are made for the long run, for the rest of the season.`));
+  } else {
+    const ir = ROSTER.IR;
+    out.push(L(`Liga: ${lg.name}, platforma ${platformLabel(lg.platform)}, format ${formatLabel(lg.format)}, ${lg.teams} timova. Kategorije: ${cats} (${inv}: manje je bolje). FG% i FT% se računaju ponderisano (ukupno pogođeno / ukupno pokušano). Roster: ${ROSTER.ACTIVE} aktivnih mesta${ir ? ` + ${ir} IR mesta` : ''}. Trejdovi se rade na duže staze, za ostatak sezone.`,
+      `League: ${lg.name}, platform ${platformLabel(lg.platform)}, format ${formatLabel(lg.format)}, ${lg.teams} teams. Categories: ${cats} (${inv}: lower is better). FG% and FT% are weighted (total made / total attempted). Roster: ${ROSTER.ACTIVE} active spots${ir ? ` + ${ir} IR spots` : ''}. Trades are made for the long run, for the rest of the season.`));
+    if (lg.teamName) out.push(L(`Moj tim: ${lg.teamName}.`, `My team: ${lg.teamName}.`));
+    const st = lg.standings || {};
+    const parts = [];
+    if (st.rank) parts.push(L(`Trenutno sam ${st.rank}. od ${lg.teams} timova`, `I am currently ${st.rank} of ${lg.teams} teams`));
+    if (st.record) parts.push(L(`skor ${st.record}`, `record ${st.record}`));
+    const sentences = parts.length ? [parts.join(', ') + '.'] : [];
+    if (st.playoffTeams) sentences.push(L(`U plejof ide ${st.playoffTeams} timova${st.playoffWeek ? `, plejof počinje u ${st.playoffWeek}. nedelji` : ''}.`, `${st.playoffTeams} teams make the playoffs${st.playoffWeek ? `, which start in week ${st.playoffWeek}` : ''}.`));
+    else if (st.playoffWeek) sentences.push(L(`Plejof počinje u ${st.playoffWeek}. nedelji.`, `The playoffs start in week ${st.playoffWeek}.`));
+    if (sentences.length) out.push(`${sentences.join(' ')} ${L('Proceni da li mi treba pomoć odmah ili mogu da igram na duže staze.', 'Judge whether I need help right away or can play the long game.')}`);
+    const tsx = TEAM_STATES.find(s => s.id === lg.teamState);
+    if (tsx) out.push(L(`Stanje mog tima: ${t(tsx.sr)}.`, `My team's situation: ${t(tsx.sr)}.`));
+    if (state.punt.size) out.push(L(`Puntujem: ${CATS.filter(isPunt).map(c => c.label).join(', ')}. Te kategorije se ne računaju.`, `I am punting: ${CATS.filter(isPunt).map(c => c.label).join(', ')}. Those categories do not count.`));
+    if (lg.note) out.push(L(`Napomena: ${lg.note}`, `Note: ${lg.note}`));
+  }
+  out.push(L('Proceni ovaj trejd iz moje perspektive. Najvažniji kriterijumi: minutaža i uloga igrača sada i u budućnosti, zdravlje i pouzdanost, pa tek onda trenutne brojke.',
+    'Evaluate this trade from my perspective. Most important criteria: each player\'s minutes and role now and going forward, health and reliability, and only then current numbers.'));
+  if (lg) out.push(L(`Analiziraj kako se igrači koje dobijam uklapaju u moj roster: pozicije, kategorije u kojima sam već jak ili slab, da li dupliram ono što već imam, i da li mi roster${ROSTER.IR ? ' i IR mesta' : ''} dozvoljava${ROSTER.IR ? 'ju' : ''} ovaj trejd.`,
+    `Analyze how the players I get fit my roster: positions, categories where I am already strong or weak, whether I am doubling up on what I already have, and whether my roster${ROSTER.IR ? ' and IR spots' : ''} allow this trade.`));
+  if (uneven) out.push(lg
+    ? L(`Trejd nije ravnomeran, proceni ga kao paket: računaj i igrača koga izbacujem ili dodajem sa waivera.${askDrop ? ' Nisam naveo koga izbacujem, predloži koga sa rostera da izbacim i zašto.' : ''} Uporedi šta je bolje za moj tim: jedan jači igrač ili više solidnih koji igraju redovno, s obzirom na stanje mog tima, veličinu rostera i kategorije koje mi trebaju.`,
+      `The trade is uneven, so evaluate it as a package: count the player I drop or add from waivers.${askDrop ? ' I have not said who I drop, so suggest who from my roster to drop and why.' : ''} Compare what is better for my team: one stronger player or several solid players who play regularly, given my team's situation, roster size and the categories I need.`)
+    : L('Trejd nije ravnomeran, proceni ga kao paket: računaj i igrača koji se izbacuje ili dodaje sa waivera. Uporedi šta je bolje: jedan jači igrač ili više solidnih koji igraju redovno.',
+      'The trade is uneven, so evaluate it as a package: count the player who gets dropped or added from waivers. Compare what is better: one stronger player or several solid players who play regularly.'));
+  out.push(L(`Ako možeš da pretražuješ internet, proveri najnovije vesti za igrače u trejdu${lg ? ' i za ključne igrače mog rostera' : ''}: povrede, promene uloge, glasine o trejdovima u NBA. Navedi šta si našao i od kog datuma. Ako ne možeš da pretražuješ internet, reci to na početku i osloni se na vesti ispod.`,
+    `If you can browse the internet, check the latest news for the players in the trade${lg ? ' and for the key players on my roster' : ''}: injuries, role changes, NBA trade rumors. Say what you found and from what date. If you cannot browse, say so at the start and rely on the news below.`));
+  out.push(L('Budi iskren, i kad je trejd loš za mene, reci.', 'Be honest, and if the trade is bad for me, say so.'));
+  out.push(L('Odgovori ovim redom:', 'Answer in this order:'));
+  const steps = lg
+    ? L(['Kratka preporuka: prihvati / odbij / pregovaraj, u jednoj rečenici', 'Šta dobijam dugoročno', 'Šta rizikujem', 'Uklapanje u moj roster', 'Kako trejd utiče na moj tim po kategorijama', 'Ako je odgovor pregovaraj: konkretan kontra-predlog'],
+      ['Short recommendation: accept / decline / negotiate, in one sentence', 'What I gain long term', 'What I risk', 'Fit with my roster', 'How the trade affects my team by category', 'If the answer is negotiate: a concrete counteroffer'])
+    : L(['Kratka preporuka: prihvati / odbij / pregovaraj, u jednoj rečenici', 'Šta se dobija dugoročno', 'Šta se rizikuje', 'Pitanja o ligi i rosteru koja bi promenila odgovor', 'Kako trejd utiče po kategorijama', 'Ako je odgovor pregovaraj: konkretan kontra-predlog'],
+      ['Short recommendation: accept / decline / negotiate, in one sentence', 'What is gained long term', 'What is at risk', 'Questions about the league and roster that would change the answer', 'How the trade affects each category', 'If the answer is negotiate: a concrete counteroffer']);
+  out.push(steps.map((s, i) => `${i + 1}. ${s}`).join('\n'));
+  out.push(L('Odgovori na srpskom, kratko i jasno.', 'Reply in English, short and clear.'));
+  return out.join('\n');
+}
+
+/** Ceo tekst za AI. shortRosterNews: vesti za igrače sa rostera samo naslov i datum (kad je tekst predugačak). */
+function buildAIText(shortRosterNews = false) {
+  const lg = currentLeague();
+  const totals = state.teams.map(teamTotals);
+  const cmp = compare(totals);
+  const sp = slotPlan('my');
+  const uneven = sp.dropSlots > 0 || sp.waiverSlots > 0;
+  const per = PERIODS.find(p => p.key === state.period).label;
+  const S = [];
+  const sec = (title, body) => { if (body && body.trim()) S.push(`=== ${title} ===\n${body.trim()}`); };
+
+  sec(L('UPUTSTVO', 'INSTRUCTIONS'), aiInstructions(uneven));
+
+  // 4.2 Liga i kontekst
+  const ctx = [];
+  if (lg) {
+    const st = lg.standings || {};
+    ctx.push(`${L('Liga', 'League')}: ${lg.name}`);
+    if (lg.teamName) ctx.push(`${L('Moj tim', 'My team')}: ${lg.teamName}`);
+    ctx.push(`${L('Platforma', 'Platform')}: ${platformLabel(lg.platform)}`);
+    ctx.push(`${L('Format', 'Format')}: ${formatLabel(lg.format)}`);
+    ctx.push(`${L('Broj timova', 'Teams')}: ${lg.teams}`);
+    ctx.push(`${L('Roster', 'Roster')}: ${ROSTER.ACTIVE} ${L('aktivnih', 'active')}${ROSTER.IR ? ` + ${ROSTER.IR} IR` : ''}`);
+    if (st.rank) ctx.push(`${L('Mesto', 'Place')}: ${st.rank}/${lg.teams}`);
+    if (st.record) ctx.push(`${L('Skor', 'Record')}: ${st.record}`);
+    if (st.playoffTeams) ctx.push(`${L('Timova u plejofu', 'Playoff teams')}: ${st.playoffTeams}`);
+    if (st.playoffWeek) ctx.push(`${L('Nedelja plejofa', 'Playoff week')}: ${st.playoffWeek}`);
+    const tsx = TEAM_STATES.find(s => s.id === lg.teamState);
+    if (tsx) ctx.push(`${L('Stanje mog tima', 'Team situation')}: ${t(tsx.sr)}`);
+    if (state.punt.size) ctx.push(`Punt: ${CATS.filter(isPunt).map(c => c.label).join(', ')}`);
+    if (lg.note) ctx.push(`${L('Napomena', 'Note')}: ${lg.note}`);
+  } else {
+    ctx.push(L('Brzo poređenje, bez lige (standardna H2H liga sa 9 kategorija).', 'Quick compare, no league (standard 9-category H2H league).'));
+  }
+  if (state.loadedAt) ctx.push(`${L('Podaci od', 'Data as of')}: ${new Date(state.loadedAt).toLocaleString(LANG === 'en' ? 'en-US' : 'sr-Latn', { dateStyle: 'medium', timeStyle: 'short' })}`);
+  ctx.push(`${L('Izabrani period za poređenje', 'Selected comparison period')}: ${per}`);
+  ctx.push(`${L('Vesti', 'News')}: Rotowire (${L('preko ESPN-a, na engleskom', 'via ESPN')})`);
+  sec(L('LIGA I KONTEKST', 'LEAGUE AND CONTEXT'), ctx.join('\n'));
+
+  // 4.3 Trejd
+  const tr = [];
+  const block = (title, ids, tag) => { if (ids.length) tr.push(`${title}:\n${ids.map(id => state.byId.get(id)).filter(Boolean).map(p => aiPlayerBlock(p, tag)).join('\n')}`); };
+  block(L('DAJEŠ', 'I GIVE'), giveIds());
+  block(L('DOBIJAŠ', 'I GET'), getIds());
+  block(L('IZBACUJEŠ (sa mog rostera)', 'I DROP (from my roster)'), sp.drops);
+  block(L('WAIVER DODATAK', 'WAIVER ADD'), sp.waivers);
+  const rep = state.lastReport;
+  if (uneven) {
+    if (rep?.real) tr.push(stripTags(rep.real));
+    const plan = lg ? rosterPlan('my') : null;
+    if (plan?.tradeTouches) tr.push(L(`Mesta na mom rosteru: ${plan.activeBefore.length}/${ROSTER.ACTIVE} pre trejda, ${plan.activeAfter.length}/${ROSTER.ACTIVE} posle${plan.missingDrops ? ` (još nisam izabrao koga izbacujem, bez toga bi bilo ${plan.pre.length}/${ROSTER.ACTIVE})` : ''}.`,
+      `Spots on my roster: ${plan.activeBefore.length}/${ROSTER.ACTIVE} before the trade, ${plan.activeAfter.length}/${ROSTER.ACTIVE} after${plan.missingDrops ? ` (I have not picked who to drop yet, without that it would be ${plan.pre.length}/${ROSTER.ACTIVE})` : ''}.`));
+  }
+  if (cmp.active.length >= 2) {
+    const rows = CATS.map(c => {
+      const d = totals[GIVE].vals[c.key], g = totals[GET].vals[c.key];
+      const diff = d != null && g != null ? fmtDelta(c, g - d).txt : '-';
+      const tv = c.type === 'pct' ? myTeamValues(c) : null;
+      const team = tv ? ` · ${L('uticaj na moj tim', 'impact on my team')} ${Math.abs(tv.after - tv.before) < TEAM_PCT_TIE ? L('bez promene', 'no change') : fmtDelta(c, tv.after - tv.before).txt}` : '';
+      const low = !tv && lowVolume(c, totals) ? ` (${L('mali obim šuteva', 'low shot volume')})` : '';
+      return `${c.label}: ${L('Daješ', 'Give')} ${valTxt(c, d)} · ${L('Dobijaš', 'Get')} ${valTxt(c, g)} · ${L('Razlika', 'Diff')} ${diff}${team}${low}${isPunt(c) ? ' · punt' : ''}`;
+    });
+    tr.push(`${L('POREĐENJE KATEGORIJA', 'CATEGORY COMPARISON')} (${per}${uneven ? L(', računa i izbačenog / waiver igrača', ', includes the dropped / waiver player') : ''}):\n${rows.join('\n')}`);
+  }
+  sec(L('TREJD', 'TRADE'), tr.join('\n\n'));
+
+  // 4.4 Vesti
+  const tradeSet = [...new Set([...giveIds(), ...getIds(), ...sp.drops, ...sp.waivers])];
+  const nl = [];
+  for (const id of tradeSet) {
+    const p = state.byId.get(id), items = newsOf(id);
+    if (p && items.length) nl.push(`${p.name}:\n${items.map(n => `- ${aiDate(n.published)}: ${n.headline}${n.story ? ` ${firstSentences(n.story, AI.NEWS_SENTENCES)}` : ''}`).join('\n')}`);
+  }
+  const rosterIdsAll = lg ? [...rosterIds(rosterOf('my')), ...rosterIds(rosterOf('opp'))].filter(id => !tradeSet.includes(id)) : [];
+  for (const id of [...new Set(rosterIdsAll)]) {
+    const p = state.byId.get(id), items = newsOf(id).filter(n => isRecent(n.published));
+    if (p && items.length) nl.push(`${p.name} (${L('roster', 'roster')}):\n${items.map(n => `- ${aiDate(n.published)}: ${n.headline}${!shortRosterNews && n.story ? ` ${firstSentences(n.story, AI.NEWS_SENTENCES)}` : ''}`).join('\n')}`);
+  }
+  sec(L('VESTI (original, engleski)', 'NEWS'), nl.join('\n\n'));
+
+  // 4.5 Moj roster
+  const my = lg ? rosterOf('my') : null;
+  if (my && my.players.length) {
+    const plan = rosterPlan('my');
+    const act = my.players.filter(x => !x.ir), irs = my.players.filter(x => x.ir);
+    const lines = [`${L('Zauzetost', 'Occupancy')}: ${act.length}/${ROSTER.ACTIVE} ${L('aktivnih', 'active')}${ROSTER.IR ? `, ${irs.length}/${ROSTER.IR} IR` : ''}`];
+    lines.push(...my.players.map(x => aiRosterLine(x.id, x.ir)).filter(Boolean));
+    if (plan?.tradeTouches) {
+      const before = teamVals(plan.activeBefore), after = teamVals(plan.activeAfter);
+      lines.push(`\n${L('Moj tim pre / posle trejda', 'My team before / after the trade')} (${per}):`);
+      lines.push(...CATS.map(c => `${c.label}: ${valTxt(c, before[c.key])} → ${valTxt(c, after[c.key])} (${before[c.key] != null && after[c.key] != null ? fmtDelta(c, after[c.key] - before[c.key]).txt : '-'})${isPunt(c) ? ' · punt' : ''}`));
+      lines.push(`${L('Zauzetost posle trejda', 'Occupancy after the trade')}: ${plan.activeAfter.length}/${ROSTER.ACTIVE} ${L('aktivnih', 'active')}${ROSTER.IR ? `, ${plan.irIds.filter(id => !plan.dropsRemove.includes(id)).length}/${ROSTER.IR} IR` : ''}`);
+    } else if (plan) {
+      lines.push(L('\nIgrači iz "Daješ" nisu svi na mom rosteru, pa poređenje pre / posle nije urađeno.', '\nNot all "I give" players are on my roster, so no before / after comparison.'));
+    }
+    const base = plan ? plan.activeBefore : act.map(x => x.id);
+    const prof = teamValsTxt(base);
+    lines.push(`\n${L('Profil mog tima (zbir pre trejda)', 'My team profile (totals before the trade)')}: ${prof}`);
+    const tp = teamProfile(base);
+    if (tp) lines.push(L(`Najjače kategorije (u odnosu na ${tp.n} uneta tima): ${tp.best.join(', ')}. Najslabije: ${tp.worst.join(', ')}.`, `Strongest categories (vs ${tp.n} entered teams): ${tp.best.join(', ')}. Weakest: ${tp.worst.join(', ')}.`));
+    sec(L('MOJ ROSTER', 'MY ROSTER'), lines.join('\n'));
+  }
+
+  // 4.6 Protivnik
+  const opp = lg ? rosterOf('opp') : null;
+  if (opp && opp.players.length) {
+    const act = opp.players.filter(x => !x.ir), irs = opp.players.filter(x => x.ir);
+    const lines = [`${L('Protivnik', 'Opponent')}: ${opp.name} · ${act.length}/${ROSTER.ACTIVE} ${L('aktivnih', 'active')}${ROSTER.IR ? `, ${irs.length}/${ROSTER.IR} IR` : ''}`];
+    lines.push(...opp.players.map(x => { const p = state.byId.get(x.id); if (!p) return null; const f = playerFacts(p); return `- ${p.name} (${p.team}, ${p.pos})${p.inj !== 'ACTIVE' ? ` · ${statusTxt(p)}` : ''} · MIN ${n1(f.minS)}${f.dur ? ` · GP% ${Math.round(f.dur.pct * 100)}%` : ''}${x.ir ? ' · IR' : ''}`; }).filter(Boolean));
+    lines.push(`${L('Zbir protivnika', 'Opponent totals')}: ${teamValsTxt(act.map(x => x.id))}`);
+    sec(L('PROTIVNIČKI ROSTER', 'OPPONENT ROSTER'), lines.join('\n'));
+  }
+
+  // 4.7 Osnovni izveštaj
+  if (rep) {
+    const li = items => items.map(it => `- ${stripTags(it.text)}`).join('\n');
+    const parts = [stripTags(rep.head)];
+    if (rep.real) parts.push(stripTags(rep.real));
+    if (rep.candidate) parts.push(stripTags(rep.candidate.text));
+    if (rep.pluses.length) parts.push(`${rt('plus')}:\n${li(rep.pluses)}`);
+    if (rep.risks.length) parts.push(`${rt('risk')}:\n${li(rep.risks)}`);
+    if (rep.opp && (rep.opp.pluses.length || rep.opp.risks.length)) {
+      parts.push(stripTags(rt('oppHead', { name: rep.opp.name })));
+      if (rep.opp.pluses.length) parts.push(`${rt('plus')}:\n${li(rep.opp.pluses)}`);
+      if (rep.opp.risks.length) parts.push(`${rt('risk')}:\n${li(rep.opp.risks)}`);
+    }
+    sec(L('OSNOVNI IZVEŠTAJ (automatska analiza po pravilima)', 'BASIC REPORT (automatic rule-based analysis)'), parts.join('\n'));
+  }
+  return S.join('\n\n');
+}
+const teamValsTxt = ids => { const v = teamVals(ids); return CATS.map(c => `${c.label} ${valTxt(c, v[c.key])}`).join(', '); };
+
+/** Tekst za AI uz vesti: igrači u trejdu + igrači sa rostera sa vešću u poslednjih 7 dana */
+async function prepareAIText() {
+  const sp = slotPlan('my');
+  const lg = currentLeague();
+  const trade = [...new Set([...giveIds(), ...getIds(), ...sp.drops, ...sp.waivers])];
+  const roster = lg ? [...rosterIds(rosterOf('my')), ...rosterIds(rosterOf('opp'))]
+    .filter(id => !trade.includes(id)).filter(id => { const p = state.byId.get(id); return p?.newsTs && isRecent(new Date(p.newsTs).toISOString()); }) : [];
+  const needLogs = trade.filter(id => !state.gameLogs.has(id));
+  await Promise.all([...[...trade, ...new Set(roster)].map(fetchNews), needLogs.length ? fetchGameLogsQuiet(needLogs) : null]);
+  render(); // osveži izveštaj (state.lastReport) sa vestima
+  let text = buildAIText();
+  if (text.length > AI.MAX_CHARS) text = buildAIText(true);
+  return text;
+}
+
+function renderAICopy() {
+  const el = $('#aicopy');
+  if (!el) return;
+  el.innerHTML = `<button type="button" class="aibtn" data-action="ai-copy">
+      <span class="aibtn-t">🤖 ${t('Kopiraj za AI analizu')}</span>
+      <span class="aibtn-s">${t('Zalepi u ChatGPT, Claude, Gemini ili bilo koji AI čet i dobićeš dugoročno mišljenje o trejdu')}</span>
+    </button>`;
+}
+
+async function copyForAI() {
+  showModal({ title: t('Pripremam podatke...'), body: `<div class="ai-wait"><span class="spin"></span> ${t('Povlačim vesti i sastavljam tekst.')}</div>`, cancel: null });
+  const textPromise = prepareAIText();
+  let ok = false;
+  try {
+    // Safari traži da kopiranje počne u samom kliku: ClipboardItem prima obećanje teksta
+    if (window.ClipboardItem && navigator.clipboard?.write) {
+      await navigator.clipboard.write([new ClipboardItem({ 'text/plain': textPromise.then(s => new Blob([s], { type: 'text/plain' })) })]);
+      ok = true;
+    }
+  } catch { ok = false; }
+  const text = await textPromise;
+  if (!ok) { try { await navigator.clipboard.writeText(text); ok = true; } catch { ok = false; } }
+  state.aiText = text;
+  const steps = `<ol class="ai-steps">
+      <li>${t('Otvori svoj AI (ChatGPT, Claude, Gemini...)')}</li>
+      <li>${t('Zalepi tekst (dugo pritisni na telefonu i izaberi Zalepi, ili Ctrl+V / Cmd+V na računaru)')}</li>
+      <li>${t('Pošalji i sačekaj odgovor')}</li></ol>`;
+  showModal({
+    title: ok ? `<span class="ai-ok">✓ ${t('Kopirano!')}</span>` : t('Kopiraj tekst'),
+    wide: !ok,
+    body: ok ? steps : `<p>${t('Automatsko kopiranje nije uspelo. Označi tekst i kopiraj ga.')}</p>
+      <textarea class="ai-text" readonly rows="10">${esc(text)}</textarea>
+      <button type="button" class="btn small" data-action="ai-select">${t('Označi sve')}</button>${steps}`,
+    cancel: t('Zatvori'),
+  });
+}
 
 /* =====================================================================
    Rosteri: Moj tim (i protivnik) pre i posle trejda
@@ -3685,6 +4023,8 @@ document.addEventListener('click', e => {
   const ti = +el.dataset.team;
   switch (el.dataset.action) {
     case 'refresh': loadPlayers(true); loadSchedule(true); break;
+    case 'ai-copy': copyForAI(); break;
+    case 'ai-select': { const ta = document.querySelector('#modal .ai-text'); ta?.focus(); ta?.select(); try { document.execCommand('copy'); } catch {} break; }
     case 'pick-drop': {
       const sp = slotPlan('my'), id = +el.dataset.id;
       state.balance.my.drops = [...sp.drops, id].slice(0, Math.max(1, sp.dropSlots));
