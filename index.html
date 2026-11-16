@@ -39,6 +39,7 @@ a.brand{color:var(--text);text-decoration:none}
 .hcenter{display:flex;align-items:center;gap:10px;flex:1;min-width:0;justify-content:center}
 .hright{display:flex;align-items:center;gap:8px;margin-left:auto}
 .hcenter .seg{margin-left:0}
+.linkbtn:disabled{opacity:.4;cursor:default}
 .lc-open{color:var(--accent);font-weight:700}
 .lbar{position:relative;display:flex;align-items:center;gap:6px;margin-top:16px;overflow-x:auto;scrollbar-width:none;padding:2px 0}
 .lbar::-webkit-scrollbar{display:none}
@@ -525,7 +526,8 @@ const CONFIG = (() => {
     CACHE_KEY: `fbaTrade.players.v3.${SEASON}`, // v3: + pozicije (eligibleSlots), % owned, vesti, outlook
     OLD_CACHE_KEYS: [`fbaTrade.players.v2.${SEASON}`],
     // Vesti po igraču (Rotowire preko ESPN-a, na engleskom). Javno, CORS radi.
-    // feed meša Rotowire beleške sa opštim ESPN člancima i video snimcima, zato se traži 8 i zadržavaju 3 Rotowire
+    // feed je od najnovije ka starijoj i meša Rotowire beleške sa opštim ESPN člancima i video snimcima:
+    // uzima se 8 najnovijih stavki i od njih 3 najnovije Rotowire beleške o igraču
     NEWS_URL: id => `https://site.api.espn.com/apis/fantasy/v2/games/fba/news/players?limit=8&playerId=${id}`,
     NEWS_TYPE: 'Rotowire',
     NEWS_KEEP: 3,
@@ -991,6 +993,8 @@ const EN = {
   "Kopiraj tekst": "Copy the text",
   "Automatsko kopiranje nije uspelo. Označi tekst i kopiraj ga.": "Automatic copy did not work. Select the text and copy it.",
   "Označi sve": "Select all",
+  "Zameni strane": "Swap sides",
+  "Daješ postaje Dobijaš i obrnuto": "You give becomes You get, and the other way around",
 };
 function t(sr, vars) {
   let out = (LANG === 'en' && EN[sr]) || sr;
@@ -1799,7 +1803,9 @@ function renderWsHead() {
       <span class="pbadge">${esc(platformLabel(lg.platform))}</span>${lg.teamName ? `<span class="wsh-team">${esc(lg.teamName)}</span>` : ''}</div>
       <button type="button" class="linkbtn" data-action="league-settings">⚙ ${t('Podešavanja lige')}</button></div>`;
   } else {
-    el.innerHTML = `<div class="wsh"><div class="wsh-t"><h1>${t('Brzo poređenje')}</h1><span class="wsh-note">${t('Za {f} lige', { f: formatLabel('h2h-cat', true) })}</span></div></div>`;
+    const can = giveIds().length || getIds().length;
+    el.innerHTML = `<div class="wsh"><div class="wsh-t"><h1>${t('Brzo poređenje')}</h1><span class="wsh-note">${t('Za {f} lige', { f: formatLabel('h2h-cat', true) })}</span></div>
+      <button type="button" class="linkbtn" data-action="swap-sides" ${can ? '' : 'disabled'} title="${esc(t('Daješ postaje Dobijaš i obrnuto'))}">⇄ ${t('Zameni strane')}</button></div>`;
   }
 }
 
@@ -3756,7 +3762,9 @@ async function fetchNews(id) {
     const data = await res.json();
     const items = (data.feed || []).filter(f => f.type === CONFIG.NEWS_TYPE)
       .map(f => ({ headline: stripTags(f.headline), story: stripTags(f.story || f.description), published: f.published }))
-      .filter(x => x.headline).slice(0, CONFIG.NEWS_KEEP);
+      .filter(x => x.headline)
+      .sort((a, b) => new Date(b.published) - new Date(a.published)) // uvek najnovije prve
+      .slice(0, CONFIG.NEWS_KEEP);
     state.news.set(id, { ts: Date.now(), items });
     return items;
   } catch (e) {
@@ -4024,6 +4032,14 @@ document.addEventListener('click', e => {
   switch (el.dataset.action) {
     case 'refresh': loadPlayers(true); loadSchedule(true); break;
     case 'ai-copy': copyForAI(); break;
+    case 'swap-sides': {
+      // Daješ <-> Dobijaš (isti tab); izbor Izbacuješ / Waiver ne važi za obrnut trejd
+      const [a, b] = [giveIds(), getIds()];
+      state.teams[GIVE].ids = [...b]; state.teams[GET].ids = [...a];
+      state.balance.my = { drops: [], waivers: [] };
+      state.sharedOpen = false; searchUI.clear();
+      saveState(); render(); break;
+    }
     case 'ai-select': { const ta = document.querySelector('#modal .ai-text'); ta?.focus(); ta?.select(); try { document.execCommand('copy'); } catch {} break; }
     case 'pick-drop': {
       const sp = slotPlan('my'), id = +el.dataset.id;
