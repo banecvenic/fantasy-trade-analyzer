@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Fantasy Basketball Trade Analyzer | RosterSwing</title>
-<meta name="description" content="Compare fantasy basketball trades category by category. See what each side gains and gives up, and how the deal would change your roster.">
+<title>RosterSwing | Fantasy Basketball Tools for Smarter Trades</title>
+<meta name="description" content="Free fantasy basketball tools: analyze trades category by category, see how they change your roster, and find the players your team needs.">
 <link rel="canonical" href="https://banecvenic.github.io/fantasy-trade-analyzer/">
 <link rel="alternate" hreflang="en" href="https://banecvenic.github.io/fantasy-trade-analyzer/">
 <link rel="alternate" hreflang="sr" href="https://banecvenic.github.io/fantasy-trade-analyzer/sr/">
@@ -12,18 +12,18 @@
 <meta name="theme-color" content="#131519">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="RosterSwing">
-<meta property="og:title" content="Fantasy Basketball Trade Analyzer | RosterSwing">
-<meta property="og:description" content="Compare fantasy basketball trades category by category. See what each side gains and gives up, and how the deal would change your roster.">
+<meta property="og:title" content="RosterSwing | Fantasy Basketball Tools for Smarter Trades">
+<meta property="og:description" content="Free fantasy basketball tools: analyze trades category by category, see how they change your roster, and find the players your team needs.">
 <meta property="og:url" content="https://banecvenic.github.io/fantasy-trade-analyzer/">
-<meta property="og:image" content="https://banecvenic.github.io/fantasy-trade-analyzer/assets/og-en.png">
+<meta property="og:image" content="https://banecvenic.github.io/fantasy-trade-analyzer/assets/og-home-en.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="RosterSwing Fantasy Basketball Trade Analyzer">
+<meta property="og:image:alt" content="RosterSwing Fantasy Basketball Tools">
 <meta property="og:locale" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Fantasy Basketball Trade Analyzer | RosterSwing">
-<meta name="twitter:description" content="Compare fantasy basketball trades category by category. See what each side gains and gives up, and how the deal would change your roster.">
-<meta name="twitter:image" content="https://banecvenic.github.io/fantasy-trade-analyzer/assets/og-en.png">
+<meta name="twitter:title" content="RosterSwing | Fantasy Basketball Tools for Smarter Trades">
+<meta name="twitter:description" content="Free fantasy basketball tools: analyze trades category by category, see how they change your roster, and find the players your team needs.">
+<meta name="twitter:image" content="https://banecvenic.github.io/fantasy-trade-analyzer/assets/og-home-en.png">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="assets/favicon-16.png" sizes="16x16" type="image/png">
 <link rel="icon" href="assets/favicon-32.png" sizes="32x32" type="image/png">
@@ -36,27 +36,12 @@
 <link rel="stylesheet" href="assets/app.css">
 <link rel="stylesheet" href="assets/site.css">
 <script>
-(function(){var h=location.hash;if(/^#(home|quick|league-)/.test(h)||/(^#|&)(t|s|per)=/.test(h)){location.replace('app/'+h);}})();
-</script>
-<script type="application/ld+json">
-{
- "@context": "https://schema.org",
- "@type": "WebApplication",
- "name": "RosterSwing Fantasy Basketball Trade Analyzer",
- "alternateName": "RosterSwing",
- "url": "https://banecvenic.github.io/fantasy-trade-analyzer/",
- "description": "Compare fantasy basketball trades category by category. See what each side gains and gives up, and how the deal would change your roster.",
- "applicationCategory": "SportsApplication",
- "operatingSystem": "Any",
- "browserRequirements": "Requires JavaScript",
- "inLanguage": "en",
- "isAccessibleForFree": true,
- "offers": {
-  "@type": "Offer",
-  "price": "0",
-  "priceCurrency": "USD"
- }
-}
+(function(){var h=location.hash,app='app/',ta='trade-analyzer/';
+if(/^#(home|league-)/.test(h)){location.replace(app+h);return;}
+if(/^#quick/.test(h)||/(^#|&)(t|s|per)=/.test(h)){location.replace(ta+'#'+h.slice(1).replace(/^quick&?/,''));return;}
+if(/[?&]home\b/.test(location.search))return;
+try{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));var l=p&&p.leagues&&(p.leagues.find(function(x){return x.id===p.lastLeagueId})||p.leagues[0]);
+if(l)location.replace(app+'#league-'+l.id+'/overview&lang=en');}catch(e){}})();
 </script>
 <script type="application/ld+json">
 {
@@ -124,66 +109,75 @@
 }
 </script>
 </head>
-<body class="pub">
+<body class="pub" data-pubpage="home">
 <header class="site-h">
   <div class="wrap">
-    <a class="brand" href="./" aria-label="RosterSwing"><img class="brand-mark" src="assets/favicon.svg" width="24" height="24" alt="RosterSwing"><img class="brand-word" src="assets/wordmark.svg" width="96" height="16" alt=""><span class="brand-desc">Fantasy Basketball Tools</span></a>
+    <a class="brand" href="./" data-home aria-label="RosterSwing"><img class="brand-mark" src="assets/favicon.svg" width="24" height="24" alt="RosterSwing"><img class="brand-word" src="assets/wordmark.svg" width="96" height="16" alt=""><span class="brand-desc">Fantasy Basketball Tools</span></a>
     <nav class="site-nav" aria-label="Main">
-      <a class="lang-link" href="sr/" hreflang="sr" lang="sr">Srpski</a>
+      
+      <label class="langsel" title="Jezik / Language"><svg class="globe" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.8 3.8 5.8 3.8 9s-1.3 6.2-3.8 9c-2.5-2.8-3.8-5.8-3.8-9S9.5 5.8 12 3z"/></svg><select data-publang aria-label="Jezik / Language"><option value="sr" data-href="sr/" >Srpski</option><option value="en" data-href="./" selected>English</option></select></label>
       <a class="leagues-link" id="leagues-link" href="app/#home&amp;lang=en">My leagues</a>
     </nav>
   </div>
 </header>
 <script>
-(function(){try{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));var l=p&&p.leagues&&(p.leagues.find(function(x){return x.id===p.lastLeagueId})||p.leagues[0]);
-if(l){var a=document.getElementById('leagues-link');a.textContent="Continue: {name}".replace('{name}',l.name);a.title=a.textContent;a.href='app/#league-'+l.id+'&lang=en';}}catch(e){}})();
+(function(){var s=document.querySelector('[data-publang]');s.addEventListener('change',function(){location.href=s.selectedOptions[0].dataset.href+(/[?&]home\b/.test(location.search)?'?home':'');});
+try{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));var l=p&&p.leagues&&(p.leagues.find(function(x){return x.id===p.lastLeagueId})||p.leagues[0]);
+if(l){var a=document.getElementById('leagues-link');a.textContent="Continue: {name}".replace('{name}',l.name);a.title=a.textContent;a.href='app/#league-'+l.id+'/overview&lang=en';
+/* povratnik: veze ka početnoj ne preusmeravaju u ligu */
+document.querySelectorAll('a[data-home]').forEach(function(x){x.href=x.getAttribute('href').replace(/\?home$/,'')+'?home';});}}catch(e){}})();
 </script>
 
-<main class="wrap">
-  <section class="hero">
-    <div class="stripe" aria-hidden="true"><i style="background:var(--rs-red)"></i><i style="background:var(--rs-green)"></i><i style="background:var(--rs-blue)"></i></div>
-    <h1>Fantasy Basketball Trade Analyzer</h1>
-    <p>See what a trade does to your roster. Compare both sides and check which categories get stronger or weaker before you make the move.</p>
-    <div class="hero-actions">
-      <a class="cta" href="#tool" id="cta">Analyze a Trade</a>
-      <a class="cta2" id="hero-leagues" href="app/#home&amp;lang=en">Save your league</a>
-    </div>
-    <nav class="my-leagues" id="my-leagues" aria-label="Your leagues" hidden><span class="ml-t">Your leagues</span></nav>
-  </section>
+<div class="continue-bar" id="continue-bar" hidden><div class="wrap"><span>Continue where you left off</span><a class="cta" id="continue-btn" href="app/">…</a></div></div>
 <script>
-(function(){try{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));if(!p||!p.leagues||!p.leagues.length)return;
-var last=p.leagues.find(function(x){return x.id===p.lastLeagueId})||p.leagues[0];var app='app/',lg='&lang=en';
-var b=document.getElementById('hero-leagues');b.textContent="Continue: {name}".replace('{name}',last.name);b.href=app+'#league-'+last.id+'/overview'+lg;b.classList.add('on');
-var nav=document.getElementById('my-leagues');p.leagues.forEach(function(l){var a=document.createElement('a');a.className='ml-chip'+(l.id===last.id?' on':'');a.href=app+'#league-'+l.id+'/overview'+lg;a.textContent=l.name;nav.appendChild(a);});nav.hidden=false;
-}catch(e){}})();
+(function(){if(!/[?&]home\b/.test(location.search))return;try{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));var l=p&&p.leagues&&(p.leagues.find(function(x){return x.id===p.lastLeagueId})||p.leagues[0]);if(!l)return;
+var b=document.getElementById('continue-btn');b.textContent="Continue: {name}".replace('{name}',l.name);b.href='app/#league-'+l.id+'/overview&lang=en';document.getElementById('continue-bar').hidden=false;}catch(e){}})();
 </script>
-
-  <section class="tool" id="tool" aria-labelledby="tool-h">
-    <h2 id="tool-h">Compare a trade</h2>
-    <p class="lead">Add players to You give and You get. Per game stats for 9-category head to head leagues.</p>
-    <div class="tool-periods"><div class="seg" id="periods" role="group" aria-label="Period"><button type="button" aria-pressed="true">Season</button><button type="button" aria-pressed="false">7 days</button><button type="button" aria-pressed="false">15 days</button><button type="button" aria-pressed="false">30 days</button><button type="button" aria-pressed="false">Projection</button></div></div>
-    <div class="tool-app">
-      <div class="status" id="status">Loading players…</div>
-      <div id="banner"></div>
-      <div id="tradewarn"></div>
-      <div class="score" id="score"><div class="score-empty">Add players to You give and You get to see the comparison.</div></div>
-      <div class="teams" id="teams"><section class="card" data-team-card="0"><div class="card-h"><span class="dot" style="background:var(--give)"></span><div class="side-title"><b style="color:var(--give)">You give</b><small>My team</small></div></div><div class="search"><div class="search-in"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg><input type="search" placeholder="Who do you give…" aria-label="Who do you give…" disabled></div></div><div class="empty-team">No players yet. Type a name above.</div></section><section class="card" data-team-card="1"><div class="card-h"><span class="dot" style="background:var(--get)"></span><div class="side-title"><b style="color:var(--get)">You get</b><small>Opponent</small></div></div><div class="search"><div class="search-in"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg><input type="search" placeholder="Who do you get…" aria-label="Who do you get…" disabled></div></div><div class="empty-team">No players yet. Type a name above.</div></section></div>
-      <div id="compare"></div>
-      <div id="nudge"></div>
-      <div id="report"></div>
+<main class="wrap">
+  <section class="hero hero-home">
+    <div class="hero-text">
+      <div class="stripe" aria-hidden="true"><i style="background:var(--rs-red)"></i><i style="background:var(--rs-green)"></i><i style="background:var(--rs-blue)"></i></div>
+      <h1>Fantasy basketball tools for smarter trades</h1>
+      <p>Analyze trades category by category, see how they change your roster, and find the players your team needs.</p>
+      <div class="hero-actions">
+        <a class="cta" href="trade-analyzer/">Analyze a Trade</a>
+        <a class="cta2" href="app/#home&amp;addleague=1&amp;lang=en">Add your league</a>
+      </div>
     </div>
-    <div hidden><span id="hleague"></span><button type="button" id="pchip"></button><section id="home"></section><div id="leaguebar"></div><div id="wshead"></div><div id="tradetabs"></div><div id="myteam"></div><div id="oppteam"></div><div id="history"></div></div>
+    <a class="preview" href="trade-analyzer/" aria-label="Example trade analysis">
+      <span class="pv-label">Example trade analysis</span>
+      <span class="pv-sides"><span class="pv-side"><span class="pv-av">YG</span><span><small class="give-t">You give</small><b>Your guard</b></span></span>
+        <span class="pv-arrow" aria-hidden="true">⇄</span>
+        <span class="pv-side"><span class="pv-av">TC</span><span><small class="get-t">You get</small><b>Their center</b></span></span></span>
+      <span class="pv-score"><span class="pv-n get">6</span><span class="pv-sep">:</span><span class="pv-n">3</span></span>
+      <span class="pv-names"><span class="get-t">You get</span><span class="give-t">You give</span></span>
+      <span class="pv-verdict">The trade gains you 6 categories, you lose 3</span>
+      <span class="mcats"><span class="mc bad">− PTS</span><span class="mc good">+ REB</span><span class="mc bad">− AST</span><span class="mc bad">− 3PM</span><span class="mc good">+ STL</span><span class="mc good">+ BLK</span><span class="mc good">+ FG%</span><span class="mc good">+ FT%</span><span class="mc good">+ TO</span></span>
+      <span class="pv-rep"><span class="pv-t plus">Pluses</span><span>Gain rebounds and blocks (+3.1 REB, +1.2 BLK).</span><span>Better shooting: team FG% +.006.</span>
+        <span class="pv-t risk">Risks</span><span>You give up assists (−3.4 AST).</span></span>
+    </a>
   </section>
 
-  <section aria-labelledby="how-h">
-    <h2 id="how-h">How it works</h2>
-    <ol class="steps"><li><h3>Add the players you give</h3><p>Type a name in You give. One player or a whole package.</p></li><li><h3>Add the players you get</h3><p>Fill in You get. The fantasy basketball trade calculator adds up both sides per game.</p></li><li><h3>Read the result</h3><p>See which categories get stronger or weaker, the score across all 9 categories, and a short report on minutes, trends and injuries.</p></li></ol>
+  <section class="mini" id="mini" aria-labelledby="mini-h" data-txt='{&quot;mini_give_ph&quot;: &quot;Who do you give…&quot;, &quot;mini_get_ph&quot;: &quot;Who do you get…&quot;, &quot;mini_loading&quot;: &quot;Loading players…&quot;, &quot;mini_error&quot;: &quot;Players could not be loaded. Try again later.&quot;, &quot;mini_none&quot;: &quot;No players found&quot;, &quot;mini_hint&quot;: &quot;Add a player on each side to see the score.&quot;, &quot;mini_remove&quot;: &quot;Remove&quot;}' data-app="assets/app.js" data-lang="en" data-ta="trade-analyzer/">
+    <h2 id="mini-h">Try a quick trade</h2>
+    <p class="lead">Up to 2 players per side. Season averages per game.</p>
+    <div class="mini-sides">
+      <div class="mini-side" data-side="0"><label class="give-t" for="mini-0">You give</label><div class="mini-chips"></div>
+        <div class="mini-in"><input id="mini-0" type="search" autocomplete="off" spellcheck="false" placeholder="Who do you give…" role="combobox" aria-expanded="false" aria-controls="mini-dd-0"><ul class="dd" id="mini-dd-0" role="listbox" hidden></ul></div></div>
+      <div class="mini-side" data-side="1"><label class="get-t" for="mini-1">You get</label><div class="mini-chips"></div>
+        <div class="mini-in"><input id="mini-1" type="search" autocomplete="off" spellcheck="false" placeholder="Who do you get…" role="combobox" aria-expanded="false" aria-controls="mini-dd-1"><ul class="dd" id="mini-dd-1" role="listbox" hidden></ul></div></div>
+    </div>
+    <div class="mini-result" id="mini-result" aria-live="polite"><span class="mini-hint">Add a player on each side to see the score.</span></div>
+    <a class="cta" id="mini-full" href="trade-analyzer/">See full analysis</a>
   </section>
 
-  <section aria-labelledby="what-h">
-    <h2 id="what-h">What you get</h2>
-    <ul class="feats"><li><h3>Category by category comparison</h3><p>Points, rebounds, assists, threes, steals, blocks, FG%, FT% and turnovers, with the difference for each one.</p></li><li><h3>Weighted FG% and FT%</h3><p>Percentages come from makes and attempts, so a high percentage on a few shots does not count as much as volume.</p></li><li><h3>Minutes and trends</h3><p>Switch between season, last 7, 15 and 30 days, and projections. See who is playing more or less lately.</p></li><li><h3>Injuries and news</h3><p>Injury status, missed games and the latest player news in the trade report.</p></li><li><h3>Impact on your team</h3><p>Add your league and roster to see your team before and after the trade, with roster size and IR spots from your league.</p></li><li><h3>Text for AI analysis</h3><p>Copy a ready summary of the trade with stats, news and your roster, and paste it into the AI assistant you use.</p></li></ul>
+  <section class="feature feature-league" aria-labelledby="league-h">
+    <div><h2 id="league-h">Add your league and team</h2><p class="lead">Save your roster and see how every trade changes your team, with your league roster size and IR spots. Manual entry for now.</p><a class="cta2" href="app/#home&amp;addleague=1&amp;lang=en">Add your league</a></div>
+    <div class="ba"><div class="ba-t">My team before and after</div><table class="ba-table" aria-label="My team before and after"><thead><tr><th></th><th>PTS</th><th>REB</th><th>AST</th><th>BLK</th></tr></thead>
+      <tbody><tr class=""><td>Before</td><td class="">112.4</td><td class="">44.1</td><td class="">25.3</td><td class="">5.1</td></tr><tr class=""><td>After</td><td class="">110.9</td><td class="">47.2</td><td class="">21.9</td><td class="">6.3</td></tr><tr class="diff"><td>Difference</td><td class="bad">−1.5</td><td class="good">+3.1</td><td class="bad">−3.4</td><td class="good">+1.2</td></tr></tbody></table></div>
   </section>
+
+  <div class="feature-grid"><section class="feature" aria-labelledby="finder-h"><h2 id="finder-h">Find the player your team needs</h2><p class="lead">Pick the categories you want to improve and see players on other teams who bring them.</p><span class="soon">Coming soon</span></section><section class="feature" aria-labelledby="builder-h"><h2 id="builder-h">Build a trade between two teams</h2><p class="lead">Pick your team and one more, and get trade ideas: 1 for 1, 2 for 1 and 2 for 2.</p><span class="soon">Coming soon</span></section></div>
 
   <section aria-labelledby="faq-h">
     <h2 id="faq-h">Frequently asked questions</h2>
@@ -203,11 +197,6 @@ var nav=document.getElementById('my-leagues');p.leagues.forEach(function(l){var 
     <p class="f-note">RosterSwing is not affiliated with ESPN, Yahoo or the NBA. Stats come from publicly available sources.</p>
   </div>
 </footer>
-<script>window.RS_EMBED={lang:'en',app:'app/'};</script>
-<script src="assets/app.js" defer></script>
-<script>
-document.getElementById('cta').addEventListener('click',function(e){e.preventDefault();document.getElementById('tool').scrollIntoView({behavior:'smooth'});
-var f=function(){var i=document.querySelector('[data-search="0"]');if(i)i.focus({preventScroll:true});};setTimeout(f,350);});
-</script>
+<script src="assets/mini.js" defer></script>
 </body>
 </html>

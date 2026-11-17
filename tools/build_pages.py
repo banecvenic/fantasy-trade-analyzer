@@ -3,7 +3,8 @@
 Pravi javne stranice RosterSwing sajta kao obične HTML fajlove (sav tekst je u HTML-u, zbog pretrage).
 
 Pokretanje (iz korena projekta):  python3 tools/build_pages.py
-Pravi: index.html, sr/index.html, privacy/, sr/privacy/, about/, sr/about/, robots.txt, sitemap.xml
+Pravi: index.html, sr/index.html (početna), trade-analyzer/, sr/trade-analyzer/ (analiza trejda bez lige),
+privacy/, sr/privacy/, about/, sr/about/, robots.txt, sitemap.xml
 
 Prelazak na sopstveni domen: promeni samo SITE_URL ispod i ponovo pokreni skriptu.
 Linkovi između stranica su relativni, pa sajt radi na bilo kojoj osnovnoj putanji.
@@ -23,14 +24,85 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # stranica -> putanja po jeziku (relativno od korena sajta)
 PAGES = {
-    'home':    {'en': '', 'sr': 'sr/'},
+    'home':     {'en': '', 'sr': 'sr/'},
+    'analyzer': {'en': 'trade-analyzer/', 'sr': 'sr/trade-analyzer/'},
     'privacy': {'en': 'privacy/', 'sr': 'sr/privacy/'},
     'about':   {'en': 'about/', 'sr': 'sr/about/'},
 }
 
+# Alati sa početne: ready=False prikazuje "Coming soon"; kad alat postoji, ready=True i href (relativno od korena sajta)
+TOOLS = {
+    'finder':  {'ready': False, 'href': None},   # Find the player your team needs
+    'builder': {'ready': False, 'href': None},   # Build a trade between two teams
+}
+
 # ---------------------------------------------------------------------------
 # TEKSTOVI
+# T = stranica /trade-analyzer/ (i zajednički delovi), HOME = početna
 # ---------------------------------------------------------------------------
+HOME = {
+    'en': {
+        'title': 'RosterSwing | Fantasy Basketball Tools for Smarter Trades',
+        'desc': 'Free fantasy basketball tools: analyze trades category by category, see how they change your roster, and find the players your team needs.',
+        'h1': 'Fantasy basketball tools for smarter trades',
+        'lead': 'Analyze trades category by category, see how they change your roster, and find the players your team needs.',
+        'cta': 'Analyze a Trade',
+        'cta2': 'Add your league',
+        'og_image': 'assets/og-home-en.png',
+        'og_alt': 'RosterSwing Fantasy Basketball Tools',
+        'preview_label': 'Example trade analysis',
+        'pv': {'give': 'You give', 'get': 'You get', 'pg': 'Your guard', 'c': 'Their center', 'plus': 'Pluses', 'risk': 'Risks',
+               'p1': 'Gain rebounds and blocks (+3.1 REB, +1.2 BLK).', 'p2': 'Better shooting: team FG% +.006.', 'r1': 'You give up assists (−3.4 AST).',
+               'verdict': 'The trade gains you 6 categories, you lose 3'},
+        'mini_h': 'Try a quick trade',
+        'mini_lead': 'Up to 2 players per side. Season averages per game.',
+        'mini_give_ph': 'Who do you give…', 'mini_get_ph': 'Who do you get…',
+        'mini_loading': 'Loading players…', 'mini_error': 'Players could not be loaded. Try again later.', 'mini_none': 'No players found',
+        'mini_full': 'See full analysis', 'mini_hint': 'Add a player on each side to see the score.', 'mini_remove': 'Remove',
+        'league_h': 'Add your league and team',
+        'league_p': 'Save your roster and see how every trade changes your team, with your league roster size and IR spots. Manual entry for now.',
+        'league_cta': 'Add your league',
+        'ba': {'title': 'My team before and after', 'before': 'Before', 'after': 'After', 'diff': 'Difference'},
+        'finder_h': 'Find the player your team needs',
+        'finder_p': 'Pick the categories you want to improve and see players on other teams who bring them.',
+        'builder_h': 'Build a trade between two teams',
+        'builder_p': 'Pick your team and one more, and get trade ideas: 1 for 1, 2 for 1 and 2 for 2.',
+        'soon': 'Coming soon', 'open_tool': 'Open',
+        'continue_bar': 'Continue where you left off',
+        'continue_btn': 'Continue: {name}',
+    },
+    'sr': {
+        'title': 'RosterSwing | Alati za fantasy košarku',
+        'desc': 'Besplatni alati za fantasy košarku: analiziraj trejdove po kategorijama, vidi kako menjaju tvoj roster i nađi igrače koji trebaju tvom timu.',
+        'h1': 'Alati za fantasy košarku i pametnije trejdove',
+        'lead': 'Analiziraj trejdove po kategorijama, vidi kako menjaju tvoj roster i nađi igrače koji trebaju tvom timu.',
+        'cta': 'Analiziraj trejd',
+        'cta2': 'Dodaj svoju ligu',
+        'og_image': 'assets/og-home-sr.png',
+        'og_alt': 'RosterSwing alati za fantasy košarku',
+        'preview_label': 'Primer analize trejda',
+        'pv': {'give': 'Daješ', 'get': 'Dobijaš', 'pg': 'Tvoj bek', 'c': 'Njihov centar', 'plus': 'Plusevi', 'risk': 'Rizici',
+               'p1': 'Dobijaš skokove i blokade (+3.1 REB, +1.2 BLK).', 'p2': 'Bolji šut: FG% tima +.006.', 'r1': 'Gubiš asistencije (−3.4 AST).',
+               'verdict': 'Trejd ti donosi 6 kategorija, gubiš 3'},
+        'mini_h': 'Probaj brzi trejd',
+        'mini_lead': 'Do 2 igrača po strani. Prosek po utakmici za sezonu.',
+        'mini_give_ph': 'Koga daješ…', 'mini_get_ph': 'Koga dobijaš…',
+        'mini_loading': 'Učitavam igrače…', 'mini_error': 'Igrači nisu učitani. Pokušaj kasnije.', 'mini_none': 'Nema igrača',
+        'mini_full': 'Pogledaj celu analizu', 'mini_hint': 'Dodaj igrača na svaku stranu da vidiš rezultat.', 'mini_remove': 'Ukloni',
+        'league_h': 'Dodaj svoju ligu i tim',
+        'league_p': 'Sačuvaj roster i vidi kako svaki trejd menja tvoj tim, sa veličinom rostera i IR mestima tvoje lige. Za sada se roster unosi ručno.',
+        'league_cta': 'Dodaj svoju ligu',
+        'ba': {'title': 'Moj tim pre i posle', 'before': 'Pre', 'after': 'Posle', 'diff': 'Razlika'},
+        'finder_h': 'Nađi igrača koji treba tvom timu',
+        'finder_p': 'Izaberi kategorije koje hoćeš da popraviš i vidi igrače iz drugih ekipa koji ih donose.',
+        'builder_h': 'Napravi trejd između dva tima',
+        'builder_p': 'Izaberi svoj i još jedan tim i dobij predloge trejdova 1 za 1, 2 za 1 i 2 za 2.',
+        'soon': 'Uskoro', 'open_tool': 'Otvori',
+        'continue_bar': 'Nastavi gde si stao',
+        'continue_btn': 'Nastavi: {name}',
+    },
+}
+
 T = {
     'en': {
         'title': 'Fantasy Basketball Trade Analyzer | RosterSwing',
@@ -264,13 +336,14 @@ def rel(depth):
     return '../' * depth
 
 
-def head(lang, page, title, desc, depth, extra=''):
+def head(lang, page, title, desc, depth, extra='', og=None):
     r = rel(depth)
     canon = SITE_URL + PAGES[page][lang]
     alt = ''.join(f'<link rel="alternate" hreflang="{l}" href="{SITE_URL + PAGES[page][l]}">\n' for l in ('en', 'sr'))
     alt += f'<link rel="alternate" hreflang="x-default" href="{SITE_URL + PAGES[page]["en"]}">\n'
     t = T[lang]
-    og_img = SITE_URL + t['og_image']
+    og = og or t
+    og_img = SITE_URL + og['og_image']
     return f'''<!doctype html>
 <html lang="{lang}">
 <head>
@@ -288,7 +361,7 @@ def head(lang, page, title, desc, depth, extra=''):
 <meta property="og:image" content="{og_img}">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="{escape(t['og_alt'])}">
+<meta property="og:image:alt" content="{escape(og['og_alt'])}">
 <meta property="og:locale" content="{t['locale']}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{escape(title)}">
@@ -309,29 +382,41 @@ def head(lang, page, title, desc, depth, extra=''):
 '''
 
 
+GLOBE = '<svg class="globe" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.8 3.8 5.8 3.8 9s-1.3 6.2-3.8 9c-2.5-2.8-3.8-5.8-3.8-9S9.5 5.8 12 3z"/></svg>'
+
+
+def page_href(page, lang, depth):
+    r = rel(depth)
+    return r + PAGES[page][lang] if PAGES[page][lang] else (r or './')
+
+
 def header(lang, page, depth):
     r = rel(depth)
     t = T[lang]
-    other = 'sr' if lang == 'en' else 'en'
-    home = r + PAGES['home'][lang] if PAGES['home'][lang] else (r or './')
-    other_href = r + PAGES[page][other] if PAGES[page][other] else (r or './')
     app = f'{r}app/'
-    # "My leagues" -> "Continue: [liga]" kad u browseru postoji profil sa ligom
-    return f'''<body class="pub">
+    home = page_href('home', lang, depth)
+    # isti izbor jezika kao u aplikaciji; ovde vodi na odgovarajuću adresu
+    opts = ''.join(f'<option value="{l}" data-href="{page_href(page, l, depth)}" {"selected" if l == lang else ""}>{n}</option>' for l, n in (('sr', 'Srpski'), ('en', 'English')))
+    home_link = f'<a class="home-link" href="{home}" data-home>{"Početna" if lang == "sr" else "Home"}</a>' if page != 'home' else ''
+    return f"""<body class="pub" data-pubpage="{page}">
 <header class="site-h">
   <div class="wrap">
-    <a class="brand" href="{home}" aria-label="RosterSwing"><img class="brand-mark" src="{r}assets/favicon.svg" width="24" height="24" alt="RosterSwing"><img class="brand-word" src="{r}assets/wordmark.svg" width="96" height="16" alt=""><span class="brand-desc">Fantasy Basketball Tools</span></a>
+    <a class="brand" href="{home}" data-home aria-label="RosterSwing"><img class="brand-mark" src="{r}assets/favicon.svg" width="24" height="24" alt="RosterSwing"><img class="brand-word" src="{r}assets/wordmark.svg" width="96" height="16" alt=""><span class="brand-desc">Fantasy Basketball Tools</span></a>
     <nav class="site-nav" aria-label="{'Glavni meni' if lang == 'sr' else 'Main'}">
-      <a class="lang-link" href="{other_href}" hreflang="{other}" lang="{other}">{t['lang_other']}</a>
+      {home_link}
+      <label class="langsel" title="Jezik / Language">{GLOBE}<select data-publang aria-label="Jezik / Language">{opts}</select></label>
       <a class="leagues-link" id="leagues-link" href="{app}#home&amp;lang={lang}">{t['my_leagues']}</a>
     </nav>
   </div>
 </header>
 <script>
-(function(){{try{{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));var l=p&&p.leagues&&(p.leagues.find(function(x){{return x.id===p.lastLeagueId}})||p.leagues[0]);
-if(l){{var a=document.getElementById('leagues-link');a.textContent={json.dumps(t['continue'])}.replace('{{name}}',l.name);a.title=a.textContent;a.href='{app}#league-'+l.id+'&lang={lang}';}}}}catch(e){{}}}})();
+(function(){{var s=document.querySelector('[data-publang]');s.addEventListener('change',function(){{location.href=s.selectedOptions[0].dataset.href+(/[?&]home\\b/.test(location.search)?'?home':'');}});
+try{{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));var l=p&&p.leagues&&(p.leagues.find(function(x){{return x.id===p.lastLeagueId}})||p.leagues[0]);
+if(l){{var a=document.getElementById('leagues-link');a.textContent={json.dumps(t['continue'])}.replace('{{name}}',l.name);a.title=a.textContent;a.href='{app}#league-'+l.id+'/overview&lang={lang}';
+/* povratnik: veze ka početnoj ne preusmeravaju u ligu */
+document.querySelectorAll('a[data-home]').forEach(function(x){{x.href=x.getAttribute('href').replace(/\\?home$/,'')+'?home';}});}}}}catch(e){{}}}})();
 </script>
-'''
+"""
 
 
 def footer(lang, depth):
@@ -354,14 +439,18 @@ def footer(lang, depth):
 '''
 
 
-def jsonld_home(lang):
+def ld(obj):
+    return '<script type="application/ld+json">\n' + json.dumps(obj, ensure_ascii=False, indent=1).replace('</', '<\\/') + '\n</script>\n'
+
+
+def jsonld_app(lang):
     t = T[lang]
-    app = {
+    return ld({
         '@context': 'https://schema.org',
         '@type': 'WebApplication',
         'name': 'RosterSwing ' + ('Fantasy Basketball Trade Analyzer' if lang == 'en' else 'kalkulator za fantasy trejdove'),
         'alternateName': 'RosterSwing',
-        'url': SITE_URL + PAGES['home'][lang],
+        'url': SITE_URL + PAGES['analyzer'][lang],
         'description': t['desc'],
         'applicationCategory': 'SportsApplication',
         'operatingSystem': 'Any',
@@ -369,22 +458,29 @@ def jsonld_home(lang):
         'inLanguage': lang,
         'isAccessibleForFree': True,
         'offers': {'@type': 'Offer', 'price': '0', 'priceCurrency': 'USD'},
-    }
-    faq = {
+    })
+
+
+def jsonld_faq(lang):
+    return ld({
         '@context': 'https://schema.org',
         '@type': 'FAQPage',
         'inLanguage': lang,
-        'mainEntity': [{'@type': 'Question', 'name': q, 'acceptedAnswer': {'@type': 'Answer', 'text': a}} for q, a in t['faq']],
-    }
-    dump = lambda o: json.dumps(o, ensure_ascii=False, indent=1).replace('</', '<\\/')
-    return f'<script type="application/ld+json">\n{dump(app)}\n</script>\n<script type="application/ld+json">\n{dump(faq)}\n</script>\n'
+        'mainEntity': [{'@type': 'Question', 'name': q, 'acceptedAnswer': {'@type': 'Answer', 'text': a}} for q, a in T[lang]['faq']],
+    })
 
 
-# Stari linkovi (#league-…, #home, #quick, deljeni trejd #per=…&t=…&s=1) vode u aplikaciju sa istim stanjem
-REDIRECT = '''<script>
-(function(){var h=location.hash;if(/^#(home|quick|league-)/.test(h)||/(^#|&)(t|s|per)=/.test(h)){location.replace('{app}'+h);}})();
+# Početna: stari linkovi lige -> /app/; stari i deljeni trejdovi bez lige -> /trade-analyzer/ sa istim trejdom;
+# povratnik sa ligom -> poslednja liga (osim /?home). Radi samo skripta u browseru, sadržaj ostaje u HTML-u.
+REDIRECT = """<script>
+(function(){var h=location.hash,app='{app}',ta='{ta}';
+if(/^#(home|league-)/.test(h)){location.replace(app+h);return;}
+if(/^#quick/.test(h)||/(^#|&)(t|s|per)=/.test(h)){location.replace(ta+'#'+h.slice(1).replace(/^quick&?/,''));return;}
+if(/[?&]home\\b/.test(location.search))return;
+try{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));var l=p&&p.leagues&&(p.leagues.find(function(x){return x.id===p.lastLeagueId})||p.leagues[0]);
+if(l)location.replace(app+'#league-'+l.id+'/overview&lang={lang}');}catch(e){}})();
 </script>
-'''
+"""
 
 
 def prerender(lang):
@@ -401,39 +497,123 @@ def prerender(lang):
     return periods, f'<div class="score-empty">{escape(p["score"])}</div>', card(0, 'give', '--give') + card(1, 'get', '--get')
 
 
+def initials(name):
+    return ''.join(w[0] for w in name.split()[:2]).upper()
+
+
+def preview_html(lang):
+    """Statičan prikaz analize trejda (HTML/CSS u stilu aplikacije), za hero"""
+    h = HOME[lang]; v = h['pv']
+    cats = [('PTS', -1), ('REB', 1), ('AST', -1), ('3PM', -1), ('STL', 1), ('BLK', 1), ('FG%', 1), ('FT%', 1), ('TO', 1)]
+    chips = ''.join(f'<span class="mc {"good" if x > 0 else "bad"}">{"+" if x > 0 else "−"} {c}</span>' for c, x in cats)
+    return f"""<a class="preview" href="{{ta}}" aria-label="{escape(h['preview_label'])}">
+      <span class="pv-label">{escape(h['preview_label'])}</span>
+      <span class="pv-sides"><span class="pv-side"><span class="pv-av">{initials(v['pg'])}</span><span><small class="give-t">{escape(v['give'])}</small><b>{escape(v['pg'])}</b></span></span>
+        <span class="pv-arrow" aria-hidden="true">⇄</span>
+        <span class="pv-side"><span class="pv-av">{initials(v['c'])}</span><span><small class="get-t">{escape(v['get'])}</small><b>{escape(v['c'])}</b></span></span></span>
+      <span class="pv-score"><span class="pv-n get">6</span><span class="pv-sep">:</span><span class="pv-n">3</span></span>
+      <span class="pv-names"><span class="get-t">{escape(v['get'])}</span><span class="give-t">{escape(v['give'])}</span></span>
+      <span class="pv-verdict">{escape(v['verdict'])}</span>
+      <span class="mcats">{chips}</span>
+      <span class="pv-rep"><span class="pv-t plus">{escape(v['plus'])}</span><span>{escape(v['p1'])}</span><span>{escape(v['p2'])}</span>
+        <span class="pv-t risk">{escape(v['risk'])}</span><span>{escape(v['r1'])}</span></span>
+    </a>"""
+
+
+def before_after_html(lang):
+    b = HOME[lang]['ba']
+    rows = [('PTS', '112.4', '110.9', '−1.5', 'bad'), ('REB', '44.1', '47.2', '+3.1', 'good'), ('AST', '25.3', '21.9', '−3.4', 'bad'), ('BLK', '5.1', '6.3', '+1.2', 'good')]
+    head_ = ''.join(f'<th>{c}</th>' for c, *_ in rows)
+    line = lambda label, i, cls='': f'<tr class="{cls}"><td>{label}</td>' + ''.join(f'<td class="{r[4] if i == 3 else ""}">{r[i]}</td>' for r in rows) + '</tr>'
+    return f"""<div class="ba"><div class="ba-t">{escape(b['title'])}</div><table class="ba-table" aria-label="{escape(b['title'])}"><thead><tr><th></th>{head_}</tr></thead>
+      <tbody>{line(escape(b['before']), 1)}{line(escape(b['after']), 2)}{line(escape(b['diff']), 3, 'diff')}</tbody></table></div>"""
+
+
+def tool_card(lang, key):
+    h = HOME[lang]; tool = TOOLS[key]
+    action = (f'<a class="cta2" href="{{root}}{tool["href"]}">{escape(h["open_tool"])}</a>' if tool['ready'] and tool['href']
+              else f'<span class="soon">{escape(h["soon"])}</span>')
+    return f"""<section class="feature" aria-labelledby="{key}-h"><h2 id="{key}-h">{escape(h[key + '_h'])}</h2><p class="lead">{escape(h[key + '_p'])}</p>{action}</section>"""
+
+
 def home(lang):
-    t = T[lang]
+    t = T[lang]; h = HOME[lang]
     depth = 0 if lang == 'en' else 1
     r = rel(depth)
     app = f'{r}app/'
-    extra = REDIRECT.replace('{app}', app) + jsonld_home(lang)
+    ta = page_href('analyzer', lang, depth)
+    extra = REDIRECT.replace('{app}', app).replace('{ta}', ta).replace('{lang}', lang) + jsonld_faq(lang)
+    faq = ''.join(f'<details><summary><h3>{escape(q)}</h3></summary><div class="a"><p>{escape(a)}</p></div></details>' for q, a in t['faq'])
+    mini_txt = json.dumps({k: h[k] for k in ('mini_give_ph', 'mini_get_ph', 'mini_loading', 'mini_error', 'mini_none', 'mini_hint', 'mini_remove')}, ensure_ascii=False)
+    add_league = f'{app}#home&amp;addleague=1&amp;lang={lang}'
+    return head(lang, 'home', h['title'], h['desc'], depth, extra, og=h) + header(lang, 'home', depth) + f"""
+<div class="continue-bar" id="continue-bar" hidden><div class="wrap"><span>{escape(h['continue_bar'])}</span><a class="cta" id="continue-btn" href="{app}">…</a></div></div>
+<script>
+(function(){{if(!/[?&]home\\b/.test(location.search))return;try{{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));var l=p&&p.leagues&&(p.leagues.find(function(x){{return x.id===p.lastLeagueId}})||p.leagues[0]);if(!l)return;
+var b=document.getElementById('continue-btn');b.textContent={json.dumps(h['continue_btn'])}.replace('{{name}}',l.name);b.href='{app}#league-'+l.id+'/overview&lang={lang}';document.getElementById('continue-bar').hidden=false;}}catch(e){{}}}})();
+</script>
+<main class="wrap">
+  <section class="hero hero-home">
+    <div class="hero-text">
+      <div class="stripe" aria-hidden="true"><i style="background:var(--rs-red)"></i><i style="background:var(--rs-green)"></i><i style="background:var(--rs-blue)"></i></div>
+      <h1>{escape(h['h1'])}</h1>
+      <p>{escape(h['lead'])}</p>
+      <div class="hero-actions">
+        <a class="cta" href="{ta}">{escape(h['cta'])}</a>
+        <a class="cta2" href="{add_league}">{escape(h['cta2'])}</a>
+      </div>
+    </div>
+    {preview_html(lang).replace('{ta}', ta)}
+  </section>
+
+  <section class="mini" id="mini" aria-labelledby="mini-h" data-txt='{escape(mini_txt)}' data-app="{r}assets/app.js" data-lang="{lang}" data-ta="{ta}">
+    <h2 id="mini-h">{escape(h['mini_h'])}</h2>
+    <p class="lead">{escape(h['mini_lead'])}</p>
+    <div class="mini-sides">
+      <div class="mini-side" data-side="0"><label class="give-t" for="mini-0">{escape(t['pre']['give'][0])}</label><div class="mini-chips"></div>
+        <div class="mini-in"><input id="mini-0" type="search" autocomplete="off" spellcheck="false" placeholder="{escape(h['mini_give_ph'])}" role="combobox" aria-expanded="false" aria-controls="mini-dd-0"><ul class="dd" id="mini-dd-0" role="listbox" hidden></ul></div></div>
+      <div class="mini-side" data-side="1"><label class="get-t" for="mini-1">{escape(t['pre']['get'][0])}</label><div class="mini-chips"></div>
+        <div class="mini-in"><input id="mini-1" type="search" autocomplete="off" spellcheck="false" placeholder="{escape(h['mini_get_ph'])}" role="combobox" aria-expanded="false" aria-controls="mini-dd-1"><ul class="dd" id="mini-dd-1" role="listbox" hidden></ul></div></div>
+    </div>
+    <div class="mini-result" id="mini-result" aria-live="polite"><span class="mini-hint">{escape(h['mini_hint'])}</span></div>
+    <a class="cta" id="mini-full" href="{ta}">{escape(h['mini_full'])}</a>
+  </section>
+
+  <section class="feature feature-league" aria-labelledby="league-h">
+    <div><h2 id="league-h">{escape(h['league_h'])}</h2><p class="lead">{escape(h['league_p'])}</p><a class="cta2" href="{add_league}">{escape(h['league_cta'])}</a></div>
+    {before_after_html(lang)}
+  </section>
+
+  <div class="feature-grid">{tool_card(lang, 'finder').replace('{root}', r)}{tool_card(lang, 'builder').replace('{root}', r)}</div>
+
+  <section aria-labelledby="faq-h">
+    <h2 id="faq-h">{escape(t['faq_h'])}</h2>
+    <div class="faq">{faq}</div>
+  </section>
+</main>
+""" + footer(lang, depth) + f"""<script src="{r}assets/mini.js" defer></script>
+</body>
+</html>
+"""
+
+
+def analyzer(lang):
+    t = T[lang]
+    depth = 1 if lang == 'en' else 2
+    r = rel(depth)
+    app = f'{r}app/'
+    extra = jsonld_app(lang)
     pre_periods, pre_score, pre_teams = prerender(lang)
     steps = ''.join(f'<li><h3>{escape(a)}</h3><p>{escape(b)}</p></li>' for a, b in t['steps'])
     feats = ''.join(f'<li><h3>{escape(a)}</h3><p>{escape(b)}</p></li>' for a, b in t['feats'])
-    faq = ''.join(f'<details><summary><h3>{escape(q)}</h3></summary><div class="a"><p>{escape(a)}</p></div></details>' for q, a in t['faq'])
-    return head(lang, 'home', t['title'], t['desc'], depth, extra) + header(lang, 'home', depth) + f'''
+    return head(lang, 'analyzer', t['title'], t['desc'], depth, extra) + header(lang, 'analyzer', depth) + f"""
 <main class="wrap">
-  <section class="hero">
-    <div class="stripe" aria-hidden="true"><i style="background:var(--rs-red)"></i><i style="background:var(--rs-green)"></i><i style="background:var(--rs-blue)"></i></div>
+  <section class="intro">
     <h1>{escape(t['h1'])}</h1>
     <p>{escape(t['lead'])}</p>
-    <div class="hero-actions">
-      <a class="cta" href="#tool" id="cta">{escape(t['cta'])}</a>
-      <a class="cta2" id="hero-leagues" href="{app}#home&amp;lang={lang}">{escape(t['add_league'])}</a>
-    </div>
-    <nav class="my-leagues" id="my-leagues" aria-label="{escape(t['your_leagues'])}" hidden><span class="ml-t">{escape(t['your_leagues'])}</span></nav>
   </section>
-<script>
-(function(){{try{{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));if(!p||!p.leagues||!p.leagues.length)return;
-var last=p.leagues.find(function(x){{return x.id===p.lastLeagueId}})||p.leagues[0];var app='{app}',lg='&lang={lang}';
-var b=document.getElementById('hero-leagues');b.textContent={json.dumps(t['continue'])}.replace('{{name}}',last.name);b.href=app+'#league-'+last.id+'/overview'+lg;b.classList.add('on');
-var nav=document.getElementById('my-leagues');p.leagues.forEach(function(l){{var a=document.createElement('a');a.className='ml-chip'+(l.id===last.id?' on':'');a.href=app+'#league-'+l.id+'/overview'+lg;a.textContent=l.name;nav.appendChild(a);}});nav.hidden=false;
-}}catch(e){{}}}})();
-</script>
 
-  <section class="tool" id="tool" aria-labelledby="tool-h">
-    <h2 id="tool-h">{escape(t['tool_h'])}</h2>
-    <p class="lead">{escape(t['tool_lead'])}</p>
+  <section class="tool" id="tool" aria-label="{escape(t['tool_h'])}">
     <div class="tool-periods"><div class="seg" id="periods" role="group" aria-label="Period">{pre_periods}</div></div>
     <div class="tool-app">
       <div class="status" id="status">{escape(t['loading'])}</div>
@@ -457,21 +637,12 @@ var nav=document.getElementById('my-leagues');p.leagues.forEach(function(l){{var
     <h2 id="what-h">{escape(t['what_h'])}</h2>
     <ul class="feats">{feats}</ul>
   </section>
-
-  <section aria-labelledby="faq-h">
-    <h2 id="faq-h">{escape(t['faq_h'])}</h2>
-    <div class="faq">{faq}</div>
-  </section>
 </main>
-''' + footer(lang, depth) + f'''<script>window.RS_EMBED={{lang:'{lang}',app:'{app}'}};</script>
+""" + footer(lang, depth) + f"""<script>window.RS_EMBED={{lang:'{lang}',app:'{app}'}};</script>
 <script src="{r}assets/app.js" defer></script>
-<script>
-document.getElementById('cta').addEventListener('click',function(e){{e.preventDefault();document.getElementById('tool').scrollIntoView({{behavior:'smooth'}});
-var f=function(){{var i=document.querySelector('[data-search="0"]');if(i)i.focus({{preventScroll:true}});}};setTimeout(f,350);}});
-</script>
 </body>
 </html>
-'''
+"""
 
 
 def doc(lang, page, data, depth):
@@ -497,6 +668,7 @@ def write(path, content):
 def main():
     for lang in ('en', 'sr'):
         write(PAGES['home'][lang] + 'index.html', home(lang))
+        write(PAGES['analyzer'][lang] + 'index.html', analyzer(lang))
         write(PAGES['privacy'][lang] + 'index.html', doc(lang, 'privacy', PRIVACY[lang], 1 if lang == 'en' else 2))
         write(PAGES['about'][lang] + 'index.html', doc(lang, 'about', ABOUT[lang], 1 if lang == 'en' else 2))
     # /app/ nije u mapi sajta i ima <meta name="robots" content="noindex"> (ne blokira se ovde, da bi pretraživač video noindex)

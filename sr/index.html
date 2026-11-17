@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Fantasy košarka: kalkulator za trejdove | RosterSwing</title>
-<meta name="description" content="Uporedi fantasy trejd po kategorijama. Vidi šta dobijaš, šta daješ i kako bi izgledao tvoj tim posle trejda.">
+<title>RosterSwing | Alati za fantasy košarku</title>
+<meta name="description" content="Besplatni alati za fantasy košarku: analiziraj trejdove po kategorijama, vidi kako menjaju tvoj roster i nađi igrače koji trebaju tvom timu.">
 <link rel="canonical" href="https://banecvenic.github.io/fantasy-trade-analyzer/sr/">
 <link rel="alternate" hreflang="en" href="https://banecvenic.github.io/fantasy-trade-analyzer/">
 <link rel="alternate" hreflang="sr" href="https://banecvenic.github.io/fantasy-trade-analyzer/sr/">
@@ -12,18 +12,18 @@
 <meta name="theme-color" content="#131519">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="RosterSwing">
-<meta property="og:title" content="Fantasy košarka: kalkulator za trejdove | RosterSwing">
-<meta property="og:description" content="Uporedi fantasy trejd po kategorijama. Vidi šta dobijaš, šta daješ i kako bi izgledao tvoj tim posle trejda.">
+<meta property="og:title" content="RosterSwing | Alati za fantasy košarku">
+<meta property="og:description" content="Besplatni alati za fantasy košarku: analiziraj trejdove po kategorijama, vidi kako menjaju tvoj roster i nađi igrače koji trebaju tvom timu.">
 <meta property="og:url" content="https://banecvenic.github.io/fantasy-trade-analyzer/sr/">
-<meta property="og:image" content="https://banecvenic.github.io/fantasy-trade-analyzer/assets/og-sr.png">
+<meta property="og:image" content="https://banecvenic.github.io/fantasy-trade-analyzer/assets/og-home-sr.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="RosterSwing kalkulator za fantasy trejdove">
+<meta property="og:image:alt" content="RosterSwing alati za fantasy košarku">
 <meta property="og:locale" content="sr_RS">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Fantasy košarka: kalkulator za trejdove | RosterSwing">
-<meta name="twitter:description" content="Uporedi fantasy trejd po kategorijama. Vidi šta dobijaš, šta daješ i kako bi izgledao tvoj tim posle trejda.">
-<meta name="twitter:image" content="https://banecvenic.github.io/fantasy-trade-analyzer/assets/og-sr.png">
+<meta name="twitter:title" content="RosterSwing | Alati za fantasy košarku">
+<meta name="twitter:description" content="Besplatni alati za fantasy košarku: analiziraj trejdove po kategorijama, vidi kako menjaju tvoj roster i nađi igrače koji trebaju tvom timu.">
+<meta name="twitter:image" content="https://banecvenic.github.io/fantasy-trade-analyzer/assets/og-home-sr.png">
 <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="../assets/favicon-16.png" sizes="16x16" type="image/png">
 <link rel="icon" href="../assets/favicon-32.png" sizes="32x32" type="image/png">
@@ -36,27 +36,12 @@
 <link rel="stylesheet" href="../assets/app.css">
 <link rel="stylesheet" href="../assets/site.css">
 <script>
-(function(){var h=location.hash;if(/^#(home|quick|league-)/.test(h)||/(^#|&)(t|s|per)=/.test(h)){location.replace('../app/'+h);}})();
-</script>
-<script type="application/ld+json">
-{
- "@context": "https://schema.org",
- "@type": "WebApplication",
- "name": "RosterSwing kalkulator za fantasy trejdove",
- "alternateName": "RosterSwing",
- "url": "https://banecvenic.github.io/fantasy-trade-analyzer/sr/",
- "description": "Uporedi fantasy trejd po kategorijama. Vidi šta dobijaš, šta daješ i kako bi izgledao tvoj tim posle trejda.",
- "applicationCategory": "SportsApplication",
- "operatingSystem": "Any",
- "browserRequirements": "Requires JavaScript",
- "inLanguage": "sr",
- "isAccessibleForFree": true,
- "offers": {
-  "@type": "Offer",
-  "price": "0",
-  "priceCurrency": "USD"
- }
-}
+(function(){var h=location.hash,app='../app/',ta='../sr/trade-analyzer/';
+if(/^#(home|league-)/.test(h)){location.replace(app+h);return;}
+if(/^#quick/.test(h)||/(^#|&)(t|s|per)=/.test(h)){location.replace(ta+'#'+h.slice(1).replace(/^quick&?/,''));return;}
+if(/[?&]home\b/.test(location.search))return;
+try{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));var l=p&&p.leagues&&(p.leagues.find(function(x){return x.id===p.lastLeagueId})||p.leagues[0]);
+if(l)location.replace(app+'#league-'+l.id+'/overview&lang=sr');}catch(e){}})();
 </script>
 <script type="application/ld+json">
 {
@@ -124,66 +109,75 @@
 }
 </script>
 </head>
-<body class="pub">
+<body class="pub" data-pubpage="home">
 <header class="site-h">
   <div class="wrap">
-    <a class="brand" href="../sr/" aria-label="RosterSwing"><img class="brand-mark" src="../assets/favicon.svg" width="24" height="24" alt="RosterSwing"><img class="brand-word" src="../assets/wordmark.svg" width="96" height="16" alt=""><span class="brand-desc">Fantasy Basketball Tools</span></a>
+    <a class="brand" href="../sr/" data-home aria-label="RosterSwing"><img class="brand-mark" src="../assets/favicon.svg" width="24" height="24" alt="RosterSwing"><img class="brand-word" src="../assets/wordmark.svg" width="96" height="16" alt=""><span class="brand-desc">Fantasy Basketball Tools</span></a>
     <nav class="site-nav" aria-label="Glavni meni">
-      <a class="lang-link" href="../" hreflang="en" lang="en">English</a>
+      
+      <label class="langsel" title="Jezik / Language"><svg class="globe" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.8 3.8 5.8 3.8 9s-1.3 6.2-3.8 9c-2.5-2.8-3.8-5.8-3.8-9S9.5 5.8 12 3z"/></svg><select data-publang aria-label="Jezik / Language"><option value="sr" data-href="../sr/" selected>Srpski</option><option value="en" data-href="../" >English</option></select></label>
       <a class="leagues-link" id="leagues-link" href="../app/#home&amp;lang=sr">Moje lige</a>
     </nav>
   </div>
 </header>
 <script>
-(function(){try{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));var l=p&&p.leagues&&(p.leagues.find(function(x){return x.id===p.lastLeagueId})||p.leagues[0]);
-if(l){var a=document.getElementById('leagues-link');a.textContent="Nastavi: {name}".replace('{name}',l.name);a.title=a.textContent;a.href='../app/#league-'+l.id+'&lang=sr';}}catch(e){}})();
+(function(){var s=document.querySelector('[data-publang]');s.addEventListener('change',function(){location.href=s.selectedOptions[0].dataset.href+(/[?&]home\b/.test(location.search)?'?home':'');});
+try{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));var l=p&&p.leagues&&(p.leagues.find(function(x){return x.id===p.lastLeagueId})||p.leagues[0]);
+if(l){var a=document.getElementById('leagues-link');a.textContent="Nastavi: {name}".replace('{name}',l.name);a.title=a.textContent;a.href='../app/#league-'+l.id+'/overview&lang=sr';
+/* povratnik: veze ka početnoj ne preusmeravaju u ligu */
+document.querySelectorAll('a[data-home]').forEach(function(x){x.href=x.getAttribute('href').replace(/\?home$/,'')+'?home';});}}catch(e){}})();
 </script>
 
-<main class="wrap">
-  <section class="hero">
-    <div class="stripe" aria-hidden="true"><i style="background:var(--rs-red)"></i><i style="background:var(--rs-green)"></i><i style="background:var(--rs-blue)"></i></div>
-    <h1>Kalkulator za fantasy trejdove</h1>
-    <p>Vidi šta trejd radi tvom rosteru. Uporedi obe strane i proveri koje kategorije jačaju, a koje slabe, pre nego što povučeš potez.</p>
-    <div class="hero-actions">
-      <a class="cta" href="#tool" id="cta">Analiziraj trejd</a>
-      <a class="cta2" id="hero-leagues" href="../app/#home&amp;lang=sr">Sačuvaj svoju ligu</a>
-    </div>
-    <nav class="my-leagues" id="my-leagues" aria-label="Tvoje lige" hidden><span class="ml-t">Tvoje lige</span></nav>
-  </section>
+<div class="continue-bar" id="continue-bar" hidden><div class="wrap"><span>Nastavi gde si stao</span><a class="cta" id="continue-btn" href="../app/">…</a></div></div>
 <script>
-(function(){try{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));if(!p||!p.leagues||!p.leagues.length)return;
-var last=p.leagues.find(function(x){return x.id===p.lastLeagueId})||p.leagues[0];var app='../app/',lg='&lang=sr';
-var b=document.getElementById('hero-leagues');b.textContent="Nastavi: {name}".replace('{name}',last.name);b.href=app+'#league-'+last.id+'/overview'+lg;b.classList.add('on');
-var nav=document.getElementById('my-leagues');p.leagues.forEach(function(l){var a=document.createElement('a');a.className='ml-chip'+(l.id===last.id?' on':'');a.href=app+'#league-'+l.id+'/overview'+lg;a.textContent=l.name;nav.appendChild(a);});nav.hidden=false;
-}catch(e){}})();
+(function(){if(!/[?&]home\b/.test(location.search))return;try{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));var l=p&&p.leagues&&(p.leagues.find(function(x){return x.id===p.lastLeagueId})||p.leagues[0]);if(!l)return;
+var b=document.getElementById('continue-btn');b.textContent="Nastavi: {name}".replace('{name}',l.name);b.href='../app/#league-'+l.id+'/overview&lang=sr';document.getElementById('continue-bar').hidden=false;}catch(e){}})();
 </script>
-
-  <section class="tool" id="tool" aria-labelledby="tool-h">
-    <h2 id="tool-h">Uporedi trejd</h2>
-    <p class="lead">Dodaj igrače u Daješ i Dobijaš. Prosek po utakmici, za lige sa 9 kategorija (H2H).</p>
-    <div class="tool-periods"><div class="seg" id="periods" role="group" aria-label="Period"><button type="button" aria-pressed="true">Sezona</button><button type="button" aria-pressed="false">7 dana</button><button type="button" aria-pressed="false">15 dana</button><button type="button" aria-pressed="false">30 dana</button><button type="button" aria-pressed="false">Projekcija</button></div></div>
-    <div class="tool-app">
-      <div class="status" id="status">Učitavam igrače…</div>
-      <div id="banner"></div>
-      <div id="tradewarn"></div>
-      <div class="score" id="score"><div class="score-empty">Dodaj igrače u Daješ i Dobijaš da vidiš poređenje.</div></div>
-      <div class="teams" id="teams"><section class="card" data-team-card="0"><div class="card-h"><span class="dot" style="background:var(--give)"></span><div class="side-title"><b style="color:var(--give)">Daješ</b><small>Moj tim</small></div></div><div class="search"><div class="search-in"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg><input type="search" placeholder="Koga daješ…" aria-label="Koga daješ…" disabled></div></div><div class="empty-team">Još nema igrača. Kucaj ime iznad.</div></section><section class="card" data-team-card="1"><div class="card-h"><span class="dot" style="background:var(--get)"></span><div class="side-title"><b style="color:var(--get)">Dobijaš</b><small>Protivnik</small></div></div><div class="search"><div class="search-in"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg><input type="search" placeholder="Koga dobijaš…" aria-label="Koga dobijaš…" disabled></div></div><div class="empty-team">Još nema igrača. Kucaj ime iznad.</div></section></div>
-      <div id="compare"></div>
-      <div id="nudge"></div>
-      <div id="report"></div>
+<main class="wrap">
+  <section class="hero hero-home">
+    <div class="hero-text">
+      <div class="stripe" aria-hidden="true"><i style="background:var(--rs-red)"></i><i style="background:var(--rs-green)"></i><i style="background:var(--rs-blue)"></i></div>
+      <h1>Alati za fantasy košarku i pametnije trejdove</h1>
+      <p>Analiziraj trejdove po kategorijama, vidi kako menjaju tvoj roster i nađi igrače koji trebaju tvom timu.</p>
+      <div class="hero-actions">
+        <a class="cta" href="../sr/trade-analyzer/">Analiziraj trejd</a>
+        <a class="cta2" href="../app/#home&amp;addleague=1&amp;lang=sr">Dodaj svoju ligu</a>
+      </div>
     </div>
-    <div hidden><span id="hleague"></span><button type="button" id="pchip"></button><section id="home"></section><div id="leaguebar"></div><div id="wshead"></div><div id="tradetabs"></div><div id="myteam"></div><div id="oppteam"></div><div id="history"></div></div>
+    <a class="preview" href="../sr/trade-analyzer/" aria-label="Primer analize trejda">
+      <span class="pv-label">Primer analize trejda</span>
+      <span class="pv-sides"><span class="pv-side"><span class="pv-av">TB</span><span><small class="give-t">Daješ</small><b>Tvoj bek</b></span></span>
+        <span class="pv-arrow" aria-hidden="true">⇄</span>
+        <span class="pv-side"><span class="pv-av">NC</span><span><small class="get-t">Dobijaš</small><b>Njihov centar</b></span></span></span>
+      <span class="pv-score"><span class="pv-n get">6</span><span class="pv-sep">:</span><span class="pv-n">3</span></span>
+      <span class="pv-names"><span class="get-t">Dobijaš</span><span class="give-t">Daješ</span></span>
+      <span class="pv-verdict">Trejd ti donosi 6 kategorija, gubiš 3</span>
+      <span class="mcats"><span class="mc bad">− PTS</span><span class="mc good">+ REB</span><span class="mc bad">− AST</span><span class="mc bad">− 3PM</span><span class="mc good">+ STL</span><span class="mc good">+ BLK</span><span class="mc good">+ FG%</span><span class="mc good">+ FT%</span><span class="mc good">+ TO</span></span>
+      <span class="pv-rep"><span class="pv-t plus">Plusevi</span><span>Dobijaš skokove i blokade (+3.1 REB, +1.2 BLK).</span><span>Bolji šut: FG% tima +.006.</span>
+        <span class="pv-t risk">Rizici</span><span>Gubiš asistencije (−3.4 AST).</span></span>
+    </a>
   </section>
 
-  <section aria-labelledby="how-h">
-    <h2 id="how-h">Kako radi</h2>
-    <ol class="steps"><li><h3>Dodaj igrače koje daješ</h3><p>Ukucaj ime u polje Daješ. Jedan igrač ili ceo paket.</p></li><li><h3>Dodaj igrače koje dobijaš</h3><p>Popuni Dobijaš. Kalkulator za fantasy trejdove sabira obe strane po utakmici.</p></li><li><h3>Pročitaj rezultat</h3><p>Vidi koje kategorije jačaju, a koje slabe, rezultat u svih 9 kategorija i kratak izveštaj o minutaži, formi i povredama.</p></li></ol>
+  <section class="mini" id="mini" aria-labelledby="mini-h" data-txt='{&quot;mini_give_ph&quot;: &quot;Koga daješ…&quot;, &quot;mini_get_ph&quot;: &quot;Koga dobijaš…&quot;, &quot;mini_loading&quot;: &quot;Učitavam igrače…&quot;, &quot;mini_error&quot;: &quot;Igrači nisu učitani. Pokušaj kasnije.&quot;, &quot;mini_none&quot;: &quot;Nema igrača&quot;, &quot;mini_hint&quot;: &quot;Dodaj igrača na svaku stranu da vidiš rezultat.&quot;, &quot;mini_remove&quot;: &quot;Ukloni&quot;}' data-app="../assets/app.js" data-lang="sr" data-ta="../sr/trade-analyzer/">
+    <h2 id="mini-h">Probaj brzi trejd</h2>
+    <p class="lead">Do 2 igrača po strani. Prosek po utakmici za sezonu.</p>
+    <div class="mini-sides">
+      <div class="mini-side" data-side="0"><label class="give-t" for="mini-0">Daješ</label><div class="mini-chips"></div>
+        <div class="mini-in"><input id="mini-0" type="search" autocomplete="off" spellcheck="false" placeholder="Koga daješ…" role="combobox" aria-expanded="false" aria-controls="mini-dd-0"><ul class="dd" id="mini-dd-0" role="listbox" hidden></ul></div></div>
+      <div class="mini-side" data-side="1"><label class="get-t" for="mini-1">Dobijaš</label><div class="mini-chips"></div>
+        <div class="mini-in"><input id="mini-1" type="search" autocomplete="off" spellcheck="false" placeholder="Koga dobijaš…" role="combobox" aria-expanded="false" aria-controls="mini-dd-1"><ul class="dd" id="mini-dd-1" role="listbox" hidden></ul></div></div>
+    </div>
+    <div class="mini-result" id="mini-result" aria-live="polite"><span class="mini-hint">Dodaj igrača na svaku stranu da vidiš rezultat.</span></div>
+    <a class="cta" id="mini-full" href="../sr/trade-analyzer/">Pogledaj celu analizu</a>
   </section>
 
-  <section aria-labelledby="what-h">
-    <h2 id="what-h">Šta dobijaš</h2>
-    <ul class="feats"><li><h3>Poređenje po kategorijama</h3><p>Poeni, skokovi, asistencije, trojke, ukradene, blokade, FG%, FT% i izgubljene lopte, uz razliku za svaku.</p></li><li><h3>Ponderisani FG% i FT%</h3><p>Procenti se računaju iz pogođenih i ukupnih šuteva, pa visok procenat na malo šuteva ne vredi koliko obim.</p></li><li><h3>Minutaža i forma</h3><p>Sezona, poslednjih 7, 15 i 30 dana, i projekcija. Vidi ko u poslednje vreme igra više, a ko manje.</p></li><li><h3>Povrede i vesti</h3><p>Status povrede, propuštene utakmice i najnovije vesti o igraču u izveštaju o trejdu.</p></li><li><h3>Uticaj na tvoj tim</h3><p>Dodaj ligu i roster i vidi tim pre i posle trejda, sa veličinom rostera i IR mestima iz tvoje lige.</p></li><li><h3>Tekst za AI analizu</h3><p>Kopiraj gotov sažetak trejda sa brojkama, vestima i tvojim rosterom i nalepi ga u AI asistenta koga koristiš.</p></li></ul>
+  <section class="feature feature-league" aria-labelledby="league-h">
+    <div><h2 id="league-h">Dodaj svoju ligu i tim</h2><p class="lead">Sačuvaj roster i vidi kako svaki trejd menja tvoj tim, sa veličinom rostera i IR mestima tvoje lige. Za sada se roster unosi ručno.</p><a class="cta2" href="../app/#home&amp;addleague=1&amp;lang=sr">Dodaj svoju ligu</a></div>
+    <div class="ba"><div class="ba-t">Moj tim pre i posle</div><table class="ba-table" aria-label="Moj tim pre i posle"><thead><tr><th></th><th>PTS</th><th>REB</th><th>AST</th><th>BLK</th></tr></thead>
+      <tbody><tr class=""><td>Pre</td><td class="">112.4</td><td class="">44.1</td><td class="">25.3</td><td class="">5.1</td></tr><tr class=""><td>Posle</td><td class="">110.9</td><td class="">47.2</td><td class="">21.9</td><td class="">6.3</td></tr><tr class="diff"><td>Razlika</td><td class="bad">−1.5</td><td class="good">+3.1</td><td class="bad">−3.4</td><td class="good">+1.2</td></tr></tbody></table></div>
   </section>
+
+  <div class="feature-grid"><section class="feature" aria-labelledby="finder-h"><h2 id="finder-h">Nađi igrača koji treba tvom timu</h2><p class="lead">Izaberi kategorije koje hoćeš da popraviš i vidi igrače iz drugih ekipa koji ih donose.</p><span class="soon">Uskoro</span></section><section class="feature" aria-labelledby="builder-h"><h2 id="builder-h">Napravi trejd između dva tima</h2><p class="lead">Izaberi svoj i još jedan tim i dobij predloge trejdova 1 za 1, 2 za 1 i 2 za 2.</p><span class="soon">Uskoro</span></section></div>
 
   <section aria-labelledby="faq-h">
     <h2 id="faq-h">Česta pitanja</h2>
@@ -203,11 +197,6 @@ var nav=document.getElementById('my-leagues');p.leagues.forEach(function(l){var 
     <p class="f-note">RosterSwing nije povezan sa ESPN, Yahoo ni NBA. Statistika dolazi iz javno dostupnih izvora.</p>
   </div>
 </footer>
-<script>window.RS_EMBED={lang:'sr',app:'../app/'};</script>
-<script src="../assets/app.js" defer></script>
-<script>
-document.getElementById('cta').addEventListener('click',function(e){e.preventDefault();document.getElementById('tool').scrollIntoView({behavior:'smooth'});
-var f=function(){var i=document.querySelector('[data-search="0"]');if(i)i.focus({preventScroll:true});};setTimeout(f,350);});
-</script>
+<script src="../assets/mini.js" defer></script>
 </body>
 </html>

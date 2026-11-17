@@ -27,8 +27,10 @@ p{color:#A4AEBD;font-size:34px;font-weight:500;margin:30px 0 0}
 const T = {
   en: ['Fantasy Basketball<br>Trade Analyzer', 'See how a trade changes your roster.'],
   sr: ['Kalkulator za<br>fantasy trejdove', 'Vidi kako trejd menja tvoj roster.'],
+  'home-en': ['Fantasy Basketball<br>Tools', 'Smarter trades, category by category.'],
+  'home-sr': ['Alati za<br>fantasy košarku', 'Pametniji trejdovi, kategoriju po kategoriju.'],
 };
-const l = location.hash.slice(1) === 'sr' ? 'sr' : 'en';
+const l = T[location.hash.slice(1)] ? location.hash.slice(1) : 'en';
 document.getElementById('h').innerHTML = T[l][0];
 document.getElementById('p').textContent = T[l][1];
 </script>

@@ -36,19 +36,23 @@
 <link rel="stylesheet" href="../assets/app.css">
 <link rel="stylesheet" href="../assets/site.css">
 </head>
-<body class="pub">
+<body class="pub" data-pubpage="privacy">
 <header class="site-h">
   <div class="wrap">
-    <a class="brand" href="../" aria-label="RosterSwing"><img class="brand-mark" src="../assets/favicon.svg" width="24" height="24" alt="RosterSwing"><img class="brand-word" src="../assets/wordmark.svg" width="96" height="16" alt=""><span class="brand-desc">Fantasy Basketball Tools</span></a>
+    <a class="brand" href="../" data-home aria-label="RosterSwing"><img class="brand-mark" src="../assets/favicon.svg" width="24" height="24" alt="RosterSwing"><img class="brand-word" src="../assets/wordmark.svg" width="96" height="16" alt=""><span class="brand-desc">Fantasy Basketball Tools</span></a>
     <nav class="site-nav" aria-label="Main">
-      <a class="lang-link" href="../sr/privacy/" hreflang="sr" lang="sr">Srpski</a>
+      <a class="home-link" href="../" data-home>Home</a>
+      <label class="langsel" title="Jezik / Language"><svg class="globe" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.8 3.8 5.8 3.8 9s-1.3 6.2-3.8 9c-2.5-2.8-3.8-5.8-3.8-9S9.5 5.8 12 3z"/></svg><select data-publang aria-label="Jezik / Language"><option value="sr" data-href="../sr/privacy/" >Srpski</option><option value="en" data-href="../privacy/" selected>English</option></select></label>
       <a class="leagues-link" id="leagues-link" href="../app/#home&amp;lang=en">My leagues</a>
     </nav>
   </div>
 </header>
 <script>
-(function(){try{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));var l=p&&p.leagues&&(p.leagues.find(function(x){return x.id===p.lastLeagueId})||p.leagues[0]);
-if(l){var a=document.getElementById('leagues-link');a.textContent="Continue: {name}".replace('{name}',l.name);a.title=a.textContent;a.href='../app/#league-'+l.id+'&lang=en';}}catch(e){}})();
+(function(){var s=document.querySelector('[data-publang]');s.addEventListener('change',function(){location.href=s.selectedOptions[0].dataset.href+(/[?&]home\b/.test(location.search)?'?home':'');});
+try{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));var l=p&&p.leagues&&(p.leagues.find(function(x){return x.id===p.lastLeagueId})||p.leagues[0]);
+if(l){var a=document.getElementById('leagues-link');a.textContent="Continue: {name}".replace('{name}',l.name);a.title=a.textContent;a.href='../app/#league-'+l.id+'/overview&lang=en';
+/* povratnik: veze ka početnoj ne preusmeravaju u ligu */
+document.querySelectorAll('a[data-home]').forEach(function(x){x.href=x.getAttribute('href').replace(/\?home$/,'')+'?home';});}}catch(e){}})();
 </script>
 
 <main class="wrap">

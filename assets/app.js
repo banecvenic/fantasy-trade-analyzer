@@ -177,7 +177,8 @@ const LANG_KEY = 'fbaTrade.lang.v1';
  */
 const EMBED = window.RS_EMBED || null;
 /** Javna početna za jezik, relativno od /app/ (sajt ne zavisi od osnovne putanje) */
-const publicHome = () => (LANG === 'sr' ? '../sr/' : '../');
+const publicHome = () => (LANG === 'sr' ? '../sr/?home' : '../?home');      // logo u aplikaciji: početna bez preusmeravanja u ligu
+const publicAnalyzer = () => (LANG === 'sr' ? '../sr/trade-analyzer/' : '../trade-analyzer/'); // analiza trejda bez lige
 /** Link (?lang) > sačuvan izbor > browser: srpski za jezike regiona, inače engleski */
 function detectLang() {
   if (EMBED) return EMBED.lang === 'sr' ? 'sr' : 'en';
@@ -1025,6 +1026,20 @@ function applyRoute() {
     document.body.dataset.view = 'quick';
     if (state.scope !== 'quick' || !state.rosters) bindScope('quick');
     loadState();
+    // trejd iz linka (#per=…&t=…): novi tab ili prebacivanje na isti; postojeći tabovi se ne gaze
+    const hp = new URLSearchParams(location.hash.slice(1));
+    if (hp.has('t')) {
+      const lists = hp.get('t').split('|').map(ids);
+      if (PERIODS.some(p => p.key === hp.get('per'))) state.period = hp.get('per');
+      const key = l => l.map(x => [...x].sort().join(',')).join('|');
+      const s = scopeTabs();
+      const same = s.tabs.find(tb => key(tb.teams.map(x => x.ids)) === key([lists[GIVE] || [], lists[GET] || []]));
+      if (same) activateTab(same.id);
+      else if (!tabHasPlayers(activeTab())) { state.teams.forEach((tm, i) => { tm.ids = [...new Set(lists[i] || [])]; }); }
+      else addTab([lists[GIVE] || [], lists[GET] || []]);
+      state.teams[GET].ids = state.teams[GET].ids.filter(id => !state.teams[GIVE].ids.includes(id));
+      history.replaceState(null, '', location.pathname + location.search);
+    }
     persistTrades();
     render();
     return;
@@ -1042,7 +1057,7 @@ function applyRoute() {
   // Brzo poređenje živi na javnoj početnoj: trejd iz linka ide u njen tab, pa prelazak tamo
   if (r.view === 'quick' && !addLeague) {
     bindScope('quick'); loadState(); persistTrades();
-    location.replace(publicHome());
+    location.replace(publicAnalyzer());
     return;
   }
   if (r.view === 'league' && state.scope !== r.id) clearBack();
@@ -1068,7 +1083,7 @@ function applyRoute() {
 
 /** Navigacija. Svaka liga čuva svoje tabove trejdova, pa promena lige ništa ne briše. */
 function navigate(view, id) {
-  if (view === 'quick') { location.href = publicHome(); return true; } // brzo poređenje je na javnoj početnoj
+  if (view === 'quick') { location.href = publicAnalyzer(); return true; } // brzo poređenje je /trade-analyzer/
   location.hash = view === 'league' ? `league-${id}` : view;
   return true;
 }
@@ -1129,7 +1144,7 @@ function openSharedIn(scope, lists) {
   state.sharedOpen = !own;
   // isti igrač ne može biti na obe strane
   state.teams[GET].ids = state.teams[GET].ids.filter(id => !state.teams[GIVE].ids.includes(id));
-  if (scope === 'quick' && !EMBED) { persistTrades(); location.replace(publicHome()); return; } // nezavisan trejd: javna početna
+  if (scope === 'quick' && !EMBED) { persistTrades(); location.replace(publicAnalyzer()); return; } // nezavisan trejd: /trade-analyzer/
   state.page = 'trade';
   document.body.dataset.page = 'trade';
   saveState();
@@ -1267,7 +1282,7 @@ function teamTotals(team, ti) {
   return sumPlayers([...team.ids, ...(ti === GIVE ? sp.drops : sp.waivers)]);
 }
 
-/** Zaokruživanje na prikazanu preciznost (koristi se samo za prikaz i stara mesta koja porede prikaz). */
+/** Zaokruživanje na prikazanu preciznost: iste prikazane brojke = nerešeno (bez boje u tabelama). */
 const cmpKey = (cat, v) => (v == null ? null : Math.round(v * (cat.type === 'pct' ? 1000 : 10)));
 /** Razlike se računaju iz nezaokruženih vrednosti; EPS samo uklanja šum zaokruživanja u float-u. */
 const EPS = 1e-9;
@@ -1306,11 +1321,12 @@ function compare(totals) {
     const entries = active.map(i => ({ i, v: totals[i].vals[cat.key] })).filter(en => en.v != null);
     let winner = null, margin = null, runnerUp = null;
     if (entries.length >= 2) {
+      // porede se nezaokružene vrednosti, ali iste prikazane brojke (npr. 1.9 i 1.9) su nerešeno
       entries.sort((a, b) => (cat.lowerIsBetter ? a.v - b.v : b.v - a.v));
-      const best = entries[0].v, worst = entries[entries.length - 1].v;
-      if (Math.abs(best - worst) > EPS) {
-        const bestOnes = entries.filter(en => Math.abs(en.v - best) <= EPS);
-        const worstOnes = entries.filter(en => Math.abs(en.v - worst) <= EPS);
+      const kBest = cmpKey(cat, entries[0].v), kWorst = cmpKey(cat, entries[entries.length - 1].v);
+      if (kBest !== kWorst) {
+        const bestOnes = entries.filter(en => cmpKey(cat, en.v) === kBest);
+        const worstOnes = entries.filter(en => cmpKey(cat, en.v) === kWorst);
         if (bestOnes.length === 1) {
           winner = bestOnes[0].i;
           runnerUp = entries[1].i;
@@ -1336,6 +1352,7 @@ function compare(totals) {
 const searchUI = new Map(); // ključ pretrage ("0", "0:d", "1:w"...) -> { query, sel, results }
 
 function render() {
+  if (EMBED?.mini) return; // mini poređenje na početnoj ima svoj prikaz (RSMini)
   const focused = document.activeElement?.dataset?.search;
   const caret = document.activeElement?.selectionStart;
   renderHeader();
@@ -1669,6 +1686,7 @@ function renderPeriods() {
 
 function renderStatus() {
   const el = $('#status');
+  if (!el) return;
   if (state.loading) {
     el.innerHTML = `<div class="spinner"></div><span>${state.slow ? t('{src} sporo odgovara, još učitavam…', { src: DATA_SOURCE.name }) : t('Učitavam igrače ({src})…', { src: DATA_SOURCE.name })}</span>`;
     return;
@@ -2027,7 +2045,8 @@ function renderCompare(totals, cmp) {
     const sub = tv == null ? '' : Math.abs(tv.after - tv.before) < TEAM_PCT_TIE
       ? t('tim: bez promene')
       : t('tim: {d}', { d: fmtDelta(c, tv.after - tv.before).txt });
-    let diff = r.punted ? `<td class="dcell punt">punt</td>` : deltaCellHTML(c, totals[GIVE], totals[GET], '', sub);
+    const sameShown = cmpKey(c, totals[GIVE].vals[c.key]) === cmpKey(c, totals[GET].vals[c.key]) && totals[GIVE].vals[c.key] != null;
+    let diff = r.punted ? `<td class="dcell punt">punt</td>` : sameShown && tv == null ? `<td class="dcell eq${puntCls(c)}">=</td>` : deltaCellHTML(c, totals[GIVE], totals[GET], '', sub);
     if (!r.punted && lowVolume(c, totals)) diff = diff.replace(/(<span class="sub dsub">|<\/td>$)/, ` <span class="lowvol" data-tip="${esc(t('Procenat na malom broju šuteva skoro ne utiče na tim.'))}">${t('mali obim')}</span>$1`);
     return `<tr class="${r.punted ? 'punt-row' : ''}"><td class="catth${puntCls(c)}" data-punt="${c.key}" title="${t('Klik: punt')}"><b>${c.label}</b></td>${tds}${diff}</tr>`;
   }).join('');
@@ -3600,7 +3619,7 @@ function shareURL() {
   q.set('t', `${giveIds().join(',')}|${getIds().join(',')}`);
   if (LANG === 'en') q.set('lang', 'en');
   q.set('s', '1'); // oznaka: otvoreno preko deljenog linka
-  const base = EMBED ? new URL(EMBED.app, location.href).href : `${location.origin}${location.pathname}`;
+  const base = `${location.origin}${location.pathname}`; // na /trade-analyzer/ link ostaje na toj stranici
   return `${base}#${q.toString().replace(/%7C/gi, '|').replace(/%2C/gi, ',')}`;
 }
 
@@ -4337,7 +4356,7 @@ function leagueMenu(anchor) {
     <div class="pm-sep"></div>
     ${currentLeague() ? `<button type="button" role="menuitem" class="pm-item" data-action="league-settings">⚙ ${t('Podešavanja lige')}</button>` : ''}
     <a role="menuitem" class="pm-item" href="#home" data-nav="home">${t('Sve lige')}</a>
-    <a role="menuitem" class="pm-item" href="${publicHome()}">${t('Brzo poređenje')}</a>
+    <a role="menuitem" class="pm-item" href="${publicAnalyzer()}">${t('Brzo poređenje')}</a>
     <button type="button" role="menuitem" class="pm-item" data-action="add-league">＋ ${t('Dodaj ligu')}</button>`);
 }
 function playerMenu(anchor, kind, id) {
@@ -4654,6 +4673,22 @@ if (!profile || profile.schema !== SCHEMA_VERSION) {
 }
 if (!EMBED) backupBeforeNav();
 applyStaticText();
-applyRoute();
+if (EMBED?.mini) {
+  /** Mini poređenje na početnoj: ista pretraga i isto računanje kao alat, bez prikaza alata */
+  window.RSMini = {
+    ready: () => state.players.length > 0,
+    error: () => (state.players.length ? null : state.error),
+    search: (q, taken = []) => searchResults(q, new Set(taken)).slice(0, 6).map(p => ({ id: p.id, name: p.name, team: p.team, pos: p.pos })),
+    name: id => state.byId.get(id)?.name || '',
+    score(give, get) {
+      const totals = [sumPlayers(give), sumPlayers(get)], cmp = compare(totals);
+      if (cmp.active.length < 2) return null;
+      return {
+        get: cmp.score[GET], give: cmp.score[GIVE],
+        cats: CATS.map(c => ({ label: c.label, res: cmp.cats[c.key].winner == null ? 0 : cmp.cats[c.key].winner === GET ? 1 : -1 })),
+      };
+    },
+  };
+} else applyRoute();
 loadPlayers();
-loadSchedule();
+if (!EMBED?.mini) loadSchedule();
