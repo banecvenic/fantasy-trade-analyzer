@@ -140,7 +140,7 @@ if(l)location.replace(app+'#league-'+l.id+'/overview&lang=en');}catch(e){}})();
 <div class="continue-bar" id="continue-bar" hidden><div class="wrap"><span>Continue where you left off</span><a class="cta" id="continue-btn" href="app/">…</a></div></div>
 <script>
 (function(){if(!/[?&]home\b/.test(location.search))return;try{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));var l=p&&p.leagues&&(p.leagues.find(function(x){return x.id===p.lastLeagueId})||p.leagues[0]);if(!l)return;
-var b=document.getElementById('continue-btn');b.textContent="Continue: {name}".replace('{name}',l.name);b.href='app/#league-'+l.id+'/overview&lang=en';document.getElementById('continue-bar').hidden=false;}catch(e){}})();
+var b=document.getElementById('continue-btn');b.textContent="Continue: {name}".replace('{name}',/^(Moja liga|My league)$/.test(l.name)?"My league":l.name);b.href='app/#league-'+l.id+'/overview&lang=en';document.getElementById('continue-bar').hidden=false;}catch(e){}})();
 </script>
 <main class="wrap">
   <section class="hero hero-home">

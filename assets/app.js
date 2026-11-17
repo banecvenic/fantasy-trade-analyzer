@@ -773,6 +773,10 @@ const touchLeague = lg => { if (lg) lg.updated = nowISO(); };
 const LEGACY_KEYS = () => [CONFIG.ROSTERS_KEY, CONFIG.MYTEAM_KEY, CONFIG.HISTORY_KEY, CONFIG.PUNT_KEY, CONFIG.BALANCE_KEY, CONFIG.STATE_KEY];
 const hasLegacy = () => LEGACY_KEYS().some(k => localStorage.getItem(k) != null);
 
+/** Naziv lige za prikaz: podrazumevani naziv ("Moja liga" / "My league") prati jezik stranice */
+const DEFAULT_LEAGUE_NAMES = ['Moja liga', 'My league'];
+const lgName = l => (l && DEFAULT_LEAGUE_NAMES.includes(l.name) ? t('Moja liga') : l?.name || '');
+
 /**
  * Migracija: stari podaci -> profil + liga "Moja liga". Pre toga sve stare ključeve čuva
  * pod LEGACY_BACKUP_KEY, da se ništa ne izgubi. Vraća id nove lige ili null.
@@ -1119,7 +1123,7 @@ function handleSharedLink(hp) {
     title: t('U koju ligu da svrstam trejd?'),
     body: `<p>${t('Otvara se deljeni trejd, u novom tabu. Postojeći trejdovi ostaju netaknuti.')}</p>
       <div class="share-pick">
-        ${ordered.map(({ lg, ok }) => `<button type="button" class="pp-league" data-share-to="${lg.id}"><span>${esc(lg.name)} ${ok ? `<span class="slot-tag tag-in">${t('prepoznato')}</span>` : ''}</span><span class="pbadge">${esc(platformLabel(lg.platform))}</span></button>`).join('')}
+        ${ordered.map(({ lg, ok }) => `<button type="button" class="pp-league" data-share-to="${lg.id}"><span>${esc(lgName(lg))} ${ok ? `<span class="slot-tag tag-in">${t('prepoznato')}</span>` : ''}</span><span class="pbadge">${esc(platformLabel(lg.platform))}</span></button>`).join('')}
         <button type="button" class="pp-league indep" data-share-to="quick"><span>${t('Neovisan trejd (bez lige)')}</span><span class="hint">${t('brzo poređenje')}</span></button>
       </div>`,
     cancel: t('Otkaži'),
@@ -1423,7 +1427,7 @@ function renderLeagueBar() {
       <span class="nm">${esc(name)}</span>${n ? `<span class="cnt">${n}</span>` : ''}</button>`;
   };
   $('#leaguebar').innerHTML = `<nav class="lbar" aria-label="${t('Lige')}">
-    ${leagues.map(l => chip(`data-open-league="${l.id}"`, l.name, l.id, '', [l.name, platformLabel(l.platform), l.teamName].filter(Boolean).join(' · '))).join('')}
+    ${leagues.map(l => chip(`data-open-league="${l.id}"`, lgName(l), l.id, '', [lgName(l), platformLabel(l.platform), l.teamName].filter(Boolean).join(' · '))).join('')}
     ${leagues.length ? '<span class="lsep" aria-hidden="true"></span>' : ''}
     ${chip('data-nav="quick"', t('Brzo poređenje'), 'quick', 'quick', t('Trejd bez lige'))}
     <button type="button" class="lchip add" data-action="add-league" title="${t('Dodaj ligu')}" aria-label="${t('Dodaj ligu')}">＋</button>
@@ -1442,7 +1446,7 @@ function renderWsHead() {
     <button type="button" class="pchip" data-action="profile" id="pchip"></button>
     ${state.view === 'league' && lg ? `<button type="button" class="gear" data-action="league-settings" title="${esc(t('Podešavanja lige'))}" aria-label="${esc(t('Podešavanja lige'))}">⚙</button>` : ''}</div>`;
   if (state.view === 'league' && lg) {
-    el.innerHTML = `<div class="wsh"><div class="wsh-t"><h1>${esc(lg.name)}</h1>
+    el.innerHTML = `<div class="wsh"><div class="wsh-t"><h1>${esc(lgName(lg))}</h1>
       <span class="pbadge">${esc(platformLabel(lg.platform))}</span>${lg.teamName ? `<span class="wsh-team">${esc(lg.teamName)}</span>` : ''}</div>${right}</div>`;
   } else {
     el.innerHTML = `<div class="wsh"><div class="wsh-t"><h1>${t('Brzo poređenje')}</h1><span class="wsh-note">${t('Za {f} lige', { f: formatLabel('h2h-cat', true) })}</span></div>${right}</div>`;
@@ -1503,7 +1507,7 @@ function leagueCardHTML(lg) {
   const st = lg.standings || {};
   const place = st.rank ? t('{n}. mesto', { n: st.rank }) : '';
   return `<button type="button" class="lcard" data-open-league="${lg.id}">
-    <div class="lc-top"><span class="lc-name">${esc(lg.name)}</span><span class="pbadge">${esc(platformLabel(lg.platform))}</span></div>
+    <div class="lc-top"><span class="lc-name">${esc(lgName(lg))}</span><span class="pbadge">${esc(platformLabel(lg.platform))}</span></div>
     ${lg.teamName ? `<div class="lc-team">${esc(lg.teamName)}</div>` : ''}
     ${place || st.record ? `<div class="lc-standing">${[place, esc(st.record || '')].filter(Boolean).join(' · ')}</div>` : ''}
     <div class="lc-stats">
@@ -1568,7 +1572,7 @@ function openLeagueSettings() {
     title: t('Podešavanja lige'),
     wide: true,
     body: `<div class="form">
-      <label>${t('Naziv lige')}<input type="text" id="ls-name" maxlength="40" value="${esc(lg.name)}"></label>
+      <label>${t('Naziv lige')}<input type="text" id="ls-name" maxlength="40" value="${esc(lgName(lg))}"></label>
       <label>${t('Naziv mog tima')}<input type="text" id="ls-team" maxlength="40" value="${esc(lg.teamName || '')}"></label>
       <div class="form-row">
         <label>${t('Platforma')}<select id="ls-platform">${PLATFORMS.map(p => `<option value="${p.id}" ${p.id === lg.platform ? 'selected' : ''}>${esc(platformLabel(p.id))}</option>`).join('')}</select></label>
@@ -1616,7 +1620,7 @@ function openLeagueSettings() {
 
 function duplicateLeague() {
   const lg = currentLeague(); if (!lg) return;
-  const copy = { ...clone(lg), id: uid(), name: t('{n} (kopija)', { n: lg.name }), created: nowISO(), updated: nowISO(), externalLeagueId: null, accountId: null };
+  const copy = { ...clone(lg), id: uid(), name: t('{n} (kopija)', { n: lgName(lg) }), created: nowISO(), updated: nowISO(), externalLeagueId: null, accountId: null };
   profile.leagues.push(copy); saveProfile();
   closeModal();
   navigate('league', copy.id);
@@ -1625,7 +1629,7 @@ function duplicateLeague() {
 function deleteLeague() {
   const lg = currentLeague(); if (!lg) return;
   showModal({
-    title: t('Obrisati ligu „{n}”?', { n: esc(lg.name) }),
+    title: t('Obrisati ligu „{n}”?', { n: esc(lgName(lg)) }),
     body: `<p>${t('Roster, protivnici i istorija ove lige biće trajno obrisani iz ovog browsera. Ovo ne može da se vrati, osim iz rezervne kopije.')}</p>`,
     confirm: t('Obriši'), danger: true,
     onConfirm: () => {
@@ -2874,8 +2878,8 @@ function aiInstructions(uneven) {
       `Categories: ${cats} (${inv}: lower is better). FG% and FT% are weighted (total made / total attempted). Trades are made for the long run, for the rest of the season.`));
   } else {
     const ir = ROSTER.IR;
-    out.push(L(`Liga: ${lg.name}, platforma ${platformLabel(lg.platform)}, format ${formatLabel(lg.format)}, ${lg.teams} timova. Kategorije: ${cats} (${inv}: manje je bolje). FG% i FT% se računaju ponderisano (ukupno pogođeno / ukupno pokušano). Roster: ${ROSTER.ACTIVE} aktivnih mesta${ir ? ` + ${ir} IR mesta` : ''}. Trejdovi se rade na duže staze, za ostatak sezone.`,
-      `League: ${lg.name}, platform ${platformLabel(lg.platform)}, format ${formatLabel(lg.format)}, ${lg.teams} teams. Categories: ${cats} (${inv}: lower is better). FG% and FT% are weighted (total made / total attempted). Roster: ${ROSTER.ACTIVE} active spots${ir ? ` + ${ir} IR spots` : ''}. Trades are made for the long run, for the rest of the season.`));
+    out.push(L(`Liga: ${lgName(lg)}, platforma ${platformLabel(lg.platform)}, format ${formatLabel(lg.format)}, ${lg.teams} timova. Kategorije: ${cats} (${inv}: manje je bolje). FG% i FT% se računaju ponderisano (ukupno pogođeno / ukupno pokušano). Roster: ${ROSTER.ACTIVE} aktivnih mesta${ir ? ` + ${ir} IR mesta` : ''}. Trejdovi se rade na duže staze, za ostatak sezone.`,
+      `League: ${lgName(lg)}, platform ${platformLabel(lg.platform)}, format ${formatLabel(lg.format)}, ${lg.teams} teams. Categories: ${cats} (${inv}: lower is better). FG% and FT% are weighted (total made / total attempted). Roster: ${ROSTER.ACTIVE} active spots${ir ? ` + ${ir} IR spots` : ''}. Trades are made for the long run, for the rest of the season.`));
     if (lg.teamName) out.push(L(`Moj tim: ${lg.teamName}.`, `My team: ${lg.teamName}.`));
     const st = lg.standings || {};
     const parts = [];
@@ -2930,7 +2934,7 @@ function buildAIText(shortRosterNews = false) {
   const ctx = [];
   if (lg) {
     const st = lg.standings || {};
-    ctx.push(`${L('Liga', 'League')}: ${lg.name}`);
+    ctx.push(`${L('Liga', 'League')}: ${lgName(lg)}`);
     if (lg.teamName) ctx.push(`${L('Moj tim', 'My team')}: ${lg.teamName}`);
     ctx.push(`${L('Platforma', 'Platform')}: ${platformLabel(lg.platform)}`);
     ctx.push(`${L('Format', 'Format')}: ${formatLabel(lg.format)}`);
@@ -3361,7 +3365,7 @@ function backupSummary(p) {
   if (!leagues.length) return t('nema liga');
   return t('{l}: {names} · istorija: {h}', {
     l: ligaN(leagues.length),
-    names: leagues.map(l => `${esc(l.name)} (${t('{n} igrača', { n: l.roster?.players?.length || 0 })})`).join(', '),
+    names: leagues.map(l => `${esc(lgName(l))} (${t('{n} igrača', { n: l.roster?.players?.length || 0 })})`).join(', '),
     h: trejdova(leagues.reduce((a, l) => a + (l.history?.length || 0), 0)),
   });
 }
@@ -3379,7 +3383,7 @@ function openProfile() {
         <p>${t('Podaci postoje samo u ovom browseru; na drugim uređajima ih nema dok ih ne preneseš izvozom i uvozom.')}</p>
         <button type="button" class="btn ghost" disabled>${t('Prijava i sinhronizacija, uskoro')}</button></div>
       <div class="set-block"><b>${t('Lige')}</b>
-        ${leagues.length ? `<div class="pp-leagues">${leagues.map(l => `<button type="button" class="pp-league" data-open-league="${l.id}"><span>${esc(l.name)}</span><span class="pbadge">${esc(platformLabel(l.platform))}</span></button>`).join('')}</div>` : `<p>${t('Još nema liga.')}</p>`}
+        ${leagues.length ? `<div class="pp-leagues">${leagues.map(l => `<button type="button" class="pp-league" data-open-league="${l.id}"><span>${esc(lgName(l))}</span><span class="pbadge">${esc(platformLabel(l.platform))}</span></button>`).join('')}</div>` : `<p>${t('Još nema liga.')}</p>`}
         <button type="button" class="linkbtn" data-action="add-league">＋ ${t('Dodaj ligu')}</button></div>
       <div class="set-block"><b>${t('Izvezi podatke')}</b><p>${t('Ceo profil sa svim ligama. Trenutno: {s}', { s: backupSummary(profile) })}</p>
         <div><button type="button" class="btn" data-action="export">${t('Kopiraj podatke u clipboard')}</button> <span class="hint export-msg" id="export-msg"></span></div></div>
@@ -3466,7 +3470,7 @@ function importData() {
   if (res.kind === 'league') {
     const lg = res.league;
     showModal({
-      title: t('Dodati ligu „{n}”?', { n: esc(lg.name) }),
+      title: t('Dodati ligu „{n}”?', { n: esc(lgName(lg)) }),
       body: `<p>${t('Liga iz kopije{d} biće dodata postojećim ligama; ništa se ne prepisuje.', { d: when })}</p>`,
       confirm: t('Dodaj ligu'),
       onConfirm: () => {
@@ -4362,7 +4366,7 @@ function leaguePickerHTML() {
   const lg = currentLeague();
   if (!profile?.leagues.length) return '';
   return `<button type="button" class="lpick" data-action="league-menu" aria-haspopup="menu">
-    <span class="lp-name">${lg ? esc(lg.name) : t('Moje lige')}</span>${lg ? `<span class="pbadge">${esc(platformLabel(lg.platform))}</span>` : ''}<span class="lp-caret" aria-hidden="true">▾</span></button>`;
+    <span class="lp-name">${lg ? esc(lgName(lg)) : t('Moje lige')}</span>${lg ? `<span class="pbadge">${esc(platformLabel(lg.platform))}</span>` : ''}<span class="lp-caret" aria-hidden="true">▾</span></button>`;
 }
 function openPopMenu(anchor, html) {
   closePopMenu();
@@ -4379,7 +4383,7 @@ const closePopMenu = () => document.getElementById('popmenu')?.remove();
 function leagueMenu(anchor) {
   const leagues = profile?.leagues || [];
   openPopMenu(anchor, `${leagues.map(l => { const n = openTrades(l.id); return `<button type="button" role="menuitem" class="pm-item ${l.id === state.scope ? 'on' : ''}" data-open-league="${l.id}">
-      <span>${esc(l.name)}</span>${n ? `<span class="cnt">${n}</span>` : ''}</button>`; }).join('')}
+      <span>${esc(lgName(l))}</span>${n ? `<span class="cnt">${n}</span>` : ''}</button>`; }).join('')}
     <div class="pm-sep"></div>
     ${currentLeague() ? `<button type="button" role="menuitem" class="pm-item" data-action="league-settings">⚙ ${t('Podešavanja lige')}</button>` : ''}
     <a role="menuitem" class="pm-item" href="#home" data-nav="home">${t('Sve lige')}</a>

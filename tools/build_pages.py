@@ -69,7 +69,7 @@ HOME = {
         'builder_h': 'Build a trade between two teams',
         'builder_p': 'Pick your team and one more, and get trade ideas: 1 for 1, 2 for 1 and 2 for 2.',
         'soon': 'Coming soon', 'open_tool': 'Open',
-        'continue_bar': 'Continue where you left off',
+        'my_league': 'My league', 'continue_bar': 'Continue where you left off',
         'continue_btn': 'Continue: {name}',
     },
     'sr': {
@@ -100,7 +100,7 @@ HOME = {
         'builder_h': 'Napravi trejd između dva tima',
         'builder_p': 'Izaberi svoj i još jedan tim i dobij predloge trejdova 1 za 1, 2 za 1 i 2 za 2.',
         'soon': 'Uskoro', 'open_tool': 'Otvori',
-        'continue_bar': 'Nastavi gde si stao',
+        'my_league': 'Moja liga', 'continue_bar': 'Nastavi gde si stao',
         'continue_btn': 'Nastavi: {name}',
     },
 }
@@ -600,7 +600,7 @@ def home(lang):
 <div class="continue-bar" id="continue-bar" hidden><div class="wrap"><span>{escape(h['continue_bar'])}</span><a class="cta" id="continue-btn" href="{app}">…</a></div></div>
 <script>
 (function(){{if(!/[?&]home\\b/.test(location.search))return;try{{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));var l=p&&p.leagues&&(p.leagues.find(function(x){{return x.id===p.lastLeagueId}})||p.leagues[0]);if(!l)return;
-var b=document.getElementById('continue-btn');b.textContent={json.dumps(h['continue_btn'])}.replace('{{name}}',l.name);b.href='{app}#league-'+l.id+'/overview&lang={lang}';document.getElementById('continue-bar').hidden=false;}}catch(e){{}}}})();
+var b=document.getElementById('continue-btn');b.textContent={json.dumps(h['continue_btn'])}.replace('{{name}}',/^(Moja liga|My league)$/.test(l.name)?{json.dumps(h['my_league'])}:l.name);b.href='{app}#league-'+l.id+'/overview&lang={lang}';document.getElementById('continue-bar').hidden=false;}}catch(e){{}}}})();
 </script>
 <main class="wrap">
   <section class="hero hero-home">

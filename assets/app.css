@@ -499,10 +499,6 @@ footer{color:var(--dim);font-size:11px;text-align:center;margin-top:28px}
   .hello{font-size:26px}
   .section-t{font-size:16px;margin:16px 0 8px}
   main.wrap,.tool-app{display:flex;flex-direction:column}
-  main.wrap > *,.tool-app > *{order:2}
-  #home,#leaguebar,#wshead,#backbar,#page,#tradetabs,#status,#banner,#tradewarn,#score{order:0}
-  #compare{order:1}
-  #compare .section-t{margin-top:4px}
   .pl .nm{max-width:none}
   .teams .pl .av{display:none}
 }

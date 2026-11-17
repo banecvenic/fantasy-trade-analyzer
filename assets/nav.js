@@ -9,9 +9,9 @@
   const inApp = H.dataset.appPage === '1';
   const T = {
     sr: { home: 'Početna', tools: 'Alati', leagues: 'Moje lige', analyzer: 'Analiza trejda', finder: 'Igrač za tim', builder: 'Trejd između dva tima', soon: 'Uskoro',
-      quick: 'Brzo poređenje', all: 'Sve lige', add: 'Dodaj ligu', settings: 'Podešavanja lige', none: 'Još nemaš sačuvanu ligu' },
+      quick: 'Brzo poređenje', all: 'Sve lige', add: 'Dodaj ligu', settings: 'Podešavanja lige', none: 'Još nemaš sačuvanu ligu', myLeague: 'Moja liga' },
     en: { home: 'Home', tools: 'Tools', leagues: 'My leagues', analyzer: 'Trade analyzer', finder: 'Player for your team', builder: 'Trade between two teams', soon: 'Coming soon',
-      quick: 'Quick compare', all: 'All leagues', add: 'Add league', settings: 'League settings', none: 'No saved leagues yet' },
+      quick: 'Quick compare', all: 'All leagues', add: 'Add league', settings: 'League settings', none: 'No saved leagues yet', myLeague: 'My league' },
   };
   let lang = H.dataset.lang === 'sr' ? 'sr' : 'en';
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -24,6 +24,8 @@
   const profile = () => { try { return JSON.parse(localStorage.getItem('fbaTrade.profile.v2')); } catch { return null; } };
   const openTrades = id => { try { const s = JSON.parse(localStorage.getItem('fbaTrade.trades.v1')).scopes[id]; return (s?.tabs || []).filter(tb => (tb.teams || []).some(x => x.ids?.length)).length; } catch { return 0; } };
   const activeLeague = () => (location.hash.match(/^#league-([\w-]+)/) || [])[1] || null;
+  // podrazumevani naziv lige prati jezik stranice
+  const lgName = l => (['Moja liga', 'My league'].includes(l.name) ? T[lang].myLeague : l.name);
   const returning = () => !!(profile()?.leagues?.length);
 
   /** Tekstovi i adrese po jeziku (u aplikaciji se jezik menja u mestu) */
@@ -47,7 +49,7 @@
     const app = inApp ? '' : href.app();
     box.innerHTML = list.length
       ? list.map(l => { const n = openTrades(l.id); return `<a role="menuitem" class="pm-item pm-league ${l.id === cur ? 'on' : ''}" href="${app}#league-${l.id}/overview&lang=${lang}" data-gnav-league="${l.id}">
-          <span class="pm-dot" aria-hidden="true"></span><span class="pm-name">${esc(l.name)}</span>${n ? `<span class="cnt">${n}</span>` : ''}</a>`; }).join('')
+          <span class="pm-dot" aria-hidden="true"></span><span class="pm-name">${esc(lgName(l))}</span>${n ? `<span class="cnt">${n}</span>` : ''}</a>`; }).join('')
       : `<span class="pm-item pm-league off">${esc(T[lang].none)}</span>`;
     // Podešavanja lige: samo u aplikaciji, dok je otvorena liga (akciju izvršava aplikacija)
     settings.innerHTML = inApp && cur && document.body.dataset.view === 'league'
