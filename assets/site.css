@@ -167,9 +167,11 @@
 .mini-table th,.mini-table td{padding:6px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
 .mini-table th{color:var(--muted);font-size:12px}
 .mini-table td:first-child,.mini-table th:first-child{text-align:left;background:var(--bg2);width:auto;max-width:190px;min-width:0;overflow:hidden;text-overflow:ellipsis}
-.mini-table tr.tot td{font-weight:800}
+.mini-table tr.tot td{font-weight:800;border-top:2px solid var(--line)}
+.mini-table tr.tot.give td{border-top:0}
 .mini-table tr.tot.give td:first-child{color:var(--lose-text)}
 .mini-table tr.tot.get td:first-child{color:var(--win-text)}
+.mini-table td.pn{padding-left:18px}
 .mini-table tr.diff td{font-weight:800;border-bottom:0}
 .mini-table td.good{color:var(--win-text)}
 .mini-table td.bad{color:var(--lose-text)}

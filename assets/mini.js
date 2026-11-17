@@ -61,13 +61,14 @@
       <div class="mtxt"><b title="${esc(p.name)}">${esc(p.name)}</b><small>${esc(p.team)} · ${esc(p.pos)}</small></div>
       <button type="button" class="mrm" data-rm="${i}:${p.id}" aria-label="${esc(TXT.mini_remove)} ${esc(p.name)}">✕</button></div>`;
 
-  /** Cela statistika: igrači po strani, zbir strane i razlika (Dobijaš − Daješ) */
+  /** Cela statistika: Daješ (zbir) pa igrači, Dobijaš (zbir) pa igrači, pa razlika (Dobijaš − Daješ) */
   function statsTable(sc) {
     const labels = RSMini.labels();
     const head = `<tr><th></th>${labels.map(l => `<th>${esc(l)}</th>`).join('')}</tr>`;
     const prow = p => `<tr><td class="pn"><span class="mav sm" data-ini="${esc(p.ini)}"><img src="${p.img}" alt="" loading="lazy" onerror="this.parentNode.textContent=this.parentNode.dataset.ini"></span>${esc(p.name)}</td>${p.vals.map(v => `<td>${v}</td>`).join('')}</tr>`;
-    const side = (i, key, cls, title) => sides[i].map(id => prow(RSMini.player(id))).join('')
-      + `<tr class="tot ${cls}"><td>${esc(title)}</td>${sc.cats.map(c => `<td>${c[key]}</td>`).join('')}</tr>`;
+    // naslov strane (sa zbirom) ide iznad svojih igrača
+    const side = (i, key, cls, title) => `<tr class="tot ${cls}"><td>${esc(title)}</td>${sc.cats.map(c => `<td>${c[key]}</td>`).join('')}</tr>`
+      + sides[i].map(id => prow(RSMini.player(id))).join('');
     const diff = `<tr class="diff"><td>${esc(TXT.mini_diff)}</td>${sc.cats.map(c => `<td class="${c.res > 0 ? 'good' : c.res < 0 ? 'bad' : ''}">${c.delta && c.res !== 0 ? c.delta : '='}</td>`).join('')}</tr>`;
     return `<div class="mscroll"><table><thead>${head}</thead><tbody>${side(0, 'give', 'give', L.give)}${side(1, 'getv', 'get', L.get)}${diff}</tbody></table></div>`;
   }

@@ -234,6 +234,9 @@ const EN = {
   "Unesi svoj roster": "Enter your roster",
   "Uneto {a} od {b} timova": "{a} of {b} teams entered",
   "Upozorenja": "Alerts",
+  "Svi alerti": "All alerts",
+  "Svi alerti ({n})": "See all alerts ({n})",
+  "Svi igrači sa tvog rostera, i oni na IR. Najnovije gore.": "All players on your roster, including IR. Newest first.",
   "Uredi roster": "Edit roster",
   "Uredi roster u Ligi": "Edit roster in League",
   "Zbir aktivnih igrača. Uneto {a} od {b} timova.": "Sum of active players. {a} of {b} teams entered.",
@@ -3509,6 +3512,7 @@ function showModal({ title, body, confirm = t('U redu'), cancel = t('Otkaži'), 
 const closeModal = () => document.getElementById('modal')?.remove();
 document.addEventListener('click', e => {
   if (e.target.closest('[data-modal-close]')) { closeModal(); return; }
+  if (e.target.closest('#modal [data-link]')) setTimeout(closeModal, 0); // npr. "Prebaci na IR" iz Svi alerti
   if (e.target.closest('[data-modal-ok]')) {
     const m = document.getElementById('modal');
     const keep = m?._onConfirm?.(m) === false; // onConfirm može da vrati false da modal ostane otvoren
@@ -4155,23 +4159,36 @@ function ensureRosterNews() {
   Promise.all(need.map(fetchNews)).finally(() => { rosterNewsBusy = false; if (state.page === 'overview') render(); });
 }
 
-/** Upozorenja o mojim igračima: OUT van IR dok je IR slobodan, pad minutaže, sveža rizična vest. Najviše 5. */
-function rosterAlerts() {
+/** Upozorenja o mojim igračima: OUT van IR dok je IR slobodan, pad minutaže, rizične vesti.
+    Poređana po datumu, najnovije gore (stanje rostera i minutaža važe danas). all: sve vesti svih igrača sa rostera, i sa IR. */
+function rosterAlerts({ all = false } = {}) {
   const r = state.rosters.my;
   if (!r?.players.length || !state.players.length) return [];
-  const out = [];
+  const out = [], now = Date.now();
   const irFree = irCount(r) < ROSTER.IR;
   for (const x of r.players) {
     const p = state.byId.get(x.id); if (!p) continue;
-    if (!x.ir && irFree && canIR(p)) out.push({ p, kind: 'ir', txt: t('{n} je {s}, a IR mesto je slobodno.', { n: esc(p.name), s: esc(statusLabel(p)) }) });
+    if (!x.ir && irFree && canIR(p)) out.push({ p, ts: now, kind: 'ir', txt: t('{n} je {s}, a IR mesto je slobodno.', { n: esc(p.name), s: esc(statusLabel(p)) }) });
   }
   for (const x of r.players) {
-    const p = state.byId.get(x.id); if (!p || x.ir) continue;
+    const p = state.byId.get(x.id); if (!p || (x.ir && !all)) continue;
     const f = playerFacts(p);
-    if (f.minS != null && f.minR != null && f.minR <= f.minS - MINUTES.ALERT) out.push({ p, kind: 'min', txt: t('{n}: minutaža pada, {a} → {b} min poslednjih 15 dana.', { n: esc(p.name), a: Math.round(f.minS), b: Math.round(f.minR) }) });
-    if (f.flags.length) { const fl = f.flags[0]; out.push({ p, kind: 'news', txt: `${esc(p.name)}: ${esc(LANG === 'en' ? fl.f.en : fl.f.sr)} (${esc(shortDate(fl.n.published))})`, tip: newsTipHTML(fl.n) }); }
+    if (!x.ir && f.minS != null && f.minR != null && f.minR <= f.minS - MINUTES.ALERT) out.push({ p, ts: now, kind: 'min', txt: t('{n}: minutaža pada, {a} → {b} min poslednjih 15 dana.', { n: esc(p.name), a: Math.round(f.minS), b: Math.round(f.minR) }) });
+    for (const fl of all ? f.flags : f.flags.slice(0, 1)) {
+      out.push({ p, ts: Date.parse(fl.n.published) || 0, kind: 'news', txt: `${esc(p.name)}: ${esc(LANG === 'en' ? fl.f.en : fl.f.sr)} (${esc(shortDate(fl.n.published))})`, tip: newsTipHTML(fl.n) });
+    }
   }
-  return out.slice(0, 5);
+  out.sort((a, b) => b.ts - a.ts);
+  return all ? out : out.slice(0, 5);
+}
+const alertIcon = a => (a.kind === 'news' ? '📰' : a.kind === 'min' ? '⏬' : '⚕');
+const alertsListHTML = list => `<ul class="alerts">${list.map(a => `<li class="al-${a.kind}" ${a.tip ? `data-tip-html="${esc(a.tip)}"` : ''}><span>${alertIcon(a)} ${a.txt}</span>
+    ${a.kind === 'ir' ? linkHTML('ov-ir', { attrs: `data-player="${a.p.id}"` }) : ''}</li>`).join('')}</ul>`;
+/** Svi alerti igrača sa mog rostera, najnoviji gore */
+function showAllAlerts() {
+  const list = rosterAlerts({ all: true });
+  showModal({ title: t('Svi alerti'), wide: true, cancel: t('Zatvori'),
+    body: list.length ? `<p class="pnote">${t('Svi igrači sa tvog rostera, i oni na IR. Najnovije gore.')}</p>${alertsListHTML(list)}` : `<p class="pnote">${t('Nema upozorenja za tvoje igrače.')}</p>` });
 }
 
 /* ---------- Stranica: Pregled ---------- */
@@ -4205,9 +4222,9 @@ function renderOverview() {
       : `<p class="pnote">${t('Zbir aktivnih igrača. Uneto {a} od {b} timova.', { a: teams.length, b: lg.teams || '?' })}</p>${linkHTML('ov-few-teams', { card: 'cats' })}`}</section>`;
 
   const alerts = rosterAlerts();
+  const allN = alerts.length ? rosterAlerts({ all: true }).length : 0;
   const alertsCard = `<section class="pcard"><h3>${t('Upozorenja')}</h3>${alerts.length
-    ? `<ul class="alerts">${alerts.map(a => `<li class="al-${a.kind}" ${a.tip ? `data-tip-html="${esc(a.tip)}"` : ''}><span>${a.kind === 'news' ? '📰' : a.kind === 'min' ? '⏬' : '⚕'} ${a.txt}</span>
-        ${a.kind === 'ir' ? linkHTML('ov-ir', { attrs: `data-player="${a.p.id}"` }) : ''}</li>`).join('')}</ul>`
+    ? `${alertsListHTML(alerts)}<button type="button" class="linkbtn al-all" data-action="all-alerts">${t('Svi alerti ({n})', { n: allN })} →</button>`
     : `<p class="pnote">${t('Nema upozorenja za tvoje igrače.')}</p>`}</section>`;
 
   const tabs = scopeTabs().tabs.filter(tabHasPlayers);
@@ -4462,6 +4479,7 @@ document.addEventListener('click', e => {
     case 'go-back': { const b = state.back; clearBack(); if (b) location.hash = b.hash; break; }
     case 'league-menu': if (document.getElementById('popmenu')) closePopMenu(); else leagueMenu(el); break;
     case 'trades-menu': if (document.getElementById('popmenu')) closePopMenu(); else openPopMenu(el, tradePages().map(p => `<a role="menuitem" class="pm-item" href="${pageHash(p.id)}" data-goto="${p.id}">${t(p.sr)}</a>`).join('')); break;
+    case 'all-alerts': showAllAlerts(); break;
     case 'ov-hist': { const id = +el.dataset.id; setBack('trade'); openTrade(id); goPage('trade'); break; }
     case 'lt-open': state.leagueTeam = state.leagueTeam === el.dataset.id ? null : el.dataset.id; state.ui.ltEdit = null; render();
       if (state.leagueTeam) document.getElementById('lt-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); break;
