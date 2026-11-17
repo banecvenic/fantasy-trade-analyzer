@@ -500,7 +500,7 @@ footer{color:var(--dim);font-size:11px;text-align:center;margin-top:28px}
   .section-t{font-size:16px;margin:16px 0 8px}
   main.wrap,.tool-app{display:flex;flex-direction:column}
   main.wrap > *,.tool-app > *{order:2}
-  #home,#leaguebar,#wshead,#tradetabs,#status,#banner,#tradewarn,#score{order:0}
+  #home,#leaguebar,#wshead,#backbar,#page,#tradetabs,#status,#banner,#tradewarn,#score{order:0}
   #compare{order:1}
   #compare .section-t{margin-top:4px}
   .pl .nm{max-width:none}
@@ -525,4 +525,105 @@ footer{color:var(--dim);font-size:11px;text-align:center;margin-top:28px}
   .search input,.form input,.form select,.opp-pick select,.opp-form input,.bal-row select{min-height:44px}
   td.catth{height:44px}
   .acts{flex-direction:row}
+}
+
+/* =====================================================================
+   Aplikacija: stranice lige, bočni meni (računar) i donja navigacija (telefon)
+   ===================================================================== */
+body:not([data-view="league"]) #sidenav,body:not([data-view="league"]) #bottomnav,body:not([data-view="league"]) #backbar{display:none}
+body[data-view="league"] #leaguebar{display:none}
+body[data-view="league"]:not([data-page="trade"]) .trade-only{display:none}
+body[data-view="league"]:not([data-page="trade"]) .status{margin:8px 0}
+body:not([data-view="league"]) .page-only,body[data-page="trade"] .page-only{display:none}
+.shell{display:flex;max-width:1500px;margin:0 auto;align-items:flex-start}
+.shell > main.wrap{flex:1;min-width:0;margin:0}
+body:not([data-view="league"]) .shell > main.wrap{margin:0 auto}
+#sidenav{flex:0 0 210px;position:sticky;top:61px;padding:18px 0 18px 16px;max-height:calc(100vh - 61px);overflow:auto}
+.snav{display:flex;flex-direction:column;gap:2px}
+.nitem{display:flex;align-items:center;gap:10px;min-height:44px;padding:0 12px;border-radius:10px;color:var(--muted);text-decoration:none;font-weight:600;font-size:14px;background:none;border:0;font-family:inherit;cursor:pointer;position:relative}
+.nitem:hover{color:var(--text);background:var(--card)}
+.nitem.on{color:#fff;background:var(--accent)}
+.ngroup{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);padding:16px 12px 4px}
+.nbadge{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--card2);border:1px solid var(--line);color:var(--text);font-size:11px;font-weight:800;display:inline-grid;place-items:center}
+.nitem.on .nbadge{background:rgba(255,255,255,.22);border-color:transparent;color:#fff}
+#bottomnav{display:none}
+@media (max-width:900px){
+  #sidenav{display:none!important}
+  body[data-view="league"] #bottomnav{display:block;position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--header-bg);backdrop-filter:blur(8px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+  .bnav{display:grid;grid-template-columns:repeat(4,1fr);max-width:640px;margin:0 auto}
+  .bnav .nitem{flex-direction:column;gap:2px;min-height:58px;padding:6px 2px;border-radius:0;font-size:11px;justify-content:center}
+  .bnav .nitem.on{background:none;color:var(--text)}
+  .bnav .nitem.on svg{color:var(--rs-red)}
+  .bnav .nbadge{position:absolute;top:4px;left:calc(50% + 6px);margin:0;min-width:18px;height:18px;font-size:10px;background:var(--accent);border-color:var(--accent);color:#fff}
+  body[data-view="league"] main.wrap{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+}
+/* izbirač lige u zaglavlju */
+.lpick{display:inline-flex;align-items:center;gap:8px;min-height:36px;max-width:280px;padding:0 12px;border-radius:999px;background:var(--card);border:1px solid var(--line);color:var(--text);font:inherit;font-weight:700;font-size:13px;cursor:pointer}
+.lpick:hover{border-color:var(--dim)}
+.lp-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lp-caret{color:var(--muted);font-size:11px}
+.popmenu{position:fixed;z-index:150;min-width:220px;max-width:320px;background:var(--card2);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.5);padding:6px;display:flex;flex-direction:column}
+.pm-item{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;padding:0 12px;border-radius:8px;background:none;border:0;color:var(--text);font:inherit;font-size:14px;font-weight:600;text-align:left;text-decoration:none;cursor:pointer}
+.pm-item:hover,.pm-item:focus-visible{background:var(--card)}
+.pm-item.on{color:var(--rs-red-text)}
+.pm-item.danger{color:var(--lose-text)}
+.pm-sep{height:1px;background:var(--line);margin:4px 2px}
+/* stranice */
+.backbar{margin:10px 0 0}
+.page-t{font-size:20px;font-weight:700;margin:18px 0 12px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.page-t .hint{font-size:13px}
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.pcard{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px;min-width:0}
+.pgrid .pcard{margin-bottom:0}
+.pcard h3{font-size:16px;font-weight:700;margin:0 0 10px}
+.pnote{color:var(--muted);font-size:13px;margin:8px 0}
+.empty-cta{max-width:640px}
+.empty-cta p{color:var(--muted);line-height:1.55;margin:0 0 14px}
+.ov-team{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;color:var(--muted);font-size:14px}
+.ov-team b{color:var(--text)}
+.catgrid{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:6px}
+.catcell{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:8px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center}
+.catcell .cl{font-size:11px;color:var(--muted);font-weight:700}
+.catcell b{font-size:16px}
+.catcell .rk{font-size:11px;color:var(--muted)}
+.catcell.punt{opacity:.45}
+.alerts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.alerts li{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:13px;line-height:1.45}
+.alerts li.al-news,.alerts li.al-ir{border-color:rgba(240,180,41,.35)}
+.olist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.orow{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:8px 12px;color:var(--text);font:inherit;font-size:13px;text-align:left;cursor:pointer}
+.orow:hover{border-color:var(--dim)}
+.give-t{color:var(--give);font-weight:600}
+.get-t{color:var(--get);font-weight:600}
+.osc{white-space:nowrap;font-size:15px}
+.osc .w{color:var(--win-text)}
+.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-bottom:12px}
+.tcard{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:12px;display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+.tcard.on{border-color:var(--accent)}
+.tcard-open{background:none;border:0;padding:0;color:var(--text);font:inherit;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:4px;width:100%}
+.tc-name{font-weight:800;font-size:16px}
+.tc-meta{font-size:12px;color:var(--muted)}
+.tc-sw{font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.tcard.add{align-items:center;justify-content:center;border-style:dashed;color:var(--muted);font:inherit;font-weight:700;cursor:pointer;flex-direction:row;min-height:100px}
+.tcard.add .plus{color:var(--accent);font-size:22px}
+.lt-form{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.lt-form input{background:var(--bg2);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:8px 10px;font:inherit;min-width:220px}
+.lt-editor .card-h{flex-wrap:wrap}
+.edit-roster{padding:10px 12px 0}
+.mini.want{color:var(--get);border-color:rgba(var(--win-rgb),.4)}
+tr.hl td{background:linear-gradient(rgba(var(--info-rgb),.16),rgba(var(--info-rgb),.16)),var(--card)!important}
+@media (max-width:900px){ .catgrid{grid-template-columns:repeat(5,minmax(0,1fr))} }
+@media (max-width:640px){
+  .pgrid{grid-template-columns:1fr}
+  .catgrid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .lpick{max-width:150px;min-height:44px}
+  .page-t{font-size:18px}
+}
+@media (max-width:640px){
+  /* telefon: naziv lige je već u izbiraču u zaglavlju, podešavanja su u njegovom meniju */
+  body[data-view="league"] #wshead{display:none}
+  body[data-view="league"] .hcenter{flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:flex-start}
+  body[data-view="league"] #hleague{max-width:100%}
+  body[data-view="league"] .lpick{max-width:100%}
+  body[data-view="league"] .hcenter .seg{width:100%}
 }
