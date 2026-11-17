@@ -2267,20 +2267,20 @@ const RT = {
     en: ['{name} plays {m} min a game {per}, a stable role.', '{name} is locked into the rotation: {m} min a game {per}.'],
   },
   giveUnsure: {
-    sr: ['Rešavaš se igrača čiji povratak je neizvestan ({name}, {why}).', 'Odlazi {name}, a njegov povratak je neizvestan ({why}).'],
-    en: ['You move on from a player whose return is uncertain ({name}, {why}).', '{name} is leaving, and his return is uncertain ({why}).'],
+    sr: ['Rešavaš se igrača čiji povratak je neizvestan ({name}, {why}).', 'Igrač koga daješ ({name}) ima neizvestan povratak ({why}).'],
+    en: ['You move on from a player whose return is uncertain ({name}, {why}).', 'You give {name}, and his return is uncertain ({why}).'],
   },
   giveMinDown: {
-    sr: ['Odlazi {name}, minutaža mu pada: {a} → {b} min poslednjih 15 dana.', 'Odlazi {name}, a uloga mu se smanjuje ({a} → {b} min).'],
-    en: ['{name} is leaving while his minutes drop: {a} → {b} min over the last 15 days.', 'You move on from {name}, whose role is shrinking ({a} → {b} min).'],
+    sr: ['Igraču koga daješ ({name}) pada minutaža: {a} → {b} min poslednjih 15 dana.', 'Igraču koga daješ ({name}) se smanjuje uloga ({a} → {b} min).'],
+    en: ['You give {name} while his minutes drop: {a} → {b} min over the last 15 days.', 'You move on from {name}, whose role is shrinking ({a} → {b} min).'],
   },
   giveLowGp: {
-    sr: ['Odlazi {name}, koji je odigrao {gp} od {n} utakmica tima.', 'Odlazi {name}: igrao je samo {gp} od {n} utakmica.'],
-    en: ['{name} is leaving after playing {gp} of {n} team games.', 'You move on from {name}, who played only {gp} of {n} games.'],
+    sr: ['Igrač koga daješ ({name}) odigrao je {gp} od {n} utakmica tima.', 'Igrač koga daješ ({name}) igrao je samo {gp} od {n} utakmica.'],
+    en: ['You give {name}, who played {gp} of {n} team games.', 'You move on from {name}, who played only {gp} of {n} games.'],
   },
   oGiveUnsure: { sr: ['Rešava se igrača čiji povratak je neizvestan ({name}, {why}).'], en: ['Moves on from a player whose return is uncertain ({name}, {why}).'] },
-  oGiveMinDown: { sr: ['Odlazi {name}, a uloga mu se smanjuje ({a} → {b} min).'], en: ['Moves on from {name}, whose role is shrinking ({a} → {b} min).'] },
-  oGiveLowGp: { sr: ['Odlazi {name}, koji je odigrao {gp} od {n} utakmica.'], en: ['Moves on from {name}, who played {gp} of {n} games.'] },
+  oGiveMinDown: { sr: ['Igraču koga daje ({name}) se smanjuje uloga ({a} → {b} min).'], en: ['Moves on from {name}, whose role is shrinking ({a} → {b} min).'] },
+  oGiveLowGp: { sr: ['Igrač koga daje ({name}) odigrao je {gp} od {n} utakmica.'], en: ['Moves on from {name}, who played {gp} of {n} games.'] },
   gpGood: {
     sr: ['{name} je pouzdan: odigrao {gp} od {n} utakmica tima.', '{name} skoro nikad ne propušta: {gp} od {n} utakmica.'],
     en: ['{name} is reliable: played {gp} of {n} team games.', '{name} rarely misses: {gp} of {n} games.'],
@@ -2298,7 +2298,7 @@ const RT = {
     en: ['{n} players who play regularly, for one better player and one who barely plays.', 'You get {n} regular rotation players and drop someone who barely plays.'],
   },
   dropVs: {
-    sr: ['Odlazi {drop} ({dm} min, igrao {dg} od {dn}), a dolazi {inc} ({im} min, {ig} od {in}). Minuti {per}.'],
+    sr: ['Umesto {drop} ({dm} min, igrao {dg} od {dn}) dobijaš {inc} ({im} min, {ig} od {in}). Minuti {per}.'],
     en: ['Instead of {drop} ({dm} min, played {dg} of {dn}) you get {inc} ({im} min, {ig} of {in}). Minutes {per}.'],
   },
   room: {
@@ -2325,12 +2325,12 @@ const RT = {
     en: ['{name} is more reliable: played {gp} of {n}, versus {sgp} of {sn} for the player you give.'],
   },
   giveMoreMin: {
-    sr: ['Odlazi {name}, koji igra više {per}: {a} min naspram {b}.'],
-    en: ['{name} is leaving, and he plays more {per}: {a} min versus {b}.'],
+    sr: ['Igrač koga daješ ({name}) igra više {per}: {a} min naspram {b}.'],
+    en: ['You give {name}, who plays more {per}: {a} min versus {b}.'],
   },
   giveMoreGp: {
-    sr: ['Odlazi pouzdaniji igrač: {name} je odigrao {gp} od {n}, naspram {rgp} od {rn}.'],
-    en: ['The more reliable player is leaving: {name} played {gp} of {n}, versus {rgp} of {rn}.'],
+    sr: ['Daješ pouzdanijeg igrača: {name} je odigrao {gp} od {n}, naspram {rgp} od {rn}.'],
+    en: ['You give the more reliable player: {name} played {gp} of {n}, versus {rgp} of {rn}.'],
   },
   profileGain: { sr: ['{who} donosi {list}.'], en: ['{who} brings {list}.'] },
   profileGainMany: { sr: ['Igrači koje dobijaš donose {list}.'], en: ['The players you get bring {list}.'] },
@@ -2357,7 +2357,7 @@ const RT = {
     en: ['After the trade you are left with {n} players at {pos}.'],
   },
   leaderIn: { sr: ['{name} je u vrhu lige: {list}.', 'Dolazi igrač iz vrha lige: {name} ({list}).'], en: ['{name} is among the league leaders: {list}.', 'A league leader is coming: {name} ({list}).'] },
-  leaderOut: { sr: ['Daješ igrača iz vrha lige: {name} ({list}).', '{name} je u vrhu lige ({list}), a odlazi.'], en: ['You give a league leader: {name} ({list}).', '{name} is among the league leaders ({list}), and he is leaving.'] },
+  leaderOut: { sr: ['Daješ igrača iz vrha lige: {name} ({list}).', '{name} je u vrhu lige ({list}), a daješ ga.'], en: ['You give a league leader: {name} ({list}).', '{name} is among the league leaders ({list}), and you give him.'] },
   needFix: { sr: ['Popravljaš slabu tačku tima: {list}.', 'Trejd pogađa ono što ti fali: {list}.'], en: ['You fix a weak spot of your team: {list}.', 'The trade hits what you lack: {list}.'] },
   lossStrong: { sr: ['Gubiš u {list}, ali tu ti je tim jak, pa to lakše podnosi.'], en: ['You lose in {list}, but your team is strong there, so it can absorb it.'] },
   lossWeak: { sr: ['Gubiš u kategoriji koja ti je već slaba: {list}.', 'Pazi, slabiš ono što ti već fali: {list}.'], en: ['You lose in a category that is already weak for you: {list}.', 'Careful, you weaken what you already lack: {list}.'] },
@@ -2377,16 +2377,16 @@ const RT = {
   },
   // rizici
   bestOut1: {
-    sr: ['Daješ jačeg igrača po zbiru brojki: {name} ({line}).', 'Odlazi igrač sa većim ukupnim doprinosom: {name} ({line}).'],
-    en: ['You give the stronger player by total numbers: {name} ({line}).', 'The player with the bigger overall impact is leaving: {name} ({line}).'],
+    sr: ['Daješ jačeg igrača po zbiru brojki: {name} ({line}).', 'Daješ igrača sa većim ukupnim doprinosom: {name} ({line}).'],
+    en: ['You give the stronger player by total numbers: {name} ({line}).', 'You give the player with the bigger overall impact: {name} ({line}).'],
   },
   giveRise: {
-    sr: ['Odlazi {name}, a uloga mu raste: {a} → {b} min poslednjih 15 dana.', 'Daješ igrača u usponu: {name}, {a} → {b} min poslednjih 15 dana.'],
-    en: ['{name} is leaving while his role grows: {a} → {b} min over the last 15 days.', 'You give a player on the rise: {name}, {a} → {b} min over the last 15 days.'],
+    sr: ['Igraču koga daješ ({name}) uloga raste: {a} → {b} min poslednjih 15 dana.', 'Daješ igrača u usponu: {name}, {a} → {b} min poslednjih 15 dana.'],
+    en: ['You give {name} while his role grows: {a} → {b} min over the last 15 days.', 'You give a player on the rise: {name}, {a} → {b} min over the last 15 days.'],
   },
   giveHot: {
-    sr: ['{name} odlazi u dobroj formi: poslednjih 15 dana skače u {list}.'],
-    en: ['{name} leaves in good form: up in {list} over the last 15 days.'],
+    sr: ['Igrač koga daješ ({name}) je u dobroj formi: poslednjih 15 dana skače u {list}.'],
+    en: ['You give {name} in good form: up in {list} over the last 15 days.'],
   },
   out: { sr: ['{name} je trenutno van stroja ({st}).', '{name} trenutno ne igra ({st}).'], en: ['{name} is currently out ({st}).', '{name} is not playing right now ({st}).'] },
   irCan: { sr: ['Može na IR mesto.'], en: ['He can go to an IR spot.'] },
@@ -2427,8 +2427,8 @@ const RT = {
     en: ['You give the best player in the trade ({name}). Together they add more, but in H2H categories one strong player is often worth more than two average ones.'],
   },
   depth: {
-    sr: ['Gubiš dubinu: {list} igraju redovno.', 'Pazi na dubinu rostera, odlaze igrači koji igraju redovno ({list}).'],
-    en: ['You lose depth: {list} play regularly.', 'Watch your depth, regular rotation players are leaving ({list}).'],
+    sr: ['Gubiš dubinu: {list} igraju redovno.', 'Pazi na dubinu rostera, daješ igrače koji igraju redovno ({list}).'],
+    en: ['You lose depth: {list} play regularly.', 'Watch your depth, you give regular rotation players ({list}).'],
   },
   candidate: {
     sr: ['Najmanje igra na tvom rosteru {per}: {name} ({m} min). Ako njega izbaciš, menjaš {give} za {get}.'],
