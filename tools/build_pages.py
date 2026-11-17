@@ -59,6 +59,7 @@ HOME = {
         'mini_give_ph': 'Who do you give…', 'mini_get_ph': 'Who do you get…',
         'mini_loading': 'Loading players…', 'mini_error': 'Players could not be loaded. Try again later.', 'mini_none': 'No players found',
         'mini_full': 'See full analysis', 'mini_hint': 'Add a player on each side to see the score.', 'mini_remove': 'Remove',
+        'mini_stats': 'Full stats', 'mini_open': 'Open the full analysis', 'mini_cat': 'Cat.', 'mini_diff': 'Diff', 'mini_total': 'Total',
         'league_h': 'Add your league and team',
         'league_p': 'Save your roster and see how every trade changes your team, with your league roster size and IR spots. Manual entry for now.',
         'league_cta': 'Add your league',
@@ -89,6 +90,7 @@ HOME = {
         'mini_give_ph': 'Koga daješ…', 'mini_get_ph': 'Koga dobijaš…',
         'mini_loading': 'Učitavam igrače…', 'mini_error': 'Igrači nisu učitani. Pokušaj kasnije.', 'mini_none': 'Nema igrača',
         'mini_full': 'Pogledaj celu analizu', 'mini_hint': 'Dodaj igrača na svaku stranu da vidiš rezultat.', 'mini_remove': 'Ukloni',
+        'mini_stats': 'Cela statistika', 'mini_open': 'Otvori celu analizu', 'mini_cat': 'Kat.', 'mini_diff': 'Razlika', 'mini_total': 'Ukupno',
         'league_h': 'Dodaj svoju ligu i tim',
         'league_p': 'Sačuvaj roster i vidi kako svaki trejd menja tvoj tim, sa veličinom rostera i IR mestima tvoje lige. Za sada se roster unosi ručno.',
         'league_cta': 'Dodaj svoju ligu',
@@ -592,7 +594,7 @@ def home(lang):
     ta = page_href('analyzer', lang, depth)
     extra = REDIRECT.replace('{app}', app).replace('{ta}', ta).replace('{lang}', lang) + jsonld_faq(lang)
     faq = ''.join(f'<details><summary><h3>{escape(q)}</h3></summary><div class="a"><p>{escape(a)}</p></div></details>' for q, a in t['faq'])
-    mini_txt = json.dumps({k: h[k] for k in ('mini_give_ph', 'mini_get_ph', 'mini_loading', 'mini_error', 'mini_none', 'mini_hint', 'mini_remove')}, ensure_ascii=False)
+    mini_txt = json.dumps({k: h[k] for k in ('mini_give_ph', 'mini_get_ph', 'mini_loading', 'mini_error', 'mini_none', 'mini_hint', 'mini_remove', 'mini_stats', 'mini_open', 'mini_cat', 'mini_diff', 'mini_total')}, ensure_ascii=False)
     add_league = f'{app}#home&amp;addleague=1&amp;lang={lang}'
     return head(lang, 'home', h['title'], h['desc'], depth, extra, og=h) + header(lang, 'home', depth) + f"""
 <div class="continue-bar" id="continue-bar" hidden><div class="wrap"><span>{escape(h['continue_bar'])}</span><a class="cta" id="continue-btn" href="{app}">…</a></div></div>
@@ -618,13 +620,15 @@ var b=document.getElementById('continue-btn');b.textContent={json.dumps(h['conti
     <h2 id="mini-h">{escape(h['mini_h'])}</h2>
     <p class="lead">{escape(h['mini_lead'])}</p>
     <div class="mini-sides">
-      <div class="mini-side" data-side="0"><label class="give-t" for="mini-0">{escape(t['pre']['give'][0])}</label><div class="mini-chips"></div>
+      <div class="mini-side give" data-side="0"><label class="give-t" for="mini-0">{escape(t['pre']['give'][0])}</label><div class="mini-cards"></div>
         <div class="mini-in"><input id="mini-0" type="search" autocomplete="off" spellcheck="false" placeholder="{escape(h['mini_give_ph'])}" role="combobox" aria-expanded="false" aria-controls="mini-dd-0"><ul class="dd" id="mini-dd-0" role="listbox" hidden></ul></div></div>
-      <div class="mini-side" data-side="1"><label class="get-t" for="mini-1">{escape(t['pre']['get'][0])}</label><div class="mini-chips"></div>
+      <div class="mini-vs" aria-hidden="true">⇄</div>
+      <div class="mini-side get" data-side="1"><label class="get-t" for="mini-1">{escape(t['pre']['get'][0])}</label><div class="mini-cards"></div>
         <div class="mini-in"><input id="mini-1" type="search" autocomplete="off" spellcheck="false" placeholder="{escape(h['mini_get_ph'])}" role="combobox" aria-expanded="false" aria-controls="mini-dd-1"><ul class="dd" id="mini-dd-1" role="listbox" hidden></ul></div></div>
     </div>
     <div class="mini-result" id="mini-result" aria-live="polite"><span class="mini-hint">{escape(h['mini_hint'])}</span></div>
-    <a class="cta" id="mini-full" href="{ta}">{escape(h['mini_full'])}</a>
+    <details class="mini-stats" id="mini-stats" hidden><summary><span>{escape(h['mini_stats'])}</span><span class="chev" aria-hidden="true">▾</span></summary><div class="mini-table" id="mini-table"></div></details>
+    <div class="mini-cta"><a class="cta" id="mini-full" href="{ta}">{escape(h['mini_full'])}</a></div>
   </section>
 
   <section class="feature feature-league" aria-labelledby="league-h">

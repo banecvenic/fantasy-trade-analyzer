@@ -167,17 +167,19 @@ var b=document.getElementById('continue-btn');b.textContent="Nastavi: {name}".re
     </a>
   </section>
 
-  <section class="mini" id="mini" aria-labelledby="mini-h" data-txt='{&quot;mini_give_ph&quot;: &quot;Koga daješ…&quot;, &quot;mini_get_ph&quot;: &quot;Koga dobijaš…&quot;, &quot;mini_loading&quot;: &quot;Učitavam igrače…&quot;, &quot;mini_error&quot;: &quot;Igrači nisu učitani. Pokušaj kasnije.&quot;, &quot;mini_none&quot;: &quot;Nema igrača&quot;, &quot;mini_hint&quot;: &quot;Dodaj igrača na svaku stranu da vidiš rezultat.&quot;, &quot;mini_remove&quot;: &quot;Ukloni&quot;}' data-app="../assets/app.js" data-lang="sr" data-ta="../sr/trade-analyzer/">
+  <section class="mini" id="mini" aria-labelledby="mini-h" data-txt='{&quot;mini_give_ph&quot;: &quot;Koga daješ…&quot;, &quot;mini_get_ph&quot;: &quot;Koga dobijaš…&quot;, &quot;mini_loading&quot;: &quot;Učitavam igrače…&quot;, &quot;mini_error&quot;: &quot;Igrači nisu učitani. Pokušaj kasnije.&quot;, &quot;mini_none&quot;: &quot;Nema igrača&quot;, &quot;mini_hint&quot;: &quot;Dodaj igrača na svaku stranu da vidiš rezultat.&quot;, &quot;mini_remove&quot;: &quot;Ukloni&quot;, &quot;mini_stats&quot;: &quot;Cela statistika&quot;, &quot;mini_open&quot;: &quot;Otvori celu analizu&quot;, &quot;mini_cat&quot;: &quot;Kat.&quot;, &quot;mini_diff&quot;: &quot;Razlika&quot;, &quot;mini_total&quot;: &quot;Ukupno&quot;}' data-app="../assets/app.js" data-lang="sr" data-ta="../sr/trade-analyzer/">
     <h2 id="mini-h">Probaj brzi trejd</h2>
     <p class="lead">Do 2 igrača po strani. Prosek po utakmici za sezonu.</p>
     <div class="mini-sides">
-      <div class="mini-side" data-side="0"><label class="give-t" for="mini-0">Daješ</label><div class="mini-chips"></div>
+      <div class="mini-side give" data-side="0"><label class="give-t" for="mini-0">Daješ</label><div class="mini-cards"></div>
         <div class="mini-in"><input id="mini-0" type="search" autocomplete="off" spellcheck="false" placeholder="Koga daješ…" role="combobox" aria-expanded="false" aria-controls="mini-dd-0"><ul class="dd" id="mini-dd-0" role="listbox" hidden></ul></div></div>
-      <div class="mini-side" data-side="1"><label class="get-t" for="mini-1">Dobijaš</label><div class="mini-chips"></div>
+      <div class="mini-vs" aria-hidden="true">⇄</div>
+      <div class="mini-side get" data-side="1"><label class="get-t" for="mini-1">Dobijaš</label><div class="mini-cards"></div>
         <div class="mini-in"><input id="mini-1" type="search" autocomplete="off" spellcheck="false" placeholder="Koga dobijaš…" role="combobox" aria-expanded="false" aria-controls="mini-dd-1"><ul class="dd" id="mini-dd-1" role="listbox" hidden></ul></div></div>
     </div>
     <div class="mini-result" id="mini-result" aria-live="polite"><span class="mini-hint">Dodaj igrača na svaku stranu da vidiš rezultat.</span></div>
-    <a class="cta" id="mini-full" href="../sr/trade-analyzer/">Pogledaj celu analizu</a>
+    <details class="mini-stats" id="mini-stats" hidden><summary><span>Cela statistika</span><span class="chev" aria-hidden="true">▾</span></summary><div class="mini-table" id="mini-table"></div></details>
+    <div class="mini-cta"><a class="cta" id="mini-full" href="../sr/trade-analyzer/">Pogledaj celu analizu</a></div>
   </section>
 
   <section class="feature feature-league" aria-labelledby="league-h">

@@ -1,4 +1,5 @@
-/* Mini poređenje na početnoj ("Try a quick trade"): do 2 igrača po strani, rezultat u jednom redu i traka kategorija.
+/* Mini poređenje na početnoj ("Try a quick trade"): do 2 igrača po strani kao kartice sa slikom (Daješ | Dobijaš),
+   rezultat koji je i veza ka celoj analizi, traka kategorija i "Cela statistika" koja se razvlači nadole.
    Podaci o igračima se učitavaju tek kad korisnik klikne u polje (app.js u mini režimu: ista pretraga i isto računanje). */
 (function () {
   'use strict';
@@ -12,6 +13,8 @@
   const dds = [0, 1].map(i => document.getElementById(`mini-dd-${i}`));
   const result = document.getElementById('mini-result');
   const full = document.getElementById('mini-full');
+  const stats = document.getElementById('mini-stats');
+  const table = document.getElementById('mini-table');
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const L = lang === 'sr' ? { get: 'Dobijaš', give: 'Daješ' } : { get: 'You get', give: 'You give' };
   let loading = null, sel = [0, 0];
@@ -54,19 +57,40 @@
     if (sides[i].length < MAX) inputs[i].focus();
   }
 
+  const card = (i, p) => `<div class="mcard"><span class="mav" data-ini="${esc(p.ini)}"><img src="${p.img}" alt="" loading="lazy" onerror="this.parentNode.textContent=this.parentNode.dataset.ini"></span>
+      <div class="mtxt"><b title="${esc(p.name)}">${esc(p.name)}</b><small>${esc(p.team)} · ${esc(p.pos)}</small></div>
+      <button type="button" class="mrm" data-rm="${i}:${p.id}" aria-label="${esc(TXT.mini_remove)} ${esc(p.name)}">✕</button></div>`;
+
+  /** Cela statistika: igrači po strani, zbir strane i razlika (Dobijaš − Daješ) */
+  function statsTable(sc) {
+    const labels = RSMini.labels();
+    const head = `<tr><th></th>${labels.map(l => `<th>${esc(l)}</th>`).join('')}</tr>`;
+    const prow = p => `<tr><td class="pn"><span class="mav sm" data-ini="${esc(p.ini)}"><img src="${p.img}" alt="" loading="lazy" onerror="this.parentNode.textContent=this.parentNode.dataset.ini"></span>${esc(p.name)}</td>${p.vals.map(v => `<td>${v}</td>`).join('')}</tr>`;
+    const side = (i, key, cls, title) => sides[i].map(id => prow(RSMini.player(id))).join('')
+      + `<tr class="tot ${cls}"><td>${esc(title)}</td>${sc.cats.map(c => `<td>${c[key]}</td>`).join('')}</tr>`;
+    const diff = `<tr class="diff"><td>${esc(TXT.mini_diff)}</td>${sc.cats.map(c => `<td class="${c.res > 0 ? 'good' : c.res < 0 ? 'bad' : ''}">${c.delta && c.res !== 0 ? c.delta : '='}</td>`).join('')}</tr>`;
+    return `<div class="mscroll"><table><thead>${head}</thead><tbody>${side(0, 'give', 'give', L.give)}${side(1, 'getv', 'get', L.get)}${diff}</tbody></table></div>`;
+  }
+
   function update() {
     [0, 1].forEach(i => {
-      root.querySelector(`.mini-side[data-side="${i}"] .mini-chips`).innerHTML = sides[i].map(id =>
-        `<span class="chip">${esc(RSMini.name(id))}<button type="button" data-rm="${i}:${id}" aria-label="${esc(TXT.mini_remove)} ${esc(RSMini.name(id))}">✕</button></span>`).join('');
+      const box = root.querySelector(`.mini-side[data-side="${i}"] .mini-cards`);
+      box.innerHTML = sides[i].length ? sides[i].map(id => card(i, RSMini.player(id))).join('') : '';
       inputs[i].disabled = sides[i].length >= MAX;
+      inputs[i].closest('.mini-in').hidden = sides[i].length >= MAX;
     });
     const sc = sides[0].length && sides[1].length ? RSMini.score(sides[0], sides[1]) : null;
-    result.innerHTML = sc
-      ? `<div class="mini-score"><span class="get-t">${L.get}</span> <b class="w">${sc.get}</b> <span class="sep">:</span> <b>${sc.give}</b> <span class="give-t">${L.give}</span></div>
-         <div class="mcats">${sc.cats.map(c => `<span class="mc ${c.res > 0 ? 'good' : c.res < 0 ? 'bad' : 'tie'}">${c.res > 0 ? '+' : c.res < 0 ? '−' : '='} ${esc(c.label)}</span>`).join('')}</div>`
-      : `<span class="mini-hint">${esc(TXT.mini_hint)}</span>`;
     const base = root.dataset.ta;
-    full.href = sides[0].length || sides[1].length ? `${base}#per=season&t=${sides[0].join(',')}|${sides[1].join(',')}` : base;
+    const href = sides[0].length || sides[1].length ? `${base}#per=season&t=${sides[0].join(',')}|${sides[1].join(',')}` : base;
+    full.href = href;
+    result.innerHTML = sc
+      ? `<a class="mini-scorecard" href="${href}" title="${esc(TXT.mini_open)}">
+          <div class="mini-score"><span class="lbl get-t">${L.get}</span><b class="n ${sc.get > sc.give ? 'w' : ''}">${sc.get}</b><span class="sep">:</span><b class="n ${sc.give > sc.get ? 'l' : ''}">${sc.give}</b><span class="lbl give-t">${L.give}</span></div>
+          <div class="mcats">${sc.cats.map(c => `<span class="mc ${c.res > 0 ? 'good' : c.res < 0 ? 'bad' : 'tie'}">${c.res > 0 ? '+' : c.res < 0 ? '−' : '='} ${esc(c.label)}</span>`).join('')}</div>
+          <span class="mini-open">${esc(TXT.mini_open)} →</span></a>`
+      : `<span class="mini-hint">${esc(TXT.mini_hint)}</span>`;
+    stats.hidden = !sc;
+    table.innerHTML = sc ? statsTable(sc) : '';
   }
 
   inputs.forEach((inp, i) => {

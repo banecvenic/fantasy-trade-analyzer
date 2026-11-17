@@ -4690,12 +4690,23 @@ if (EMBED?.mini) {
     error: () => (state.players.length ? null : state.error),
     search: (q, taken = []) => searchResults(q, new Set(taken)).slice(0, 6).map(p => ({ id: p.id, name: p.name, team: p.team, pos: p.pos })),
     name: id => state.byId.get(id)?.name || '',
+    labels: () => CATS.map(c => c.label),
+    /** Igrač za karticu: slika, tim, pozicija i 9 kategorija (već formatirano) */
+    player(id) {
+      const p = state.byId.get(id); if (!p) return null;
+      const l = playerLine(p);
+      return { id, name: p.name, team: p.team, pos: p.pos, ini: initials(p.name), img: CONFIG.HEADSHOT_URL(id),
+        min: l ? fmt1(l.MIN) : '-',
+        vals: CATS.map(c => (!l ? '-' : c.type === 'pct' ? fmtPct(l[c.att] > 0 ? l[c.made] / l[c.att] : null) : fmt1(l[c.key]))) };
+    },
     score(give, get) {
       const totals = [sumPlayers(give), sumPlayers(get)], cmp = compare(totals);
       if (cmp.active.length < 2) return null;
+      const f = (c, v) => (c.type === 'pct' ? fmtPct(v) : fmt1(v));
       return {
         get: cmp.score[GET], give: cmp.score[GIVE],
-        cats: CATS.map(c => ({ label: c.label, res: cmp.cats[c.key].winner == null ? 0 : cmp.cats[c.key].winner === GET ? 1 : -1 })),
+        cats: CATS.map(c => ({ label: c.label, res: cmp.cats[c.key].winner == null ? 0 : cmp.cats[c.key].winner === GET ? 1 : -1,
+          give: f(c, totals[GIVE].vals[c.key]), getv: f(c, totals[GET].vals[c.key]), delta: myDeltaText(c, totals) })),
       };
     },
   };
