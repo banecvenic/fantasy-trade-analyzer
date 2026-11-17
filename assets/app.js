@@ -325,6 +325,8 @@ const EN = {
   "Još nema igrača. Kucaj ime iznad.": "No players yet. Type a name above.",
   "Bez podataka za period „{p}“, ne računa se: {list}": "No data for period “{p}”, not counted: {list}",
   "Izbacuješ {a}/{b}": "Drop {a}/{b}",
+  "Protivnik izbacuje {a}/{b}": "Opponent drops {a}/{b}",
+  "Daješ više igrača nego što dobijaš, pa ti posle trejda ostaje slobodno mesto. Igrač sa waivera menja tvoj tim, ali ne i rezultat trejda.": "You give more players than you get, so you have an open spot after the trade. A waiver pickup changes your team, not the trade score.",
   "Koga izbacuješ sa svog rostera…": "Who do you drop from your roster…",
   "Koga uzimaš sa waivera… (opciono)": "Who do you pick up from waivers… (optional)",
   "Waiver dodatak {a}/{b} · opciono": "Waiver pickup {a}/{b} · optional",
@@ -465,7 +467,7 @@ const EN = {
   "Izbacuje": "Drops",
   "{n} nije na rosteru tima {team}.": "{n} is not on {team}'s roster.",
   "Posle trejda imaš {n} aktivnih (max {m}). Izaberi koga izbacuješ u kartici Daješ, dotle Razlika nije realna.": "After the trade you have {n} active (max {m}). Pick who you drop in the You give card; until then the Difference isn't realistic.",
-  "Posle trejda tim ima {n} aktivnih (max {m}). Izaberi koga izbacuje ({k}), dotle Razlika nije realna.": "After the trade they have {n} active (max {m}). Pick who they drop ({k}); until then the Difference isn't realistic.",
+  "Posle trejda tim ima {n} aktivnih (max {m}). Izaberi koga izbacuje ({k}) gore, u kartici Dobijaš, dotle Razlika nije realna.": "After the trade they have {n} active (max {m}). Pick who they drop ({k}) above, in the You get card; until then the Difference isn't realistic.",
   "Izbačen": "Dropped",
   "Moja liga": "My league",
   "Drugo": "Other",
@@ -1287,15 +1289,21 @@ function slotPlan(kind) {
   const trade = takenIds(), bal = state.balance[kind];
   const onRoster = new Set(rosterIds(rosterOf(kind)));
   const drops = [...new Set(bal.drops)].filter(id => !trade.has(id)).slice(0, dropSlots);
-  const waivers = [...new Set(bal.waivers)].filter(id => !trade.has(id) && !drops.includes(id) && !onRoster.has(id)).slice(0, waiverSlots);
+  // waiver dodatak ne ulazi u rezultat trejda (tamo se računa koga protivnik izbacuje), samo u to kako se menja moj tim;
+  // koga protivnik uzima sa waivera nije bitno (njegov tim), pa za 'opp' nema waivera
+  const waivers = kind === 'opp' ? [] : [...new Set(bal.waivers)].filter(id => !trade.has(id) && !drops.includes(id) && !onRoster.has(id)).slice(0, waiverSlots);
   return { dropSlots, waiverSlots, drops, waivers };
 }
 const slotIds = (kind = 'my') => { const sp = slotPlan(kind); return [...sp.drops, ...sp.waivers]; };
 
-/** Zbir strane trejda (moj ugao): Daješ + koga izbacujem, Dobijaš + waiver dodatak */
+/**
+ * Zbir strane trejda: ko dobija više igrača, mora nekog da izbaci, i taj igrač se računa uz ono što ta strana daje.
+ * Daješ = moji igrači + koga ja izbacujem; Dobijaš = njegovi igrači + koga on izbacuje.
+ * (Tako se vidi koliko on stvarno dobija u odnosu na ono čega se odriče, tj. da li će pristati.)
+ */
 function teamTotals(team, ti) {
-  const sp = slotPlan('my');
-  return sumPlayers([...team.ids, ...(ti === GIVE ? sp.drops : sp.waivers)]);
+  const sp = slotPlan(ti === GIVE ? 'my' : 'opp');
+  return sumPlayers([...team.ids, ...sp.drops]);
 }
 
 /** Zaokruživanje na prikazanu preciznost: iste prikazane brojke = nerešeno (bez boje u tabelama). */
@@ -1954,12 +1962,13 @@ function renderTeams(totals, cmp) {
     const unknown = team.ids.length - players.length;
     const better = cmp.active.length >= 2 ? cmp.score[ti] : null;
     const warn = tradeWarnings(ti);
-    const sp = slotPlan('my');
-    const slotList = ti === GIVE ? sp.drops : sp.waivers;
-    const slotRows = slotList.map(id => state.byId.get(id)).filter(Boolean).map(p => playerRowHTML(p, {
-      tags: [ti === GIVE ? { text: 'Izbacuješ', cls: 'tag-out' } : { text: 'Waiver', cls: 'tag-in' }], cls: ti === GIVE ? 'slot-d' : 'slot-w',
-      actions: `<button class="rm" type="button" data-action="${ti === GIVE ? 'bal-d-remove' : 'bal-w-remove'}" data-kind="my" data-id="${p.id}" aria-label="${t('Ukloni')}">✕</button>` })).join('');
-    const slotInputs = slotInputHTML('my', ti === GIVE ? 'd' : 'w');
+    // strana koja dobija više igrača izbacuje nekog sa svog rostera: Daješ = ja izbacujem, Dobijaš = protivnik izbacuje
+    const kind = ti === GIVE ? 'my' : 'opp';
+    const sp = slotPlan(kind);
+    const slotRows = sp.drops.map(id => state.byId.get(id)).filter(Boolean).map(p => playerRowHTML(p, {
+      tags: [{ text: ti === GIVE ? 'Izbacuješ' : 'Izbacuje', cls: 'tag-out' }], cls: 'slot-d',
+      actions: `<button class="rm" type="button" data-action="bal-d-remove" data-kind="${kind}" data-id="${p.id}" aria-label="${t('Ukloni')}">✕</button>` })).join('');
+    const slotInputs = slotInputHTML(kind, 'd');
     return `<section class="card" data-team-card="${ti}">
       <div class="card-h">
         <span class="dot" style="background:${SIDES[ti].color}"></span>
@@ -1990,7 +1999,7 @@ function slotInputHTML(kind, which, wrapCls = 'balance top') {
   if (which === 'd') {
     if (sp.drops.length >= sp.dropSlots) return '';
     const req = !!plan && plan.missingDrops > 0;
-    const label = `<span class="slot-tag ${req ? 'slot-d-tag' : 'slot-opt-tag'}">${t('Izbacuješ {a}/{b}', { a: sp.drops.length + 1, b: sp.dropSlots })} · ${req ? t('obavezno') : t('opciono')}</span>`;
+    const label = `<span class="slot-tag ${req ? 'slot-d-tag' : 'slot-opt-tag'}">${t(kind === 'my' ? 'Izbacuješ {a}/{b}' : 'Protivnik izbacuje {a}/{b}', { a: sp.drops.length + 1, b: sp.dropSlots })} · ${req ? t('obavezno') : t('opciono')}</span>`;
     return `<div class="${wrapCls}">${searchBoxHTML(`${kind}-d`, kind === 'my' ? t('Koga izbacuješ sa svog rostera…') : t('Koga izbacuje sa svog rostera…'), label)}</div>`;
   }
   if (sp.waivers.length >= sp.waiverSlots) return '';
@@ -2975,7 +2984,8 @@ function buildAIText(shortRosterNews = false) {
   block(L('DAJEŠ', 'I GIVE'), giveIds());
   block(L('DOBIJAŠ', 'I GET'), getIds());
   block(L('IZBACUJEŠ (sa mog rostera)', 'I DROP (from my roster)'), sp.drops);
-  block(L('WAIVER DODATAK', 'WAIVER ADD'), sp.waivers);
+  block(L('PROTIVNIK IZBACUJE (sa svog rostera, jer dobija više igrača; računa se u trejd)', 'OPPONENT DROPS (from their roster, because they get more players; counts in the trade)'), slotPlan('opp').drops);
+  block(L('MOJ WAIVER DODATAK (menja moj tim, ne računa se u trejd)', 'MY WAIVER ADD (changes my team, not counted in the trade)'), sp.waivers);
   const rep = state.lastReport;
   if (uneven) {
     if (rep?.real) tr.push(stripTags(rep.real));
@@ -2997,7 +3007,7 @@ function buildAIText(shortRosterNews = false) {
   sec(L('TREJD', 'TRADE'), tr.join('\n\n'));
 
   // 4.4 Vesti
-  const tradeSet = [...new Set([...giveIds(), ...getIds(), ...sp.drops, ...sp.waivers])];
+  const tradeSet = [...new Set([...giveIds(), ...getIds(), ...sp.drops, ...sp.waivers, ...slotPlan('opp').drops])];
   const nl = [];
   for (const id of tradeSet) {
     const p = state.byId.get(id), items = newsOf(id);
@@ -3072,7 +3082,7 @@ const teamValsTxt = ids => { const v = teamVals(ids); return CATS.map(c => `${c.
 async function prepareAIText() {
   const sp = slotPlan('my');
   const lg = currentLeague();
-  const trade = [...new Set([...giveIds(), ...getIds(), ...sp.drops, ...sp.waivers])];
+  const trade = [...new Set([...giveIds(), ...getIds(), ...sp.drops, ...sp.waivers, ...slotPlan('opp').drops])];
   const roster = lg ? [...rosterIds(rosterOf('my')), ...rosterIds(rosterOf('opp'))]
     .filter(id => !trade.includes(id)).filter(id => { const p = state.byId.get(id); return p?.newsTs && isRecent(new Date(p.newsTs).toISOString()); }) : [];
   const needLogs = trade.filter(id => !state.gameLogs.has(id));
@@ -3247,10 +3257,14 @@ function balanceHTML(kind, plan) {
     // Moj tim: slotovi se biraju gore (Daješ / Dobijaš), ovde samo napomena i upozorenje
     const notes = [];
     if (plan.dropSlots) notes.push(t('Koga izbacuješ ({a}/{b}) biraš gore, u kartici Daješ.', { a: slotPlan('my').drops.length, b: plan.dropSlots }));
-    if (plan.waiverSlots) notes.push(t('Waiver dodatak (opciono, {a}/{b}) biraš gore, u kartici Dobijaš.', { a: plan.waivers.length, b: plan.waiverSlots }));
     const warn = plan.missingDrops > 0
       ? `<div class="card-warn strong">⚠ ${t('Posle trejda imaš {n} aktivnih (max {m}). Izaberi koga izbacuješ u kartici Daješ, dotle Razlika nije realna.', { n: plan.pre.length, m: ROSTER.ACTIVE })}</div>` : '';
-    return (notes.length ? `<div class="balance"><span class="hint">${notes.join(' ')}</span></div>` : '') + warn;
+    // dajem više igrača: slobodno mesto popunjavam sa waivera; to menja moj tim, ne rezultat trejda
+    const waiver = plan.waiverSlots ? `<div class="balance"><span class="hint">${t('Daješ više igrača nego što dobijaš, pa ti posle trejda ostaje slobodno mesto. Igrač sa waivera menja tvoj tim, ali ne i rezultat trejda.')}</span>
+      ${slotPlan('my').waivers.map(id => `<span class="chip"><span class="slot-tag tag-in">Waiver</span> ${nm(id)}
+        <button type="button" data-action="bal-w-remove" data-kind="my" data-id="${id}" aria-label="${t('Ukloni')}">✕</button></span>`).join('')}
+      ${slotInputHTML('my', 'w', 'balance')}</div>` : '';
+    return (notes.length ? `<div class="balance"><span class="hint">${notes.join(' ')}</span></div>` : '') + waiver + warn;
   }
   // Protivnik: ista komponenta za slotove, ovde u sekciji
   const sp = slotPlan(kind);
@@ -3263,8 +3277,9 @@ function balanceHTML(kind, plan) {
   const offNotes = plan.dropsOff.map(id => `<div class="card-warn row">⚠ ${t('{n} nije na rosteru tima {team}.', { n: nm(id), team: esc(plan.r.name) })}
     ${addButtonHTML({ action: 'add-to-roster', kind, id, label: t('Dodaj na roster') })}</div>`).join('');
   const warn = plan.missingDrops > 0
-    ? `<div class="card-warn strong">⚠ ${t('Posle trejda tim ima {n} aktivnih (max {m}). Izaberi koga izbacuje ({k}), dotle Razlika nije realna.', { n: plan.pre.length, m: ROSTER.ACTIVE, k: plan.missingDrops })}</div>` : '';
-  const inputs = slotInputHTML(kind, 'd', 'balance') + slotInputHTML(kind, 'w', 'balance');
+    ? `<div class="card-warn strong">⚠ ${t('Posle trejda tim ima {n} aktivnih (max {m}). Izaberi koga izbacuje ({k}) gore, u kartici Dobijaš, dotle Razlika nije realna.', { n: plan.pre.length, m: ROSTER.ACTIVE, k: plan.missingDrops })}</div>` : '';
+  // koga protivnik izbacuje bira se gore, u kartici Dobijaš (ovde samo prikaz); njegov waiver nas ne zanima
+  const inputs = '';
   return (chosen ? `<div class="chips slot-chips">${chosen}</div>` : '') + inputs + offNotes + warn;
 }
 
@@ -3636,7 +3651,7 @@ function removeFromRoster(kind, id) {
    ===================================================================== */
 const clone = o => JSON.parse(JSON.stringify(o));
 const fmtDate = iso => fmtShortDate(iso);
-const tradePlayerIds = (teams, slots) => [...new Set([...teams.flatMap(t => [...t.ids, ...(t.drops || []), ...(t.waivers || [])]), ...(slots?.drops || []), ...(slots?.waivers || [])])];
+const tradePlayerIds = (teams, slots) => [...new Set([...teams.flatMap(t => [...t.ids, ...(t.drops || []), ...(t.waivers || [])]), ...(slots?.drops || []), ...(slots?.waivers || []), ...(slots?.oppDrops || [])])];
 
 /**
  * Link za deljenje nosi trejd iz MOG ugla + oznaku s=1. Ko ga otvori, aplikacija proveri njegov roster
@@ -3673,8 +3688,8 @@ function saveTrade(meta = {}) {
     date: new Date().toISOString(),
     period: state.period,
     teams: state.teams.map((tm, i) => ({ name: SIDES[i].srName, ids: [...tm.ids] })),
-    slots: { drops: slotPlan('my').drops, waivers: slotPlan('my').waivers },
-    names: Object.fromEntries(tradePlayerIds(state.teams, slotPlan('my')).map(id => [id, state.byId.get(id)?.name || `#${id}`])),
+    slots: { drops: slotPlan('my').drops, waivers: slotPlan('my').waivers, oppDrops: slotPlan('opp').drops },
+    names: Object.fromEntries(tradePlayerIds(state.teams, { drops: [...slotPlan('my').drops, ...slotPlan('opp').drops] }).map(id => [id, state.byId.get(id)?.name || `#${id}`])),
     snapshot: totals.map(tot => ({ vals: tot.vals, sum: tot.sum, counted: tot.counted })),
   });
   saveHistory();
@@ -3687,7 +3702,7 @@ function openTrade(id) {
   if (!h) return;
   // stari trejdovi (Tim A/B) se otvaraju kao Daješ/Dobijaš: prve dve strane
   // sačuvan trejd se otvara u NOVOM tabu, postojeći nacrti ostaju
-  addTab([GIVE, GET].map(i => h.teams[i]?.ids || []), { ...emptyBalance(), my: { drops: [...(h.slots?.drops || [])], waivers: [...(h.slots?.waivers || [])] } });
+  addTab([GIVE, GET].map(i => h.teams[i]?.ids || []), { ...emptyBalance(), my: { drops: [...(h.slots?.drops || [])], waivers: [...(h.slots?.waivers || [])] }, opp: { drops: [...(h.slots?.oppDrops || [])], waivers: [] } });
   state.period = h.period;
   state.histView = id;
   state.histOpen = true;
@@ -3851,8 +3866,9 @@ function renderHistory() {
     const nowP = state.period;
     const blocks = h.teams.map((t0, ti) => {
       const tm = normTeam(t0);
-      // novi format: slots (izbacuješ ide u Daješ, waiver u Dobijaš); stari format: waivers +, drops −
-      const extra = h.slots ? (ti === GIVE ? h.slots.drops : h.slots.waivers) || [] : tm.waivers;
+      // novi format: slots (izbacuješ ide u Daješ; u Dobijaš ide koga protivnik izbacuje, a kod starijih zapisa waiver); stari format: waivers +, drops −
+      // oppDrops postoji od kad protivnik izbacuje; stariji zapisi su u Dobijaš računali waiver
+      const extra = h.slots ? (ti === GIVE ? h.slots.drops : (h.slots.oppDrops ?? h.slots.waivers)) || [] : tm.waivers;
       const plus = [...tm.ids, ...extra], minus = h.slots ? [] : tm.drops;
       const snap = h.snapshot[ti];
       const cur = sumPlayers(plus, minus);
@@ -3959,7 +3975,7 @@ function searchFor(key, query) {
     return searchResults(query, ex);
   }
   const pref = searchPrefer(key);
-  return searchResults(query, new Set([...takenIds(), ...slotIds('my')]), pref?.set || null);
+  return searchResults(query, new Set([...takenIds(), ...slotIds('my'), ...slotIds('opp')]), pref?.set || null);
 }
 
 /** Ključ pretrage -> gde ide igrač: "0" = tim 0 dobija, "0:d" = izbacuje, "0:w" = waiver */
