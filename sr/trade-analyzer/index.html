@@ -55,6 +55,47 @@
  }
 }
 </script>
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "FAQPage",
+ "inLanguage": "sr",
+ "mainEntity": [
+  {
+   "@type": "Question",
+   "name": "Kako se računaju FG% i FT%?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Iz zbira pogođenih i ukupnih šuteva svih igrača na strani, a ne kao prosek procenata. Igrač koji šutira 60% na 3 pokušaja manje pomera rezultat od igrača koji šutira 50% na 15 pokušaja. Kad uneseš roster, alat pokazuje i koliko se menja procenat tvog tima."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Šta je 9-cat?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "9-cat je najčešći format sa kategorijama u fantasy košarci: poeni, skokovi, asistencije, trojke, ukradene lopte, blokade, procenat šuta iz igre, procenat slobodnih bacanja i izgubljene lopte. U H2H ligama svake nedelje dobijaš ili gubiš svaku kategoriju. Kod izgubljenih lopti, manje je bolje."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Da li je kalkulator za fantasy trejdove besplatan?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Jeste. RosterSwing je besplatan. Nema plaćanja i nema registracije."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Šta znači „mali obim“?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Procenat na vrlo malo šuteva, ispod 3 šuta iz igre ili 1.5 slobodnih bacanja po utakmici na jednoj strani. Takav procenat skoro ne menja procenat tima, pa se, kad trejd ne menja tvoj uneti roster, ta kategorija računa kao nerešena. Sa unetim rosterom, kategorija je nerešena i kad se procenat tima menja manje od .001."
+   }
+  }
+ ]
+}
+</script>
 </head>
 <body class="pub" data-pubpage="analyzer">
 <header class="top gnav" data-root="../../" data-lang="sr" data-app-page="">
@@ -113,6 +154,16 @@
   <section aria-labelledby="what-h">
     <h2 id="what-h">Šta dobijaš</h2>
     <ul class="feats"><li><h3>Poređenje po kategorijama</h3><p>Poeni, skokovi, asistencije, trojke, ukradene, blokade, FG%, FT% i izgubljene lopte, uz razliku za svaku.</p></li><li><h3>Ponderisani FG% i FT%</h3><p>Procenti se računaju iz pogođenih i ukupnih šuteva, pa visok procenat na malo šuteva ne vredi koliko obim.</p></li><li><h3>Minutaža i forma</h3><p>Sezona, poslednjih 7, 15 i 30 dana, i projekcija. Vidi ko u poslednje vreme igra više, a ko manje.</p></li><li><h3>Povrede i vesti</h3><p>Status povrede, propuštene utakmice i najnovije vesti o igraču u izveštaju o trejdu.</p></li><li><h3>Uticaj na tvoj tim</h3><p>Dodaj ligu i roster i vidi tim pre i posle trejda, sa veličinom rostera i IR mestima iz tvoje lige.</p></li><li><h3>Tekst za AI analizu</h3><p>Kopiraj gotov sažetak trejda sa brojkama, vestima i tvojim rosterom i nalepi ga u AI asistenta koga koristiš.</p></li></ul>
+  </section>
+
+  <section aria-labelledby="guide-h">
+    <h2 id="guide-h">Kako proceniti 9-cat trejd</h2>
+    <div class="guide"><div><h3>Broji kategoriju po kategoriju</h3><p>U 9-cat H2H ligama dobijaš kategorije, ne poene. Kreni od zbira obe strane u svakoj kategoriji. Trejd koji dobija pet kategorija za malo može da pomogne više od trejda koji dobija dve za mnogo.</p></div><div><h3>Procenti su ponderisani</h3><p>FG% i FT% nisu prosek procenata igrača. Računaju se iz ukupno pogođenih i ukupno pokušanih šuteva, pa šuter sa mnogo pokušaja pomera procenat tima mnogo više od igrača koji retko šutira. Gledaj kako se menja procenat tvog tima, ne samo igrača.</p></div><div><h3>Minutaža i uloga</h3><p>Brojke prate minute. Poredi oba igrača u istom periodu, cela sezona ili poslednjih 15 dana, i proveri da li uloga raste ili pada. Igrač kome su minuti upravo porasli može da vredi više nego što pokazuje prosek sezone.</p></div><div><h3>Odigrane utakmice i zdravlje</h3><p>Igrač koji propušta utakmice ne pomaže tvom nedeljnom zbiru. Pre nego što prihvatiš, proveri koliko je utakmica svaki igrač odigrao i najnovije vesti o povredama.</p></div><div><h3>Trejd 2 za 1 i mesto na rosteru</h3><p>Kad dobijaš dva igrača za jednog, neko mora da ode sa rostera, pa i njega računaj kao deo trejda. Kad dobijaš jednog za dva, oslobađaš mesto za waiver, a i to mesto ima vrednost.</p></div><div><h3>Punt</h3><p>Ako puntuješ kategoriju, izbaci je iz poređenja. Trejd koji gubi samo kategorije koje puntuješ može da bude čista dobit za tvoj tim.</p></div><div><h3>Tvoj tim, ne trejd sam za sebe</h3><p>Isti trejd može da bude dobar za jedan tim, a loš za drugi. Dobitak u kategorijama u kojima si slab vredi više od dobitka tamo gde već vodiš u ligi.</p></div></div>
+  </section>
+
+  <section aria-labelledby="faq-h">
+    <h2 id="faq-h">Česta pitanja</h2>
+    <div class="faq"><details><summary><h3>Kako se računaju FG% i FT%?</h3></summary><div class="a"><p>Iz zbira pogođenih i ukupnih šuteva svih igrača na strani, a ne kao prosek procenata. Igrač koji šutira 60% na 3 pokušaja manje pomera rezultat od igrača koji šutira 50% na 15 pokušaja. Kad uneseš roster, alat pokazuje i koliko se menja procenat tvog tima.</p></div></details><details><summary><h3>Šta je 9-cat?</h3></summary><div class="a"><p>9-cat je najčešći format sa kategorijama u fantasy košarci: poeni, skokovi, asistencije, trojke, ukradene lopte, blokade, procenat šuta iz igre, procenat slobodnih bacanja i izgubljene lopte. U H2H ligama svake nedelje dobijaš ili gubiš svaku kategoriju. Kod izgubljenih lopti, manje je bolje.</p></div></details><details><summary><h3>Da li je kalkulator za fantasy trejdove besplatan?</h3></summary><div class="a"><p>Jeste. RosterSwing je besplatan. Nema plaćanja i nema registracije.</p></div></details><details><summary><h3>Šta znači „mali obim“?</h3></summary><div class="a"><p>Procenat na vrlo malo šuteva, ispod 3 šuta iz igre ili 1.5 slobodnih bacanja po utakmici na jednoj strani. Takav procenat skoro ne menja procenat tima, pa se, kad trejd ne menja tvoj uneti roster, ta kategorija računa kao nerešena. Sa unetim rosterom, kategorija je nerešena i kad se procenat tima menja manje od .001.</p></div></details></div>
   </section>
 </main>
 <footer class="site-f">

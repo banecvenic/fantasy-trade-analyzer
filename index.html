@@ -52,30 +52,6 @@ if(l)location.replace(app+'#league-'+l.id+'/overview&lang=en');}catch(e){}})();
  "mainEntity": [
   {
    "@type": "Question",
-   "name": "How are FG% and FT% calculated?",
-   "acceptedAnswer": {
-    "@type": "Answer",
-    "text": "From the total makes and attempts of all players on each side, not by averaging percentages. A player who shoots 60% on 3 attempts moves the result less than one who shoots 50% on 15 attempts. With your roster added, the tool also shows how much your team percentage changes."
-   }
-  },
-  {
-   "@type": "Question",
-   "name": "What is 9-cat?",
-   "acceptedAnswer": {
-    "@type": "Answer",
-    "text": "9-cat is the most common category format in fantasy basketball: points, rebounds, assists, three pointers, steals, blocks, field goal percentage, free throw percentage and turnovers. In head to head leagues you win or lose each category every week. For turnovers, fewer is better."
-   }
-  },
-  {
-   "@type": "Question",
-   "name": "Is this fantasy basketball trade calculator free?",
-   "acceptedAnswer": {
-    "@type": "Answer",
-    "text": "Yes. RosterSwing is free to use. There is nothing to buy and no sign-up."
-   }
-  },
-  {
-   "@type": "Question",
    "name": "Where does the data come from?",
    "acceptedAnswer": {
     "@type": "Answer",
@@ -87,7 +63,7 @@ if(l)location.replace(app+'#league-'+l.id+'/overview&lang=en');}catch(e){}})();
    "name": "Does it work for Yahoo leagues?",
    "acceptedAnswer": {
     "@type": "Answer",
-    "text": "Yes. The analyzer compares players, not platforms, so it works for Yahoo, ESPN and other leagues with 9-category scoring. You can set your league roster size, including IR spots. Stats always come from the same source."
+    "text": "Yes. The tools compare players, not platforms, so they work for Yahoo, ESPN and other leagues with 9-category scoring. You can set your league roster size, including IR spots. Stats always come from the same source."
    }
   },
   {
@@ -96,14 +72,6 @@ if(l)location.replace(app+'#league-'+l.id+'/overview&lang=en');}catch(e){}})();
    "acceptedAnswer": {
     "@type": "Answer",
     "text": "No. Leagues, rosters and trades are saved only in your browser on this device. There is no account and no server that stores your data."
-   }
-  },
-  {
-   "@type": "Question",
-   "name": "What does \"low volume\" mean?",
-   "acceptedAnswer": {
-    "@type": "Answer",
-    "text": "A percentage built on very few attempts, under 3 field goal or 1.5 free throw attempts per game on one side. It barely changes a team percentage, so when no roster is added, that category counts as a tie in the score."
    }
   }
  ]
@@ -161,13 +129,13 @@ var b=document.getElementById('continue-btn');b.textContent="Continue: {name}".r
       <span class="pv-score"><span class="pv-n get">6</span><span class="pv-sep">:</span><span class="pv-n">3</span></span>
       <span class="pv-names"><span class="get-t">You get</span><span class="give-t">You give</span></span>
       <span class="pv-verdict">The trade gains you 6 categories, you lose 3</span>
-      <span class="mcats"><span class="mc bad">− PTS</span><span class="mc good">+ REB</span><span class="mc bad">− AST</span><span class="mc bad">− 3PM</span><span class="mc good">+ STL</span><span class="mc good">+ BLK</span><span class="mc good">+ FG%</span><span class="mc good">+ FT%</span><span class="mc good">+ TO</span></span>
+      <span class="mcats"><span class="mc bad" title="you lose it"><span aria-hidden="true">✗</span> PTS<span class="sr-only"> (you lose it)</span></span><span class="mc good" title="you win it"><span aria-hidden="true">✓</span> REB<span class="sr-only"> (you win it)</span></span><span class="mc bad" title="you lose it"><span aria-hidden="true">✗</span> AST<span class="sr-only"> (you lose it)</span></span><span class="mc bad" title="you lose it"><span aria-hidden="true">✗</span> 3PM<span class="sr-only"> (you lose it)</span></span><span class="mc good" title="you win it"><span aria-hidden="true">✓</span> STL<span class="sr-only"> (you win it)</span></span><span class="mc good" title="you win it"><span aria-hidden="true">✓</span> BLK<span class="sr-only"> (you win it)</span></span><span class="mc good" title="you win it"><span aria-hidden="true">✓</span> FG%<span class="sr-only"> (you win it)</span></span><span class="mc good" title="you win it"><span aria-hidden="true">✓</span> FT%<span class="sr-only"> (you win it)</span></span><span class="mc good" title="you win it"><span aria-hidden="true">✓</span> TO<span class="sr-only"> (you win it)</span></span></span>
       <span class="pv-rep"><span class="pv-t plus">Pluses</span><span>Gain rebounds and blocks (+3.1 REB, +1.2 BLK).</span><span>Better shooting: team FG% +.006.</span>
         <span class="pv-t risk">Risks</span><span>You give up assists (−3.4 AST).</span></span>
     </a>
   </section>
 
-  <section class="mini" id="mini" aria-labelledby="mini-h" data-txt='{&quot;mini_give_ph&quot;: &quot;Who do you give…&quot;, &quot;mini_get_ph&quot;: &quot;Who do you get…&quot;, &quot;mini_loading&quot;: &quot;Loading players…&quot;, &quot;mini_error&quot;: &quot;Players could not be loaded. Try again later.&quot;, &quot;mini_none&quot;: &quot;No players found&quot;, &quot;mini_hint&quot;: &quot;Add a player on each side to see the score.&quot;, &quot;mini_remove&quot;: &quot;Remove&quot;, &quot;mini_stats&quot;: &quot;Full stats&quot;, &quot;mini_open&quot;: &quot;Open the full analysis&quot;, &quot;mini_cat&quot;: &quot;Cat.&quot;, &quot;mini_diff&quot;: &quot;Diff&quot;, &quot;mini_total&quot;: &quot;Total&quot;}' data-app="assets/app.js" data-lang="en" data-ta="trade-analyzer/">
+  <section class="mini" id="mini" aria-labelledby="mini-h" data-txt='{&quot;mini_give_ph&quot;: &quot;Who do you give…&quot;, &quot;mini_get_ph&quot;: &quot;Who do you get…&quot;, &quot;mini_loading&quot;: &quot;Loading players…&quot;, &quot;mini_error&quot;: &quot;Players could not be loaded. Try again later.&quot;, &quot;mini_none&quot;: &quot;No players found&quot;, &quot;mini_hint&quot;: &quot;Add a player on each side to see the score.&quot;, &quot;mini_remove&quot;: &quot;Remove&quot;, &quot;mini_stats&quot;: &quot;Full stats&quot;, &quot;mini_open&quot;: &quot;Open the full analysis&quot;, &quot;mini_cat&quot;: &quot;Cat.&quot;, &quot;mini_diff&quot;: &quot;Diff&quot;, &quot;mini_total&quot;: &quot;Total&quot;, &quot;mini_win&quot;: &quot;you win it&quot;, &quot;mini_lose&quot;: &quot;you lose it&quot;, &quot;mini_tie&quot;: &quot;tie&quot;, &quot;mini_ties&quot;: &quot;{n} tied&quot;}' data-app="assets/app.js" data-lang="en" data-ta="trade-analyzer/">
     <h2 id="mini-h">Try a quick trade</h2>
     <p class="lead">Up to 2 players per side. Season averages per game.</p>
     <div class="mini-sides">
@@ -192,7 +160,7 @@ var b=document.getElementById('continue-btn');b.textContent="Continue: {name}".r
 
   <section aria-labelledby="faq-h">
     <h2 id="faq-h">Frequently asked questions</h2>
-    <div class="faq"><details><summary><h3>How are FG% and FT% calculated?</h3></summary><div class="a"><p>From the total makes and attempts of all players on each side, not by averaging percentages. A player who shoots 60% on 3 attempts moves the result less than one who shoots 50% on 15 attempts. With your roster added, the tool also shows how much your team percentage changes.</p></div></details><details><summary><h3>What is 9-cat?</h3></summary><div class="a"><p>9-cat is the most common category format in fantasy basketball: points, rebounds, assists, three pointers, steals, blocks, field goal percentage, free throw percentage and turnovers. In head to head leagues you win or lose each category every week. For turnovers, fewer is better.</p></div></details><details><summary><h3>Is this fantasy basketball trade calculator free?</h3></summary><div class="a"><p>Yes. RosterSwing is free to use. There is nothing to buy and no sign-up.</p></div></details><details><summary><h3>Where does the data come from?</h3></summary><div class="a"><p>Player stats, projections and news come from publicly available ESPN fantasy data. Numbers are averages per game for the period you pick.</p></div></details><details><summary><h3>Does it work for Yahoo leagues?</h3></summary><div class="a"><p>Yes. The analyzer compares players, not platforms, so it works for Yahoo, ESPN and other leagues with 9-category scoring. You can set your league roster size, including IR spots. Stats always come from the same source.</p></div></details><details><summary><h3>Do I need an account?</h3></summary><div class="a"><p>No. Leagues, rosters and trades are saved only in your browser on this device. There is no account and no server that stores your data.</p></div></details><details><summary><h3>What does &quot;low volume&quot; mean?</h3></summary><div class="a"><p>A percentage built on very few attempts, under 3 field goal or 1.5 free throw attempts per game on one side. It barely changes a team percentage, so when no roster is added, that category counts as a tie in the score.</p></div></details></div>
+    <div class="faq"><details><summary><h3>Where does the data come from?</h3></summary><div class="a"><p>Player stats, projections and news come from publicly available ESPN fantasy data. Numbers are averages per game for the period you pick.</p></div></details><details><summary><h3>Does it work for Yahoo leagues?</h3></summary><div class="a"><p>Yes. The tools compare players, not platforms, so they work for Yahoo, ESPN and other leagues with 9-category scoring. You can set your league roster size, including IR spots. Stats always come from the same source.</p></div></details><details><summary><h3>Do I need an account?</h3></summary><div class="a"><p>No. Leagues, rosters and trades are saved only in your browser on this device. There is no account and no server that stores your data.</p></div></details></div>
   </section>
 </main>
 <footer class="site-f">

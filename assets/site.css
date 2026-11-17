@@ -134,9 +134,10 @@
 .mini-cards:empty{display:none}
 .mcard{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 8px 8px 10px;min-width:0}
 .mav{width:52px;height:52px;border-radius:50%;background:var(--card2);border:1px solid var(--line);flex:none;overflow:hidden;display:grid;place-items:center;font-size:15px;font-weight:800;color:var(--muted)}
-.mav img{width:136%;height:auto;margin-top:10px}
+.mav img{position:absolute;left:50%;top:0;transform:translateX(-50%);width:136%;height:auto;margin-top:10px;background:var(--card2)}
 .mav.sm{width:26px;height:26px;font-size:10px;margin-right:8px;vertical-align:middle;display:inline-grid}
 .mav.sm img{margin-top:4px}
+.mav.sm{position:relative}
 .mtxt{min-width:0;flex:1}
 .mtxt b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mtxt small{color:var(--muted);font-size:12px}
@@ -155,7 +156,7 @@
 .mini-score .n.w{color:var(--win-text)}
 .mini-score .n.l{color:var(--lose-text)}
 .mini-score .sep{color:var(--dim);font-size:28px}
-.mini-open{font-size:13px;font-weight:700;color:var(--info)}
+.mini-ties{font-size:13px;font-weight:700;color:var(--muted);margin-top:-4px}
 .mini-stats{min-width:0;max-width:100%;margin:4px 0 6px;border:1px solid var(--line);border-radius:12px;background:var(--bg2)}
 .mini-stats summary{list-style:none;cursor:pointer;display:flex;justify-content:center;align-items:center;gap:8px;padding:10px;font-weight:700;font-size:14px;color:var(--muted)}
 .mini-stats summary::-webkit-details-marker{display:none}
@@ -191,6 +192,10 @@
 .ba-table tr.diff td{font-weight:700;border-bottom:0}
 .ba-table td.good{color:var(--win-text)}
 .ba-table td.bad{color:var(--lose-text)}
+.guide{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.guide > div{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+.guide h3{margin:0 0 6px;font-size:16px}
+.guide p{margin:0;color:var(--muted);font-size:14px;line-height:1.55}
 .intro{padding:26px 0 6px}
 .intro h1{font-size:30px;font-weight:800;letter-spacing:-.02em;margin:0 0 6px}
 .intro p{color:var(--muted);font-size:15px;line-height:1.5;margin:0;max-width:760px}

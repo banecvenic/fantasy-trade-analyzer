@@ -52,30 +52,6 @@ if(l)location.replace(app+'#league-'+l.id+'/overview&lang=sr');}catch(e){}})();
  "mainEntity": [
   {
    "@type": "Question",
-   "name": "Kako se računaju FG% i FT%?",
-   "acceptedAnswer": {
-    "@type": "Answer",
-    "text": "Iz zbira pogođenih i ukupnih šuteva svih igrača na strani, a ne kao prosek procenata. Igrač koji šutira 60% na 3 pokušaja manje pomera rezultat od igrača koji šutira 50% na 15 pokušaja. Kad uneseš roster, alat pokazuje i koliko se menja procenat tvog tima."
-   }
-  },
-  {
-   "@type": "Question",
-   "name": "Šta je 9-cat?",
-   "acceptedAnswer": {
-    "@type": "Answer",
-    "text": "9-cat je najčešći format sa kategorijama u fantasy košarci: poeni, skokovi, asistencije, trojke, ukradene lopte, blokade, procenat šuta iz igre, procenat slobodnih bacanja i izgubljene lopte. U H2H ligama svake nedelje dobijaš ili gubiš svaku kategoriju. Kod izgubljenih lopti, manje je bolje."
-   }
-  },
-  {
-   "@type": "Question",
-   "name": "Da li je kalkulator za fantasy trejdove besplatan?",
-   "acceptedAnswer": {
-    "@type": "Answer",
-    "text": "Jeste. RosterSwing je besplatan. Nema plaćanja i nema registracije."
-   }
-  },
-  {
-   "@type": "Question",
    "name": "Odakle su podaci?",
    "acceptedAnswer": {
     "@type": "Answer",
@@ -87,7 +63,7 @@ if(l)location.replace(app+'#league-'+l.id+'/overview&lang=sr');}catch(e){}})();
    "name": "Da li radi za Yahoo lige?",
    "acceptedAnswer": {
     "@type": "Answer",
-    "text": "Radi. Alat poredi igrače, ne platforme, pa radi za Yahoo, ESPN i druge lige sa 9 kategorija. Možeš da podesiš veličinu rostera svoje lige, uključujući IR mesta. Statistika uvek dolazi iz istog izvora."
+    "text": "Radi. Alati porede igrače, ne platforme, pa rade za Yahoo, ESPN i druge lige sa 9 kategorija. Možeš da podesiš veličinu rostera svoje lige, uključujući IR mesta. Statistika uvek dolazi iz istog izvora."
    }
   },
   {
@@ -96,14 +72,6 @@ if(l)location.replace(app+'#league-'+l.id+'/overview&lang=sr');}catch(e){}})();
    "acceptedAnswer": {
     "@type": "Answer",
     "text": "Ne treba. Lige, rosteri i trejdovi čuvaju se samo u tvom browseru, na ovom uređaju. Nema naloga i nema servera koji čuva tvoje podatke."
-   }
-  },
-  {
-   "@type": "Question",
-   "name": "Šta znači „mali obim“?",
-   "acceptedAnswer": {
-    "@type": "Answer",
-    "text": "Procenat na vrlo malo šuteva, ispod 3 šuta iz igre ili 1.5 slobodnih bacanja po utakmici na jednoj strani. Takav procenat skoro ne menja procenat tima, pa se, dok roster nije unet, ta kategorija računa kao nerešena."
    }
   }
  ]
@@ -161,13 +129,13 @@ var b=document.getElementById('continue-btn');b.textContent="Nastavi: {name}".re
       <span class="pv-score"><span class="pv-n get">6</span><span class="pv-sep">:</span><span class="pv-n">3</span></span>
       <span class="pv-names"><span class="get-t">Dobijaš</span><span class="give-t">Daješ</span></span>
       <span class="pv-verdict">Trejd ti donosi 6 kategorija, gubiš 3</span>
-      <span class="mcats"><span class="mc bad">− PTS</span><span class="mc good">+ REB</span><span class="mc bad">− AST</span><span class="mc bad">− 3PM</span><span class="mc good">+ STL</span><span class="mc good">+ BLK</span><span class="mc good">+ FG%</span><span class="mc good">+ FT%</span><span class="mc good">+ TO</span></span>
+      <span class="mcats"><span class="mc bad" title="gubiš"><span aria-hidden="true">✗</span> PTS<span class="sr-only"> (gubiš)</span></span><span class="mc good" title="dobijaš"><span aria-hidden="true">✓</span> REB<span class="sr-only"> (dobijaš)</span></span><span class="mc bad" title="gubiš"><span aria-hidden="true">✗</span> AST<span class="sr-only"> (gubiš)</span></span><span class="mc bad" title="gubiš"><span aria-hidden="true">✗</span> 3PM<span class="sr-only"> (gubiš)</span></span><span class="mc good" title="dobijaš"><span aria-hidden="true">✓</span> STL<span class="sr-only"> (dobijaš)</span></span><span class="mc good" title="dobijaš"><span aria-hidden="true">✓</span> BLK<span class="sr-only"> (dobijaš)</span></span><span class="mc good" title="dobijaš"><span aria-hidden="true">✓</span> FG%<span class="sr-only"> (dobijaš)</span></span><span class="mc good" title="dobijaš"><span aria-hidden="true">✓</span> FT%<span class="sr-only"> (dobijaš)</span></span><span class="mc good" title="dobijaš"><span aria-hidden="true">✓</span> TO<span class="sr-only"> (dobijaš)</span></span></span>
       <span class="pv-rep"><span class="pv-t plus">Plusevi</span><span>Dobijaš skokove i blokade (+3.1 REB, +1.2 BLK).</span><span>Bolji šut: FG% tima +.006.</span>
         <span class="pv-t risk">Rizici</span><span>Gubiš asistencije (−3.4 AST).</span></span>
     </a>
   </section>
 
-  <section class="mini" id="mini" aria-labelledby="mini-h" data-txt='{&quot;mini_give_ph&quot;: &quot;Koga daješ…&quot;, &quot;mini_get_ph&quot;: &quot;Koga dobijaš…&quot;, &quot;mini_loading&quot;: &quot;Učitavam igrače…&quot;, &quot;mini_error&quot;: &quot;Igrači nisu učitani. Pokušaj kasnije.&quot;, &quot;mini_none&quot;: &quot;Nema igrača&quot;, &quot;mini_hint&quot;: &quot;Dodaj igrača na svaku stranu da vidiš rezultat.&quot;, &quot;mini_remove&quot;: &quot;Ukloni&quot;, &quot;mini_stats&quot;: &quot;Cela statistika&quot;, &quot;mini_open&quot;: &quot;Otvori celu analizu&quot;, &quot;mini_cat&quot;: &quot;Kat.&quot;, &quot;mini_diff&quot;: &quot;Razlika&quot;, &quot;mini_total&quot;: &quot;Ukupno&quot;}' data-app="../assets/app.js" data-lang="sr" data-ta="../sr/trade-analyzer/">
+  <section class="mini" id="mini" aria-labelledby="mini-h" data-txt='{&quot;mini_give_ph&quot;: &quot;Koga daješ…&quot;, &quot;mini_get_ph&quot;: &quot;Koga dobijaš…&quot;, &quot;mini_loading&quot;: &quot;Učitavam igrače…&quot;, &quot;mini_error&quot;: &quot;Igrači nisu učitani. Pokušaj kasnije.&quot;, &quot;mini_none&quot;: &quot;Nema igrača&quot;, &quot;mini_hint&quot;: &quot;Dodaj igrača na svaku stranu da vidiš rezultat.&quot;, &quot;mini_remove&quot;: &quot;Ukloni&quot;, &quot;mini_stats&quot;: &quot;Cela statistika&quot;, &quot;mini_open&quot;: &quot;Otvori celu analizu&quot;, &quot;mini_cat&quot;: &quot;Kat.&quot;, &quot;mini_diff&quot;: &quot;Razlika&quot;, &quot;mini_total&quot;: &quot;Ukupno&quot;, &quot;mini_win&quot;: &quot;dobijaš&quot;, &quot;mini_lose&quot;: &quot;gubiš&quot;, &quot;mini_tie&quot;: &quot;nerešeno&quot;, &quot;mini_ties&quot;: &quot;{n} nerešeno&quot;}' data-app="../assets/app.js" data-lang="sr" data-ta="../sr/trade-analyzer/">
     <h2 id="mini-h">Probaj brzi trejd</h2>
     <p class="lead">Do 2 igrača po strani. Prosek po utakmici za sezonu.</p>
     <div class="mini-sides">
@@ -192,7 +160,7 @@ var b=document.getElementById('continue-btn');b.textContent="Nastavi: {name}".re
 
   <section aria-labelledby="faq-h">
     <h2 id="faq-h">Česta pitanja</h2>
-    <div class="faq"><details><summary><h3>Kako se računaju FG% i FT%?</h3></summary><div class="a"><p>Iz zbira pogođenih i ukupnih šuteva svih igrača na strani, a ne kao prosek procenata. Igrač koji šutira 60% na 3 pokušaja manje pomera rezultat od igrača koji šutira 50% na 15 pokušaja. Kad uneseš roster, alat pokazuje i koliko se menja procenat tvog tima.</p></div></details><details><summary><h3>Šta je 9-cat?</h3></summary><div class="a"><p>9-cat je najčešći format sa kategorijama u fantasy košarci: poeni, skokovi, asistencije, trojke, ukradene lopte, blokade, procenat šuta iz igre, procenat slobodnih bacanja i izgubljene lopte. U H2H ligama svake nedelje dobijaš ili gubiš svaku kategoriju. Kod izgubljenih lopti, manje je bolje.</p></div></details><details><summary><h3>Da li je kalkulator za fantasy trejdove besplatan?</h3></summary><div class="a"><p>Jeste. RosterSwing je besplatan. Nema plaćanja i nema registracije.</p></div></details><details><summary><h3>Odakle su podaci?</h3></summary><div class="a"><p>Statistika, projekcije i vesti o igračima dolaze iz javno dostupnih ESPN fantasy podataka. Brojke su prosek po utakmici za period koji izabereš.</p></div></details><details><summary><h3>Da li radi za Yahoo lige?</h3></summary><div class="a"><p>Radi. Alat poredi igrače, ne platforme, pa radi za Yahoo, ESPN i druge lige sa 9 kategorija. Možeš da podesiš veličinu rostera svoje lige, uključujući IR mesta. Statistika uvek dolazi iz istog izvora.</p></div></details><details><summary><h3>Da li mi treba nalog?</h3></summary><div class="a"><p>Ne treba. Lige, rosteri i trejdovi čuvaju se samo u tvom browseru, na ovom uređaju. Nema naloga i nema servera koji čuva tvoje podatke.</p></div></details><details><summary><h3>Šta znači „mali obim“?</h3></summary><div class="a"><p>Procenat na vrlo malo šuteva, ispod 3 šuta iz igre ili 1.5 slobodnih bacanja po utakmici na jednoj strani. Takav procenat skoro ne menja procenat tima, pa se, dok roster nije unet, ta kategorija računa kao nerešena.</p></div></details></div>
+    <div class="faq"><details><summary><h3>Odakle su podaci?</h3></summary><div class="a"><p>Statistika, projekcije i vesti o igračima dolaze iz javno dostupnih ESPN fantasy podataka. Brojke su prosek po utakmici za period koji izabereš.</p></div></details><details><summary><h3>Da li radi za Yahoo lige?</h3></summary><div class="a"><p>Radi. Alati porede igrače, ne platforme, pa rade za Yahoo, ESPN i druge lige sa 9 kategorija. Možeš da podesiš veličinu rostera svoje lige, uključujući IR mesta. Statistika uvek dolazi iz istog izvora.</p></div></details><details><summary><h3>Da li mi treba nalog?</h3></summary><div class="a"><p>Ne treba. Lige, rosteri i trejdovi čuvaju se samo u tvom browseru, na ovom uređaju. Nema naloga i nema servera koji čuva tvoje podatke.</p></div></details></div>
   </section>
 </main>
 <footer class="site-f">

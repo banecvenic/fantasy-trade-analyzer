@@ -235,6 +235,9 @@ const EN = {
   "Uneto {a} od {b} timova": "{a} of {b} teams entered",
   "Upozorenja": "Alerts",
   "Svi alerti": "All alerts",
+  "Otvori ovaj trejd u mojoj ligi": "Open this trade in my league",
+  "U kojoj ligi da otvorim trejd?": "Which league should this trade open in?",
+  "Trejd se otvara u novom tabu izabrane lige, sa istim stranama. Postojeći trejdovi ostaju netaknuti.": "The trade opens in a new tab of the chosen league, with the same sides. Your existing trades stay as they are.",
   "Svi alerti ({n})": "See all alerts ({n})",
   "Svi igrači sa tvog rostera, i oni na IR. Najnovije gore.": "All players on your roster, including IR. Newest first.",
   "Uredi roster": "Edit roster",
@@ -1107,6 +1110,8 @@ function shareMatch(lg, lists) {
 
 function handleSharedLink(hp) {
   const lists = (hp.get('t') || '|').split('|').map(ids);
+  // mv=1: moj trejd iz brzog poređenja prelazi u ligu koju izaberem, strane ostaju iste
+  const keep = hp.get('mv') === '1';
   const per = hp.get('per');
   if (PERIODS.some(p => p.key === per)) { state.period = per; tradeStoreGet().period = per; persistTrades(); }
   const leagues = profile?.leagues || [];
@@ -1115,31 +1120,33 @@ function handleSharedLink(hp) {
   history.replaceState(null, '', base.view === 'league' ? `#league-${base.id}` : `#${base.view}`);
   if (!leagues.length) { openSharedIn('quick', lists); return; }
   const matches = leagues.map(lg => ({ lg, m: shareMatch(lg, lists) })).map(x => ({ ...x, ok: x.m.own || x.m.theirs }));
-  if (leagues.length === 1 && matches[0].ok) { openSharedIn(leagues[0].id, lists); return; }
+  if (!keep && leagues.length === 1 && matches[0].ok) { openSharedIn(leagues[0].id, lists); return; }
   state.sharedOpen = false;
   applyRoute(); // prikaži osnovni ekran, pa pitaj
   const ordered = [...matches.filter(x => x.ok), ...matches.filter(x => !x.ok)];
   showModal({
-    title: t('U koju ligu da svrstam trejd?'),
-    body: `<p>${t('Otvara se deljeni trejd, u novom tabu. Postojeći trejdovi ostaju netaknuti.')}</p>
+    title: keep ? t('U kojoj ligi da otvorim trejd?') : t('U koju ligu da svrstam trejd?'),
+    body: `<p>${keep ? t('Trejd se otvara u novom tabu izabrane lige, sa istim stranama. Postojeći trejdovi ostaju netaknuti.') : t('Otvara se deljeni trejd, u novom tabu. Postojeći trejdovi ostaju netaknuti.')}</p>
       <div class="share-pick">
         ${ordered.map(({ lg, ok }) => `<button type="button" class="pp-league" data-share-to="${lg.id}"><span>${esc(lgName(lg))} ${ok ? `<span class="slot-tag tag-in">${t('prepoznato')}</span>` : ''}</span><span class="pbadge">${esc(platformLabel(lg.platform))}</span></button>`).join('')}
-        <button type="button" class="pp-league indep" data-share-to="quick"><span>${t('Neovisan trejd (bez lige)')}</span><span class="hint">${t('brzo poređenje')}</span></button>
+        ${keep ? '' : `<button type="button" class="pp-league indep" data-share-to="quick"><span>${t('Neovisan trejd (bez lige)')}</span><span class="hint">${t('brzo poređenje')}</span></button>`}
       </div>`,
     cancel: t('Otkaži'),
   });
   state.pendingShare = lists;
+  state.pendingKeep = keep;
 }
 
 /** Otvori deljeni trejd u novom tabu izabrane lige (ili brzog poređenja). Strane se okreću po rosteru te lige. */
-function openSharedIn(scope, lists) {
+function openSharedIn(scope, lists, keep = false) {
   closeModal();
-  state.pendingShare = null;
+  state.pendingShare = null; state.pendingKeep = false;
   state.view = scope === 'quick' ? 'quick' : 'league';
   document.body.dataset.view = state.view;
   bindScope(scope);
   const lg = currentLeague();
-  const own = lg ? shareMatch(lg, lists).own : false; // moji igrači su u "Daješ" -> moj trejd, bez okretanja
+  // moji igrači su u "Daješ" -> moj trejd, bez okretanja; keep (iz mog brzog poređenja): nikad se ne okreće
+  const own = keep || (lg ? shareMatch(lg, lists).own : false);
   const oriented = own ? lists : [lists[GET], lists[GIVE]];
   const s = scopeTabs();
   const key = lists2 => lists2.map(l => [...l].sort().join(',')).join('|');
@@ -1325,15 +1332,17 @@ function compare(totals) {
     // FG%/FT% sa unetim rosterom: ako se procenat mog tima skoro ne menja, kategorija je nerešena
     const td = cat.type === 'pct' ? myTeamDelta(cat) : null;
     if (td != null && Math.abs(td) < TEAM_PCT_TIE) { res.cats[cat.key] = { marks, winner: null, runnerUp: null, margin: null, teamTie: true }; res.ties++; continue; }
-    // Bez rostera: FG%/FT% sa oznakom "mali obim" skoro ne utiče na tim, pa je nerešeno
-    if (td == null && !state.rosters?.my?.players.length && lowVolume(cat, totals)) { res.cats[cat.key] = { marks, winner: null, runnerUp: null, margin: null, lowVolTie: true }; res.ties++; continue; }
+    // Kad se ne računa uticaj na moj tim: FG%/FT% sa oznakom "mali obim" skoro ne utiče na tim, pa je nerešeno
+    if (td == null && lowVolume(cat, totals)) { res.cats[cat.key] = { marks, winner: null, runnerUp: null, margin: null, lowVolTie: true }; res.ties++; continue; }
     const entries = active.map(i => ({ i, v: totals[i].vals[cat.key] })).filter(en => en.v != null);
     let winner = null, margin = null, runnerUp = null;
     if (entries.length >= 2) {
       // porede se nezaokružene vrednosti, ali iste prikazane brojke (npr. 1.9 i 1.9) su nerešeno
       entries.sort((a, b) => (cat.lowerIsBetter ? a.v - b.v : b.v - a.v));
       const kBest = cmpKey(cat, entries[0].v), kWorst = cmpKey(cat, entries[entries.length - 1].v);
-      if (kBest !== kWorst) {
+      // dve strane: i razlika koja se prikazuje kao 0 (tabela "=") je nerešeno
+      const zeroDiff = entries.length === 2 && fmtDelta(cat, entries[0].v - entries[1].v).zero;
+      if (kBest !== kWorst && !zeroDiff) {
         const bestOnes = entries.filter(en => cmpKey(cat, en.v) === kBest);
         const worstOnes = entries.filter(en => cmpKey(cat, en.v) === kWorst);
         if (bestOnes.length === 1) {
@@ -1769,14 +1778,15 @@ function renderScore(totals, cmp) {
     <div class="score-note">${PERIODS.find(p => p.key === state.period).label}${puntNote()}</div>
     ${state.scope === 'quick'
       // Brzo poređenje: ništa se ne čuva; deljenje linka i zamena strana
-      ? `<div class="score-actions"><button type="button" class="linkbtn" data-action="swap-sides" title="${esc(t('Daješ postaje Dobijaš i obrnuto'))}">⇄ ${t('Zameni strane')}</button><button type="button" class="linkbtn" data-action="share">🔗 ${t('Kopiraj link')}</button></div>`
+      ? `<div class="score-actions"><button type="button" class="linkbtn" data-action="swap-sides" title="${esc(t('Daješ postaje Dobijaš i obrnuto'))}">⇄ ${t('Zameni strane')}</button><button type="button" class="linkbtn" data-action="share">🔗 ${t('Kopiraj link')}</button></div>
+        ${profile?.leagues?.length ? `<div class="score-actions"><button type="button" class="btn" data-action="open-in-league">${t('Otvori ovaj trejd u mojoj ligi')} →</button></div>` : ''}`
       : `<div class="score-actions"><button type="button" class="linkbtn" data-action="save-trade" title="${t('Čuva samo ideju u Istoriju; rosteri se ne menjaju')}">★ ${t('Sačuvaj ideju')}</button><button type="button" class="linkbtn" data-action="share">🔗 ${t('Kopiraj link')}</button></div>
     <div class="score-actions"><button type="button" class="btn ok" data-action="trade-done" title="${t('Tek ovo menja sačuvane rostere')}">✔ ${t('Trejd se dogodio')}</button></div>
     <div class="score-hint">${t('Ovo je ideja za trejd: tvoj sačuvani roster se ne menja dok ne klikneš „Trejd se dogodio”.')}</div>`}`;
 }
 
 function avatarHTML(p) {
-  return `<span class="av" data-ini="${esc(initials(p.name))}"><img src="${CONFIG.HEADSHOT_URL(p.id)}" alt="" loading="lazy" onerror="this.parentNode.textContent=this.parentNode.dataset.ini"></span>`;
+  return `<span class="av" data-ini="${esc(initials(p.name))}"><img src="${CONFIG.HEADSHOT_URL(p.id)}" alt="" loading="lazy" onerror="this.remove()"></span>`; // inicijali (::before) se vide dok se slika učitava i kad je nema
 }
 
 function injHTML(p) {
@@ -2063,7 +2073,7 @@ function renderCompare(totals, cmp) {
       : t('tim: {d}', { d: fmtDelta(c, tv.after - tv.before).txt });
     const sameShown = cmpKey(c, totals[GIVE].vals[c.key]) === cmpKey(c, totals[GET].vals[c.key]) && totals[GIVE].vals[c.key] != null;
     let diff = r.punted ? `<td class="dcell punt">punt</td>` : sameShown && tv == null ? `<td class="dcell eq${puntCls(c)}">=</td>` : deltaCellHTML(c, totals[GIVE], totals[GET], '', sub);
-    if (!r.punted && lowVolume(c, totals)) diff = diff.replace(/(<span class="sub dsub">|<\/td>$)/, ` <span class="lowvol" data-tip="${esc(t('Procenat na malom broju šuteva skoro ne utiče na tim.'))}">${t('mali obim')}</span>$1`);
+    if (!r.punted && tv == null && lowVolume(c, totals)) diff = diff.replace(/(<span class="sub dsub">|<\/td>$)/, ` <span class="lowvol" data-tip="${esc(t('Procenat na malom broju šuteva skoro ne utiče na tim.'))}">${t('mali obim')}</span>$1`);
     return `<tr class="${r.punted ? 'punt-row' : ''}"><td class="catth${puntCls(c)}" data-punt="${c.key}" title="${t('Klik: punt')}"><b>${c.label}</b></td>${tds}${diff}</tr>`;
   }).join('');
   el.innerHTML = `<div class="section-t">${t('Poređenje kategorija')} <span class="hint">· ${t('klik na kategoriju = punt')}</span></div>
@@ -2137,6 +2147,8 @@ function teamZ(ids) {
 function myTeamProfile() {
   const r = currentLeague() ? state.rosters?.my : null;
   if (!r || !r.players.length) return null;
+  // isto pravilo kao Pregled: tvrdnje "jak / slab u odnosu na ligu" tek sa bar 3 uneta tima
+  if (enteredTeams().length < 3) return null;
   const ids = r.players.filter(x => !x.ir).map(x => x.id);
   const z = teamZ(ids);
   const list = CATS.filter(c => !isPunt(c)).map(c => ({ c, z: z[c.key] })).sort((a, b) => b.z - a.z);
@@ -2251,8 +2263,8 @@ const RT = {
     en: ['{name}: role is growing, {a} → {b} min over the last 15 days.', '{name} is getting more minutes: {a} → {b} min in the last 15 days.', '{name}\'s minutes are trending up: {a} → {b} min over the last 15 days.'],
   },
   bigMin: {
-    sr: ['{name} igra {m} min po utakmici, stabilna uloga.', '{name} je sigurno na terenu: {m} min po utakmici.'],
-    en: ['{name} plays {m} min a game, a stable role.', '{name} is locked into the rotation: {m} min a game.'],
+    sr: ['{name} igra {m} min po utakmici {per}, stabilna uloga.', '{name} je sigurno na terenu: {m} min po utakmici {per}.'],
+    en: ['{name} plays {m} min a game {per}, a stable role.', '{name} is locked into the rotation: {m} min a game {per}.'],
   },
   giveUnsure: {
     sr: ['Rešavaš se igrača čiji povratak je neizvestan ({name}, {why}).', 'Odlazi {name}, a njegov povratak je neizvestan ({why}).'],
@@ -2286,8 +2298,8 @@ const RT = {
     en: ['{n} players who play regularly, for one better player and one who barely plays.', 'You get {n} regular rotation players and drop someone who barely plays.'],
   },
   dropVs: {
-    sr: ['Odlazi {drop} ({dm} min, igrao {dg} od {dn}), a dolazi {inc} ({im} min, {ig} od {in}).'],
-    en: ['Instead of {drop} ({dm} min, played {dg} of {dn}) you get {inc} ({im} min, {ig} of {in}).'],
+    sr: ['Odlazi {drop} ({dm} min, igrao {dg} od {dn}), a dolazi {inc} ({im} min, {ig} od {in}). Minuti {per}.'],
+    en: ['Instead of {drop} ({dm} min, played {dg} of {dn}) you get {inc} ({im} min, {ig} of {in}). Minutes {per}.'],
   },
   room: {
     sr: ['Imaš mesta, ne moraš nikoga da izbaciš. {who} su čist dodatak.', 'Roster ima mesta ({n}/{max} posle trejda), pa ne izbacuješ nikoga. {who} su čist dodatak.'],
@@ -2302,16 +2314,19 @@ const RT = {
     en: ['You get the best player in the trade ({name}), and {w} fills the open spot.', 'The best player in the trade ({name}) comes to you, plus {w} off waivers.'],
   },
   moreMin: {
-    sr: ['{name} igra više: {a} min po utakmici, naspram {b} kod igrača koga daješ.', 'Veća uloga: {name} ima {a} min, a igrač koga daješ {b}.'],
-    en: ['{name} plays more: {a} min a game, versus {b} for the player you give.', 'Bigger role: {name} plays {a} min, the player you give {b}.'],
+    sr: ['{name} igra više {per}: {a} min po utakmici, naspram {b} kod igrača koga daješ.', 'Veća uloga {per}: {name} ima {a} min, a igrač koga daješ {b}.'],
+    en: ['{name} plays more {per}: {a} min a game, versus {b} for the player you give.', 'Bigger role {per}: {name} plays {a} min, the player you give {b}.'],
   },
+  // period za poređenje minutaže (oba igrača uvek iz istog perioda)
+  perL15: { sr: ['u poslednjih 15 dana'], en: ['over the last 15 days'] },
+  perSeason: { sr: ['ove sezone'], en: ['this season'] },
   gpBetter: {
     sr: ['{name} je pouzdaniji: odigrao {gp} od {n}, naspram {sgp} od {sn} kod igrača koga daješ.'],
     en: ['{name} is more reliable: played {gp} of {n}, versus {sgp} of {sn} for the player you give.'],
   },
   giveMoreMin: {
-    sr: ['Odlazi {name}, koji igra više: {a} min naspram {b}.'],
-    en: ['{name} is leaving, and he plays more: {a} min versus {b}.'],
+    sr: ['Odlazi {name}, koji igra više {per}: {a} min naspram {b}.'],
+    en: ['{name} is leaving, and he plays more {per}: {a} min versus {b}.'],
   },
   giveMoreGp: {
     sr: ['Odlazi pouzdaniji igrač: {name} je odigrao {gp} od {n}, naspram {rgp} od {rn}.'],
@@ -2416,8 +2431,8 @@ const RT = {
     en: ['You lose depth: {list} play regularly.', 'Watch your depth, regular rotation players are leaving ({list}).'],
   },
   candidate: {
-    sr: ['Najmanje igra na tvom rosteru: {name} ({m} min poslednjih 15 dana). Ako njega izbaciš, menjaš {give} za {get}.'],
-    en: ['Lowest minutes on your roster: {name} ({m} min over the last 15 days). If you drop him, you swap {give} for {get}.'],
+    sr: ['Najmanje igra na tvom rosteru {per}: {name} ({m} min). Ako njega izbaciš, menjaš {give} za {get}.'],
+    en: ['Lowest minutes on your roster {per}: {name} ({m} min). If you drop him, you swap {give} for {get}.'],
   },
   pickHim: { sr: ['Izaberi ga'], en: ['Pick him'] },
   newsTip: { sr: ['Vest'], en: ['News'] },
@@ -2507,18 +2522,24 @@ function reportItems(side, totals, cmp) {
   const K = key => (me ? key : `o${key[0].toUpperCase()}${key.slice(1)}`); // protivnik: tekst u trećem licu
 
   // Poređenje, ne apsolutne vrednosti: minuti i pouzdanost su plus samo kad su bolji od strane koja odlazi
-  const minOf = f => f.minR ?? f.minS ?? 0;
+  const minOf = f => f.minR ?? f.minS ?? 0; // samo za jednog igrača (bez poređenja)
+  // Poređenje minutaže: svi igrači iz istog perioda (poslednjih 15 dana ako ga imaju svi, inače sezona), period se navodi
+  const minPer = list => (list.every(f => f.minR != null) ? 'l15' : 'season');
+  const minIn = (f, per) => (per === 'l15' ? f.minR : f.minS) ?? 0;
+  const perTxt = per => rt(per === 'l15' ? 'perL15' : 'perSeason');
   const topBy = (list, fn) => list.filter(f => !isOut(f.p)).sort((a, b) => fn(b) - fn(a))[0];
   const gpOf = f => (f.dur && !f.dur.approx && f.dur.n >= 5 ? f.dur.pct : null);
-  const sendTopMin = topBy(send, minOf), recvTopMin = topBy(recv, minOf);
+  const sendTopMin = topBy(send, f => f.minS ?? 0), recvTopMin = topBy(recv, f => f.minS ?? 0);
   const sendTopGp = topBy(send.filter(f => gpOf(f) != null), gpOf), recvTopGp = topBy(recv.filter(f => gpOf(f) != null), gpOf);
   // ---- plusevi: igrači koji dolaze ----
   for (const f of recv) {
     const nm = esc(f.p.name), s = seed + f.p.id;
     if (f.minDelta > REPORT.MIN_RISE) add(pluses, 1, rt('minRise', { name: nm, a: minTxt(f.minS), b: minTxt(f.minR) }, s), ['future']);
-    else if (me && f === recvTopMin && sendTopMin && minOf(f) - minOf(sendTopMin) >= REPORT.MIN_RISE)
-      add(pluses, 2, rt('moreMin', { name: nm, a: minTxt(minOf(f)), b: minTxt(minOf(sendTopMin)) }, s), ['future']);
-    else if (!me && minOf(f) >= REPORT.BIG_MIN && !isOut(f.p)) add(pluses, 2, rt('bigMin', { name: nm, m: minTxt(minOf(f)) }, s), ['future']);
+    else if (me && f === recvTopMin && sendTopMin && (pp => minIn(f, pp) - minIn(sendTopMin, pp) >= REPORT.MIN_RISE)(minPer([f, sendTopMin]))) {
+      const pp = minPer([f, sendTopMin]);
+      add(pluses, 2, rt('moreMin', { name: nm, per: perTxt(pp), a: minTxt(minIn(f, pp)), b: minTxt(minIn(sendTopMin, pp)) }, s), ['future']);
+    }
+    else if (!me && minOf(f) >= REPORT.BIG_MIN && !isOut(f.p)) add(pluses, 2, rt('bigMin', { name: nm, m: minTxt(minOf(f)), per: perTxt(f.minR != null ? 'l15' : 'season') }, s), ['future']);
     const gp = gpOf(f);
     if (me && f === recvTopGp && gp >= REPORT.GP_GOOD && sendTopGp && gp - gpOf(sendTopGp) >= 0.10)
       add(pluses, 5, rt('gpBetter', { name: nm, gp: f.dur.gp, n: f.dur.n, sgp: sendTopGp.dur.gp, sn: sendTopGp.dur.n }, s), ['gp', 'future']);
@@ -2611,21 +2632,14 @@ function reportItems(side, totals, cmp) {
     if (f.minDelta > REPORT.MIN_RISE) add(risks, 3.6, rt('giveRise', { name: nm, a: minTxt(f.minS), b: minTxt(f.minR) }, s), ['future']);
     const hot = f.trends.filter(x => x.good && x.up && x.c.type === 'sum');
     if (hot.length >= 2) add(risks, 6.2, rt('giveHot', { name: nm, list: hot.slice(0, 3).map(x => x.c.label).join(', ') }, s), ['future']);
-    if (recvTopMin && minOf(f) - minOf(recvTopMin) >= REPORT.MIN_RISE && f.minDelta <= REPORT.MIN_RISE)
-      add(risks, 5.8, rt('giveMoreMin', { name: nm, a: minTxt(minOf(f)), b: minTxt(minOf(recvTopMin)) }, s), ['future']);
+    const gp2 = recvTopMin ? minPer([f, recvTopMin]) : null;
+    if (recvTopMin && minIn(f, gp2) - minIn(recvTopMin, gp2) >= REPORT.MIN_RISE && f.minDelta <= REPORT.MIN_RISE)
+      add(risks, 5.8, rt('giveMoreMin', { name: nm, per: perTxt(gp2), a: minTxt(minIn(f, gp2)), b: minTxt(minIn(recvTopMin, gp2)) }, s), ['future']);
     const gp = gpOf(f);
     if (gp != null && recvTopGp && gp - gpOf(recvTopGp) >= 0.10)
       add(risks, 6.8, rt('giveMoreGp', { name: nm, gp: f.dur.gp, n: f.dur.n, rgp: recvTopGp.dur.gp, rn: recvTopGp.dur.n }, s), ['gp']);
   }
-  // ravnomeran trejd: ko je jači po zbiru brojki (kod neravnomernog to radi paket ispod)
-  if (me && recvIds.length === sendIds.length) {
-    const all = [...recv, ...send].sort((a, b) => b.value - a.value);
-    const best = all[0], second = all[1];
-    if (best && second && best.value > second.value * 1.05) {
-      if (send.includes(best)) add(risks, 4.2, rt('bestOut1', { name: esc(best.p.name), line: keyLine(best) }, seed), ['bestOut']);
-      else add(pluses, 2.2, rt('bestIn1', { name: esc(best.p.name), line: keyLine(best) }, seed), ['now']);
-    }
-  }
+  // "jači igrač po zbiru brojki" je uklonjen: sirov zbir vrednuje blokadu kao poen. Vraća se u fazi 4 sa pravom vrednošću igrača.
 
   // ---- igrači u odnosu na vrh lige ----
   if (me) {
@@ -2667,17 +2681,17 @@ function reportItems(side, totals, cmp) {
     const plan = rosterPlan('my');
     const sp = slotPlan('my');
     const names = ids => joinList(ids.map(id => esc(state.byId.get(id)?.name || '?')));
-    const best = [...recv, ...send].sort((a, b) => b.value - a.value)[0];
     if (sp.dropSlots > 0) {
       if (sp.drops.length) {
         real = rt('real', { give: `${names(sendIds)} + ${names(sp.drops)}`, get: names(recvIds) });
         const drop = playerFacts(state.byId.get(sp.drops[0]));
-        const weakest = [...recv].sort((a, b) => (a.minR ?? a.minS ?? 0) - (b.minR ?? b.minS ?? 0))[0];
+        const dp = minPer([...recv, drop]);
+        const weakest = [...recv].sort((a, b) => minIn(a, dp) - minIn(b, dp))[0];
         if (weakest && drop.dur && weakest.dur) {
-          const better = (weakest.minR ?? weakest.minS ?? 0) >= (drop.minR ?? drop.minS ?? 0) && weakest.dur.pct >= drop.dur.pct;
+          const better = minIn(weakest, dp) >= minIn(drop, dp) && weakest.dur.pct >= drop.dur.pct;
           add(better ? pluses : risks, better ? 2.5 : 6.5, rt('dropVs', {
-            drop: esc(drop.p.name), dm: minTxt(drop.minR ?? drop.minS ?? 0), dg: drop.dur.gp, dn: drop.dur.n,
-            inc: esc(weakest.p.name), im: minTxt(weakest.minR ?? weakest.minS ?? 0), ig: weakest.dur.gp, in: weakest.dur.n,
+            drop: esc(drop.p.name), dm: minTxt(minIn(drop, dp)), dg: drop.dur.gp, dn: drop.dur.n,
+            inc: esc(weakest.p.name), im: minTxt(minIn(weakest, dp)), ig: weakest.dur.gp, in: weakest.dur.n, per: perTxt(dp),
           }), ['future', 'gp']);
         }
         const regular = recv.every(f => f.dur && f.dur.pct >= REPORT.GP_GOOD && (f.minR ?? f.minS ?? 0) >= REPORT.REGULAR_MIN);
@@ -2689,16 +2703,15 @@ function reportItems(side, totals, cmp) {
         const freeIR = irOn && irCount(plan.r) < ROSTER.IR;
         const pool = plan.pre.filter(id => !trade.has(id)).map(id => state.byId.get(id)).filter(Boolean)
           .filter(p => !(freeIR && canIR(p))).map(playerFacts);
-        const c = pool.sort((a, b) => (a.minR ?? a.minS ?? 0) - (b.minR ?? b.minS ?? 0))[0];
-        if (c) candidate = { id: c.p.id, text: rt('candidate', { name: esc(c.p.name), m: minTxt(c.minR ?? c.minS ?? 0), give: `${names(sendIds)} + ${esc(c.p.name)}`, get: names(recvIds) }) };
+        const cp = minPer(pool);
+        const c = pool.sort((a, b) => minIn(a, cp) - minIn(b, cp))[0];
+        if (c) candidate = { id: c.p.id, text: rt('candidate', { name: esc(c.p.name), per: perTxt(cp), m: minTxt(minIn(c, cp)), give: `${names(sendIds)} + ${esc(c.p.name)}`, get: names(recvIds) }) };
         add(risks, 9, rt('overLimit', { n: plan.pre.length, max: ROSTER.ACTIVE }));
       } else if (plan?.tradeTouches) {
         add(pluses, 3.5, rt('room', { who: names(plan.incoming.length ? plan.incoming : recvIds), n: plan.pre.length, max: ROSTER.ACTIVE }, seed), ['future']);
       }
-      if (best && send.includes(best)) add(risks, 4.5, rt('bestOut', { name: esc(best.p.name) }), ['bestOut']);
     } else if (sp.waiverSlots > 0) {
       real = rt('real', { give: names(sendIds), get: `${names(recvIds)} + ${sp.waivers.length ? names(sp.waivers) : rt('freeSpot')}` });
-      if (best && recv.includes(best)) add(pluses, 2, sp.waivers.length ? rt('bestInW', { name: esc(best.p.name), w: names(sp.waivers) }, seed) : rt('bestIn', { name: esc(best.p.name) }, seed), ['now']);
       const regularOut = send.filter(f => f.dur && f.dur.pct >= REPORT.GP_GOOD && (f.minR ?? f.minS ?? 0) >= REPORT.REGULAR_MIN);
       if (regularOut.length >= 2 || (regularOut.length && send.length > recv.length)) add(risks, 5.5, rt('depth', { list: joinList(regularOut.map(f => esc(f.p.name))) }, seed), ['depth']);
     }
@@ -3015,10 +3028,10 @@ function buildAIText(shortRosterNews = false) {
     const base = plan ? plan.activeBefore : act.map(x => x.id);
     const prof = teamValsTxt(base);
     lines.push(`\n${L('Profil mog tima (zbir pre trejda)', 'My team profile (totals before the trade)')}: ${prof}`);
-    const tz = teamZ(base), b = bench();
+    const tz = teamZ(base), b = bench(), enoughTeams = enteredTeams().length >= 3;
     const zl = CATS.filter(c => !isPunt(c)).map(c => ({ c, z: tz[c.key] })).sort((a, c2) => c2.z - a.z);
     const zf = x => `${x.c.label} ${x.z >= 0 ? '+' : '−'}${Math.abs(x.z).toFixed(1)}`;
-    lines.push(L(`Moj tim u odnosu na ligu (zbir z-score-ova po kategoriji, merilo: ${b.size} najposedovanijih igrača; 0 = prosečan tim, + jače, − slabije): ${zl.map(zf).join(', ')}`,
+    if (enoughTeams) lines.push(L(`Moj tim u odnosu na ligu (zbir z-score-ova po kategoriji, merilo: ${b.size} najposedovanijih igrača; 0 = prosečan tim, + jače, − slabije): ${zl.map(zf).join(', ')}`,
       `My team vs the league (sum of z-scores per category, benchmark: the ${b.size} most rostered players; 0 = average team, + stronger, − weaker): ${zl.map(zf).join(', ')}`));
     const tp = teamProfile(base);
     if (tp) lines.push(L(`Najjače kategorije (u odnosu na ${tp.n} uneta tima): ${tp.best.join(', ')}. Najslabije: ${tp.worst.join(', ')}.`, `Strongest categories (vs ${tp.n} entered teams): ${tp.best.join(', ')}. Weakest: ${tp.worst.join(', ')}.`));
@@ -4148,7 +4161,7 @@ function tabScore(tab) {
   state.teams = tab.teams; state.balance = tab.balance;
   try {
     const totals = state.teams.map(teamTotals), cmp = compare(totals);
-    return cmp.active.length >= 2 ? { get: cmp.score[GET], give: cmp.score[GIVE] } : null;
+    return cmp.active.length >= 2 ? { get: cmp.score[GET], give: cmp.score[GIVE], ties: cmp.ties } : null;
   } finally { [state.teams, state.balance] = keep; }
 }
 const namesOf = ids => (ids.length ? ids.map(id => esc(state.byId.get(id)?.name || `#${id}`)).join(', ') : '…');
@@ -4235,7 +4248,7 @@ function renderOverview() {
   const tradesCard = `<section class="pcard"><h3>${t('Otvoreni trejdovi')}</h3>${tabs.length
     ? `<ul class="olist">${tabs.map(tb => { const sc = tabScore(tb); return `<li><button type="button" class="orow" data-link="ov-open-trade" data-tab="${tb.id}">
         <span class="os"><span class="give-t">${namesOf(tb.teams[GIVE].ids)}</span> → <span class="get-t">${namesOf(tb.teams[GET].ids)}</span></span>
-        ${sc ? `<span class="osc"><b class="w">${sc.get}</b> : <b>${sc.give}</b></span>` : ''}</button></li>`; }).join('')}</ul>`
+        ${sc ? `<span class="osc"><span class="get-t">${t('Dobijaš')}</span> <b class="${sc.get > sc.give ? 'w' : ''}">${sc.get}</b> : <b class="${sc.give > sc.get ? 'l' : ''}">${sc.give}</b> <span class="give-t">${t('Daješ')}</span>${sc.ties ? `<small>${t('{n} nerešeno', { n: sc.ties })}</small>` : ''}</span>` : ''}</button></li>`; }).join('')}</ul>`
     : `<p class="pnote">${t('Nema otvorenih trejdova.')}</p>`}</section>`;
 
   const hist = state.history.slice(0, 3);
@@ -4347,7 +4360,8 @@ function renderNav() {
   if (state.view !== 'league') { side.innerHTML = ''; bottom.innerHTML = ''; return; }
   const n = openTrades(state.scope);
   const badge = n ? `<span class="nbadge" aria-label="${esc(openN(n))}">${n}</span>` : '';
-  const item = (id, icon, label, extra = '') => `<a href="${pageHash(id)}" class="nitem ${state.page === id ? 'on' : ''}" data-goto="${id}" ${state.page === id ? 'aria-current="page"' : ''}>${icon}<span>${label}</span>${extra}</a>`;
+  // title: tooltip kad je bočni meni skupljen u ikonice (ispod 1024 px)
+  const item = (id, icon, label, extra = '') => `<a href="${pageHash(id)}" class="nitem ${state.page === id ? 'on' : ''}" data-goto="${id}" title="${esc(label)}" ${state.page === id ? 'aria-current="page"' : ''}>${icon}<span class="nlabel">${label}</span>${extra}</a>`;
   const tp = tradePages();
   side.innerHTML = `<nav class="snav" aria-label="${t('Stranice lige')}">
     ${item('overview', NAV_ICON.overview, t('Pregled'))}${item('team', NAV_ICON.team, t('Moj tim'))}${item('league', NAV_ICON.league, t('Liga'))}
@@ -4465,7 +4479,7 @@ document.addEventListener('click', e => {
   const tx = e.target.closest('[data-tab-close]');
   if (tx) { closeTab(tx.dataset.tabClose); return; }
   const sh = e.target.closest('[data-share-to]');
-  if (sh && state.pendingShare) { openSharedIn(sh.dataset.shareTo, state.pendingShare); return; }
+  if (sh && state.pendingShare) { openSharedIn(sh.dataset.shareTo, state.pendingShare, state.pendingKeep); return; }
   const rv = e.target.closest('[data-rview]');
   if (rv) {
     const [k, v] = rv.dataset.rview.split(':');
@@ -4484,6 +4498,7 @@ document.addEventListener('click', e => {
     case 'league-menu': if (document.getElementById('popmenu')) closePopMenu(); else leagueMenu(el); break;
     case 'trades-menu': if (document.getElementById('popmenu')) closePopMenu(); else openPopMenu(el, tradePages().map(p => `<a role="menuitem" class="pm-item" href="${pageHash(p.id)}" data-goto="${p.id}">${t(p.sr)}</a>`).join('')); break;
     case 'all-alerts': showAllAlerts(); break;
+    case 'open-in-league': location.href = shareURL() + '&mv=1'; break; // isti izbor lige kao za deljeni link, bez okretanja strana
     case 'ov-hist': { const id = +el.dataset.id; setBack('trade'); openTrade(id); goPage('trade'); break; }
     case 'lt-open': state.leagueTeam = state.leagueTeam === el.dataset.id ? null : el.dataset.id; state.ui.ltEdit = null; render();
       if (state.leagueTeam) document.getElementById('lt-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); break;
@@ -4726,7 +4741,7 @@ if (EMBED?.mini) {
       if (cmp.active.length < 2) return null;
       const f = (c, v) => (c.type === 'pct' ? fmtPct(v) : fmt1(v));
       return {
-        get: cmp.score[GET], give: cmp.score[GIVE],
+        get: cmp.score[GET], give: cmp.score[GIVE], ties: cmp.ties,
         cats: CATS.map(c => ({ label: c.label, res: cmp.cats[c.key].winner == null ? 0 : cmp.cats[c.key].winner === GET ? 1 : -1,
           give: f(c, totals[GIVE].vals[c.key]), getv: f(c, totals[GET].vals[c.key]), delta: myDeltaText(c, totals) })),
       };

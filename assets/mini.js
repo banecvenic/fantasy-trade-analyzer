@@ -57,7 +57,7 @@
     if (sides[i].length < MAX) inputs[i].focus();
   }
 
-  const card = (i, p) => `<div class="mcard"><span class="mav" data-ini="${esc(p.ini)}"><img src="${p.img}" alt="" loading="lazy" onerror="this.parentNode.textContent=this.parentNode.dataset.ini"></span>
+  const card = (i, p) => `<div class="mcard"><span class="mav" data-ini="${esc(p.ini)}"><img src="${p.img}" alt="" loading="lazy" onerror="this.remove()"></span>
       <div class="mtxt"><b title="${esc(p.name)}">${esc(p.name)}</b><small>${esc(p.team)} · ${esc(p.pos)}</small></div>
       <button type="button" class="mrm" data-rm="${i}:${p.id}" aria-label="${esc(TXT.mini_remove)} ${esc(p.name)}">✕</button></div>`;
 
@@ -65,13 +65,17 @@
   function statsTable(sc) {
     const labels = RSMini.labels();
     const head = `<tr><th></th>${labels.map(l => `<th>${esc(l)}</th>`).join('')}</tr>`;
-    const prow = p => `<tr><td class="pn"><span class="mav sm" data-ini="${esc(p.ini)}"><img src="${p.img}" alt="" loading="lazy" onerror="this.parentNode.textContent=this.parentNode.dataset.ini"></span>${esc(p.name)}</td>${p.vals.map(v => `<td>${v}</td>`).join('')}</tr>`;
+    const prow = p => `<tr><td class="pn"><span class="mav sm" data-ini="${esc(p.ini)}"><img src="${p.img}" alt="" loading="lazy" onerror="this.remove()"></span>${esc(p.name)}</td>${p.vals.map(v => `<td>${v}</td>`).join('')}</tr>`;
     // naslov strane (sa zbirom) ide iznad svojih igrača
     const side = (i, key, cls, title) => `<tr class="tot ${cls}"><td>${esc(title)}</td>${sc.cats.map(c => `<td>${c[key]}</td>`).join('')}</tr>`
       + sides[i].map(id => prow(RSMini.player(id))).join('');
     const diff = `<tr class="diff"><td>${esc(TXT.mini_diff)}</td>${sc.cats.map(c => `<td class="${c.res > 0 ? 'good' : c.res < 0 ? 'bad' : ''}">${c.delta && c.res !== 0 ? c.delta : '='}</td>`).join('')}</tr>`;
     return `<div class="mscroll"><table><thead>${head}</thead><tbody>${side(0, 'give', 'give', L.give)}${side(1, 'getv', 'get', L.get)}${diff}</tbody></table></div>`;
   }
+
+  /** Čip kategorije: znak ishoda (✓ dobijaš, ✗ gubiš, = nerešeno), ne smer kategorije */
+  const chip = c => { const k = c.res > 0 ? 'win' : c.res < 0 ? 'lose' : 'tie', tip = TXT[`mini_${k}`];
+    return `<span class="mc ${c.res > 0 ? 'good' : c.res < 0 ? 'bad' : 'tie'}" title="${esc(tip)}"><span aria-hidden="true">${c.res > 0 ? '✓' : c.res < 0 ? '✗' : '='}</span> ${esc(c.label)}<span class="sr-only"> (${esc(tip)})</span></span>`; };
 
   function update() {
     [0, 1].forEach(i => {
@@ -87,8 +91,8 @@
     result.innerHTML = sc
       ? `<a class="mini-scorecard" href="${href}" title="${esc(TXT.mini_open)}">
           <div class="mini-score"><span class="lbl get-t">${L.get}</span><b class="n ${sc.get > sc.give ? 'w' : ''}">${sc.get}</b><span class="sep">:</span><b class="n ${sc.give > sc.get ? 'l' : ''}">${sc.give}</b><span class="lbl give-t">${L.give}</span></div>
-          <div class="mcats">${sc.cats.map(c => `<span class="mc ${c.res > 0 ? 'good' : c.res < 0 ? 'bad' : 'tie'}">${c.res > 0 ? '+' : c.res < 0 ? '−' : '='} ${esc(c.label)}</span>`).join('')}</div>
-          <span class="mini-open">${esc(TXT.mini_open)} →</span></a>`
+          ${sc.ties ? `<div class="mini-ties">${esc(TXT.mini_ties.replace('{n}', sc.ties))}</div>` : ''}
+          <div class="mcats">${sc.cats.map(chip).join('')}</div></a>`
       : `<span class="mini-hint">${esc(TXT.mini_hint)}</span>`;
     stats.hidden = !sc;
     table.innerHTML = sc ? statsTable(sc) : '';

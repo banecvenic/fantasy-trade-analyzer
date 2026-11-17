@@ -53,13 +53,13 @@ HOME = {
         'preview_label': 'Example trade analysis',
         'pv': {'give': 'You give', 'get': 'You get', 'pg': 'Your guard', 'c': 'Their center', 'plus': 'Pluses', 'risk': 'Risks',
                'p1': 'Gain rebounds and blocks (+3.1 REB, +1.2 BLK).', 'p2': 'Better shooting: team FG% +.006.', 'r1': 'You give up assists (−3.4 AST).',
-               'verdict': 'The trade gains you 6 categories, you lose 3'},
+               'verdict': 'The trade gains you 6 categories, you lose 3', 'win': 'you win it', 'lose': 'you lose it', 'tie': 'tie'},
         'mini_h': 'Try a quick trade',
         'mini_lead': 'Up to 2 players per side. Season averages per game.',
         'mini_give_ph': 'Who do you give…', 'mini_get_ph': 'Who do you get…',
         'mini_loading': 'Loading players…', 'mini_error': 'Players could not be loaded. Try again later.', 'mini_none': 'No players found',
         'mini_full': 'See full analysis', 'mini_hint': 'Add a player on each side to see the score.', 'mini_remove': 'Remove',
-        'mini_stats': 'Full stats', 'mini_open': 'Open the full analysis', 'mini_cat': 'Cat.', 'mini_diff': 'Diff', 'mini_total': 'Total',
+        'mini_stats': 'Full stats', 'mini_open': 'Open the full analysis', 'mini_win': 'you win it', 'mini_lose': 'you lose it', 'mini_tie': 'tie', 'mini_ties': '{n} tied', 'mini_cat': 'Cat.', 'mini_diff': 'Diff', 'mini_total': 'Total',
         'league_h': 'Add your league and team',
         'league_p': 'Save your roster and see how every trade changes your team, with your league roster size and IR spots. Manual entry for now.',
         'league_cta': 'Add your league',
@@ -84,13 +84,13 @@ HOME = {
         'preview_label': 'Primer analize trejda',
         'pv': {'give': 'Daješ', 'get': 'Dobijaš', 'pg': 'Tvoj bek', 'c': 'Njihov centar', 'plus': 'Plusevi', 'risk': 'Rizici',
                'p1': 'Dobijaš skokove i blokade (+3.1 REB, +1.2 BLK).', 'p2': 'Bolji šut: FG% tima +.006.', 'r1': 'Gubiš asistencije (−3.4 AST).',
-               'verdict': 'Trejd ti donosi 6 kategorija, gubiš 3'},
+               'verdict': 'Trejd ti donosi 6 kategorija, gubiš 3', 'win': 'dobijaš', 'lose': 'gubiš', 'tie': 'nerešeno'},
         'mini_h': 'Probaj brzi trejd',
         'mini_lead': 'Do 2 igrača po strani. Prosek po utakmici za sezonu.',
         'mini_give_ph': 'Koga daješ…', 'mini_get_ph': 'Koga dobijaš…',
         'mini_loading': 'Učitavam igrače…', 'mini_error': 'Igrači nisu učitani. Pokušaj kasnije.', 'mini_none': 'Nema igrača',
         'mini_full': 'Pogledaj celu analizu', 'mini_hint': 'Dodaj igrača na svaku stranu da vidiš rezultat.', 'mini_remove': 'Ukloni',
-        'mini_stats': 'Cela statistika', 'mini_open': 'Otvori celu analizu', 'mini_cat': 'Kat.', 'mini_diff': 'Razlika', 'mini_total': 'Ukupno',
+        'mini_stats': 'Cela statistika', 'mini_open': 'Otvori celu analizu', 'mini_win': 'dobijaš', 'mini_lose': 'gubiš', 'mini_tie': 'nerešeno', 'mini_ties': '{n} nerešeno', 'mini_cat': 'Kat.', 'mini_diff': 'Razlika', 'mini_total': 'Ukupno',
         'league_h': 'Dodaj svoju ligu i tim',
         'league_p': 'Sačuvaj roster i vidi kako svaki trejd menja tvoj tim, sa veličinom rostera i IR mestima tvoje lige. Za sada se roster unosi ručno.',
         'league_cta': 'Dodaj svoju ligu',
@@ -139,21 +139,35 @@ T = {
             ('Text for AI analysis', 'Copy a ready summary of the trade with stats, news and your roster, and paste it into the AI assistant you use.'),
         ],
         'faq_h': 'Frequently asked questions',
+        # početna: pitanja o sajtu
         'faq': [
+            ('Where does the data come from?',
+             'Player stats, projections and news come from publicly available ESPN fantasy data. Numbers are averages per game for the period you pick.'),
+            ('Does it work for Yahoo leagues?',
+             'Yes. The tools compare players, not platforms, so they work for Yahoo, ESPN and other leagues with 9-category scoring. You can set your league roster size, including IR spots. Stats always come from the same source.'),
+            ('Do I need an account?',
+             'No. Leagues, rosters and trades are saved only in your browser on this device. There is no account and no server that stores your data.'),
+        ],
+        # /trade-analyzer/: pitanja o kalkulatoru
+        'faq_ta': [
             ('How are FG% and FT% calculated?',
              'From the total makes and attempts of all players on each side, not by averaging percentages. A player who shoots 60% on 3 attempts moves the result less than one who shoots 50% on 15 attempts. With your roster added, the tool also shows how much your team percentage changes.'),
             ('What is 9-cat?',
              '9-cat is the most common category format in fantasy basketball: points, rebounds, assists, three pointers, steals, blocks, field goal percentage, free throw percentage and turnovers. In head to head leagues you win or lose each category every week. For turnovers, fewer is better.'),
             ('Is this fantasy basketball trade calculator free?',
              'Yes. RosterSwing is free to use. There is nothing to buy and no sign-up.'),
-            ('Where does the data come from?',
-             'Player stats, projections and news come from publicly available ESPN fantasy data. Numbers are averages per game for the period you pick.'),
-            ('Does it work for Yahoo leagues?',
-             'Yes. The analyzer compares players, not platforms, so it works for Yahoo, ESPN and other leagues with 9-category scoring. You can set your league roster size, including IR spots. Stats always come from the same source.'),
-            ('Do I need an account?',
-             'No. Leagues, rosters and trades are saved only in your browser on this device. There is no account and no server that stores your data.'),
             ('What does "low volume" mean?',
-             'A percentage built on very few attempts, under 3 field goal or 1.5 free throw attempts per game on one side. It barely changes a team percentage, so when no roster is added, that category counts as a tie in the score.'),
+             'A percentage built on very few attempts, under 3 field goal or 1.5 free throw attempts per game on one side. It barely changes a team percentage, so when the trade does not change your saved roster, that category counts as a tie in the score. With your roster added, a category also counts as a tie when your team percentage changes by less than .001.'),
+        ],
+        'guide_h': 'How to evaluate a 9-cat trade',
+        'guide': [
+            ('Count category by category', 'In 9-cat head to head you win categories, not points. Start from the totals of each side in every category. A trade that wins five categories by a little can help more than one that wins two by a lot.'),
+            ('Percentages are weighted', 'FG% and FT% are not averages of player percentages. They come from total makes and attempts, so a high-volume shooter moves your team percentage much more than a player who rarely shoots. Look at how your team percentage changes, not only at the players.'),
+            ('Minutes and role', 'Stats follow minutes. Compare both players over the same period, the whole season or the last 15 days, and check whether a role is growing or shrinking. A player whose minutes just went up can be worth more than his season averages show.'),
+            ('Games played and health', 'A player who misses games does not help your weekly totals. Check how many games each player has played and the latest injury news before you accept.'),
+            ('2-for-1 trades and your roster spot', 'When you get two players for one, someone has to leave your roster, so count that player as part of the trade. When you get one player for two, you open a spot for the waiver wire, and that spot has value too.'),
+            ('Punting', 'If you punt a category, take it out of the comparison. A trade that only loses your punted categories can be a clear win for your build.'),
+            ('Your team, not a vacuum', 'The same trade can be good for one team and bad for another. Gains in categories where you are weak matter more than gains where you already lead your league.'),
         ],
         'save_row': 'Save your team and see how this trade changes it',
         'footer_about': 'About',
@@ -198,20 +212,32 @@ T = {
         ],
         'faq_h': 'Česta pitanja',
         'faq': [
+            ('Odakle su podaci?',
+             'Statistika, projekcije i vesti o igračima dolaze iz javno dostupnih ESPN fantasy podataka. Brojke su prosek po utakmici za period koji izabereš.'),
+            ('Da li radi za Yahoo lige?',
+             'Radi. Alati porede igrače, ne platforme, pa rade za Yahoo, ESPN i druge lige sa 9 kategorija. Možeš da podesiš veličinu rostera svoje lige, uključujući IR mesta. Statistika uvek dolazi iz istog izvora.'),
+            ('Da li mi treba nalog?',
+             'Ne treba. Lige, rosteri i trejdovi čuvaju se samo u tvom browseru, na ovom uređaju. Nema naloga i nema servera koji čuva tvoje podatke.'),
+        ],
+        'faq_ta': [
             ('Kako se računaju FG% i FT%?',
              'Iz zbira pogođenih i ukupnih šuteva svih igrača na strani, a ne kao prosek procenata. Igrač koji šutira 60% na 3 pokušaja manje pomera rezultat od igrača koji šutira 50% na 15 pokušaja. Kad uneseš roster, alat pokazuje i koliko se menja procenat tvog tima.'),
             ('Šta je 9-cat?',
              '9-cat je najčešći format sa kategorijama u fantasy košarci: poeni, skokovi, asistencije, trojke, ukradene lopte, blokade, procenat šuta iz igre, procenat slobodnih bacanja i izgubljene lopte. U H2H ligama svake nedelje dobijaš ili gubiš svaku kategoriju. Kod izgubljenih lopti, manje je bolje.'),
             ('Da li je kalkulator za fantasy trejdove besplatan?',
              'Jeste. RosterSwing je besplatan. Nema plaćanja i nema registracije.'),
-            ('Odakle su podaci?',
-             'Statistika, projekcije i vesti o igračima dolaze iz javno dostupnih ESPN fantasy podataka. Brojke su prosek po utakmici za period koji izabereš.'),
-            ('Da li radi za Yahoo lige?',
-             'Radi. Alat poredi igrače, ne platforme, pa radi za Yahoo, ESPN i druge lige sa 9 kategorija. Možeš da podesiš veličinu rostera svoje lige, uključujući IR mesta. Statistika uvek dolazi iz istog izvora.'),
-            ('Da li mi treba nalog?',
-             'Ne treba. Lige, rosteri i trejdovi čuvaju se samo u tvom browseru, na ovom uređaju. Nema naloga i nema servera koji čuva tvoje podatke.'),
             ('Šta znači „mali obim“?',
-             'Procenat na vrlo malo šuteva, ispod 3 šuta iz igre ili 1.5 slobodnih bacanja po utakmici na jednoj strani. Takav procenat skoro ne menja procenat tima, pa se, dok roster nije unet, ta kategorija računa kao nerešena.'),
+             'Procenat na vrlo malo šuteva, ispod 3 šuta iz igre ili 1.5 slobodnih bacanja po utakmici na jednoj strani. Takav procenat skoro ne menja procenat tima, pa se, kad trejd ne menja tvoj uneti roster, ta kategorija računa kao nerešena. Sa unetim rosterom, kategorija je nerešena i kad se procenat tima menja manje od .001.'),
+        ],
+        'guide_h': 'Kako proceniti 9-cat trejd',
+        'guide': [
+            ('Broji kategoriju po kategoriju', 'U 9-cat H2H ligama dobijaš kategorije, ne poene. Kreni od zbira obe strane u svakoj kategoriji. Trejd koji dobija pet kategorija za malo može da pomogne više od trejda koji dobija dve za mnogo.'),
+            ('Procenti su ponderisani', 'FG% i FT% nisu prosek procenata igrača. Računaju se iz ukupno pogođenih i ukupno pokušanih šuteva, pa šuter sa mnogo pokušaja pomera procenat tima mnogo više od igrača koji retko šutira. Gledaj kako se menja procenat tvog tima, ne samo igrača.'),
+            ('Minutaža i uloga', 'Brojke prate minute. Poredi oba igrača u istom periodu, cela sezona ili poslednjih 15 dana, i proveri da li uloga raste ili pada. Igrač kome su minuti upravo porasli može da vredi više nego što pokazuje prosek sezone.'),
+            ('Odigrane utakmice i zdravlje', 'Igrač koji propušta utakmice ne pomaže tvom nedeljnom zbiru. Pre nego što prihvatiš, proveri koliko je utakmica svaki igrač odigrao i najnovije vesti o povredama.'),
+            ('Trejd 2 za 1 i mesto na rosteru', 'Kad dobijaš dva igrača za jednog, neko mora da ode sa rostera, pa i njega računaj kao deo trejda. Kad dobijaš jednog za dva, oslobađaš mesto za waiver, a i to mesto ima vrednost.'),
+            ('Punt', 'Ako puntuješ kategoriju, izbaci je iz poređenja. Trejd koji gubi samo kategorije koje puntuješ može da bude čista dobit za tvoj tim.'),
+            ('Tvoj tim, ne trejd sam za sebe', 'Isti trejd može da bude dobar za jedan tim, a loš za drugi. Dobitak u kategorijama u kojima si slab vredi više od dobitka tamo gde već vodiš u ligi.'),
         ],
         'save_row': 'Sačuvaj svoj tim i vidi kako trejd utiče na njega',
         'footer_about': 'O sajtu',
@@ -510,12 +536,12 @@ def jsonld_app(lang):
     })
 
 
-def jsonld_faq(lang):
+def jsonld_faq(lang, key='faq'):
     return ld({
         '@context': 'https://schema.org',
         '@type': 'FAQPage',
         'inLanguage': lang,
-        'mainEntity': [{'@type': 'Question', 'name': q, 'acceptedAnswer': {'@type': 'Answer', 'text': a}} for q, a in T[lang]['faq']],
+        'mainEntity': [{'@type': 'Question', 'name': q, 'acceptedAnswer': {'@type': 'Answer', 'text': a}} for q, a in T[lang][key]],
     })
 
 
@@ -555,7 +581,8 @@ def preview_html(lang):
     """Statičan prikaz analize trejda (HTML/CSS u stilu aplikacije), za hero"""
     h = HOME[lang]; v = h['pv']
     cats = [('PTS', -1), ('REB', 1), ('AST', -1), ('3PM', -1), ('STL', 1), ('BLK', 1), ('FG%', 1), ('FT%', 1), ('TO', 1)]
-    chips = ''.join(f'<span class="mc {"good" if x > 0 else "bad"}">{"+" if x > 0 else "−"} {c}</span>' for c, x in cats)
+    # znak ishoda (ne smera kategorije): ✓ dobijaš, ✗ gubiš
+    chips = ''.join(f'<span class="mc {"good" if x > 0 else "bad"}" title="{escape(v["win"] if x > 0 else v["lose"])}"><span aria-hidden="true">{"✓" if x > 0 else "✗"}</span> {c}<span class="sr-only"> ({escape(v["win"] if x > 0 else v["lose"])})</span></span>' for c, x in cats)
     return f"""<a class="preview" href="{{ta}}" aria-label="{escape(h['preview_label'])}">
       <span class="pv-label">{escape(h['preview_label'])}</span>
       <span class="pv-sides"><span class="pv-side"><span class="pv-av">{initials(v['pg'])}</span><span><small class="give-t">{escape(v['give'])}</small><b>{escape(v['pg'])}</b></span></span>
@@ -594,7 +621,7 @@ def home(lang):
     ta = page_href('analyzer', lang, depth)
     extra = REDIRECT.replace('{app}', app).replace('{ta}', ta).replace('{lang}', lang) + jsonld_faq(lang)
     faq = ''.join(f'<details><summary><h3>{escape(q)}</h3></summary><div class="a"><p>{escape(a)}</p></div></details>' for q, a in t['faq'])
-    mini_txt = json.dumps({k: h[k] for k in ('mini_give_ph', 'mini_get_ph', 'mini_loading', 'mini_error', 'mini_none', 'mini_hint', 'mini_remove', 'mini_stats', 'mini_open', 'mini_cat', 'mini_diff', 'mini_total')}, ensure_ascii=False)
+    mini_txt = json.dumps({k: h[k] for k in ('mini_give_ph', 'mini_get_ph', 'mini_loading', 'mini_error', 'mini_none', 'mini_hint', 'mini_remove', 'mini_stats', 'mini_open', 'mini_cat', 'mini_diff', 'mini_total', 'mini_win', 'mini_lose', 'mini_tie', 'mini_ties')}, ensure_ascii=False)
     add_league = f'{app}#home&amp;addleague=1&amp;lang={lang}'
     return head(lang, 'home', h['title'], h['desc'], depth, extra, og=h) + header(lang, 'home', depth) + f"""
 <div class="continue-bar" id="continue-bar" hidden><div class="wrap"><span>{escape(h['continue_bar'])}</span><a class="cta" id="continue-btn" href="{app}">…</a></div></div>
@@ -654,7 +681,9 @@ def analyzer(lang):
     depth = 1 if lang == 'en' else 2
     r = rel(depth)
     app = f'{r}app/'
-    extra = jsonld_app(lang)
+    extra = jsonld_app(lang) + jsonld_faq(lang, 'faq_ta')
+    faq = ''.join(f'<details><summary><h3>{escape(q)}</h3></summary><div class="a"><p>{escape(a)}</p></div></details>' for q, a in t['faq_ta'])
+    guide = ''.join(f'<div><h3>{escape(a)}</h3><p>{escape(b)}</p></div>' for a, b in t['guide'])
     pre_periods, pre_score, pre_teams = prerender(lang)
     steps = ''.join(f'<li><h3>{escape(a)}</h3><p>{escape(b)}</p></li>' for a, b in t['steps'])
     feats = ''.join(f'<li><h3>{escape(a)}</h3><p>{escape(b)}</p></li>' for a, b in t['feats'])
@@ -689,6 +718,16 @@ def analyzer(lang):
   <section aria-labelledby="what-h">
     <h2 id="what-h">{escape(t['what_h'])}</h2>
     <ul class="feats">{feats}</ul>
+  </section>
+
+  <section aria-labelledby="guide-h">
+    <h2 id="guide-h">{escape(t['guide_h'])}</h2>
+    <div class="guide">{guide}</div>
+  </section>
+
+  <section aria-labelledby="faq-h">
+    <h2 id="faq-h">{escape(t['faq_h'])}</h2>
+    <div class="faq">{faq}</div>
   </section>
 </main>
 """ + footer(lang, depth) + f"""<script>window.RS_EMBED={{lang:'{lang}',app:'{app}'}};</script>
