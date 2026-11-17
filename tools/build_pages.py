@@ -390,33 +390,80 @@ def page_href(page, lang, depth):
     return r + PAGES[page][lang] if PAGES[page][lang] else (r or './')
 
 
-def header(lang, page, depth):
-    r = rel(depth)
-    t = T[lang]
-    app = f'{r}app/'
-    home = page_href('home', lang, depth)
-    # isti izbor jezika kao u aplikaciji; ovde vodi na odgovarajuću adresu
-    opts = ''.join(f'<option value="{l}" data-href="{page_href(page, l, depth)}" {"selected" if l == lang else ""}>{n}</option>' for l, n in (('sr', 'Srpski'), ('en', 'English')))
-    home_link = f'<a class="home-link" href="{home}" data-home>{"Početna" if lang == "sr" else "Home"}</a>' if page != 'home' else ''
-    return f"""<body class="pub" data-pubpage="{page}">
-<header class="site-h">
-  <div class="wrap">
-    <a class="brand" href="{home}" data-home aria-label="RosterSwing"><img class="brand-mark" src="{r}assets/favicon.svg" width="24" height="24" alt="RosterSwing"><img class="brand-word" src="{r}assets/wordmark.svg" width="96" height="16" alt=""><span class="brand-desc">Fantasy Basketball Tools</span></a>
-    <nav class="site-nav" aria-label="{'Glavni meni' if lang == 'sr' else 'Main'}">
-      {home_link}
-      <label class="langsel" title="Jezik / Language">{GLOBE}<select data-publang aria-label="Jezik / Language">{opts}</select></label>
-      <a class="leagues-link" id="leagues-link" href="{app}#home&amp;lang={lang}">{t['my_leagues']}</a>
+NAV_T = {
+    'sr': {'home': 'Početna', 'tools': 'Alati', 'leagues': 'Moje lige', 'analyzer': 'Analiza trejda', 'finder': 'Igrač za tim', 'builder': 'Trejd između dva tima',
+           'soon': 'Uskoro', 'quick': 'Brzo poređenje', 'all': 'Sve lige', 'add': 'Dodaj ligu'},
+    'en': {'home': 'Home', 'tools': 'Tools', 'leagues': 'My leagues', 'analyzer': 'Trade analyzer', 'finder': 'Player for your team', 'builder': 'Trade between two teams',
+           'soon': 'Coming soon', 'quick': 'Quick compare', 'all': 'All leagues', 'add': 'Add league'},
+}
+NAV_ICON = {
+    'analyzer': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8h14l-4-4M20 16H6l4 4"/></svg>',
+    'finder': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+    'builder': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="16" r="3"/><path d="M11 8h6v5M13 16H7v-5"/></svg>',
+    'quick': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
+    'all': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
+    'add': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+    'caret': '<svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>',
+}
+TOOL_PAGES = {'finder': TOOLS['finder'], 'builder': TOOLS['builder']}
+
+
+def gnav_html(lang, root, page=None, app_page=False):
+    """Isto zaglavlje na svim stranicama: logo, Početna, Alati ▾, Moje lige ▾, jezik (na kraju)."""
+    n = NAV_T[lang]
+    pre = 'sr/' if lang == 'sr' else ''
+    home = f'{root}{pre}' or './'
+    ta = f'{root}{pre}trade-analyzer/'
+    app = '' if app_page else f'{root}app/'
+    def tool_item(key):
+        t = TOOL_PAGES[key]
+        if t['ready'] and t['href']:
+            return f'<a role="menuitem" class="pm-item" href="{root}{t["href"]}">{NAV_ICON[key]}<span data-t="{key}">{n[key]}</span></a>'
+        return f'<span class="pm-item off" aria-disabled="true">{NAV_ICON[key]}<span data-t="{key}">{n[key]}</span><span class="soon" data-t="soon">{n["soon"]}</span></span>'
+    if app_page:
+        langsel = '<select data-langsel aria-label="Jezik / Language"><option value="sr">Srpski</option><option value="en">English</option></select>'
+    else:
+        opts = ''.join(f'<option value="{l}" data-go="{page_href(page, l, root.count("../"))}" {"selected" if l == lang else ""}>{nm}</option>' for l, nm in (('sr', 'Srpski'), ('en', 'English')))
+        langsel = f'<select data-publang aria-label="Jezik / Language">{opts}</select>'
+    return f"""<header class="top gnav" data-root="{root}" data-lang="{lang}" data-app-page="{'1' if app_page else ''}">
+  <div class="wrap gnav-row">
+    <a class="brand" href="{home}" data-href="home" aria-label="RosterSwing"><img class="brand-mark" src="{root}assets/favicon.svg" width="24" height="24" alt="RosterSwing"><img class="brand-word" src="{root}assets/wordmark.svg" width="96" height="16" alt=""></a>
+    <nav class="gnav-links" aria-label="{'Glavni meni' if lang == 'sr' else 'Main'}">
+      <a class="gl gl-home" href="{home}" data-href="home" data-t="home">{n['home']}</a>
+      <div class="dd-wrap"><button type="button" class="gl" data-gmenu="tools" aria-haspopup="menu" aria-expanded="false"><span data-t="tools">{n['tools']}</span>{NAV_ICON['caret']}</button>
+        <div class="gmenu" id="gmenu-tools" role="menu" hidden>
+          <a role="menuitem" class="pm-item" href="{ta}" data-href="analyzer">{NAV_ICON['analyzer']}<span data-t="analyzer">{n['analyzer']}</span></a>
+          {tool_item('finder')}
+          {tool_item('builder')}
+        </div></div>
+      <div class="dd-wrap"><button type="button" class="gl" data-gmenu="leagues" aria-haspopup="menu" aria-expanded="false"><span data-t="leagues">{n['leagues']}</span>{NAV_ICON['caret']}</button>
+        <div class="gmenu gmenu-leagues" id="gmenu-leagues" role="menu" hidden>
+          <a role="menuitem" class="pm-item" href="{ta}" data-href="analyzer">{NAV_ICON['quick']}<span data-t="quick">{n['quick']}</span></a>
+          <a role="menuitem" class="pm-item" href="{app}#home&amp;lang={lang}" data-href="all">{NAV_ICON['all']}<span data-t="all">{n['all']}</span></a>
+          <div class="pm-sub" data-leagues></div>
+          <div class="pm-sep"></div>
+          <div data-league-settings></div>
+          <a role="menuitem" class="pm-item" href="{app}#home&amp;addleague=1&amp;lang={lang}" data-href="add">{NAV_ICON['add']}<span data-t="add">{n['add']}</span></a>
+        </div></div>
     </nav>
+    <label class="langsel" title="Jezik / Language">{GLOBE}{langsel}</label>
   </div>
 </header>
-<script>
-(function(){{var s=document.querySelector('[data-publang]');s.addEventListener('change',function(){{location.href=s.selectedOptions[0].dataset.href+(/[?&]home\\b/.test(location.search)?'?home':'');}});
-try{{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));var l=p&&p.leagues&&(p.leagues.find(function(x){{return x.id===p.lastLeagueId}})||p.leagues[0]);
-if(l){{var a=document.getElementById('leagues-link');a.textContent={json.dumps(t['continue'])}.replace('{{name}}',l.name);a.title=a.textContent;a.href='{app}#league-'+l.id+'/overview&lang={lang}';
-/* povratnik: veze ka početnoj ne preusmeravaju u ligu */
-document.querySelectorAll('a[data-home]').forEach(function(x){{x.href=x.getAttribute('href').replace(/\\?home$/,'')+'?home';}});}}}}catch(e){{}}}})();
-</script>
 """
+
+
+def header(lang, page, depth):
+    return f'<body class="pub" data-pubpage="{page}">\n' + gnav_html(lang, rel(depth), page) + f'<script src="{rel(depth)}assets/nav.js"></script>\n'
+
+
+def write_app_header():
+    """Isto zaglavlje i u aplikaciji (app/index.html, između oznaka GNAV)"""
+    path = os.path.join(ROOT, 'app', 'index.html')
+    html = open(path, encoding='utf-8').read()
+    a, b = html.index('<!-- GNAV -->'), html.index('<!-- /GNAV -->')
+    html = html[:a] + '<!-- GNAV -->\n' + gnav_html('sr', '../', app_page=True) + html[b:]
+    open(path, 'w', encoding='utf-8').write(html)
+    print('   app/index.html (zaglavlje)')
 
 
 def footer(lang, depth):
@@ -672,6 +719,7 @@ def main():
         write(PAGES['privacy'][lang] + 'index.html', doc(lang, 'privacy', PRIVACY[lang], 1 if lang == 'en' else 2))
         write(PAGES['about'][lang] + 'index.html', doc(lang, 'about', ABOUT[lang], 1 if lang == 'en' else 2))
     # /app/ nije u mapi sajta i ima <meta name="robots" content="noindex"> (ne blokira se ovde, da bi pretraživač video noindex)
+    write_app_header()
     write('robots.txt', f'User-agent: *\nAllow: /\n\nSitemap: {SITE_URL}sitemap.xml\n')
     urls = []
     for page, paths in PAGES.items():

@@ -17,16 +17,33 @@
 <link rel="stylesheet" href="../assets/app.css">
 </head>
 <body>
-<header class="top">
-  <div class="wrap">
-    <a class="brand" href="../" aria-label="RosterSwing"><img class="brand-mark" src="../assets/favicon.svg" width="24" height="24" alt="RosterSwing"><img class="brand-word" src="../assets/wordmark.svg" width="96" height="16" alt=""><span class="brand-desc">Fantasy Basketball Tools</span></a>
-    <div class="hcenter"><span id="hleague"></span><div class="seg" id="periods" role="group" aria-label="Period"></div></div>
-    <div class="hright">
+<!-- GNAV -->
+<header class="top gnav" data-root="../" data-lang="sr" data-app-page="1">
+  <div class="wrap gnav-row">
+    <a class="brand" href="../sr/" data-href="home" aria-label="RosterSwing"><img class="brand-mark" src="../assets/favicon.svg" width="24" height="24" alt="RosterSwing"><img class="brand-word" src="../assets/wordmark.svg" width="96" height="16" alt=""></a>
+    <nav class="gnav-links" aria-label="Glavni meni">
+      <a class="gl gl-home" href="../sr/" data-href="home" data-t="home">Početna</a>
+      <div class="dd-wrap"><button type="button" class="gl" data-gmenu="tools" aria-haspopup="menu" aria-expanded="false"><span data-t="tools">Alati</span><svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+        <div class="gmenu" id="gmenu-tools" role="menu" hidden>
+          <a role="menuitem" class="pm-item" href="../sr/trade-analyzer/" data-href="analyzer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8h14l-4-4M20 16H6l4 4"/></svg><span data-t="analyzer">Analiza trejda</span></a>
+          <span class="pm-item off" aria-disabled="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span data-t="finder">Igrač za tim</span><span class="soon" data-t="soon">Uskoro</span></span>
+          <span class="pm-item off" aria-disabled="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="16" r="3"/><path d="M11 8h6v5M13 16H7v-5"/></svg><span data-t="builder">Trejd između dva tima</span><span class="soon" data-t="soon">Uskoro</span></span>
+        </div></div>
+      <div class="dd-wrap"><button type="button" class="gl" data-gmenu="leagues" aria-haspopup="menu" aria-expanded="false"><span data-t="leagues">Moje lige</span><svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+        <div class="gmenu gmenu-leagues" id="gmenu-leagues" role="menu" hidden>
+          <a role="menuitem" class="pm-item" href="../sr/trade-analyzer/" data-href="analyzer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg><span data-t="quick">Brzo poređenje</span></a>
+          <a role="menuitem" class="pm-item" href="#home&amp;lang=sr" data-href="all"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span data-t="all">Sve lige</span></a>
+          <div class="pm-sub" data-leagues></div>
+          <div class="pm-sep"></div>
+          <div data-league-settings></div>
+          <a role="menuitem" class="pm-item" href="#home&amp;addleague=1&amp;lang=sr" data-href="add"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span data-t="add">Dodaj ligu</span></a>
+        </div></div>
+    </nav>
     <label class="langsel" title="Jezik / Language"><svg class="globe" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.8 3.8 5.8 3.8 9s-1.3 6.2-3.8 9c-2.5-2.8-3.8-5.8-3.8-9S9.5 5.8 12 3z"/></svg><select data-langsel aria-label="Jezik / Language"><option value="sr">Srpski</option><option value="en">English</option></select></label>
-    <button type="button" class="pchip" data-action="profile" id="pchip"></button>
-    </div>
   </div>
 </header>
+<!-- /GNAV -->
+<script src="../assets/nav.js"></script>
 
 <div class="shell">
 <aside id="sidenav"></aside>

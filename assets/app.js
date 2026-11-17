@@ -588,8 +588,7 @@ function applyStaticText() {
   if (gear) { gear.title = t('Podešavanja i rezervna kopija'); gear.setAttribute('aria-label', t('Podešavanja')); }
   if (EMBED) return;
   document.title = t('Moje lige') + ' | RosterSwing';
-  const brand = document.querySelector('a.brand');
-  if (brand) brand.href = publicHome();
+  window.RSNav?.setLang(LANG); // zajedničko zaglavlje prati jezik aplikacije
   const ft = document.querySelector('footer.appfoot');
   if (ft) ft.textContent = t('Podaci: javni {src} fantasy API (nezvaničan). Prosek po utakmici.', { src: DATA_SOURCE.name });
   document.querySelectorAll('[data-langsel]').forEach(sel => { sel.value = LANG; });
@@ -1359,10 +1358,11 @@ function render() {
   renderStatus();
   renderBanner();
   if (!EMBED) renderNav();
-  if (state.view === 'home') { renderHome(); return; }
+  if (state.view === 'home') { renderHome(); renderHeader(); return; }
+  renderWsHead(); // drugi red: liga, period, profil, podešavanja
   renderPeriods();
+  renderHeader();
   renderLeagueBar();
-  renderWsHead();
   linkBudget = { page: 0, cards: new Set() };
   if (!EMBED) $('#backbar').innerHTML = state.view === 'league' ? backbarHTML() : '';
   if (state.view === 'league' && state.page !== 'trade') { renderPage(); restoreFocus(focused, caret); return; }
@@ -1395,6 +1395,7 @@ function renderHeader() {
   const hl = $('#hleague');
   if (hl) hl.innerHTML = EMBED || state.view === 'home' ? '' : leaguePickerHTML(); // liga je kontekst, bira se u zaglavlju
   const nm = profile?.name?.trim();
+  if (!$('#pchip')) return;
   $('#pchip').innerHTML = `<span class="pav">${nm ? esc(initialsOf(nm)) : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>'}</span><span class="pname">${nm ? esc(nm) : t('Profil')}</span>`;
   $('#pchip').setAttribute('aria-label', t('Profil'));
 }
@@ -1426,14 +1427,17 @@ function renderLeagueBar() {
 
 /** Naslov radnog prostora: liga (naziv, tim, platforma) ili brzo poređenje */
 function renderWsHead() {
+  if (EMBED) return; // na /trade-analyzer/ period je u samom alatu
   const el = $('#wshead');
   const lg = currentLeague();
+  const right = `<div class="wsh-r"><div class="seg" id="periods" role="group" aria-label="Period"></div>
+    <button type="button" class="pchip" data-action="profile" id="pchip"></button>
+    ${state.view === 'league' && lg ? `<button type="button" class="gear" data-action="league-settings" title="${esc(t('Podešavanja lige'))}" aria-label="${esc(t('Podešavanja lige'))}">⚙</button>` : ''}</div>`;
   if (state.view === 'league' && lg) {
     el.innerHTML = `<div class="wsh"><div class="wsh-t"><h1>${esc(lg.name)}</h1>
-      <span class="pbadge">${esc(platformLabel(lg.platform))}</span>${lg.teamName ? `<span class="wsh-team">${esc(lg.teamName)}</span>` : ''}</div>
-      <button type="button" class="linkbtn" data-action="league-settings">⚙ ${t('Podešavanja lige')}</button></div>`;
+      <span class="pbadge">${esc(platformLabel(lg.platform))}</span>${lg.teamName ? `<span class="wsh-team">${esc(lg.teamName)}</span>` : ''}</div>${right}</div>`;
   } else {
-    el.innerHTML = `<div class="wsh"><div class="wsh-t"><h1>${t('Brzo poređenje')}</h1><span class="wsh-note">${t('Za {f} lige', { f: formatLabel('h2h-cat', true) })}</span></div></div>`;
+    el.innerHTML = `<div class="wsh"><div class="wsh-t"><h1>${t('Brzo poređenje')}</h1><span class="wsh-note">${t('Za {f} lige', { f: formatLabel('h2h-cat', true) })}</span></div>${right}</div>`;
   }
 }
 
@@ -1480,7 +1484,7 @@ function renderNudge() {
   const show = state.view === 'quick' && (giveIds().length || getIds().length);
   el.innerHTML = !show ? '' : EMBED
     ? `<div class="nudge"><span>${t('Sačuvaj svoj tim i vidi kako trejd utiče na njega')}</span>
-      <a class="btn" href="${esc(EMBED.app)}#quick&addleague=1${LANG === 'en' ? '&lang=en' : '&lang=sr'}">＋ ${t('Dodaj svoju ligu')}</a></div>`
+      <a class="btn" href="${esc(EMBED.app)}#home&lang=${LANG}">＋ ${t('Dodaj svoju ligu')}</a></div>`
     : `<div class="nudge"><span>${t('Sačuvaj svoj tim i vidi kako trejd utiče na njega')}</span>
     <button type="button" class="linkbtn" data-action="add-league">＋ ${t('Dodaj ligu')}</button></div>`;
 }
@@ -1508,7 +1512,7 @@ function renderHome() {
   const el = $('#home');
   const nm = profile?.name?.trim();
   const leagues = profile?.leagues || [];
-  const hello = `<h1 class="hello">${nm ? t('Zdravo, {n}', { n: esc(nm) }) : t('Zdravo')}</h1>`;
+  const hello = `<div class="hello-row"><h1 class="hello">${nm ? t('Zdravo, {n}', { n: esc(nm) }) : t('Zdravo')}</h1><button type="button" class="pchip" data-action="profile" id="pchip"></button></div>`;
   if (!leagues.length) {
     el.innerHTML = `${hello}<div class="empty-home">
       <p>${t('Sačuvaj svoju ligu i tim da vidiš kako trejd utiče na tvoj roster, ili samo brzo uporedi dva paketa igrača.')}</p>

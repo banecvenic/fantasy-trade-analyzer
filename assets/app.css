@@ -620,8 +620,7 @@ tr.hl td{background:linear-gradient(rgba(var(--info-rgb),.16),rgba(var(--info-rg
   .page-t{font-size:18px}
 }
 @media (max-width:640px){
-  /* telefon: naziv lige je već u izbiraču u zaglavlju, podešavanja su u njegovom meniju */
-  body[data-view="league"] #wshead{display:none}
+
   body[data-view="league"] .hcenter{flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:flex-start}
   body[data-view="league"] #hleague{max-width:100%}
   body[data-view="league"] .lpick{max-width:100%}
@@ -638,3 +637,58 @@ tr.hl td{background:linear-gradient(rgba(var(--info-rgb),.16),rgba(var(--info-rg
   .rtable .acts{order:3;flex:0 0 100%;flex-direction:row!important;justify-content:flex-start;margin-left:0;gap:6px}
   .rtable .acts .rm,.rtable .acts .mini{min-height:36px;min-width:44px}
 }
+
+/* =====================================================================
+   Zajedničko zaglavlje (sve stranice): logo · Početna · Alati ▾ · Moje lige ▾ · jezik
+   ===================================================================== */
+header.gnav .gnav-row{display:flex;align-items:center;gap:6px;min-height:60px;padding-top:8px;padding-bottom:8px;flex-wrap:nowrap}
+header.gnav .brand{margin-right:10px}
+.gnav-links{display:flex;align-items:center;gap:2px;flex:1;min-width:0}
+.gl{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 12px;border-radius:10px;background:none;border:0;color:var(--muted);font:inherit;font-size:14px;font-weight:600;text-decoration:none;cursor:pointer;white-space:nowrap}
+.gl:hover,.gl[aria-expanded="true"]{color:var(--text);background:var(--card)}
+.gl .caret{transition:transform .15s}
+.gl[aria-expanded="true"] .caret{transform:rotate(180deg)}
+.dd-wrap{position:relative}
+.gmenu{position:absolute;top:calc(100% + 6px);left:0;z-index:160;min-width:250px;max-width:320px;background:var(--card2);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.5);padding:6px;display:flex;flex-direction:column}
+.gmenu[hidden]{display:none}
+.gmenu .pm-item{justify-content:flex-start;gap:10px}
+.gmenu .pm-item svg{flex:none;color:var(--muted)}
+.gmenu .pm-item.off{color:var(--dim);cursor:default}
+.gmenu .pm-item.off:hover{background:none}
+.gmenu .pm-item .soon{margin-left:auto;font-size:11px;min-height:22px;padding:0 8px;border-radius:999px;background:var(--info-bg);color:var(--info);display:inline-flex;align-items:center;font-weight:700}
+.pm-sub{display:flex;flex-direction:column;margin:0 0 2px 18px;padding-left:8px;border-left:1px solid var(--line)}
+.pm-league{min-height:40px;font-weight:600}
+.pm-league .pm-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pm-league .cnt{margin-left:auto}
+.pm-dot{width:6px;height:6px;border-radius:50%;background:var(--dim);flex:none}
+.pm-league.on{color:var(--rs-red-text)}
+.pm-league.on .pm-dot{background:var(--rs-red)}
+header.gnav .langsel{margin-left:auto;flex:none}
+/* drugi red u aplikaciji: liga · period · profil · podešavanja */
+.wsh-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.wsh-r .seg{margin-left:0}
+.hello-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+@media (max-width:640px){
+  header.gnav .gnav-row{gap:2px}
+  header.gnav .brand{margin-right:2px}
+  header.gnav .brand-word{display:none}
+  .gl-home{display:none}
+  .gl{padding:0 9px;font-size:13px}
+  header.gnav .langsel{padding:0 2px 0 8px}
+  header.gnav .langsel select{max-width:72px;font-size:12px}
+  .gmenu{position:fixed;left:8px;right:8px;top:62px;max-width:none}
+  .wsh{gap:8px}
+  .wsh-r{width:100%}
+  .wsh-r .seg{order:3;width:100%;justify-content:space-between}
+  .wsh-r .pchip{margin-left:auto}
+}
+@media (max-width:640px){
+  /* telefon: ime lige, profil i podešavanja u jednom redu, period ispod */
+  #wshead .wsh{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;column-gap:6px;row-gap:8px}
+  #wshead .wsh-r{display:contents}
+  #wshead .wsh-t{min-width:0;flex-wrap:wrap;row-gap:2px}
+  #wshead .wsh-r .seg{grid-column:1 / -1;grid-row:2;width:100%}
+  #wshead .wsh-r .pchip{margin-left:0}
+}
+.gmenu{min-width:300px}
+.gmenu .pm-item .soon{white-space:nowrap}
