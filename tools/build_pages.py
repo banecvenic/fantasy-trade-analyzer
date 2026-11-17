@@ -44,6 +44,8 @@ T = {
         'lang_other': 'Srpski',
         'my_leagues': 'My leagues',
         'continue': 'Continue: {name}',
+        'your_leagues': 'Your leagues',
+        'add_league': 'Save your league',
         'tool_h': 'Compare a trade',
         'tool_lead': 'Add players to You give and You get. Per game stats for 9-category head to head leagues.',
         'loading': 'Loading players…',
@@ -100,6 +102,8 @@ T = {
         'lang_other': 'English',
         'my_leagues': 'Moje lige',
         'continue': 'Nastavi: {name}',
+        'your_leagues': 'Tvoje lige',
+        'add_league': 'Sačuvaj svoju ligu',
         'tool_h': 'Uporedi trejd',
         'tool_lead': 'Dodaj igrače u Daješ i Dobijaš. Prosek po utakmici, za lige sa 9 kategorija (H2H).',
         'loading': 'Učitavam igrače…',
@@ -413,8 +417,19 @@ def home(lang):
     <div class="stripe" aria-hidden="true"><i style="background:var(--rs-red)"></i><i style="background:var(--rs-green)"></i><i style="background:var(--rs-blue)"></i></div>
     <h1>{escape(t['h1'])}</h1>
     <p>{escape(t['lead'])}</p>
-    <a class="cta" href="#tool" id="cta">{escape(t['cta'])}</a>
+    <div class="hero-actions">
+      <a class="cta" href="#tool" id="cta">{escape(t['cta'])}</a>
+      <a class="cta2" id="hero-leagues" href="{app}#home&amp;lang={lang}">{escape(t['add_league'])}</a>
+    </div>
+    <nav class="my-leagues" id="my-leagues" aria-label="{escape(t['your_leagues'])}" hidden><span class="ml-t">{escape(t['your_leagues'])}</span></nav>
   </section>
+<script>
+(function(){{try{{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));if(!p||!p.leagues||!p.leagues.length)return;
+var last=p.leagues.find(function(x){{return x.id===p.lastLeagueId}})||p.leagues[0];var app='{app}',lg='&lang={lang}';
+var b=document.getElementById('hero-leagues');b.textContent={json.dumps(t['continue'])}.replace('{{name}}',last.name);b.href=app+'#league-'+last.id+'/overview'+lg;b.classList.add('on');
+var nav=document.getElementById('my-leagues');p.leagues.forEach(function(l){{var a=document.createElement('a');a.className='ml-chip'+(l.id===last.id?' on':'');a.href=app+'#league-'+l.id+'/overview'+lg;a.textContent=l.name;nav.appendChild(a);}});nav.hidden=false;
+}}catch(e){{}}}})();
+</script>
 
   <section class="tool" id="tool" aria-labelledby="tool-h">
     <h2 id="tool-h">{escape(t['tool_h'])}</h2>

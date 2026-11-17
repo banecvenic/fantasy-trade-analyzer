@@ -3152,19 +3152,19 @@ function summaryRows(before, after, showAfter) {
 
 function rosterTableHTML(kind, plan) {
   const P = id => state.byId.get(id);
-  // Analiza trejda: sačuvan roster se ovde ne uređuje (Uredi roster vodi na Moj tim / Ligu)
-  const rm = () => '';
-  const irBtn = () => '';
+  // Analiza trejda: →IR i ✕ menjaju sačuvan roster, isto kao na stranicama Moj tim i Liga
+  const rm = id => rosterRmBtn(kind, id);
+  const irBtn = (id, toIr) => rosterIrBtn(kind, id, toIr);
   const outSet = new Set(plan.outIds), dropSet = new Set(plan.dropsRemove || []);
   // Pregled: igrači koji ostaju na svojim mestima (sačuvani redosled), a dole redom
   // ODLAZI, IZBAČEN, DOLAZI, WAIVER. U prikazu "Sačuvan roster" plan je prazan, pa svi ostaju na mestu.
   const stay = [], leaving = [], dropped = [];
-  const irRow = id => P(id) && rosterRow(P(id), kind, { tags: [{ text: 'IR', cls: 'tag-ir' }], cls: 'ir', actions: irBtn(id, false) + rm(id), ir: true });
+  const irRow = id => P(id) && rosterRow(P(id), kind, { tags: [{ text: 'IR', cls: 'tag-ir' }], cls: 'ir', actions: irBtn(id, false) + rm(id), saved: true, ir: true });
   for (const id of plan.activeBefore) {
     const p = P(id); if (!p) continue;
     if (outSet.has(id)) leaving.push({ id, ir: false });
     else if (dropSet.has(id)) dropped.push({ id, ir: false });
-    else stay.push(rosterRow(p, kind, { actions: irBtn(id, true) + rm(id) }));
+    else stay.push(rosterRow(p, kind, { actions: irBtn(id, true) + rm(id), saved: true }));
   }
   const irStay = [];
   for (const id of plan.irIds) {
@@ -3179,7 +3179,7 @@ function rosterTableHTML(kind, plan) {
   }
   const moved = (list, text) => list.map(({ id, ir }) => P(id) && rosterRow(P(id), kind, {
     tags: [...(ir ? [{ text: 'IR', cls: 'tag-ir' }] : []), { text, cls: 'tag-out' }], cls: `leaving ${ir ? 'ir' : ''}`,
-    actions: irBtn(id, !ir) + rm(id), ir })).filter(Boolean);
+    actions: irBtn(id, !ir) + rm(id), saved: true, ir })).filter(Boolean);
   rows.push(...moved(leaving, 'Odlazi'), ...moved(dropped, 'Izbačen'));
   for (const id of plan.incoming) {
     const p = P(id); if (!p) continue;
@@ -4220,14 +4220,16 @@ function rosterEditorHTML(kind, rowActions, emptyText) {
   const meta = `<div class="r-meta">${t('{a}/{b} aktivnih · {c}/{d} IR', { a: activeCount(r), b: ROSTER.ACTIVE, c: irCount(r), d: ROSTER.IR })} · ${t('Ažurirano: {d}', { d: fmtShortDate(r.updated) })}${isStale(r.updated) ? ` <span class="stale">· ${t('Roster možda nije aktuelan, proveri izmene.')}</span>` : ''}</div>`;
   return `${meta}${addBox}${r.players.length ? savedRosterTable(kind, rowActions) : `<div class="empty-team cta">${emptyText}</div>`}`;
 }
-/** Meni uz igrača (⋯): stavke se prave na klik */
-const pmenuBtn = (kind, id) => `<button type="button" class="rm pmenu-btn" data-pmenu="${kind}:${id}" aria-label="${t('Opcije')}" aria-haspopup="menu">⋯</button>`;
+/** Dugmad uz igrača u rosteru (isto na Moj tim, Liga i Analiza trejda) */
+const rosterIrBtn = (kind, id, toIr) => `<button class="mini" type="button" data-action="r-ir" data-kind="${kind}" data-id="${id}" title="${toIr ? t('Prebaci na IR') : t('Vrati sa IR')}">${toIr ? '→IR' : '←IR'}</button>`;
+const rosterRmBtn = (kind, id) => `<button class="rm" type="button" data-action="r-remove" data-kind="${kind}" data-id="${id}" aria-label="${t('Ukloni sa rostera')}" title="${t('Ukloni sa rostera')}">✕</button>`;
+const rosterBtns = (kind, p, x) => rosterIrBtn(kind, p.id, !x.ir) + rosterRmBtn(kind, p.id);
 
 /* ---------- Stranica: Moj tim ---------- */
 function renderTeamPage() {
   const lg = currentLeague();
   return `<h2 class="page-t">${t('Moj tim')}${lg.teamName ? ` <span class="hint">${esc(lg.teamName)}</span>` : ''}</h2>
-    <section class="card">${rosterEditorHTML('my', p => pmenuBtn('my', p.id),
+    <section class="card">${rosterEditorHTML('my', (p, x) => linkHTML('team-trade', { cls: 'mini trade', attrs: `data-player="${p.id}" title="${esc(t('Trejduj ga'))}" aria-label="${esc(t('Trejduj ga'))}"`, label: '⇄' }) + rosterBtns('my', p, x),
       t('Unesi svoj roster ({a} aktivnih + {b} IR). Čuva se samo u ovom browseru.', { a: ROSTER.ACTIVE, b: ROSTER.IR }))}</section>`;
 }
 
@@ -4265,7 +4267,7 @@ function renderLeaguePage() {
     editor = `<section class="card lt-editor" id="lt-editor"><div class="card-h"><div class="side-title"><b>${esc(o.name)}</b><small>${t('Roster protivnika')}</small></div>
       <button type="button" class="linkbtn" data-action="lt-rename">${t('Preimenuj')}</button><button type="button" class="linkbtn danger" data-action="lt-delete">${t('Obriši')}</button>
       <button type="button" class="iconbtn" data-action="lt-close" aria-label="${t('Zatvori')}">✕</button></div>${rename}
-      ${rosterEditorHTML('lt', p => `${linkHTML('league-want', { cls: 'mini want', attrs: `data-player="${p.id}" data-opp="${sel}"` })}${pmenuBtn('lt', p.id)}`,
+      ${rosterEditorHTML('lt', (p, x) => `${linkHTML('league-want', { cls: 'mini want', attrs: `data-player="${p.id}" data-opp="${sel}"` })}${rosterBtns('lt', p, x)}`,
         t('Unesi roster protivnika ({a} aktivnih + {b} IR). Čuva se samo u ovom browseru.', { a: ROSTER.ACTIVE, b: ROSTER.IR }))}</section>`;
   }
   return `<h2 class="page-t">${t('Liga')} <span class="hint">${t('Uneto {a} od {b} timova', { a: enteredCount(), b: lg.teams || '?' })}</span></h2>

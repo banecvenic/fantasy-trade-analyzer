@@ -627,3 +627,14 @@ tr.hl td{background:linear-gradient(rgba(var(--info-rgb),.16),rgba(var(--info-rg
   body[data-view="league"] .lpick{max-width:100%}
   body[data-view="league"] .hcenter .seg{width:100%}
 }
+.mini.trade{color:var(--info);border-color:rgba(var(--info-rgb),.4);font-size:13px;font-weight:700}
+/* rosteri sa dugmadima uz igrača (⇄ →IR ✕): šira kolona imena */
+@media (min-width:1001px){ .rtable th:first-child,.rtable td:first-child{width:370px;max-width:370px} .rtable{min-width:930px} }
+@media (max-width:640px){ .rtable th:first-child,.rtable td:first-child{min-width:190px;width:190px;max-width:190px} .rtable .acts{gap:2px} .rtable .acts .rm,.rtable .acts .mini{min-width:36px} }
+/* telefon: dugmad ispod imena, da ime ima celu širinu kolone */
+@media (max-width:640px){
+  .rtable .pl{flex-wrap:wrap;row-gap:4px}
+  .rtable .pl .txt{flex:1 1 calc(100% - 30px)}
+  .rtable .acts{order:3;flex:0 0 100%;flex-direction:row!important;justify-content:flex-start;margin-left:0;gap:6px}
+  .rtable .acts .rm,.rtable .acts .mini{min-height:36px;min-width:44px}
+}

@@ -9,6 +9,16 @@
 .leagues-link:hover{border-color:var(--dim)}
 .cta{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 22px;border-radius:999px;background:var(--rs-red-btn);color:#fff;font-weight:700;font-size:16px;text-decoration:none;border:0;cursor:pointer;font-family:inherit}
 .cta:hover{background:var(--rs-red)}
+.hero-actions{display:flex;gap:10px;flex-wrap:wrap}
+.cta2{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 22px;border-radius:999px;background:var(--card);border:1px solid var(--line);color:var(--text);font-weight:700;font-size:16px;text-decoration:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cta2:hover{border-color:var(--dim)}
+.cta2.on{border-color:var(--rs-green);color:var(--rs-green)}
+.my-leagues{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:16px}
+.my-leagues[hidden]{display:none}
+.ml-t{color:var(--muted);font-size:13px;font-weight:600;margin-right:2px}
+.ml-chip{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border-radius:999px;background:var(--card);border:1px solid var(--line);color:var(--text);font-weight:600;font-size:14px;text-decoration:none}
+.ml-chip:hover{border-color:var(--dim)}
+.ml-chip.on{border-color:var(--accent)}
 
 .hero{padding:44px 0 8px;max-width:760px}
 .hero h1{font-size:32px;line-height:1.15;font-weight:800;letter-spacing:-.02em;margin:0 0 14px}
@@ -70,7 +80,7 @@
   .hero{padding:26px 0 4px}
   .hero h1{font-size:28px}
   .hero p{font-size:16px;margin-bottom:18px}
-  .cta{width:100%}
+  .cta,.cta2{width:100%}
   .pub main > section{padding-top:28px}
   .site-nav{gap:6px}
   .site-nav a{padding:0 12px;font-size:13px}
