@@ -522,7 +522,8 @@ def jsonld_faq(lang):
 REDIRECT = """<script>
 (function(){var h=location.hash,app='{app}',ta='{ta}';
 if(/^#(home|league-)/.test(h)){location.replace(app+h);return;}
-if(/^#quick/.test(h)||/(^#|&)(t|s|per)=/.test(h)){location.replace(ta+'#'+h.slice(1).replace(/^quick&?/,''));return;}
+if(/(^#|&)s=1(&|$)/.test(h)){location.replace(app+h);return;}
+if(/^#quick/.test(h)||/(^#|&)(t|per)=/.test(h)){location.replace(ta+'#'+h.slice(1).replace(/^quick&?/,''));return;}
 if(/[?&]home\\b/.test(location.search))return;
 try{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));var l=p&&p.leagues&&(p.leagues.find(function(x){return x.id===p.lastLeagueId})||p.leagues[0]);
 if(l)location.replace(app+'#league-'+l.id+'/overview&lang={lang}');}catch(e){}})();
@@ -662,6 +663,7 @@ def analyzer(lang):
 
   <section class="tool" id="tool" aria-label="{escape(t['tool_h'])}">
     <div class="tool-periods"><div class="seg" id="periods" role="group" aria-label="Period">{pre_periods}</div></div>
+    <div id="tradetabs" class="tool-tabs"></div>
     <div class="tool-app">
       <div class="status" id="status">{escape(t['loading'])}</div>
       <div id="banner"></div>
@@ -672,7 +674,7 @@ def analyzer(lang):
       <div id="nudge"></div>
       <div id="report"></div>
     </div>
-    <div hidden><span id="hleague"></span><button type="button" id="pchip"></button><section id="home"></section><div id="leaguebar"></div><div id="wshead"></div><div id="tradetabs"></div><div id="myteam"></div><div id="oppteam"></div><div id="history"></div></div>
+    <div hidden><span id="hleague"></span><button type="button" id="pchip"></button><section id="home"></section><div id="leaguebar"></div><div id="wshead"></div><div id="myteam"></div><div id="oppteam"></div><div id="history"></div></div>
   </section>
 
   <section aria-labelledby="how-h">

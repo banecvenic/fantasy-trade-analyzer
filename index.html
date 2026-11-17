@@ -38,7 +38,8 @@
 <script>
 (function(){var h=location.hash,app='app/',ta='trade-analyzer/';
 if(/^#(home|league-)/.test(h)){location.replace(app+h);return;}
-if(/^#quick/.test(h)||/(^#|&)(t|s|per)=/.test(h)){location.replace(ta+'#'+h.slice(1).replace(/^quick&?/,''));return;}
+if(/(^#|&)s=1(&|$)/.test(h)){location.replace(app+h);return;}
+if(/^#quick/.test(h)||/(^#|&)(t|per)=/.test(h)){location.replace(ta+'#'+h.slice(1).replace(/^quick&?/,''));return;}
 if(/[?&]home\b/.test(location.search))return;
 try{var p=JSON.parse(localStorage.getItem('fbaTrade.profile.v2'));var l=p&&p.leagues&&(p.leagues.find(function(x){return x.id===p.lastLeagueId})||p.leagues[0]);
 if(l)location.replace(app+'#league-'+l.id+'/overview&lang=en');}catch(e){}})();

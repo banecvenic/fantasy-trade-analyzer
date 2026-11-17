@@ -1027,6 +1027,9 @@ function applyRoute() {
     loadState();
     // trejd iz linka (#per=…&t=…): novi tab ili prebacivanje na isti; postojeći tabovi se ne gaze
     const hp = new URLSearchParams(location.hash.slice(1));
+    // deljeni link (s=1): obrađuje ga aplikacija (prepoznavanje lige, izbor lige, ugao primaoca)
+    if (hp.get('s') === '1') { location.replace(new URL(EMBED.app, location.href).href + location.hash); return; }
+    if (hp.get('so') === '1') { state.sharedOpen = true; history.replaceState(null, '', location.pathname + location.search); }
     if (hp.has('t')) {
       const lists = hp.get('t').split('|').map(ids);
       if (PERIODS.some(p => p.key === hp.get('per'))) state.period = hp.get('per');
@@ -1143,7 +1146,7 @@ function openSharedIn(scope, lists) {
   state.sharedOpen = !own;
   // isti igrač ne može biti na obe strane
   state.teams[GET].ids = state.teams[GET].ids.filter(id => !state.teams[GIVE].ids.includes(id));
-  if (scope === 'quick' && !EMBED) { persistTrades(); location.replace(publicAnalyzer()); return; } // nezavisan trejd: /trade-analyzer/
+  if (scope === 'quick' && !EMBED) { persistTrades(); location.replace(`${publicAnalyzer()}${own ? '' : '#so=1'}`); return; } // nezavisan trejd: /trade-analyzer/, sa obaveštenjem o uglu
   state.page = 'trade';
   document.body.dataset.page = 'trade';
   saveState();
@@ -3625,7 +3628,8 @@ function shareURL() {
   q.set('t', `${giveIds().join(',')}|${getIds().join(',')}`);
   if (LANG === 'en') q.set('lang', 'en');
   q.set('s', '1'); // oznaka: otvoreno preko deljenog linka
-  const base = `${location.origin}${location.pathname}`; // na /trade-analyzer/ link ostaje na toj stranici
+  // i iz brzog poređenja link vodi u aplikaciju: ona prepozna ligu, pita gde da ga svrsta i okrene strane
+  const base = EMBED ? new URL(EMBED.app, location.href).href : `${location.origin}${location.pathname}`;
   return `${base}#${q.toString().replace(/%7C/gi, '|').replace(/%2C/gi, ',')}`;
 }
 
@@ -4598,7 +4602,7 @@ document.addEventListener('change', e => {
   state.balance[k].drops = d.filter(Boolean);
   saveBalance(); render();
 });
-if (!EMBED) window.addEventListener('hashchange', applyRoute);
+if (!EMBED?.mini) window.addEventListener('hashchange', applyRoute); // i na /trade-analyzer/: link nalepljen u isti tab
 
 /* ---------- Pomeranje igrača u rosteru (≡): miš i dodir ---------- */
 let drag = null;
