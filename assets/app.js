@@ -896,6 +896,12 @@ const EN = {
   "Statistika od trejda": "Stats since the trade",
   "Još nema sačuvanih trejdova. Klikni „Sačuvaj ideju” ili „Ponuda je poslata” ispod rezultata.": "No saved trades yet. Click “Save idea” or “Offer sent” below the score.",
   "Klik na trejd otvara ga u analizi trejda. 📊 prikazuje statistiku od trejda.": "Click a trade to open it in trade analysis. 📊 shows stats since the trade.",
+  "Trejd možeš da gledaš i porediš, ali ponuda može da se pošalje samo za igrače iz tvog tima i tima protivnika.": "You can view and compare this trade, but an offer can only be sent for players from your team and your opponent’s team.",
+  "{x} nije u tvom timu.": "{x} is not on your team.",
+  "{x} nisu u tvom timu.": "{x} are not on your team.",
+  "Izaberi protivnika ispod.": "Pick an opponent below.",
+  "{x} nije u timu {team}.": "{x} is not on {team}.",
+  "{x} nisu u timu {team}.": "{x} are not on {team}.",
   'Novo: javi nam ako nešto nije uvezeno kako treba.': 'New: let us know if something was not imported correctly.',
   // Uvezena liga: podešavanja i kontekst cele lige
   'na {n}. mestu ({r})': 'in place {n} ({r})',
@@ -5715,11 +5721,29 @@ function offerActionsHTML() {
   if (h) return `<div class="offer-state">📨 ${t('Ponuda je poslata {d}', { d: fmtDate(h.date) })}${h.opp ? ` · ${esc(h.opp)}` : ''}</div>
     <div class="score-actions"><button type="button" class="btn ok" data-action="offer-accept" data-id="${h.id}">✔ ${t('Prihvaćeno')}</button><button type="button" class="btn danger" data-action="offer-reject" data-id="${h.id}">✕ ${t('Odbijeno')}</button></div>
     <div class="score-hint">${t('Kad protivnik odgovori, upiši ishod. Ponuda te čeka i u Istoriji trejdova, i kad zatvoriš ovaj tab.')}</div>`;
+  const why = offerBlockers();
+  if (why.length) return `<div class="score-actions"><button type="button" class="btn ghost" disabled>📨 ${t('Ponuda je poslata')}</button></div>
+    <div class="score-hint offer-block">⚠ ${why.join(' ')} ${t('Trejd možeš da gledaš i porediš, ali ponuda može da se pošalje samo za igrače iz tvog tima i tima protivnika.')}</div>`;
   return `<div class="score-actions"><button type="button" class="btn ok" data-action="offer-sent">📨 ${t('Ponuda je poslata')}</button></div>
     <div class="score-hint">${t('Kad pošalješ ovu ponudu na {p}, klikni „Ponuda je poslata”. Rosteri se ne menjaju ručno, povlače se sa {p}.', { p })}</div>`;
 }
+/** Zašto ponuda ne može da se pošalje: igrači iz Daješ moraju biti u mom timu, iz Dobijaš u timu izabranog protivnika */
+function offerBlockers() {
+  const ids = r => new Set((r?.players || []).map(x => x.id));
+  const mine = ids(rosterOf('my')), opp = rosterOf('opp'), theirs = ids(opp);
+  const nm = list => list.map(id => esc(state.byId.get(id)?.name || `#${id}`)).join(', ');
+  const out = [];
+  const notMine = giveIds().filter(id => !mine.has(id));
+  if (notMine.length) out.push(t(notMine.length === 1 ? '{x} nije u tvom timu.' : '{x} nisu u tvom timu.', { x: nm(notMine) }));
+  if (!opp) out.push(t('Izaberi protivnika ispod.'));
+  else {
+    const notTheirs = getIds().filter(id => !theirs.has(id));
+    if (notTheirs.length) out.push(t(notTheirs.length === 1 ? '{x} nije u timu {team}.' : '{x} nisu u timu {team}.', { x: nm(notTheirs), team: esc(opp.name) }));
+  }
+  return out;
+}
 function offerSent() {
-  if (!giveIds().length || !getIds().length) return;
+  if (!giveIds().length || !getIds().length || offerBlockers().length) return;
   const tab = activeTab();
   const id = saveTrade({ status: 'sent', opp: rosterOf('opp')?.name || null, oppKey: state.rosters.oppSel || null });
   tab.histId = id;
