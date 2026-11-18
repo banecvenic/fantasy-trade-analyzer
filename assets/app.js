@@ -2027,6 +2027,7 @@ function render() {
   linkBudget = { page: 0, cards: new Set() };
   if (!EMBED) $('#backbar').innerHTML = state.view === 'league' ? backbarHTML() : '';
   if (state.view === 'league' && state.page !== 'trade') { renderPage(); restoreFocus(focused, caret); return; }
+  autoOppForSynced();
   renderTradeTabs();
   const totals = state.teams.map(teamTotals);
   const cmp = FMT().compareSides(totals);
@@ -3784,6 +3785,19 @@ function lowVolume(c, totals) {
   return totals.some(tot => tot.counted > 0 && tot.sum[c.att] < c.lowVol);
 }
 
+/** Povezana liga: protivnik je tim čiji roster ima sve igrače koje dobijam (izveštaj i AI tekst tako uvek imaju njegov roster i plasman) */
+function autoOppForSynced() {
+  const lg = currentLeague();
+  if (!isSynced(lg) || !getIds().length) return;
+  const ids = getIds();
+  const cur = rosterOf('opp');
+  if (cur && ids.every(id => rosterIds(cur).includes(id))) return;
+  const hits = Object.entries(state.rosters.opps).filter(([, r]) => ids.every(id => rosterIds(r).includes(id)));
+  if (hits.length !== 1) return;
+  state.rosters.oppSel = hits[0][0];
+  if (state.balance) state.balance.opp = { drops: [], waivers: [] };
+  saveRosters();
+}
 function renderCompare(totals, cmp) {
   const el = $('#compare');
   if (cmp.active.length < 2) { el.innerHTML = ''; return; }
@@ -4788,7 +4802,10 @@ function aiInstructions(uneven) {
       ['Short recommendation: accept / decline / negotiate, in one sentence', 'What is gained long term', 'What is at risk', 'Questions about the league and roster that would change the answer', 'How the trade affects each category', 'If the answer is negotiate: a concrete counteroffer']);
   if (lg && isSynced(lg) && !pts) steps[4] = L('Kako trejd utiče na moj tim po kategorijama i na moj plasman u ligi', 'How the trade affects my team by category and my place in the league');
   if (pts) steps[4] = lg ? L('Kako trejd menja fantasy poene mog tima po utakmici', 'How the trade changes my team\'s fantasy points per game') : L('Kako trejd menja fantasy poene po utakmici', 'How the trade changes fantasy points per game');
-  steps.push(oppStep);
+  steps.push(oppStep + (lg && isSynced(lg) && oppKnown
+    ? L(`. Uzmi u obzir i njegov plasman u ligi iz odeljka CELA LIGA (${pts ? 'mesto na tabeli i poeni' : 'mesto na tabeli i gde je jak ili slab po kategorijama'}): da li se bori za plejof ili vrh, ili mu više znače budući igrači, i da li mu trejd pomaže baš tamo gde mu treba`,
+      `. Also use their place in the league from the WHOLE LEAGUE section (${pts ? 'standings and points' : 'standings and where they are strong or weak by category'}): whether they are fighting for the playoffs or the top, or care more about future value, and whether the trade helps them exactly where they need it`)
+    : ''));
   out.push(steps.map((s, i) => `${i + 1}. ${s}`).join('\n'));
   out.push(L('Odgovori na srpskom, kratko i jasno.', 'Reply in English, short and clear.'));
   return out.join('\n');
