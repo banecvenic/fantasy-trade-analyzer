@@ -600,7 +600,7 @@ body:not([data-view="league"]) .shell > main.wrap{margin:0 auto}
 #bottomnav{display:none}
 /* 901-1024 px: bočni meni samo sa ikonicama (naziv u tooltip-u), da tabela ima mesta */
 @media (min-width:901px) and (max-width:1024px){
-  #sidenav{flex:0 0 72px;padding:18px 0 18px 12px}
+  #sidenav{flex:0 0 72px;padding:18px 0 18px 16px}
   .snav .nitem{justify-content:center;padding:0;width:48px}
   .snav .nitem .nlabel{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
   .snav .ngroup{font-size:0;padding:10px 0 6px;margin:0 10px;border-bottom:1px solid var(--line)}
@@ -707,6 +707,9 @@ tr.hl td{background:linear-gradient(rgba(var(--info-rgb),.16),rgba(var(--info-rg
    ===================================================================== */
 header.gnav .gnav-row{display:flex;align-items:center;gap:6px;min-height:60px;padding-top:8px;padding-bottom:8px;flex-wrap:nowrap}
 header.gnav .brand{margin-right:10px}
+/* liga sa bočnim menijem: zaglavlje iste širine kao .shell, logo poravnat sa menijem, jezik sa desnom ivicom sadržaja */
+body[data-view="league"] header.gnav .gnav-row{max-width:1500px}
+@media (min-width:901px){ body[data-view="league"] .shell > main.wrap{max-width:none} }
 .gnav-links{display:flex;align-items:center;gap:2px;flex:1;min-width:0}
 .gl{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 12px;border-radius:10px;background:none;border:0;color:var(--muted);font:inherit;font-size:14px;font-weight:600;text-decoration:none;cursor:pointer;white-space:nowrap}
 .gl:hover,.gl[aria-expanded="true"]{color:var(--text);background:var(--card)}
