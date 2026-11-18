@@ -3893,7 +3893,7 @@ function rankProjHTML(proj) {
     return `<tr><td class="catth"><b>${x.c.label}</b></td><td>${x.before}.</td><td class="${cls}">${x.after}.</td><td class="${cls}">${d > 0 ? `▲ ${d}` : d < 0 ? `▼ ${-d}` : '='}</td></tr>`;
   }).join('');
   const h2h = FMT_ACTIVE.scoringType !== 'roto';
-  return `<div class="card"><div class="tscroll"><table class="cmp rproj"><thead><tr><th>${t('Kat.')}</th><th>${t('Sada')}</th><th>${t('Kraj sezone, posle trejda')}</th><th>${t('Promena')}</th></tr></thead><tbody>${rows}</tbody></table></div>
+  return `<div class="card"><div class="tscroll"><table class="cmp rproj"><thead><tr><th>${t('Kat.')}</th><th>${t('Sada')}</th><th title="${esc(t('Kraj sezone, posle trejda'))}">${t('Posle trejda')}</th><th>${t('Promena')}</th></tr></thead><tbody>${rows}</tbody></table></div>
     <p class="pnote rp-note">${t('Mesto od {n} timova. Svi timovi su projektovani na celu sezonu istim tempom, a tvom timu je dodata razlika iz trejda (Dobijaš − Daješ po utakmici × preostale utakmice njihovih NBA timova). FG% i FT% iz pogodaka i pokušaja. Pretpostavka je da igrači igraju sve preostale utakmice.', { n: of })}${h2h ? ` ${t('U H2H ligi ovo je samo informativno.')}` : ''}</p></div>`;
 }
 
@@ -6740,7 +6740,7 @@ document.addEventListener('click', e => {
     case 'refresh': loadPlayers(true); loadSchedule(true); break;
     case 'go-back': { const b = state.back; clearBack(); if (b) location.hash = b.hash; break; }
     case 'league-menu': if (document.getElementById('popmenu')) closePopMenu(); else leagueMenu(el); break;
-    case 'trades-menu': if (document.getElementById('popmenu')) closePopMenu(); else openPopMenu(el, tradePages().map(p => `<a role="menuitem" class="pm-item" href="${pageHash(p.id)}" data-goto="${p.id}">${t(p.sr)}</a>`).join('')); break;
+    case 'trades-menu': if (document.getElementById('popmenu')) closePopMenu(); else openPopMenu(el, tradePages().map(p => { const n = p.id === 'history' ? sentOffers().length : 0; return `<a role="menuitem" class="pm-item" href="${pageHash(p.id)}" data-goto="${p.id}"><span>${t(p.sr)}</span>${n ? `<span class="cnt">${n}</span>` : ''}</a>`; }).join('')); break;
     case 'all-alerts': showAllAlerts(); break;
     case 'open-in-league': location.href = shareURL() + '&mv=1'; break; // isti izbor lige kao za deljeni link, bez okretanja strana
     case 'ov-hist': { const id = +el.dataset.id; setBack('trade'); openTrade(id); goPage('trade'); break; }

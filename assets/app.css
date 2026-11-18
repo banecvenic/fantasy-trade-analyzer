@@ -441,6 +441,7 @@ tr.irhead td{font-size:11px;color:var(--muted);background:var(--bg2);text-align:
 .offer-state{text-align:center;font-weight:600;font-size:14px;color:var(--warn);margin-top:8px}
 .offer-block{color:var(--warn)}
 .hist-answer{display:flex;gap:6px;flex:none}
+@media (max-width:700px){.hist-list li{flex-wrap:wrap}.hist-open{flex:1 1 200px}.hist-answer{order:5;flex-basis:100%;padding:0 6px 10px}}
 .hist-help{padding:0 14px 12px}
 .nbadge.sent{background:var(--warn-bg);color:var(--warn)}
 .langsel{display:flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:999px;padding:0 4px 0 9px;height:34px;color:var(--muted);flex:none;cursor:pointer}
