@@ -9,8 +9,10 @@ privacy/, sr/privacy/, about/, sr/about/, robots.txt, sitemap.xml
 Prelazak na sopstveni domen: promeni samo SITE_URL ispod i ponovo pokreni skriptu.
 Linkovi između stranica su relativni, pa sajt radi na bilo kojoj osnovnoj putanji.
 """
+import hashlib
 import json
 import os
+import re
 from html import escape
 
 # ---------------------------------------------------------------------------
@@ -486,13 +488,26 @@ def header(lang, page, depth):
     return f'<body class="pub" data-pubpage="{page}">\n' + gnav_html(lang, rel(depth), page) + f'<script src="{rel(depth)}assets/nav.js"></script>\n'
 
 
+def stamp_assets(html):
+    """Oznaka verzije na CSS/JS (assets/app.js?v=1a2b3c4d): hash sadržaja fajla, pa se menja samo kad se fajl promeni.
+    Browser tako posle objave odmah učitava novu verziju, bez ručnog osvežavanja."""
+    def repl(m):
+        name = m.group(1)
+        full = os.path.join(ROOT, 'assets', name)
+        if not os.path.exists(full):
+            return m.group(0)
+        v = hashlib.sha1(open(full, 'rb').read()).hexdigest()[:8]
+        return f'assets/{name}?v={v}'
+    return re.sub(r'assets/([\w.-]+\.(?:js|css))(?:\?v=[0-9a-f]+)?', repl, html)
+
+
 def write_app_header():
     """Isto zaglavlje i u aplikaciji (app/index.html, između oznaka GNAV)"""
     path = os.path.join(ROOT, 'app', 'index.html')
     html = open(path, encoding='utf-8').read()
     a, b = html.index('<!-- GNAV -->'), html.index('<!-- /GNAV -->')
     html = html[:a] + '<!-- GNAV -->\n' + gnav_html('sr', '../', app_page=True) + html[b:]
-    open(path, 'w', encoding='utf-8').write(html)
+    open(path, 'w', encoding='utf-8').write(stamp_assets(html))
     print('   app/index.html (zaglavlje)')
 
 
@@ -754,6 +769,8 @@ def doc(lang, page, data, depth):
 def write(path, content):
     full = os.path.join(ROOT, path)
     os.makedirs(os.path.dirname(full) or ROOT, exist_ok=True)
+    if path.endswith('.html'):
+        content = stamp_assets(content)
     with open(full, 'w', encoding='utf-8') as f:
         f.write(content)
     print('  ', path)
