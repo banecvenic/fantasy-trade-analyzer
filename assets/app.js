@@ -322,6 +322,29 @@ function mapEspnFormat(settings) {
   const format = normalizeFormat({ scoringType, categories, weights, preset: 'custom', source: 'import:espn', unsupported });
   return { format, error: null };
 }
+/* ---------- Sleeper: scoring_settings -> leagueFormat (Sleeper košarka je samo na poene, H2H) ----------
+   Ključevi provereni na api.sleeper.app/v1/stats/nba (isti nazivi kao u scoring_settings). */
+const SLEEPER_STAT = { pts: 'PTS', reb: 'REB', oreb: 'OREB', dreb: 'DREB', ast: 'AST', stl: 'STL', blk: 'BLK', to: 'TO', tpm: 'TPM', tpa: 'TPA', fgm: 'FGM', fga: 'FGA', ftm: 'FTM', fta: 'FTA', pf: 'PF', dd: 'DD', td: 'TD', gs: 'GS', min: 'MIN' };
+/** Zbirne stavke (npr. pts_reb_ast) = ista težina za svaku statistiku; promašaji = pokušaj − pogodak */
+const SLEEPER_COMBO = { pts_reb: ['PTS', 'REB'], pts_ast: ['PTS', 'AST'], reb_ast: ['REB', 'AST'], pts_reb_ast: ['PTS', 'REB', 'AST'], blk_stl: ['BLK', 'STL'] };
+const SLEEPER_MISSED = { fgmi: ['FGM', 'FGA'], ftmi: ['FTM', 'FTA'], tpmi: ['TPM', 'TPA'] };
+const SLEEPER_OTHER = { tf: 'Technical fouls', ff: 'Flagrant fouls', bonus_pt_40p: '40+ points bonus', bonus_pt_50p: '50+ points bonus', bonus_reb_20p: '20+ rebounds bonus', bonus_ast_15p: '15+ assists bonus' };
+function mapSleeperFormat(sc) {
+  if (!sc || typeof sc !== 'object') return { format: null, error: 'empty' };
+  const weights = {}, unsupported = [];
+  const add = (id, w) => { weights[id] = Math.round(((weights[id] || 0) + w) * 1000) / 1000; };
+  for (const [k, v] of Object.entries(sc)) {
+    const w = +v;
+    if (!w) continue;
+    if (SLEEPER_STAT[k]) add(SLEEPER_STAT[k], w);
+    else if (SLEEPER_COMBO[k]) SLEEPER_COMBO[k].forEach(id => add(id, w));
+    else if (SLEEPER_MISSED[k]) { add(SLEEPER_MISSED[k][1], w); add(SLEEPER_MISSED[k][0], -w); }
+    else unsupported.push(SLEEPER_OTHER[k] || `Sleeper: ${k}`);
+  }
+  for (const k of Object.keys(weights)) if (!weights[k]) delete weights[k];
+  if (!Object.keys(weights).length) return { format: null, error: 'empty' };
+  return { format: normalizeFormat({ scoringType: 'h2h_points', categories: [], weights, preset: 'custom', source: 'import:sleeper', unsupported }), error: null };
+}
 /** Format lige (uvek ispravan); bez lige (brzo poređenje) za sada 9-cat H2H */
 const leagueFormatOf = lg => (lg ? normalizeFormat(lg.leagueFormat || legacyFormat()) : normalizeFormat(null));
 
@@ -3102,7 +3125,7 @@ function openTeamPicker(parsed) {
   showModal({
     title: t('Koji je tvoj tim?'), wide: true,
     body: `<p><b>${esc(parsed.name)}</b> · ${t('{n} timova', { n: parsed.size })}${f ? ` · ${esc(formatShort(f))}` : ''}</p>${unsup}${missing}
-      ${f ? '' : `<p class="hint">${parsed.source === 'espn' ? t('Ne prepoznajemo format ove lige. Izaberi ga ručno.') : t('Izaberi format lige.')}</p>${formatPickerHTML('imp', defaultFormatFor(parsed.source, 'cat'), parsed.source)}`}
+      ${f ? '' : `<p class="hint">${parsed.source === 'espn' ? t('Ne prepoznajemo format ove lige. Izaberi ga ručno.') : t('Izaberi format lige.')}</p>${formatPickerHTML('imp', defaultFormatFor(parsed.source, parsed.source === 'sleeper' ? 'points' : 'cat'), parsed.source)}`}
       <div class="imp-teams" role="radiogroup" aria-label="${esc(t('Koji je tvoj tim?'))}">${teams.map(x => `<label class="imp-team"><input type="radio" name="imp-team" value="${esc(String(x.tid))}">
         <span class="it-name">${esc(x.name)}</span><span class="it-meta">${esc([x.abbrev, recTxt(x.record), t('{n} igrača', { n: x.players.length })].filter(Boolean).join(' · '))}</span></label>`).join('')}</div>
       <p class="hint">${t('Možeš da ga promeniš kasnije u podešavanjima lige.')}</p>
@@ -3173,11 +3196,14 @@ async function fetchSleeperLeague(q) {
     return { tid: r.roster_id, name: teamName(r), abbrev: '', record: { w: +s.wins || 0, l: +s.losses || 0, t: +s.ties || 0 }, seed: null, pf: (+s.fpts || 0) + (+s.fpts_decimal || 0) / 100, vals: null, players };
   });
   [...teams].sort((a, b) => b.record.w - a.record.w || b.pf - a.pf).forEach((x, i) => { x.seed = i + 1; });
-  const pos = info.roster_positions || [];
+  const pos = (info.roster_positions || []).filter(x => x !== 'IR');
+  const fmt = mapSleeperFormat(info.scoring_settings);
+  const st = info.settings || {};
   return {
     source: 'sleeper', extId: String(leagueId), season: String(info.season || ''), name: cleanName(info.name) || 'Sleeper', size: +info.total_rosters || teams.length,
-    format: null, fmtError: null, slots: { active: pos.length || ROSTER_DEFAULT.ACTIVE, ir: +info.settings?.reserve_slots || 0 },
-    deadline: null, playoffTeams: +info.settings?.playoff_teams || null, teams, raw: poolRawMap(pool, ids), unmatched,
+    format: fmt.format, fmtError: null, slots: { active: pos.length || ROSTER_DEFAULT.ACTIVE, ir: +st.reserve_slots || 0 },
+    deadline: null, playoffTeams: +st.playoff_teams || null, teams, raw: poolRawMap(pool, ids), unmatched,
+    playoffWeek: +st.playoff_week_start || null, week: +st.leg || null,
   };
 }
 

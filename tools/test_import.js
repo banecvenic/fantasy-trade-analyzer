@@ -169,4 +169,20 @@ test('ESPN liga 411647: naziv, mesta (klupa i IR), rok, format, timovi, IR igra�
   for (const x of ['IMEVLASNIKA', 'PREZIMEVLASNIKA', 'GUID', 'nadimak1', 'owners']) assert.ok(!stored.includes(x), x);
 });
 
+// Sleeper bodovanje: ključevi kao u api.sleeper.app/v1/stats/nba (pts, reb, fgmi, pts_reb_ast, bonus_pt_40p ...)
+const slp = new Function('LANG', `${fmtCode}\nreturn { mapSleeperFormat };`)('sr');
+test('Sleeper bodovanje: težine, zbirne stavke, promašaji, nepodržano, prazno', () => {
+  const r = slp.mapSleeperFormat({ pts: 1, reb: 1.2, ast: 1.5, stl: 3, blk: 3, to: -1, tpm: 0.5, fgmi: -0.5, pts_reb_ast: 0.1, dd: 0, tf: -2, bonus_pt_40p: 2 });
+  assert.strictEqual(r.error, null);
+  assert.strictEqual(r.format.scoringType, 'h2h_points');
+  assert.strictEqual(r.format.source, 'import:sleeper');
+  const w = r.format.weights;
+  assert.strictEqual(w.PTS, 1.1); assert.strictEqual(w.REB, 1.3); assert.strictEqual(w.AST, 1.6);
+  assert.strictEqual(w.FGA, -0.5); assert.strictEqual(w.FGM, 0.5); assert.strictEqual(w.TPM, 0.5); assert.strictEqual(w.TO, -1);
+  assert.ok(!('DD' in w));
+  assert.deepStrictEqual(r.format.unsupported, ['Technical fouls', '40+ points bonus']);
+  assert.deepStrictEqual(slp.mapSleeperFormat({}), { format: null, error: 'empty' });
+  assert.deepStrictEqual(slp.mapSleeperFormat(null), { format: null, error: 'empty' });
+});
+
 console.log(`\n${n} testova prošlo`);
