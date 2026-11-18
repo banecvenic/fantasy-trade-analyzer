@@ -820,3 +820,4 @@ fieldset.plain:disabled{opacity:.6}
 .ro-row span{color:var(--muted,#8a8f98)}
 .ro-row b{text-align:right;font-weight:600}
 .ls-sync{display:flex;flex-wrap:wrap;gap:6px 18px}
+.beta-tag{color:var(--accent);border-color:currentColor;background:none}
