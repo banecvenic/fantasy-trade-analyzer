@@ -78,8 +78,8 @@ body[data-view="home"] .hcenter .seg{display:none}
 /* Prikazi */
 body:not([data-view="home"]) .only-home{display:none}
 body[data-view="home"] .only-ws,body[data-view="home"] #tradewarn,body[data-view="home"] #score,body[data-view="home"] #teams,
-body[data-view="home"] #compare,body[data-view="home"] #report,body[data-view="home"] #myteam,body[data-view="home"] #oppteam,body[data-view="home"] #history{display:none}
-body[data-view="quick"] #myteam,body[data-view="quick"] #oppteam,body[data-view="quick"] #history,body[data-view="quick"] #rviewbar,body[data-view="home"] #rviewbar{display:none !important}
+body[data-view="home"] #compare,body[data-view="home"] #report,body[data-view="home"] #myteam,body[data-view="home"] #oppteam{display:none}
+body[data-view="quick"] #myteam,body[data-view="quick"] #oppteam,body[data-view="quick"] #rviewbar,body[data-view="home"] #rviewbar{display:none !important}
 .ttabs{display:flex;align-items:stretch;gap:4px;margin-top:12px;overflow-x:auto;scrollbar-width:thin;border-bottom:1px solid var(--line);padding-bottom:0}
 .ttab{display:flex;align-items:center;gap:2px;flex:0 0 auto;max-width:230px;background:var(--bg2);border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;color:var(--muted)}
 .ttab.on{background:var(--card,var(--bg));color:var(--text);border-color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
@@ -436,6 +436,12 @@ tr.irhead td{font-size:11px;color:var(--muted);background:var(--bg2);text-align:
 .banner.ok{background:var(--win-bg);border:1px solid rgba(var(--win-rgb),.4);color:#c9f5d9}
 .done-block{background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0;display:flex;flex-direction:column;gap:2px}
 .done-tag{color:var(--win-text)}
+.sent-tag{color:var(--warn)}
+.rej-tag{color:var(--lose-text, var(--give))}
+.offer-state{text-align:center;font-weight:600;font-size:14px;color:var(--warn);margin-top:8px}
+.hist-answer{display:flex;gap:6px;flex:none}
+.hist-help{padding:0 14px 12px}
+.nbadge.sent{background:var(--warn-bg);color:var(--warn)}
 .langsel{display:flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:999px;padding:0 4px 0 9px;height:34px;color:var(--muted);flex:none;cursor:pointer}
 .langsel:hover{border-color:var(--dim);color:var(--text)}
 .langsel select{background:transparent;border:0;color:var(--text);font:inherit;font-size:12px;font-weight:600;padding:6px 4px;cursor:pointer;outline:none}

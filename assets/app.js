@@ -434,6 +434,7 @@ const EN = {
   "Nazad na Moj tim": "Back to My team",
   "Nazad na Ligu": "Back to League",
   "Nazad na Analizu trejda": "Back to Trade analysis",
+  "Nazad na Istoriju trejdova": "Back to Trade history",
   "Nađi bolji trejd sa ovim timom": "Find a better trade with this team",
   "Nađi mete za slabe kategorije": "Find targets for weak categories",
   "Nađi trejd za njega": "Find a trade for him",
@@ -869,6 +870,32 @@ const EN = {
   'Jedan ispod drugog, sa statistikom': 'One below the other, with stats',
   'Jedan pored drugog, samo igrači': 'Side by side, players only',
   'Prikaži statistiku': 'Show stats',
+  "Ponuda je poslata {d}": "Offer sent {d}",
+  "Prihvaćeno": "Accepted",
+  "Odbijeno": "Rejected",
+  "Kad protivnik odgovori, upiši ishod. Ponuda te čeka i u Istoriji trejdova, i kad zatvoriš ovaj tab.": "When your opponent answers, record the outcome. The offer also waits for you in Trade history, even if you close this tab.",
+  "Ponuda je poslata": "Offer sent",
+  "Kad pošalješ ovu ponudu na {p}, klikni „Ponuda je poslata”. Rosteri se ne menjaju ručno, povlače se sa {p}.": "Once you send this offer on {p}, click “Offer sent”. Rosters are not edited by hand, they are pulled from {p}.",
+  "Ponuda je u Istoriji trejdova. Kad protivnik odgovori, klikni Prihvaćeno ili Odbijeno.": "The offer is in Trade history. When your opponent answers, click Accepted or Rejected.",
+  "Ponuda je u Istoriji kao odbijena.": "The offer is in History as rejected.",
+  "Ponuda prihvaćena?": "Offer accepted?",
+  "Trejd ide u Istoriju kao prihvaćen. Sledećih {n} minuta rosteri prikazuju timove posle trejda, da vidiš kako sada izgledaju i kako stojiš po kategorijama.": "The trade goes to History as accepted. For the next {n} minutes the rosters show both teams after the trade, so you can see how they look now and where you stand by category.",
+  "Posle toga rosteri se vraćaju na stanje sa {p}, dok {p} ne obradi trejd. Tada promena postaje trajna. Dok je aplikacija otvorena, proveravamo {p} na svakih {n} minuta.": "After that the rosters go back to what {p} shows until {p} processes the trade. Then the change becomes permanent. While the app is open, we check {p} every {n} minutes.",
+  "Trejd je u Istoriji kao prihvaćen. Rosteri privremeno prikazuju timove posle trejda.": "The trade is in History as accepted. Rosters temporarily show the teams after the trade.",
+  "{p} je obradio trejd {x}. Rosteri su sada trajno promenjeni.": "{p} processed the trade {x}. Rosters are now permanently updated.",
+  "Privremeni prikaz posle prihvaćenog trejda ({x}), do {time}. Posle toga rosteri se vraćaju na stanje sa {p}, dok {p} ne obradi trejd.": "Temporary view after the accepted trade ({x}), until {time}. After that rosters go back to what {p} shows until {p} processes the trade.",
+  "Vrati odmah": "Restore now",
+  "Prihvaćen trejd ({x}) čeka da ga {p} obradi. Proveravamo na svakih {n} minuta.": "Accepted trade ({x}) is waiting for {p} to process it. We check every {n} minutes.",
+  "Poslate ponude koje čekaju odgovor": "Sent offers waiting for an answer",
+  "sa {n}": "with {n}",
+  "ponuda poslata": "offer sent",
+  "prihvaćen": "accepted",
+  "čeka {p}": "waiting for {p}",
+  "odbijen": "rejected",
+  "Otvori u analizi trejda": "Open in trade analysis",
+  "Statistika od trejda": "Stats since the trade",
+  "Još nema sačuvanih trejdova. Klikni „Sačuvaj ideju” ili „Ponuda je poslata” ispod rezultata.": "No saved trades yet. Click “Save idea” or “Offer sent” below the score.",
+  "Klik na trejd otvara ga u analizi trejda. 📊 prikazuje statistiku od trejda.": "Click a trade to open it in trade analysis. 📊 shows stats since the trade.",
   'Novo: javi nam ako nešto nije uvezeno kako treba.': 'New: let us know if something was not imported correctly.',
   // Uvezena liga: podešavanja i kontekst cele lige
   'na {n}. mestu ({r})': 'in place {n} ({r})',
@@ -2047,7 +2074,6 @@ function render() {
   renderRosterViewBar();
   renderRosterSection('my');
   renderRosterSection('opp');
-  renderHistory();
   restoreFocus(focused, caret);
 }
 /** Vrati fokus pretrage posle re-rendera */
@@ -2566,6 +2592,8 @@ function createLeague(fields, myName = '') {
                teams: [{ tid, name, abbrev, record{ w, l, t }, seed, pf, vals{ PTS, FGM, FGA, ... } }] }
    ===================================================================== */
 const IMPORT = {
+  TEMP_SWAP_MS: 10 * 60 * 1000,           // prihvaćen trejd: rosteri prikazuju timove posle trejda ovoliko dugo
+  PENDING_SYNC_MS: 10 * 60 * 1000,        // prihvaćen trejd čeka platformu: proveravaj ovoliko često dok je aplikacija otvorena
   TTL_MS: 10 * 60 * 1000,                 // pri otvaranju lige osveži ako je starije od ovoga (bez stalnog povlačenja)
   DEADLINE_WARN_DAYS: 7,
   EXTRAS_KEY: `fbaTrade.extras.v1.${CONFIG.SEASON}`, // igrači sa uvezenih rostera koji nisu u top 600
@@ -2769,7 +2797,10 @@ async function syncLeague(lg, { auto = false } = {}) {
     const oldF = leagueFormatOf(lg);
     // format iz platforme se osvežava samo dok ga korisnik nije ručno menjao
     if (parsed.format && leagueFormatOf(lg).source === `import:${parsed.source}` && !sameFormat(oldF, parsed.format)) { lg.leagueFormat = parsed.format; applyFormatChange(lg, oldF); }
+    const temp = imp.temp;
     applyImport(lg, parsed, parsed.teams.some(x => x.tid === imp.myTid) ? imp.myTid : null);
+    checkOffers(lg);
+    if (temp) { lg.import.temp = temp; refreshTempSwap(lg); }
     await ensurePlayers(parsed.teams.flatMap(x => x.players.map(p => p.id)), parsed.raw);
   } catch (e) {
     // liga je postala privatna ili platforma ne odgovara: podaci ostaju, prikazuje se upozorenje
@@ -2783,6 +2814,7 @@ async function syncLeague(lg, { auto = false } = {}) {
 function maybeAutoSync() {
   const lg = currentLeague();
   if (state.view !== 'league' || !isSynced(lg)) return;
+  if (offerTick(lg)) return;
   const age = Date.now() - (Date.parse(lg.import.syncedAt) || 0);
   if (age > IMPORT.TTL_MS && Date.now() - (state.syncTried[lg.id] || 0) > IMPORT.TTL_MS) syncLeague(lg, { auto: true });
 }
@@ -2821,7 +2853,7 @@ const yahooBarHTML = lg => (lg?.platform === 'yahoo' && !isSynced(lg)
   ? `<div class="banner warn yahoo-bar"><span>⚠ ${t('Yahoo liga se ne osvežava sama: rosteri, tabela i protivnici se ne povlače sa Yahoo-a. Posle svake promene u ligi ažuriraj timove ručno (Nalepi tim ponovo). Uskoro stiže verzija koja sve povlači automatski.')}</span>
       <button type="button" data-action="paste-open">${t('Nalepi tim')}</button></div>`
   : '');
-const importBarsHTML = lg => yahooBarHTML(lg) + (lg?.import && ['overview', 'trade'].includes(state.page) ? syncErrorBarHTML(lg) + deadlineBarHTML(lg) : '');
+const importBarsHTML = lg => yahooBarHTML(lg) + offerBarsHTML(lg) + (lg?.import && ['overview', 'trade'].includes(state.page) ? syncErrorBarHTML(lg) + deadlineBarHTML(lg) : '');
 
 /* ---------- Plasman po kategorijama iz zbirova cele sezone (svi timovi lige) ---------- */
 const rankCats = () => CATS.filter(c => !c.fpts && !isPunt(c));
@@ -3499,8 +3531,8 @@ function renderScore(totals, cmp) {
       ? `<div class="score-actions"><button type="button" class="linkbtn" data-action="swap-sides" title="${esc(t('Daješ postaje Dobijaš i obrnuto'))}">⇄ ${t('Zameni strane')}</button><button type="button" class="linkbtn" data-action="share">🔗 ${t('Kopiraj link')}</button></div>
         ${profile?.leagues?.length ? `<div class="score-actions"><button type="button" class="btn" data-action="open-in-league">${t('Otvori ovaj trejd u mojoj ligi')} →</button></div>` : ''}`
       : `<div class="score-actions"><button type="button" class="linkbtn" data-action="save-trade" title="${t('Čuva samo ideju u Istoriju; rosteri se ne menjaju')}">★ ${t('Sačuvaj ideju')}</button><button type="button" class="linkbtn" data-action="share">🔗 ${t('Kopiraj link')}</button></div>
-    <div class="score-actions"><button type="button" class="btn ok" data-action="trade-done" title="${t('Tek ovo menja sačuvane rostere')}">✔ ${t('Trejd se dogodio')}</button></div>
-    <div class="score-hint">${t('Ovo je ideja za trejd: tvoj sačuvani roster se ne menja dok ne klikneš „Trejd se dogodio”.')}</div>`}`;
+    ${rosterLocked() ? offerActionsHTML() : `<div class="score-actions"><button type="button" class="btn ok" data-action="trade-done" title="${t('Tek ovo menja sačuvane rostere')}">✔ ${t('Trejd se dogodio')}</button></div>
+    <div class="score-hint">${t('Ovo je ideja za trejd: tvoj sačuvani roster se ne menja dok ne klikneš „Trejd se dogodio”.')}</div>`}`}`;
 }
 
 function avatarHTML(p) {
@@ -5254,7 +5286,7 @@ function renderRosterSection(kind) {
         ${view === 'after' || (kind === 'opp' && (plan.dropSlots || plan.waiverSlots)) ? balanceHTML(kind, plan) : ''}
         <div class="tscroll"><table class="rtable sumtable"><tbody>${summaryRows(before, after, view === 'after')}</tbody></table></div>
         ${missing.length ? `<div class="card-warn">⚠ ${t('Bez podataka za izabrani period, ne računa se: {list}', { list: missing.map(esc).join(', ') })}</div>` : ''}
-        ${plan.tradeTouches && giveIds().length && getIds().length ? `<div class="r-done"><button type="button" class="btn ok" data-action="trade-done">✔ ${t('Trejd se dogodio: ažuriraj rostere')}</button></div>` : ''}`;
+        ${plan.tradeTouches && giveIds().length && getIds().length && !rosterLocked() ? `<div class="r-done"><button type="button" class="btn ok" data-action="trade-done">✔ ${t('Trejd se dogodio: ažuriraj rostere')}</button></div>` : ''}`;
     }
   }
   el.innerHTML = `<details class="card fold" data-fold="${kind}" ${open ? 'open' : ''}>
@@ -5649,21 +5681,160 @@ function saveTrade(meta = {}) {
   saveHistory();
   state.histOpen = true;
   render();
+  return state.history[0].id;
 }
 
 function openTrade(id) {
   const h = state.history.find(x => x.id === id);
   if (!h) return;
   // stari trejdovi (Tim A/B) se otvaraju kao Daješ/Dobijaš: prve dve strane
-  // sačuvan trejd se otvara u NOVOM tabu, postojeći nacrti ostaju
-  addTab([GIVE, GET].map(i => h.teams[i]?.ids || []), { ...emptyBalance(), my: { drops: [...(h.slots?.drops || [])], waivers: [...(h.slots?.waivers || [])] }, opp: { drops: [...(h.slots?.oppDrops || [])], waivers: [] } });
+  // sačuvan trejd se otvara u NOVOM tabu (ili u tabu koji je već otvoren za njega), postojeći nacrti ostaju
+  const open = scopeTabs().tabs.find(x => x.histId === id);
+  if (open) activateTab(open.id);
+  else addTab([GIVE, GET].map(i => h.teams[i]?.ids || []), { ...emptyBalance(), my: { drops: [...(h.slots?.drops || [])], waivers: [...(h.slots?.waivers || [])] }, opp: { drops: [...(h.slots?.oppDrops || [])], waivers: [] } }, { histId: id });
+  if (h.oppKey && state.rosters.opps[h.oppKey]) { state.rosters.oppSel = h.oppKey; saveRosters(); }
   state.period = h.period;
-  state.histView = id;
-  state.histOpen = true;
+  state.histView = null;
   saveState();
+}
+
+/* ---------- Ponude u uvezenim ligama: poslata → prihvaćena / odbijena ---------- */
+const histStatus = h => h.status || (h.done ? 'done' : 'idea');
+const sameIds = (a = [], b = []) => a.length === b.length && a.every(x => b.includes(x));
+const offerTitle = h => `${(h.teams[GIVE]?.ids || []).map(id => h.names?.[id] || state.byId.get(id)?.name || id).join(', ')} ⇄ ${(h.teams[GET]?.ids || []).map(id => h.names?.[id] || state.byId.get(id)?.name || id).join(', ')}`;
+const sentOffers = (lg = currentLeague()) => (lg?.history || []).filter(h => histStatus(h) === 'sent');
+const waitingOffers = (lg = currentLeague()) => (lg?.history || []).filter(h => histStatus(h) === 'accepted' && !h.confirmed);
+/** Poslata ponuda vezana za aktivan tab (samo dok su u tabu isti igrači kao u ponudi) */
+function tabOffer(tab = activeTab()) {
+  const h = tab?.histId && state.history.find(x => x.id === tab.histId);
+  return h && histStatus(h) === 'sent' && sameIds(h.teams[GIVE]?.ids, tab.teams[GIVE].ids) && sameIds(h.teams[GET]?.ids, tab.teams[GET].ids) ? h : null;
+}
+function offerActionsHTML() {
+  const p = SOURCE_LABEL[currentLeague().import.source];
+  const h = tabOffer();
+  if (h) return `<div class="offer-state">📨 ${t('Ponuda je poslata {d}', { d: fmtDate(h.date) })}${h.opp ? ` · ${esc(h.opp)}` : ''}</div>
+    <div class="score-actions"><button type="button" class="btn ok" data-action="offer-accept" data-id="${h.id}">✔ ${t('Prihvaćeno')}</button><button type="button" class="btn danger" data-action="offer-reject" data-id="${h.id}">✕ ${t('Odbijeno')}</button></div>
+    <div class="score-hint">${t('Kad protivnik odgovori, upiši ishod. Ponuda te čeka i u Istoriji trejdova, i kad zatvoriš ovaj tab.')}</div>`;
+  return `<div class="score-actions"><button type="button" class="btn ok" data-action="offer-sent">📨 ${t('Ponuda je poslata')}</button></div>
+    <div class="score-hint">${t('Kad pošalješ ovu ponudu na {p}, klikni „Ponuda je poslata”. Rosteri se ne menjaju ručno, povlače se sa {p}.', { p })}</div>`;
+}
+function offerSent() {
+  if (!giveIds().length || !getIds().length) return;
+  const tab = activeTab();
+  const id = saveTrade({ status: 'sent', opp: rosterOf('opp')?.name || null, oppKey: state.rosters.oppSel || null });
+  tab.histId = id;
+  persistTrades();
+  state.notice = 'Ponuda je u Istoriji trejdova. Kad protivnik odgovori, klikni Prihvaćeno ili Odbijeno.';
+  state.noticeLink = null;
   render();
-  loadGameLogs(tradePlayerIds(h.teams, h.slots));
-  $('#history').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+/** Zatvori tabove vezane za ponudu (u aktivnoj ligi) */
+function closeOfferTabs(id) {
+  scopeTabs().tabs.filter(x => x.histId === id).forEach(x => removeTab(x.id));
+  saveState();
+}
+function offerReject(id) {
+  const h = state.history.find(x => x.id === id);
+  if (!h) return;
+  h.status = 'rejected'; h.answered = nowISO();
+  saveHistory();
+  closeOfferTabs(id);
+  state.notice = 'Ponuda je u Istoriji kao odbijena.';
+  state.noticeLink = null;
+  render();
+}
+function offerAccept(id) {
+  const lg = currentLeague(), h = state.history.find(x => x.id === id);
+  if (!h || !isSynced(lg)) return;
+  const p = SOURCE_LABEL[lg.import.source];
+  showModal({
+    title: t('Ponuda prihvaćena?'),
+    body: `<p><b>${esc(offerTitle(h))}</b></p>
+      <p>${t('Trejd ide u Istoriju kao prihvaćen. Sledećih {n} minuta rosteri prikazuju timove posle trejda, da vidiš kako sada izgledaju i kako stojiš po kategorijama.', { n: Math.round(IMPORT.TEMP_SWAP_MS / 60000) })}</p>
+      <p>${t('Posle toga rosteri se vraćaju na stanje sa {p}, dok {p} ne obradi trejd. Tada promena postaje trajna. Dok je aplikacija otvorena, proveravamo {p} na svakih {n} minuta.', { p, n: Math.round(IMPORT.PENDING_SYNC_MS / 60000) })}</p>`,
+    confirm: t('Prihvaćeno'),
+    onConfirm: () => {
+      h.status = 'accepted'; h.answered = nowISO();
+      saveHistory();
+      startTempSwap(lg, h);
+      closeOfferTabs(id);
+      state.notice = 'Trejd je u Istoriji kao prihvaćen. Rosteri privremeno prikazuju timove posle trejda.';
+      state.noticeLink = null;
+      render();
+    },
+  });
+}
+/** Igrači trejda u rosterima lige: moj tim daje i dobija, protivnik obrnuto (objekti igrača se prenose) */
+function applySwap(lg) {
+  const tp = lg.import?.temp, h = tp && (lg.history || []).find(x => x.id === tp.histId);
+  if (!h) return;
+  const give = h.teams[GIVE].ids, get = h.teams[GET].ids, opp = lg.opps[tp.oppKey];
+  const pick = (r, ids) => (r?.players || []).filter(x => ids.includes(x.id)).map(x => ({ ...x, ir: false }));
+  const out = pick(lg.roster, give), inc = pick(opp, get);
+  const move = (r, gone, come, ids) => {
+    if (!r) return;
+    r.players = r.players.filter(x => !gone.includes(x.id));
+    ids.forEach(id => { if (!r.players.some(x => x.id === id)) r.players.push(come.find(x => x.id === id) || { id, ir: false }); });
+  };
+  move(lg.roster, give, inc, get);
+  move(opp, get, out, give);
+}
+function startTempSwap(lg, h) {
+  const get = h.teams[GET].ids;
+  const oppKey = h.oppKey && lg.opps[h.oppKey] ? h.oppKey : Object.keys(lg.opps).find(k => get.every(id => lg.opps[k].players.some(x => x.id === id))) || null;
+  lg.import.temp = { histId: h.id, until: Date.now() + IMPORT.TEMP_SWAP_MS, oppKey };
+  refreshTempSwap(lg);
+}
+/** Posle osvežavanja: sačuvaj stanje sa platforme kao rezervu i ponovo primeni trejd (dok važi privremeni prikaz) */
+function refreshTempSwap(lg) {
+  const tp = lg.import.temp, h = (lg.history || []).find(x => x.id === tp?.histId);
+  if (!tp || !h || h.confirmed || Date.now() > tp.until) { delete lg.import.temp; saveProfile(); return; }
+  tp.backup = { my: clone(lg.roster.players), opp: tp.oppKey && lg.opps[tp.oppKey] ? clone(lg.opps[tp.oppKey].players) : null };
+  applySwap(lg);
+  saveProfile();
+}
+/** Kraj privremenog prikaza: rosteri se vraćaju na stanje sa platforme i liga se osvežava */
+function endTempSwap(lg, { sync = true } = {}) {
+  const tp = lg?.import?.temp;
+  if (!tp) return;
+  if (tp.backup) {
+    lg.roster.players = tp.backup.my;
+    if (tp.oppKey && lg.opps[tp.oppKey] && tp.backup.opp) lg.opps[tp.oppKey].players = tp.backup.opp;
+  }
+  delete lg.import.temp;
+  saveProfile();
+  if (sync) syncLeague(lg, { auto: true }); else render();
+}
+/** Posle povlačenja lige: ponuda koju je platforma obradila (igrači su promenili tim) postaje trajno prihvaćena */
+function checkOffers(lg) {
+  const mine = new Set(lg.roster.players.map(x => x.id));
+  const done = (lg.history || []).filter(h => ['sent', 'accepted'].includes(histStatus(h)) && !h.confirmed
+    && h.teams[GET].ids.length && h.teams[GET].ids.every(id => mine.has(id)) && h.teams[GIVE].ids.every(id => !mine.has(id)));
+  if (!done.length) return;
+  done.forEach(h => { h.status = 'accepted'; h.answered = h.answered || nowISO(); h.confirmed = nowISO(); });
+  if (lg.import.temp && done.some(h => h.id === lg.import.temp.histId)) delete lg.import.temp;
+  if (currentLeague() === lg) done.forEach(h => scopeTabs().tabs.filter(x => x.histId === h.id).forEach(x => removeTab(x.id)));
+  state.notice = t('{p} je obradio trejd {x}. Rosteri su sada trajno promenjeni.', { p: SOURCE_LABEL[lg.import.source], x: done.map(offerTitle).join('; ') });
+  state.noticeLink = null;
+  touchLeague(lg); saveProfile();
+}
+/** Periodična provera: kraj privremenog prikaza i osvežavanje dok prihvaćen trejd čeka platformu. true = pokrenuto osvežavanje */
+function offerTick(lg = currentLeague()) {
+  if (!isSynced(lg) || state.syncing) return false;
+  const tp = lg.import.temp;
+  if (tp && Date.now() > tp.until) { endTempSwap(lg); return true; }
+  if (!tp && waitingOffers(lg).length && Date.now() - (Date.parse(lg.import.syncedAt) || 0) > IMPORT.PENDING_SYNC_MS) { syncLeague(lg, { auto: true }); return true; }
+  return false;
+}
+setInterval(() => { if (state.view === 'league') offerTick(); }, 30000);
+function offerBarsHTML(lg) {
+  if (!isSynced(lg)) return '';
+  const p = SOURCE_LABEL[lg.import.source], tp = lg.import.temp;
+  const th = tp && (lg.history || []).find(x => x.id === tp.histId);
+  if (th) return `<div class="banner info"><span>⏳ ${t('Privremeni prikaz posle prihvaćenog trejda ({x}), do {time}. Posle toga rosteri se vraćaju na stanje sa {p}, dok {p} ne obradi trejd.', { x: esc(offerTitle(th)), time: new Date(tp.until).toLocaleTimeString(LOCALE(), { hour: '2-digit', minute: '2-digit' }), p })}</span><button type="button" data-action="temp-end">${t('Vrati odmah')}</button></div>`;
+  const w = waitingOffers(lg);
+  if (w.length && ['overview', 'trade', 'history'].includes(state.page)) return `<div class="banner info"><span>⏳ ${t('Prihvaćen trejd ({x}) čeka da ga {p} obradi. Proveravamo na svakih {n} minuta.', { x: esc(w.map(offerTitle).join('; ')), p, n: Math.round(IMPORT.PENDING_SYNC_MS / 60000) })}</span></div>`;
+  return '';
 }
 
 function deleteTrade(id) {
@@ -5800,14 +5971,27 @@ function sinceLine(p, sinceMs) {
 }
 
 function renderHistory() {
-  const el = $('#history');
+  const synced = isSynced(currentLeague());
+  const P = synced ? SOURCE_LABEL[currentLeague().import.source] : '';
+  const tag = h => {
+    const st = histStatus(h), w = h.opp ? ` ${t('sa {n}', { n: esc(h.opp) })}` : '';
+    if (st === 'sent') return `<span class="sent-tag">${t('ponuda poslata')}${w}</span>`;
+    if (st === 'accepted') return `<span class="done-tag">${t('prihvaćen')}${w}</span>${h.confirmed ? '' : ` · <span class="sent-tag">${t('čeka {p}', { p: P })}</span>`}`;
+    if (st === 'rejected') return `<span class="rej-tag">${t('odbijen')}${w}</span>`;
+    if (st === 'done') return `<span class="done-tag">${h.opp ? t('obavljen sa {n}', { n: esc(h.opp) }) : t('obavljen')}</span>`;
+    return `<span class="idea-tag">${t('ideja')}</span>`;
+  };
   const list = state.history.map(h => {
     const sideName = (tm, i) => (SIDES[i] && (!tm.name || tm.name === SIDES[i].srName) ? SIDES[i].name : tm.name || '');
     const sides = h.teams.map((tm, i) => `<b>${esc(sideName(tm, i))}</b>: ${tm.ids.map(id => esc(h.names?.[id] || state.byId.get(id)?.name || id)).join(', ') || '–'}`).join(' ⇄ ');
     const per = PERIODS.find(x => x.key === h.period)?.label || h.period;
+    const answer = synced && histStatus(h) === 'sent'
+      ? `<span class="hist-answer"><button type="button" class="btn ok small" data-action="offer-accept" data-id="${h.id}">✔ ${t('Prihvaćeno')}</button><button type="button" class="btn danger small" data-action="offer-reject" data-id="${h.id}">✕ ${t('Odbijeno')}</button></span>` : '';
     return `<li class="${state.histView === h.id ? 'active' : ''}">
-      <button type="button" class="hist-open" data-action="hist-open" data-id="${h.id}">
-        <span class="hist-date">${fmtDate(h.date)} · ${per}${h.done ? ` · <span class="done-tag">${h.opp ? t('obavljen sa {n}', { n: esc(h.opp) }) : t('obavljen')}</span>` : ` · <span class="idea-tag">${t('ideja')}</span>`}</span><span class="hist-sides">${sides}</span></button>
+      <button type="button" class="hist-open" data-action="hist-open" data-id="${h.id}" title="${esc(t('Otvori u analizi trejda'))}">
+        <span class="hist-date">${fmtDate(h.date)} · ${per} · ${tag(h)}</span><span class="hist-sides">${sides}</span></button>
+      ${answer}
+      <button type="button" class="iconbtn" data-action="hist-stats" data-id="${h.id}" aria-pressed="${state.histView === h.id}" aria-label="${t('Statistika od trejda')}" title="${t('Statistika od trejda')}">📊</button>
       <button type="button" class="iconbtn" data-action="hist-del" data-id="${h.id}" aria-label="${t('Obriši trejd')}">🗑</button></li>`;
   }).join('');
 
@@ -5850,12 +6034,12 @@ function renderHistory() {
       ${blocks}</div>`;
   }
 
-  el.innerHTML = `<details class="card fold" data-fold="hist" ${state.histOpen ? 'open' : ''}>
-    <summary><span>${t('Istorija trejdova')}</span><span class="hint">${state.history.length ? t('{n} sačuvano', { n: state.history.length }) : t('prazno')}</span></summary>
-    <div class="fold-body">
-      ${list ? `<ul class="hist-list">${list}</ul>` : `<div class="empty-team">${t('Još nema sačuvanih trejdova. Klikni „Sačuvaj ideju” ili „Trejd se dogodio” ispod rezultata.')}</div>`}
+  const empty = synced ? t('Još nema sačuvanih trejdova. Klikni „Sačuvaj ideju” ili „Ponuda je poslata” ispod rezultata.') : t('Još nema sačuvanih trejdova. Klikni „Sačuvaj ideju” ili „Trejd se dogodio” ispod rezultata.');
+  return `<h2 class="page-t">${t('Istorija trejdova')} <span class="hint">${state.history.length ? t('{n} sačuvano', { n: state.history.length }) : t('prazno')}</span></h2>
+    <section class="card hist-page">
+      ${list ? `<ul class="hist-list">${list}</ul><p class="hint hist-help">${t('Klik na trejd otvara ga u analizi trejda. 📊 prikazuje statistiku od trejda.')}</p>` : `<div class="empty-team">${empty}</div>`}
       ${detail}
-    </div></details>`;
+    </section>`;
 }
 
 /* =====================================================================
@@ -5973,6 +6157,7 @@ const NAV_ICON = {
   overview: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>',
   team: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
   league: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>',
+  history: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>',
   trades: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8h14l-4-4M20 16H6l4 4"/></svg>',
 };
 const APP_PAGES = [
@@ -5980,6 +6165,7 @@ const APP_PAGES = [
   { id: 'team', sr: 'Moj tim', ready: true },
   { id: 'league', sr: 'Liga', ready: true },
   { id: 'trade', sr: 'Analiza trejda', group: 'trades', ready: true },
+  { id: 'history', sr: 'Istorija trejdova', group: 'trades', ready: true },
   { id: 'targets', sr: 'Mete za trejd', group: 'trades', ready: false },  // rezervisano
   { id: 'finder', sr: 'Pronađi trejd', group: 'trades', ready: false },   // rezervisano
 ];
@@ -6058,7 +6244,7 @@ function restoreScroll() {
 addEventListener('scroll', () => { if (state.view === 'league') state.scrollMem[pageKey()] = scrollY; }, { passive: true });
 
 /** "Nazad na …" po stranici (srpski padež) */
-const BACK_LABEL = { overview: 'Nazad na Pregled', team: 'Nazad na Moj tim', league: 'Nazad na Ligu', trade: 'Nazad na Analizu trejda' };
+const BACK_LABEL = { overview: 'Nazad na Pregled', team: 'Nazad na Moj tim', league: 'Nazad na Ligu', trade: 'Nazad na Analizu trejda', history: 'Nazad na Istoriju trejdova' };
 function backbarHTML() {
   const b = state.back;
   if (!b || b.scope !== state.scope || b.target !== state.page) return '';
@@ -6338,7 +6524,7 @@ function renderLeaguePage() {
 /** Sadržaj stranice lige (sve osim Analize, koja koristi postojeće sekcije) */
 function renderPage() {
   const el = $('#page');
-  const html = state.page === 'team' ? renderTeamPage() : state.page === 'league' ? renderLeaguePage() : renderOverview();
+  const html = state.page === 'team' ? renderTeamPage() : state.page === 'league' ? renderLeaguePage() : state.page === 'history' ? renderHistory() : renderOverview();
   el.innerHTML = html;
   const hl = state.ui.highlight;
   if (hl && state.page === 'team') {
@@ -6354,13 +6540,16 @@ function renderNav() {
   if (state.view !== 'league') { side.innerHTML = ''; bottom.innerHTML = ''; return; }
   const n = openTrades(state.scope);
   const badge = n ? `<span class="nbadge" aria-label="${esc(openN(n))}">${n}</span>` : '';
+  // Istorija: broj poslatih ponuda koje čekaju odgovor
+  const ns = sentOffers().length;
+  const histBadge = ns ? `<span class="nbadge sent" title="${esc(t('Poslate ponude koje čekaju odgovor'))}">${ns}</span>` : '';
   // title: tooltip kad je bočni meni skupljen u ikonice (ispod 1024 px)
   const item = (id, icon, label, extra = '') => `<a href="${pageHash(id)}" class="nitem ${state.page === id ? 'on' : ''}" data-goto="${id}" title="${esc(label)}" ${state.page === id ? 'aria-current="page"' : ''}>${icon}<span class="nlabel">${label}</span>${extra}</a>`;
   const tp = tradePages();
   side.innerHTML = `<nav class="snav" aria-label="${t('Stranice lige')}">
     ${item('overview', NAV_ICON.overview, t('Pregled'))}${item('team', NAV_ICON.team, t('Moj tim'))}${item('league', NAV_ICON.league, t('Liga'))}
     <div class="ngroup">${t('Trejdovi')}</div>
-    ${tp.map(p => item(p.id, NAV_ICON.trades, t(p.sr), p.id === 'trade' ? badge : '')).join('')}</nav>`;
+    ${tp.map(p => item(p.id, NAV_ICON[p.id] || NAV_ICON.trades, t(p.sr), p.id === 'trade' ? badge : p.id === 'history' ? histBadge : '')).join('')}</nav>`;
   const tradesOn = tp.some(p => p.id === state.page);
   bottom.innerHTML = `<nav class="bnav" aria-label="${t('Stranice lige')}">
     ${item('overview', NAV_ICON.overview, t('Pregled'))}${item('team', NAV_ICON.team, t('Moj tim'))}${item('league', NAV_ICON.league, t('Liga'))}
@@ -6520,6 +6709,10 @@ document.addEventListener('click', e => {
     case 'tab-new': addTab(); state.sharedOpen = false; state.histView = null; searchUI.clear(); saveState(); render(); break;
     case 'save-trade': if (currentLeague()) saveTrade(); break;
     case 'trade-done': if (currentLeague()) tradeDone(); break;
+    case 'offer-sent': if (rosterLocked()) offerSent(); break;
+    case 'offer-accept': offerAccept(+el.dataset.id); break;
+    case 'offer-reject': offerReject(+el.dataset.id); break;
+    case 'temp-end': endTempSwap(currentLeague()); break;
     case 'add-to-roster': if (!el.classList.contains('is-disabled')) { addToRoster(el.dataset.kind, +el.dataset.id); render(); } break;
     case 'add-to-my': if (!el.classList.contains('is-disabled')) { addToRoster('my', +el.dataset.id); render(); } break;
     case 'add-all': if (!el.classList.contains('is-disabled')) { addAllToRoster(el.dataset.kind); render(); } break;
@@ -6548,7 +6741,8 @@ document.addEventListener('click', e => {
     case 'notice-close': state.notice = null; state.noticeLink = null; render(); break;
     case 'shared-close': state.sharedOpen = false; render(); break;
     case 'share': shareLink(el); break;
-    case 'hist-open': openTrade(+el.dataset.id); break;
+    case 'hist-open': { const id = +el.dataset.id; setBack('trade'); openTrade(id); goPage('trade'); break; }
+    case 'hist-stats': { const id = +el.dataset.id; state.histView = state.histView === id ? null : id; render(); if (state.histView) { const h = state.history.find(x => x.id === id); if (h) loadGameLogs(tradePlayerIds(h.teams, h.slots)); } break; }
     case 'hist-del': deleteTrade(+el.dataset.id); break;
     case 'hist-close': state.histView = null; render(); break;
     case 'opp-rename': state.ui.oppEdit = 'rename'; render(); document.querySelector('[data-opp-name]')?.focus(); break;
