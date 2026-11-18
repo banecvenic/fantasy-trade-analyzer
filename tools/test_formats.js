@@ -11,8 +11,8 @@ const start = src.indexOf('   Formati lige: katalog statistika');
 const end = src.indexOf('const leagueFormatOf');
 if (start < 0 || end < 0) throw new Error('Nije nađen modul formata u app.js');
 const code = src.slice(src.lastIndexOf('/*', start), src.indexOf('\n', end));
-const api = new Function('LANG', `${code}\nreturn { STAT_CATALOG, STAT_BY_ID, FORMAT_PRESETS, normalizeFormat, defaultFormatFor, legacyFormat, leagueFormatOf, encodeFormat, decodeFormat, sameFormat };`)('sr');
-const { STAT_CATALOG, FORMAT_PRESETS, normalizeFormat, defaultFormatFor, leagueFormatOf, encodeFormat, decodeFormat, sameFormat } = api;
+const api = new Function('LANG', `${code}\nreturn { STAT_CATALOG, STAT_BY_ID, FORMAT_PRESETS, normalizeFormat, defaultFormatFor, legacyFormat, leagueFormatOf, encodeFormat, decodeFormat, sameFormat, mapEspnFormat };`)('sr');
+const { STAT_CATALOG, FORMAT_PRESETS, normalizeFormat, defaultFormatFor, leagueFormatOf, encodeFormat, decodeFormat, sameFormat, mapEspnFormat } = api;
 
 let n = 0;
 const test = (name, fn) => { fn(); n++; console.log(`ok  ${name}`); };
@@ -135,6 +135,57 @@ test('link: format tam i nazad (postavke, svoje kategorije, svoje težine sa dec
 
 test('link: neispravan format -> null', () => {
   for (const x of [null, '', 'x', 'e', 'e.nema', 'p.9cat', 'e.c.PTS', 'p.c.', 'z.9cat']) assert.strictEqual(decodeFormat(x), null, String(x));
+});
+
+// ---- C6: uvoz ESPN podešavanja (primeri u obliku odgovora ESPN API-ja, view mSettings) ----
+const espnItem = (statId, points = 0, isReverseItem = false) => ({ statId, points, isReverseItem, pointsOverrides: {} });
+
+test('ESPN: 9-cat H2H (redosled iz lige) -> preset 9cat, izvor import:espn', () => {
+  const settings = { scoringSettings: { scoringType: 'H2H_CATEGORY', scoringItems: [19, 20, 17, 6, 3, 2, 1, 11, 0].map(id => espnItem(id, 0, id === 11)) } };
+  const { format, error } = mapEspnFormat(settings);
+  assert.strictEqual(error, null);
+  assert.strictEqual(format.scoringType, 'h2h_each');
+  assert.strictEqual(format.preset, '9cat');
+  assert.strictEqual(format.source, 'import:espn');
+  assert.deepStrictEqual(format.categories, ['FGP', 'FTP', 'TPM', 'REB', 'AST', 'STL', 'BLK', 'TO', 'PTS']);
+});
+
+test('ESPN: 12 kategorija sa 3P%, OREB i A/TO, većina kategorija', () => {
+  const ids = [0, 6, 3, 17, 2, 1, 19, 20, 11, 21, 4, 35];
+  const { format } = mapEspnFormat({ scoringSettings: { scoringType: 'H2H_MOST_CATEGORIES', scoringItems: ids.map(id => espnItem(id)) } });
+  assert.strictEqual(format.scoringType, 'h2h_most');
+  assert.strictEqual(format.preset, 'custom');
+  assert.deepStrictEqual(format.categories, ['PTS', 'REB', 'AST', 'TPM', 'STL', 'BLK', 'FGP', 'FTP', 'TO', 'TPP', 'OREB', 'ATO']);
+});
+
+test('ESPN: roto', () => {
+  const { format } = mapEspnFormat({ scoringSettings: { scoringType: 'ROTO', scoringItems: [0, 6, 3, 2, 1, 19, 20, 17].map(id => espnItem(id)) } });
+  assert.strictEqual(format.scoringType, 'roto');
+  assert.strictEqual(format.preset, '8cat');
+});
+
+test('ESPN: H2H poeni, podrazumevano bodovanje -> espn_points', () => {
+  const pts = { 0: 1, 17: 1, 13: 2, 14: -1, 15: 1, 16: -1, 6: 1, 3: 2, 2: 4, 1: 4, 11: -2 };
+  const { format } = mapEspnFormat({ scoringSettings: { scoringType: 'H2H_POINTS', scoringItems: Object.entries(pts).map(([id, w]) => espnItem(+id, w)) } });
+  assert.strictEqual(format.scoringType, 'h2h_points');
+  assert.strictEqual(format.preset, 'espn_points');
+  assert.deepStrictEqual(format.weights, FORMAT_PRESETS.espn_points.weights);
+  assert.deepStrictEqual(format.categories, []);
+});
+
+test('ESPN: poeni za sezonu, svoje težine, nepoznata statistika i nula', () => {
+  const items = [espnItem(0, 1), espnItem(6, 1.2), espnItem(37, 5), espnItem(9, -0.5), espnItem(3, 0), espnItem(7, 2), espnItem(19, 10)];
+  const { format } = mapEspnFormat({ scoringSettings: { scoringType: 'TOTAL_POINTS', scoringItems: items } });
+  assert.strictEqual(format.scoringType, 'season_points');
+  assert.strictEqual(format.preset, 'custom');
+  assert.deepStrictEqual(format.weights, { PTS: 1, REB: 1.2, DD: 5, PF: -0.5 });
+  assert.deepStrictEqual(format.unsupported, ['ESPN stat 7', 'FG%']);
+});
+
+test('ESPN: format bez trejdova / jedna utakmica i prazna podešavanja', () => {
+  assert.strictEqual(mapEspnFormat({ scoringSettings: { scoringType: 'H2H_SINGLE_SCORE', scoringItems: [] } }).error, 'type');
+  assert.strictEqual(mapEspnFormat(null).error, 'empty');
+  assert.strictEqual(mapEspnFormat({}).error, 'empty');
 });
 
 console.log(`\n${n} testova prošlo`);

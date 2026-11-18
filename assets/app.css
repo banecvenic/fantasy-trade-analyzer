@@ -274,6 +274,20 @@ td .sub{display:block;font-size:10px;font-weight:500;color:var(--muted);margin-t
 .flag{font-size:10px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--warn-bg);color:var(--warn)}
 .badge{font-size:10px;font-weight:700;padding:1px 4px;border-radius:3px;background:var(--card2);color:var(--muted);cursor:help;white-space:nowrap}
 .badge.wk{background:rgba(var(--info-rgb),.16);color:var(--info)}
+.badge.wk.quiet{background:none;color:var(--dim);border:1px solid var(--line)}
+/* formati: poeni */
+td.fpts,th.fpts{font-weight:800;color:var(--text);font-size:14px}
+th.wth,td.wth{font-size:11px}
+.score-pts{text-align:center;font-size:15px;color:var(--muted);margin-top:4px}
+.score-pts .big{font-size:40px;font-weight:800;letter-spacing:-.02em;color:var(--text)}
+.score-pts.good .big{color:var(--green, #55DE91)}
+.score-pts.bad .big{color:var(--red, #EE3024)}
+.score-note.fnote,.score-note.nc{max-width:520px;margin:4px auto 0;line-height:1.4}
+.score-note.nc{color:var(--dim)}
+.contrib .wt{color:var(--dim);font-size:11px;font-weight:500}
+.catcell.fpts b{font-size:22px}
+/* više od 9 kolona: ime igrača ostaje vidljivo pri horizontalnom skrolu */
+@media (min-width:700px){.many-cats .tscroll table th:first-child,.many-cats .tscroll table td:first-child{position:sticky;left:0;z-index:2;background:var(--card)}}
 .badge.gp-good{background:var(--win-bg);color:var(--win-text)}
 .badge.gp-ok{background:var(--warn-bg);color:var(--warn)}
 .badge.gp-bad{background:var(--lose-bg);color:var(--lose-text)}
