@@ -170,7 +170,6 @@ const FORMATS = [
   { id: 'roto', srLabel: 'Roto', active: false },
   { id: 'h2h-pts', srLabel: 'H2H poeni', active: false },
 ];
-const formatLabel = (id, short = false) => { const f = FORMATS.find(x => x.id === id) || FORMATS[0]; return t(short && f.srShort ? f.srShort : f.srLabel, { n: CATS.length }); };
 const TEAM_COLORS = SIDES.map(x => x.color);
 
 /* =====================================================================
@@ -266,6 +265,27 @@ function defaultFormatFor(platform, kind = 'cat') {
 }
 /** Stari zapis lige (lg.format = 'h2h-cat') -> leagueFormat */
 const legacyFormat = () => normalizeFormat({ scoringType: 'h2h_each', categories: [...FORMAT_PRESETS['9cat'].categories], preset: '9cat', source: 'manual' });
+/** Format u deljenom linku: "e.9cat", "e.c.PTS,REB,TPP", "p.espn_points", "p.c.PTS_1,REB_1.2,TO_-1" */
+const FORMAT_CODES = { h2h_each: 'e', h2h_most: 'm', roto: 'r', h2h_points: 'p', season_points: 's' };
+function encodeFormat(f) {
+  const x = normalizeFormat(f), code = FORMAT_CODES[x.scoringType];
+  if (x.preset !== 'custom') return `${code}.${x.preset}`;
+  return isPointsType(x.scoringType) ? `${code}.c.${Object.entries(x.weights).map(([k, v]) => `${k}_${v}`).join(',')}` : `${code}.c.${x.categories.join(',')}`;
+}
+/** Iz linka u format; neispravan zapis -> null (link bez formata) */
+function decodeFormat(str) {
+  const parts = String(str || '').split('.');
+  const scoringType = Object.keys(FORMAT_CODES).find(k => FORMAT_CODES[k] === parts[0]);
+  if (!scoringType || !parts[1]) return null;
+  if (parts[1] !== 'c') return FORMAT_PRESETS[parts[1]] && FORMAT_PRESETS[parts[1]].kind === (isPointsType(scoringType) ? 'points' : 'cat') ? normalizeFormat({ scoringType, preset: parts[1] }) : null;
+  const items = parts.slice(2).join('.').split(',').filter(Boolean);
+  if (isPointsType(scoringType)) {
+    const weights = Object.fromEntries(items.map(it => { const i = it.lastIndexOf('_'); return [it.slice(0, i), +it.slice(i + 1)]; }));
+    return Object.keys(weights).length ? normalizeFormat({ scoringType, preset: 'custom', weights }) : null;
+  }
+  return items.length >= FORMAT_LIMITS.MIN_CATS ? normalizeFormat({ scoringType, preset: 'custom', categories: items }) : null;
+}
+const sameFormat = (a, b) => encodeFormat(a) === encodeFormat(b);
 /** Format lige (uvek ispravan); bez lige (brzo poređenje) za sada 9-cat H2H */
 const leagueFormatOf = lg => (lg ? normalizeFormat(lg.leagueFormat || legacyFormat()) : normalizeFormat(null));
 
@@ -653,6 +673,49 @@ const EN = {
   "Zatvori trejd": "Close trade",
   "Planiraj novi trejd": "Plan a new trade",
   "Zatvoriti trejd?": "Close trade?",
+  "H2H, svaka kategorija": "H2H, each category",
+  "H2H, jedna pobeda nedeljno": "H2H, one win per week",
+  "H2H, jedna pobeda": "H2H, one win",
+  "Svaka kategorija je posebna pobeda ili poraz u nedeljnom meču.": "Each category is its own win or loss in the weekly matchup.",
+  "Ko osvoji više kategorija, nosi jednu pobedu za celu nedelju (Most categories / One win).": "Whoever wins more categories takes one win for the whole week (Most categories / One win).",
+  "Poredak po zbirovima cele sezone u svakoj kategoriji, bez nedeljnih mečeva.": "Standings by full-season totals in each category, no weekly matchups.",
+  "Statistike donose fantasy poene, a nedeljni meč dobija ko skupi više poena.": "Stats earn fantasy points, and the weekly matchup goes to whoever scores more.",
+  "Poeni za celu sezonu": "Season points",
+  "Fantasy poeni se sabiraju cele sezone, bez nedeljnih mečeva.": "Fantasy points add up over the whole season, no weekly matchups.",
+  "Poeni": "Points",
+  "Sezonski poeni": "Season points",
+  "ESPN (pre 2020)": "ESPN (pre-2020)",
+  "ručno bodovanje": "custom scoring",
+  "9 kategorija": "9 categories",
+  "8 kategorija (bez TO)": "8 categories (no TO)",
+  "ESPN bodovanje": "ESPN scoring",
+  "ESPN bodovanje (lige pre 2020)": "ESPN scoring (leagues before 2020)",
+  "Yahoo bodovanje": "Yahoo scoring",
+  "Ne računa se: {list}.": "Not counted: {list}.",
+  "Prevuci za redosled": "Drag to reorder",
+  "manje je bolje": "lower is better",
+  "Pomeri gore": "Move up",
+  "Pomeri dole": "Move down",
+  "Kategorije": "Categories",
+  "Svoje kategorije": "Custom categories",
+  "Čekiraj kategorije svoje lige (najmanje 2) i složi ih redom kao u ligi.": "Check your league's categories (at least 2) and order them as in your league.",
+  "Svoje bodovanje": "Custom scoring",
+  "Bodovanje": "Scoring",
+  "Prepiši bodovanje iz podešavanja svoje lige.": "Copy the scoring from your league settings.",
+  "Proveri bodovanje u podešavanjima svoje lige, lige ga često menjaju.": "Check the scoring in your league settings, leagues often change it.",
+  "Format lige": "League format",
+  "Liga boduje još nešto što nije na listi? (opciono)": "Does your league score something not on the list? (optional)",
+  "npr. tehničke greške, bonus za 40 poena": "e.g. technical fouls, 40-point bonus",
+  "Te statistike nemamo u podacima: ne računaju se, ali se navode uz rezultat.": "We do not have these stats in our data: they are not counted, but they are listed with the result.",
+  "Ne podržavamo formate bez trejdova i formate gde se računa samo jedna utakmica nedeljno (npr. Yahoo High Score).": "We do not support formats without trades or formats that count only one game per week (e.g. Yahoo High Score).",
+  "Izaberi bar 2 kategorije.": "Pick at least 2 categories.",
+  "Upiši bar jednu težinu za poene.": "Enter at least one points weight.",
+  "Promeniti format lige?": "Change the league format?",
+  "Sa {a} na {b}.": "From {a} to {b}.",
+  "Rezultat, tabele, izveštaj i tekst za AI odmah se preračunavaju po novom formatu. Punt za kategorije kojih više nema se briše. Otvoreni trejdovi ostaju.": "The score, tables, report and AI text are recalculated right away for the new format. Punts for categories that no longer exist are removed. Open trades stay.",
+  "Promeni format": "Change format",
+  "Važi za brzo poređenje u ovom browseru. Za ligu se format bira u podešavanjima lige.": "Applies to quick compare in this browser. For a league, pick the format in league settings.",
+  "Trejd je poslat za {a}, prikazan u formatu tvoje lige ({b}).": "The trade was sent for {a}, shown in your league's format ({b}).",
   "Ne pitaj me ponovo": "Don't ask me again",
   "Trejd {x} biće uklonjen. Sačuvani trejdovi u istoriji ostaju.": "Trade {x} will be removed. Saved trades in history stay.",
   "U koju ligu da svrstam trejd?": "Which league should this trade go to?",
@@ -722,6 +785,12 @@ const initials = name => name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => 
 const fmt1 = v => (v == null ? '-' : v.toFixed(1));
 const fmtPct = v => (v == null ? '-' : v.toFixed(3).replace(/^0/, ''));
 const lsGet = k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
+/** Format brzog poređenja (bez lige): pamti se u browseru. Mini poređenje na početnoj je uvek 9-cat. */
+const QUICK_FMT_KEY = 'fbaTrade.quickFormat.v1';
+const quickFormat = () => normalizeFormat(lsGet(QUICK_FMT_KEY));
+const setQuickFormat = f => { try { localStorage.setItem(QUICK_FMT_KEY, JSON.stringify(normalizeFormat(f))); } catch { /* bez pamćenja */ } };
+/** Format koji važi sada: liga, brzo poređenje ili mini (9-cat) */
+const activeFormat = () => (EMBED?.mini ? normalizeFormat(null) : currentLeague() ? leagueFormatOf(currentLeague()) : quickFormat());
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* pun / blokiran */ } };
 const timeAgo = ts => {
   const m = Math.round((Date.now() - ts) / 60000);
@@ -1220,6 +1289,7 @@ function handleSharedLink(hp) {
   const lists = (hp.get('t') || '|').split('|').map(ids);
   // mv=1: moj trejd iz brzog poređenja prelazi u ligu koju izaberem, strane ostaju iste
   const keep = hp.get('mv') === '1';
+  state.pendingFormat = decodeFormat(hp.get('f')); // format iz linka (null: link bez formata)
   const per = hp.get('per');
   if (PERIODS.some(p => p.key === per)) { state.period = per; tradeStoreGet().period = per; persistTrades(); }
   const leagues = profile?.leagues || [];
@@ -1248,7 +1318,9 @@ function handleSharedLink(hp) {
 /** Otvori deljeni trejd u novom tabu izabrane lige (ili brzog poređenja). Strane se okreću po rosteru te lige. */
 function openSharedIn(scope, lists, keep = false) {
   closeModal();
+  const sentF = state.pendingFormat; state.pendingFormat = null;
   state.pendingShare = null; state.pendingKeep = false;
+  if (scope === 'quick' && sentF) setQuickFormat(sentF); // bez lige: format iz linka
   state.view = scope === 'quick' ? 'quick' : 'league';
   document.body.dataset.view = state.view;
   bindScope(scope);
@@ -1266,6 +1338,8 @@ function openSharedIn(scope, lists, keep = false) {
     persistTrades();
   }
   state.sharedOpen = !own;
+  // u ligi važi format lige; ako je trejd poslat za drugi format, tab to pamti (jedan red iznad rezultata)
+  if (lg && sentF && !sameFormat(sentF, leagueFormatOf(lg))) { activeTab().sentFormat = encodeFormat(sentF); persistTrades(); }
   // isti igrač ne može biti na obe strane
   state.teams[GET].ids = state.teams[GET].ids.filter(id => !state.teams[GIVE].ids.includes(id));
   if (scope === 'quick' && !EMBED) { persistTrades(); location.replace(`${publicAnalyzer()}${own ? '' : '#so=1'}`); return; } // nezavisan trejd: /trade-analyzer/, sa obaveštenjem o uglu
@@ -1561,8 +1635,23 @@ function renderLeagueBar() {
 }
 
 /** Naslov radnog prostora: liga (naziv, tim, platforma) ili brzo poređenje */
+function quickFormatChipHTML() {
+  const f = quickFormat();
+  const gear = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
+  return `<span class="fbar"><button type="button" class="fchip" data-action="quick-format" title="${esc(formatSummary(f))}">${esc(formatShort(f))}</button><button type="button" class="gear fgear" data-action="quick-format" title="${esc(t('Format lige'))}" aria-label="${esc(t('Format lige'))}">${gear}</button></span>`;
+}
+/** Brzo poređenje: izbor formata u popupu (ista komponenta kao u ligi), pamti se u browseru */
+function openQuickFormat() {
+  showModal({
+    title: t('Format lige'),
+    wide: true,
+    body: `<p class="hint">${t('Važi za brzo poređenje u ovom browseru. Za ligu se format bira u podešavanjima lige.')}</p><div class="form">${formatPickerHTML('qf', quickFormat(), null)}</div>`,
+    confirm: t('Sačuvaj'),
+    onConfirm: () => { const fp = readFormatPicker('qf'); if (fp.error) return false; setQuickFormat(fp.f); render(); },
+  });
+}
 function renderWsHead() {
-  if (EMBED) return; // na /trade-analyzer/ period je u samom alatu
+  if (EMBED) { const fb = $('#fmtbar'); if (fb && !EMBED.mini) fb.innerHTML = quickFormatChipHTML(); return; } // na /trade-analyzer/ period i format su u samom alatu
   const el = $('#wshead');
   const lg = currentLeague();
   const right = `<div class="wsh-r"><div class="seg" id="periods" role="group" aria-label="Period"></div>
@@ -1570,9 +1659,9 @@ function renderWsHead() {
     ${state.view === 'league' && lg ? `<button type="button" class="gear" data-action="league-settings" title="${esc(t('Podešavanja lige'))}" aria-label="${esc(t('Podešavanja lige'))}">⚙</button>` : ''}</div>`;
   if (state.view === 'league' && lg) {
     el.innerHTML = `<div class="wsh"><div class="wsh-t"><h1>${esc(lgName(lg))}</h1>
-      <span class="pbadge">${esc(platformLabel(lg.platform))}</span>${lg.teamName ? `<span class="wsh-team">${esc(lg.teamName)}</span>` : ''}</div>${right}</div>`;
+      <span class="pbadge">${esc(platformLabel(lg.platform))}</span><button type="button" class="fchip" data-action="league-settings" title="${esc(formatSummary(leagueFormatOf(lg)))}">${esc(formatShort(leagueFormatOf(lg)))}</button>${lg.teamName ? `<span class="wsh-team">${esc(lg.teamName)}</span>` : ''}</div>${right}</div>`;
   } else {
-    el.innerHTML = `<div class="wsh"><div class="wsh-t"><h1>${t('Brzo poređenje')}</h1><span class="wsh-note">${t('Za {f} lige', { f: formatLabel('h2h-cat', true) })}</span></div>${right}</div>`;
+    el.innerHTML = `<div class="wsh"><div class="wsh-t"><h1>${t('Brzo poređenje')}</h1>${quickFormatChipHTML()}</div>${right}</div>`;
   }
 }
 
@@ -1680,12 +1769,163 @@ function slotsFieldHTML(prefix, slots = {}) {
 }
 const readSlots = prefix => ({ active: +document.getElementById(`${prefix}-sa`).value || ROSTER_DEFAULT.ACTIVE, ir: +document.getElementById(`${prefix}-si`).value });
 
-function formatFieldHTML(name, current) {
-  return `<fieldset class="fmt"><legend>${t('Format')}</legend>
-    ${FORMATS.map(f => `<label class="radio ${f.active ? '' : 'soon'}"><input type="radio" name="${name}" value="${f.id}" ${f.id === current ? 'checked' : ''} ${f.active ? '' : 'disabled'}>
-      ${esc(formatLabel(f.id))}${f.active ? '' : ` <span class="soon-tag">${t('uskoro')}</span>`}</label>`).join('')}
-  </fieldset>`;
+/* ---------- Izbor formata lige (ista komponenta: Dodaj ligu, Podešavanja lige, brzo poređenje) ---------- */
+const SCORING_INFO = {
+  h2h_each: { sr: 'H2H, svaka kategorija', short: 'H2H', d: 'Svaka kategorija je posebna pobeda ili poraz u nedeljnom meču.' },
+  h2h_most: { sr: 'H2H, jedna pobeda nedeljno', short: 'H2H, jedna pobeda', d: 'Ko osvoji više kategorija, nosi jednu pobedu za celu nedelju (Most categories / One win).' },
+  roto: { sr: 'Roto', short: 'Roto', d: 'Poredak po zbirovima cele sezone u svakoj kategoriji, bez nedeljnih mečeva.' },
+  h2h_points: { sr: 'H2H poeni', short: 'Poeni', d: 'Statistike donose fantasy poene, a nedeljni meč dobija ko skupi više poena.' },
+  season_points: { sr: 'Poeni za celu sezonu', short: 'Sezonski poeni', d: 'Fantasy poeni se sabiraju cele sezone, bez nedeljnih mečeva.' },
+};
+const PRESET_SHORT = { espn_points: 'ESPN', espn_points_classic: 'ESPN (pre 2020)', yahoo_points: 'Yahoo' };
+const fmtNum = v => String(Math.round(v * 100) / 100);
+/** Kratak naziv formata za čip i naslove: "9-cat H2H", "12-cat Roto", "Poeni · ESPN" */
+function formatShort(f) {
+  const x = normalizeFormat(f), info = SCORING_INFO[x.scoringType];
+  if (isPointsType(x.scoringType)) return `${t(info.short)} · ${PRESET_SHORT[x.preset] ? t(PRESET_SHORT[x.preset]) : t('ručno bodovanje')}`;
+  return `${x.categories.length}-cat ${t(info.short)}`;
 }
+/** Opis formata: "H2H, svaka kategorija, 11 kategorija: PTS, ..." ili "H2H poeni, ESPN bodovanje: PTS 1, ..." */
+function formatSummary(f) {
+  const x = normalizeFormat(f), info = SCORING_INFO[x.scoringType];
+  const lbl = id => STAT_BY_ID.get(id)?.label || id;
+  const body = isPointsType(x.scoringType)
+    ? `${t(info.sr)}, ${x.preset !== 'custom' ? t(FORMAT_PRESETS[x.preset].srLabel) : t('ručno bodovanje')}: ${Object.entries(x.weights).map(([k, v]) => `${lbl(k)} ${fmtNum(v)}`).join(', ')}`
+    : `${t(info.sr)}, ${x.categories.length} ${plural(x.categories.length, ['kategorija', 'kategorije', 'kategorija'], ['category', 'categories'])}: ${x.categories.map(lbl).join(', ')}`;
+  return `${body}.${x.unsupported.length ? ` ${t('Ne računa se: {list}.', { list: x.unsupported.join(', ') })}` : ''}`;
+}
+
+/** Radni format po komponenti (prefix): { f, platform, touched }. f nije normalizovan dok se ne sačuva. */
+const fmtDrafts = new Map();
+const WEIGHT_STATS = () => STAT_CATALOG.filter(x => x.type === 'sum');
+const verifiedPoints = platform => ['espn', 'yahoo'].includes(platform);
+
+function formatPickerHTML(prefix, fmt, platform = null) {
+  fmtDrafts.set(prefix, { f: clone(normalizeFormat(fmt)), platform, touched: false });
+  return `<fieldset class="fmt fpick" data-fpick="${prefix}">${fpickInner(prefix)}</fieldset>`;
+}
+function fpickInner(prefix) {
+  const d = fmtDrafts.get(prefix), f = d.f, pts = isPointsType(f.scoringType);
+  const radio = (name, val, cur, label, desc = '') => `<label class="radio fp-r"><input type="radio" name="${prefix}-${name}" value="${val}" data-fp-${name}="${val}" ${val === cur ? 'checked' : ''}>
+    <span><b>${label}</b>${desc ? `<small>${desc}</small>` : ''}</span></label>`;
+  const types = SCORING_TYPES.map(id => radio('type', id, f.scoringType, esc(t(SCORING_INFO[id].sr)), esc(t(SCORING_INFO[id].d)))).join('');
+  let detail;
+  if (!pts) {
+    const sel = f.categories;
+    const row = (x, on, i) => `<li class="fp-cat ${on ? 'on' : ''}" data-fp-cat="${x.id}">
+      ${on ? `<span class="fp-h" data-fp-drag title="${esc(t('Prevuci za redosled'))}" aria-hidden="true">⋮⋮</span>` : '<span class="fp-h off" aria-hidden="true"></span>'}
+      <label><input type="checkbox" data-fp-check="${x.id}" ${on ? 'checked' : ''}> <b>${esc(x.label)}</b> <span>${esc(LANG === 'en' ? x.en : x.sr)}${x.dir === 'low' ? ` · ${esc(t('manje je bolje'))}` : ''}</span></label>
+      ${on ? `<span class="fp-mv"><button type="button" class="linkbtn" data-fp-move="-1" ${i === 0 ? 'disabled' : ''} aria-label="${esc(t('Pomeri gore'))}">↑</button><button type="button" class="linkbtn" data-fp-move="1" ${i === sel.length - 1 ? 'disabled' : ''} aria-label="${esc(t('Pomeri dole'))}">↓</button></span>` : ''}</li>`;
+    detail = `<div class="fp-sub"><div class="fp-t">${t('Kategorije')}</div>
+      <div class="fp-presets">${radio('preset', '9cat', f.preset, esc(t('9 kategorija')))}${radio('preset', '8cat', f.preset, esc(t('8 kategorija (bez TO)')))}${radio('preset', 'custom', f.preset, esc(t('Svoje kategorije')))}</div>
+      ${f.preset === 'custom' ? `<p class="hint">${t('Čekiraj kategorije svoje lige (najmanje 2) i složi ih redom kao u ligi.')}</p>
+        <ul class="fp-cats">${sel.map((id, i) => row(STAT_BY_ID.get(id), true, i)).join('')}${STAT_CATALOG.filter(x => !sel.includes(x.id)).map(x => row(x, false)).join('')}</ul>` : ''}</div>`;
+  } else {
+    const presets = ['espn_points', 'espn_points_classic', 'yahoo_points'].map(id => radio('preset', id, f.preset, esc(t(FORMAT_PRESETS[id].srLabel)))).join('') + radio('preset', 'custom', f.preset, esc(t('Svoje bodovanje')));
+    detail = `<div class="fp-sub"><div class="fp-t">${t('Bodovanje')}</div>
+      <div class="fp-presets">${presets}</div>
+      ${!verifiedPoints(d.platform) && d.platform ? `<p class="hint">${t('Prepiši bodovanje iz podešavanja svoje lige.')}</p>` : ''}
+      <div class="fp-weights">${WEIGHT_STATS().map(x => `<label title="${esc(LANG === 'en' ? x.en : x.sr)}"><span>${esc(x.label)}</span><input type="number" step="0.1" inputmode="decimal" data-fp-w="${x.id}" value="${f.weights[x.id] ?? ''}" placeholder="0"></label>`).join('')}</div>
+      <p class="hint fp-check">${t('Proveri bodovanje u podešavanjima svoje lige, lige ga često menjaju.')}</p></div>`;
+  }
+  return `<legend>${t('Format lige')}</legend>
+    <div class="fp-types">${types}</div>
+    ${detail}
+    <label class="fp-uns">${t('Liga boduje još nešto što nije na listi? (opciono)')}<input type="text" data-fp-uns maxlength="200" value="${esc(f.unsupported.join(', '))}" placeholder="${esc(t('npr. tehničke greške, bonus za 40 poena'))}">
+      <small class="hint">${t('Te statistike nemamo u podacima: ne računaju se, ali se navode uz rezultat.')}</small></label>
+    <p class="fp-sum" aria-live="polite">${esc(formatSummary(f))}</p>
+    <p class="hint fp-foot">${t('Ne podržavamo formate bez trejdova i formate gde se računa samo jedna utakmica nedeljno (npr. Yahoo High Score).')}</p>
+    <p class="fp-err" hidden></p>`;
+}
+const fpickEl = prefix => document.querySelector(`[data-fpick="${prefix}"]`);
+function fpickRender(prefix) {
+  const el = fpickEl(prefix); if (!el) return;
+  el.innerHTML = fpickInner(prefix);
+}
+const fpickSum = prefix => { const el = fpickEl(prefix)?.querySelector('.fp-sum'); if (el) el.textContent = formatSummary(fmtDrafts.get(prefix).f); };
+/** Platforma promenjena (Dodaj ligu / Podešavanja): podrazumevano bodovanje, dok korisnik ne izabere svoje */
+function fpickPlatform(prefix, platform) {
+  const d = fmtDrafts.get(prefix); if (!d) return;
+  d.platform = platform;
+  if (isPointsType(d.f.scoringType) && !d.touched) d.f = { ...clone(defaultFormatFor(platform, 'points')), scoringType: d.f.scoringType, unsupported: d.f.unsupported };
+  fpickRender(prefix);
+}
+/** Pročitaj izbor: { f } ili { error } (prikazuje grešku u komponenti) */
+function readFormatPicker(prefix) {
+  const d = fmtDrafts.get(prefix), el = fpickEl(prefix);
+  const err = msg => { const e = el?.querySelector('.fp-err'); if (e) { e.textContent = msg; e.hidden = false; e.scrollIntoView({ block: 'nearest' }); } return { error: msg }; };
+  if (!isPointsType(d.f.scoringType) && d.f.preset === 'custom' && d.f.categories.length < FORMAT_LIMITS.MIN_CATS) return err(t('Izaberi bar 2 kategorije.'));
+  if (isPointsType(d.f.scoringType) && !Object.values(d.f.weights).some(v => +v)) return err(t('Upiši bar jednu težinu za poene.'));
+  return { f: normalizeFormat(d.f) };
+}
+const fpPrefixOf = el => el.closest('[data-fpick]')?.dataset.fpick;
+document.addEventListener('change', e => {
+  if (e.target.id === 'al-platform' || e.target.id === 'ls-platform') { fpickPlatform(e.target.id.slice(0, 2), e.target.value); return; }
+  const prefix = fpPrefixOf(e.target); if (!prefix) return;
+  const d = fmtDrafts.get(prefix), el = e.target;
+  if (el.dataset.fpType) {
+    const nt = el.dataset.fpType, wasPts = isPointsType(d.f.scoringType);
+    if (wasPts !== isPointsType(nt)) { d.f = { ...clone(defaultFormatFor(d.platform, isPointsType(nt) ? 'points' : 'cat')), unsupported: d.f.unsupported }; d.touched = false; }
+    d.f.scoringType = nt;
+    fpickRender(prefix);
+  } else if (el.dataset.fpPreset) {
+    const pr = el.dataset.fpPreset;
+    if (isPointsType(d.f.scoringType)) d.touched = true; // izabrano bodovanje se ne menja sa platformom
+    if (pr !== 'custom') { d.f.preset = pr; if (isPointsType(d.f.scoringType)) d.f.weights = { ...FORMAT_PRESETS[pr].weights }; else d.f.categories = [...FORMAT_PRESETS[pr].categories]; }
+    else d.f.preset = 'custom';
+    fpickRender(prefix);
+  } else if (el.dataset.fpCheck) {
+    const id = el.dataset.fpCheck;
+    d.f.categories = el.checked ? [...d.f.categories, id] : d.f.categories.filter(x => x !== id);
+    fpickRender(prefix);
+    fpickEl(prefix)?.querySelector(`[data-fp-check="${id}"]`)?.focus();
+  }
+});
+document.addEventListener('input', e => {
+  const prefix = fpPrefixOf(e.target); if (!prefix) return;
+  const d = fmtDrafts.get(prefix), el = e.target;
+  if (el.dataset.fpW) {
+    const v = el.value.trim() === '' ? null : +el.value;
+    if (v == null || !Number.isFinite(v) || v === 0) delete d.f.weights[el.dataset.fpW]; else d.f.weights[el.dataset.fpW] = v;
+    d.touched = true;
+    // izmenjena težina: postavka postaje "Svoje bodovanje"
+    const hit = Object.entries(FORMAT_PRESETS).find(([, x]) => x.kind === 'points' && sameWeights(d.f.weights, x.weights));
+    d.f.preset = hit ? hit[0] : 'custom';
+    fpickEl(prefix).querySelectorAll('[data-fp-preset]').forEach(r => { r.checked = r.value === d.f.preset; });
+    fpickSum(prefix);
+  } else if (el.matches('[data-fp-uns]')) {
+    d.f.unsupported = el.value.split(',').map(x => x.trim()).filter(Boolean);
+    fpickSum(prefix);
+  }
+});
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-fp-move]'); if (!b) return;
+  const prefix = fpPrefixOf(b), d = fmtDrafts.get(prefix), id = b.closest('[data-fp-cat]').dataset.fpCat;
+  const list = d.f.categories, i = list.indexOf(id), j = i + +b.dataset.fpMove;
+  if (j < 0 || j >= list.length) return;
+  [list[i], list[j]] = [list[j], list[i]];
+  fpickRender(prefix);
+  fpickEl(prefix)?.querySelector(`[data-fp-cat="${id}"] [data-fp-move="${b.dataset.fpMove}"]`)?.focus();
+});
+// prevlačenje reda za redosled (miš i prst, pointer događaji)
+document.addEventListener('pointerdown', e => {
+  const h = e.target.closest('[data-fp-drag]'); if (!h) return;
+  e.preventDefault();
+  const li = h.closest('[data-fp-cat]'), ul = li.parentElement, prefix = fpPrefixOf(li);
+  li.classList.add('dragging');
+  const move = ev => {
+    const over = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('.fp-cat.on');
+    if (!over || over === li || over.parentElement !== ul) return;
+    const r = over.getBoundingClientRect();
+    ul.insertBefore(li, ev.clientY < r.top + r.height / 2 ? over : over.nextSibling);
+  };
+  const up = () => {
+    document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up);
+    fmtDrafts.get(prefix).f.categories = [...ul.querySelectorAll('.fp-cat.on')].map(x => x.dataset.fpCat);
+    fpickRender(prefix);
+  };
+  document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
+});
 
 /* ---------- Podešavanja lige ---------- */
 const TEAM_STATES = [
@@ -1706,7 +1946,7 @@ function openLeagueSettings() {
         <label>${t('Platforma')}<select id="ls-platform">${PLATFORMS.map(p => `<option value="${p.id}" ${p.id === lg.platform ? 'selected' : ''}>${esc(platformLabel(p.id))}</option>`).join('')}</select></label>
         <label>${t('Broj timova')}<input type="number" id="ls-teams" min="2" max="30" value="${num(lg.teams)}"></label>
       </div>
-      ${formatFieldHTML('ls-format', lg.format)}
+      ${formatPickerHTML('ls', leagueFormatOf(lg), lg.platform)}
       ${slotsFieldHTML('ls', lg.slots)}
       <fieldset class="fmt"><legend>${t('Tabela (opciono)')}${st.updated ? ` <span class="hint">${t('Ažurirano: {d}', { d: fmtShortDate(st.updated) })}</span>` : ''}</legend>
         <div class="form-row">
@@ -1733,17 +1973,41 @@ function openLeagueSettings() {
       const toNum = x => (x === '' ? null : Math.max(0, Math.round(+x)) || null);
       const newSt = { rank: toNum(v('ls-rank')), record: v('ls-record').trim(), playoffTeams: toNum(v('ls-pteams')), playoffWeek: toNum(v('ls-pweek')) };
       const changed = ['rank', 'record', 'playoffTeams', 'playoffWeek'].some(k => (newSt[k] ?? '') !== (st[k] ?? ''));
-      Object.assign(lg, {
+      const fp = readFormatPicker('ls');
+      if (fp.error) return false;
+      const oldF = leagueFormatOf(lg);
+      // sve vrednosti se čitaju odmah: prozor za potvrdu formata zatvara ovaj
+      const vals = {
         name, teamName: v('ls-team').trim(), platform: v('ls-platform'),
         teams: Math.max(2, Math.min(30, +v('ls-teams') || lg.teams || 12)),
-        format: document.querySelector('input[name="ls-format"]:checked')?.value || lg.format,
+        leagueFormat: fp.f,
         slots: readSlots('ls'),
         teamState: v('ls-state') || null, note: v('ls-note').trim(),
         standings: { ...newSt, updated: changed ? nowISO() : st.updated || null },
-      });
-      touchLeague(lg); saveProfile(); render();
+      };
+      const apply = () => {
+        Object.assign(lg, vals);
+        applyFormatChange(lg, oldF);
+        touchLeague(lg); saveProfile(); render();
+      };
+      if (sameFormat(oldF, fp.f)) { apply(); return; }
+      // promena formata: potvrda, pa se sve odmah preračunava (otvoreni trejdovi ostaju)
+      setTimeout(() => showModal({
+        title: t('Promeniti format lige?'),
+        body: `<p>${t('Sa {a} na {b}.', { a: `<b>${esc(formatShort(oldF))}</b>`, b: `<b>${esc(formatShort(fp.f))}</b>` })}</p>
+          <p>${t('Rezultat, tabele, izveštaj i tekst za AI odmah se preračunavaju po novom formatu. Punt za kategorije kojih više nema se briše. Otvoreni trejdovi ostaju.')}</p>`,
+        confirm: t('Promeni format'), onConfirm: apply,
+      }), 0);
     },
   });
+}
+
+/** Posle promene formata: punt samo za kategorije koje postoje u novom formatu (u ligama na poene punta nema) */
+function applyFormatChange(lg, oldF) {
+  const f = leagueFormatOf(lg);
+  if (sameFormat(oldF, f)) return;
+  lg.punt = isPointsType(f.scoringType) ? [] : (lg.punt || []).filter(k => f.categories.includes(k));
+  if (currentLeague() === lg) state.punt = new Set(lg.punt);
 }
 
 function duplicateLeague() {
@@ -1776,6 +2040,7 @@ function openAddLeague() {
   const needName = !profile?.name?.trim();
   showModal({
     title: t('Dodaj ligu'),
+    wide: true,
     body: `<div class="form">
       <label>${t('Naziv lige')}<input type="text" id="al-name" maxlength="40" placeholder="${t('npr. Liga sa posla')}"></label>
       <label>${t('Naziv mog tima')}<input type="text" id="al-team" maxlength="40" placeholder="${t('kako se tvoj tim zove u ligi')}"></label>
@@ -1783,7 +2048,7 @@ function openAddLeague() {
         <label>${t('Platforma')}<select id="al-platform">${PLATFORMS.map(p => `<option value="${p.id}">${esc(platformLabel(p.id))}</option>`).join('')}</select></label>
         <label>${t('Broj timova')}<input type="number" id="al-teams" min="2" max="30" value="12"></label>
       </div>
-      ${formatFieldHTML('al-format', FORMATS.find(f => f.active).id)}
+      ${formatPickerHTML('al', defaultFormatFor(PLATFORMS[0].id, 'cat'), PLATFORMS[0].id)}
       ${slotsFieldHTML('al')}
       ${needName ? `<label>${t('Tvoje ime (opciono)')}<input type="text" id="al-me" maxlength="30"></label>` : ''}
       </div>`,
@@ -1791,10 +2056,12 @@ function openAddLeague() {
     onConfirm: () => {
       const name = document.getElementById('al-name').value.trim();
       if (!name) { document.getElementById('al-name').focus(); return false; }
+      const fmt = readFormatPicker('al');
+      if (fmt.error) return false;
       createLeague({
         name,
         teamName: document.getElementById('al-team').value.trim(),
-        format: document.querySelector('input[name="al-format"]:checked')?.value || FORMATS[0].id,
+        leagueFormat: fmt.f,
         platform: document.getElementById('al-platform').value,
         teams: Math.max(2, Math.min(30, +document.getElementById('al-teams').value || 12)),
         slots: readSlots('al'),
@@ -1843,7 +2110,9 @@ function renderStatus() {
 
 function renderBanner() {
   const el = $('#banner');
-  const notice = (state.sharedOpen ? `<div class="banner info"><span>🔗 ${t('Otvoren deljeni trejd, prikazan iz tvog ugla.')}</span><button type="button" class="x" data-action="shared-close" aria-label="${t('Zatvori')}">✕</button></div>` : '')
+  const sentF = currentLeague() && activeTab()?.sentFormat ? decodeFormat(activeTab().sentFormat) : null;
+  const notice = (sentF ? `<div class="banner info"><span>${t('Trejd je poslat za {a}, prikazan u formatu tvoje lige ({b}).', { a: esc(formatShort(sentF)), b: esc(formatShort(activeFormat())) })}</span><button type="button" class="x" data-action="sentfmt-close" aria-label="${t('Zatvori')}">✕</button></div>` : '')
+    + (state.sharedOpen ? `<div class="banner info"><span>🔗 ${t('Otvoren deljeni trejd, prikazan iz tvog ugla.')}</span><button type="button" class="x" data-action="shared-close" aria-label="${t('Zatvori')}">✕</button></div>` : '')
     + (state.notice ? `<div class="banner ok"><span>✔ ${esc(t(state.notice))}</span>${state.noticeLink && !EMBED ? linkHTML(state.noticeLink, { cls: 'linkbtn' }) : ''}<button type="button" data-action="notice-close">${t('U redu')}</button></div>` : '');
   if (!state.error) { el.innerHTML = notice; return; }
   el.innerHTML = state.stale
@@ -3030,8 +3299,8 @@ function aiInstructions(uneven) {
       `Categories: ${cats} (${inv}: lower is better). FG% and FT% are weighted (total made / total attempted). Trades are made for the long run, for the rest of the season.`));
   } else {
     const ir = ROSTER.IR;
-    out.push(L(`Liga: ${lgName(lg)}, platforma ${platformLabel(lg.platform)}, format ${formatLabel(lg.format)}, ${lg.teams} timova. Kategorije: ${cats} (${inv}: manje je bolje). FG% i FT% se računaju ponderisano (ukupno pogođeno / ukupno pokušano). Roster: ${ROSTER.ACTIVE} aktivnih mesta${ir ? ` + ${ir} IR mesta` : ''}. Trejdovi se rade na duže staze, za ostatak sezone.`,
-      `League: ${lgName(lg)}, platform ${platformLabel(lg.platform)}, format ${formatLabel(lg.format)}, ${lg.teams} teams. Categories: ${cats} (${inv}: lower is better). FG% and FT% are weighted (total made / total attempted). Roster: ${ROSTER.ACTIVE} active spots${ir ? ` + ${ir} IR spots` : ''}. Trades are made for the long run, for the rest of the season.`));
+    out.push(L(`Liga: ${lgName(lg)}, platforma ${platformLabel(lg.platform)}, format ${formatShort(leagueFormatOf(lg))}, ${lg.teams} timova. Kategorije: ${cats} (${inv}: manje je bolje). FG% i FT% se računaju ponderisano (ukupno pogođeno / ukupno pokušano). Roster: ${ROSTER.ACTIVE} aktivnih mesta${ir ? ` + ${ir} IR mesta` : ''}. Trejdovi se rade na duže staze, za ostatak sezone.`,
+      `League: ${lgName(lg)}, platform ${platformLabel(lg.platform)}, format ${formatShort(leagueFormatOf(lg))}, ${lg.teams} teams. Categories: ${cats} (${inv}: lower is better). FG% and FT% are weighted (total made / total attempted). Roster: ${ROSTER.ACTIVE} active spots${ir ? ` + ${ir} IR spots` : ''}. Trades are made for the long run, for the rest of the season.`));
     if (lg.teamName) out.push(L(`Moj tim: ${lg.teamName}.`, `My team: ${lg.teamName}.`));
     const st = lg.standings || {};
     const parts = [];
@@ -3100,7 +3369,7 @@ function buildAIText(shortRosterNews = false) {
     ctx.push(`${L('Liga', 'League')}: ${lgName(lg)}`);
     if (lg.teamName) ctx.push(`${L('Moj tim', 'My team')}: ${lg.teamName}`);
     ctx.push(`${L('Platforma', 'Platform')}: ${platformLabel(lg.platform)}`);
-    ctx.push(`${L('Format', 'Format')}: ${formatLabel(lg.format)}`);
+    ctx.push(`${L('Format', 'Format')}: ${formatSummary(leagueFormatOf(lg))}`);
     ctx.push(`${L('Broj timova', 'Teams')}: ${lg.teams}`);
     ctx.push(`${L('Roster', 'Roster')}: ${ROSTER.ACTIVE} ${L('aktivnih', 'active')}${ROSTER.IR ? ` + ${ROSTER.IR} IR` : ''}`);
     if (st.rank) ctx.push(`${L('Mesto', 'Place')}: ${st.rank}/${lg.teams}`);
@@ -3805,6 +4074,7 @@ function shareURL() {
   q.set('per', state.period);
   q.set('t', `${giveIds().join(',')}|${getIds().join(',')}`);
   if (LANG === 'en') q.set('lang', 'en');
+  if (!EMBED?.mini) q.set('f', encodeFormat(activeFormat())); // format za koji je trejd poslat
   q.set('s', '1'); // oznaka: otvoreno preko deljenog linka
   // i iz brzog poređenja link vodi u aplikaciju: ona prepozna ligu, pita gde da ga svrsta i okrene strane
   const base = EMBED ? new URL(EMBED.app, location.href).href : `${location.origin}${location.pathname}`;
@@ -4691,6 +4961,8 @@ document.addEventListener('click', e => {
     case 'wipe-all': wipeAll(); break;
     case 'add-league': openAddLeague(); break;
     case 'league-settings': openLeagueSettings(); break;
+    case 'quick-format': openQuickFormat(); break;
+    case 'sentfmt-close': { const tb = activeTab(); if (tb) { delete tb.sentFormat; persistTrades(); } render(); break; }
     case 'league-dup': duplicateLeague(); break;
     case 'league-del': deleteLeague(); break;
     case 'export': exportData(el, 'profile'); break;

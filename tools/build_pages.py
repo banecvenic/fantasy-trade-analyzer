@@ -56,6 +56,7 @@ HOME = {
                'verdict': 'The trade gains you 6 categories, you lose 3', 'win': 'you win it', 'lose': 'you lose it', 'tie': 'tie'},
         'mini_h': 'Try a quick trade',
         'mini_lead': 'Up to 2 players per side. Season averages per game.',
+        'mini_fmt': '9-cat · other formats in the full analysis',
         'mini_give_ph': 'Who do you give…', 'mini_get_ph': 'Who do you get…',
         'mini_loading': 'Loading players…', 'mini_error': 'Players could not be loaded. Try again later.', 'mini_none': 'No players found',
         'mini_full': 'See full analysis', 'mini_hint': 'Add a player on each side to see the score.', 'mini_remove': 'Remove',
@@ -87,6 +88,7 @@ HOME = {
                'verdict': 'Trejd ti donosi 6 kategorija, gubiš 3', 'win': 'dobijaš', 'lose': 'gubiš', 'tie': 'nerešeno'},
         'mini_h': 'Probaj brzi trejd',
         'mini_lead': 'Do 2 igrača po strani. Prosek po utakmici za sezonu.',
+        'mini_fmt': '9-cat · drugi formati u punoj analizi',
         'mini_give_ph': 'Koga daješ…', 'mini_get_ph': 'Koga dobijaš…',
         'mini_loading': 'Učitavam igrače…', 'mini_error': 'Igrači nisu učitani. Pokušaj kasnije.', 'mini_none': 'Nema igrača',
         'mini_full': 'Pogledaj celu analizu', 'mini_hint': 'Dodaj igrača na svaku stranu da vidiš rezultat.', 'mini_remove': 'Ukloni',
@@ -645,7 +647,7 @@ var b=document.getElementById('continue-btn');b.textContent={json.dumps(h['conti
 
   <section class="mini" id="mini" aria-labelledby="mini-h" data-txt='{escape(mini_txt)}' data-app="{r}assets/app.js" data-lang="{lang}" data-ta="{ta}">
     <h2 id="mini-h">{escape(h['mini_h'])}</h2>
-    <p class="lead">{escape(h['mini_lead'])}</p>
+    <p class="lead">{escape(h['mini_lead'])} <span class="mini-fmt">{escape(h['mini_fmt'])}</span></p>
     <div class="mini-sides">
       <div class="mini-side give" data-side="0"><label class="give-t" for="mini-0">{escape(t['pre']['give'][0])}</label><div class="mini-cards"></div>
         <div class="mini-in"><input id="mini-0" type="search" autocomplete="off" spellcheck="false" placeholder="{escape(h['mini_give_ph'])}" role="combobox" aria-expanded="false" aria-controls="mini-dd-0"><ul class="dd" id="mini-dd-0" role="listbox" hidden></ul></div></div>
@@ -695,7 +697,7 @@ def analyzer(lang):
   </section>
 
   <section class="tool" id="tool" aria-label="{escape(t['tool_h'])}">
-    <div class="tool-periods"><div class="seg" id="periods" role="group" aria-label="Period">{pre_periods}</div></div>
+    <div class="tool-periods"><div class="seg" id="periods" role="group" aria-label="Period">{pre_periods}</div><div id="fmtbar" class="fmtbar"><span class="fbar"><span class="fchip static">9-cat H2H</span></span></div></div>
     <div id="tradetabs" class="tool-tabs"></div>
     <div class="tool-app">
       <div class="status" id="status">{escape(t['loading'])}</div>

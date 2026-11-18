@@ -11,8 +11,8 @@ const start = src.indexOf('   Formati lige: katalog statistika');
 const end = src.indexOf('const leagueFormatOf');
 if (start < 0 || end < 0) throw new Error('Nije nađen modul formata u app.js');
 const code = src.slice(src.lastIndexOf('/*', start), src.indexOf('\n', end));
-const api = new Function('LANG', `${code}\nreturn { STAT_CATALOG, STAT_BY_ID, FORMAT_PRESETS, normalizeFormat, defaultFormatFor, legacyFormat, leagueFormatOf };`)('sr');
-const { STAT_CATALOG, FORMAT_PRESETS, normalizeFormat, defaultFormatFor, leagueFormatOf } = api;
+const api = new Function('LANG', `${code}\nreturn { STAT_CATALOG, STAT_BY_ID, FORMAT_PRESETS, normalizeFormat, defaultFormatFor, legacyFormat, leagueFormatOf, encodeFormat, decodeFormat, sameFormat };`)('sr');
+const { STAT_CATALOG, FORMAT_PRESETS, normalizeFormat, defaultFormatFor, leagueFormatOf, encodeFormat, decodeFormat, sameFormat } = api;
 
 let n = 0;
 const test = (name, fn) => { fn(); n++; console.log(`ok  ${name}`); };
@@ -118,6 +118,23 @@ test('normalizacija je stabilna (dva puta isto)', () => {
     const a = normalizeFormat(raw);
     assert.deepStrictEqual(normalizeFormat(a), a);
   }
+});
+
+test('link: format tam i nazad (postavke, svoje kategorije, svoje težine sa decimalama i minusom)', () => {
+  const cases = [
+    normalizeFormat(null),
+    normalizeFormat({ scoringType: 'h2h_most', preset: '8cat' }),
+    normalizeFormat({ scoringType: 'roto', categories: ['PTS', 'TPP', 'OREB', 'ATO', 'FGP'] }),
+    normalizeFormat({ scoringType: 'h2h_points', preset: 'yahoo_points' }),
+    normalizeFormat({ scoringType: 'season_points', weights: { PTS: 1, REB: 1.25, TO: -1.5, DD: 3 } }),
+  ];
+  for (const f of cases) { const back = decodeFormat(encodeFormat(f)); assert.deepStrictEqual(back, f, encodeFormat(f)); assert.ok(sameFormat(back, f)); }
+  assert.strictEqual(encodeFormat(normalizeFormat(null)), 'e.9cat');
+  assert.strictEqual(encodeFormat(cases[4]), 's.c.PTS_1,REB_1.25,TO_-1.5,DD_3');
+});
+
+test('link: neispravan format -> null', () => {
+  for (const x of [null, '', 'x', 'e', 'e.nema', 'p.9cat', 'e.c.PTS', 'p.c.', 'z.9cat']) assert.strictEqual(decodeFormat(x), null, String(x));
 });
 
 console.log(`\n${n} testova prošlo`);
