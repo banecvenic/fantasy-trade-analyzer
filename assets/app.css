@@ -756,3 +756,57 @@ header.gnav .langsel{margin-left:auto;flex:none}
 }
 .gmenu{min-width:300px}
 .gmenu .pm-item .soon{white-space:nowrap}
+
+/* ---------- Uvoz lige ---------- */
+.imp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+@media (max-width:560px){.imp-grid{grid-template-columns:1fr}}
+.imp-card{position:relative;display:flex;flex-direction:column;background:var(--bg2);border:1px solid var(--line);border-radius:10px;min-width:0}
+.imp-card:not(.soon):hover{border-color:var(--info)}
+.imp-main{display:flex;gap:10px;align-items:flex-start;text-align:left;background:none;border:0;color:var(--text);font:inherit;padding:12px 12px 4px;cursor:pointer;width:100%}
+.imp-card.soon .imp-main{cursor:default;opacity:.75}
+.imp-ic{flex:none;min-width:38px;height:30px;padding:0 6px;border-radius:6px;background:var(--card2);border:1px solid var(--line);display:grid;place-items:center;font-size:11px;font-weight:800;color:var(--muted)}
+.imp-tx{display:flex;flex-direction:column;gap:3px;min-width:0}
+.imp-tx b{font-size:13px}
+.imp-tx>span{font-size:12px;color:var(--muted);line-height:1.4}
+.imp-how{padding:0 12px 10px 60px;font-size:11px}
+.soon-tag{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:1px 5px;border-radius:3px;background:var(--card2);color:var(--muted);border:1px solid var(--line);vertical-align:1px}
+a.howto{font-size:12px}
+.imp-help{font-size:12px;margin-top:-4px}
+.imp-msg{font-size:13px;min-height:18px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.imp-msg .err{color:var(--lose-text)}
+.imp-pick{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;width:100%}
+.imp-teams{display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow:auto;margin:10px 0}
+.imp-team{display:grid;grid-template-columns:auto 1fr;column-gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg2);cursor:pointer}
+.imp-team:has(input:checked){border-color:var(--info);background:rgba(var(--info-rgb),.1)}
+.imp-team input{grid-row:span 2}
+.imp-team .it-name{font-weight:700}
+.imp-team .it-meta{font-size:12px;color:var(--muted)}
+.pbadge.synced{color:var(--win-text);border-color:rgba(var(--win-rgb),.45)}
+.sync-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);align-self:center;white-space:nowrap}
+.sync-chip.warn{color:var(--warn)}
+.sync-chip .linkbtn{padding:2px 8px}
+@media (max-width:560px){.sync-chip .sc-l{display:none}}
+.full-note.lock{cursor:default}
+table.stand{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
+table.stand th,table.stand td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}
+table.stand th{font-size:11px;color:var(--muted);font-weight:700}
+table.stand td:first-child,table.stand th:first-child{width:28px;text-align:center}
+table.stand tr.me td{background:rgba(var(--info-rgb),.1);font-weight:700}
+.rproj td.win{color:var(--win-text);font-weight:700}
+.rproj td.lose{color:var(--lose-text);font-weight:700}
+.rp-note{margin:8px 12px 10px}
+.paste-steps{margin:0 0 12px;padding-left:20px;display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.form label.check{flex-direction:row;align-items:center;gap:8px;font-size:13px;color:var(--text)}
+.pa-list{list-style:none;margin:6px 0 10px;padding:0;display:flex;flex-direction:column;gap:4px;max-height:38vh;overflow:auto}
+.pa-ok label{display:flex;align-items:center;gap:8px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg2);cursor:pointer}
+.pa-ok label:has(input:not(:checked)){opacity:.5}
+.pa-ok .av{position:relative}
+.pa-n{display:flex;flex-direction:column;min-width:0}
+.pa-n small{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pa-amb,.pa-un{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:8px;align-items:center}
+.pa-line{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:ui-monospace,Menlo,monospace}
+.pa-amb select,.pa-un input{background:var(--bg2);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:6px 8px;font:inherit;font-size:13px;min-width:0}
+.pa-h{font-size:13px;margin:12px 0 4px}
+.pa-more{margin-top:8px}
+fieldset.plain{border:0;padding:0;margin:0;min-width:0}
+fieldset.plain:disabled{opacity:.6}

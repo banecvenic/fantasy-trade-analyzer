@@ -290,6 +290,10 @@ const ESPN_STAT_IDS = (() => {
   for (const x of STAT_CATALOG) if (x.type === 'sum') m[x.espn[0]] = x.id;
   return m;
 })();
+/** Promašaji (23 FG, 24 FT, 25 trojke): [pogodak, pokušaj]. Provereno: 23 = 14 − 13 i 24 = 16 − 15 u valuesByStat. */
+const ESPN_MISSED = { 23: ['FGM', 'FGA'], 24: ['FTM', 'FTA'], 25: ['TPM', 'TPA'] };
+/** Statistike koje lige mogu da boduju, a mi ih nemamo u podacima (naziv za napomenu "Ne računa se") */
+const ESPN_OTHER_STATS = { 7: 'Ejections', 8: 'Flagrant fouls', 10: 'Technical fouls', 12: 'Disqualifications', 22: 'Adjusted FG%', 39: 'Quadruple-doubles' };
 /**
  * Vraća { format, error }. error: 'empty' (nema podešavanja), 'type' (format bez trejdova ili gde se računa jedna utakmica, npr. H2H_SINGLE_SCORE).
  * Statistike koje nemamo idu u unsupported ("ESPN stat 7"), kategorije zadržavaju redosled iz lige.
@@ -301,10 +305,15 @@ function mapEspnFormat(settings) {
   if (!scoringType) return { format: null, error: 'type' };
   const unsupported = [], categories = [], weights = {};
   for (const it of sc.scoringItems) {
+    const w = +(it?.points ?? Object.values(it?.pointsOverrides || {})[0] ?? 0);
+    const miss = ESPN_MISSED[it?.statId];
+    if (miss && isPointsType(scoringType)) { // promašaj = pokušaj − pogodak (provereno na zbirovima tima), računa se tačno
+      if (w) { weights[miss[1]] = (weights[miss[1]] || 0) + w; weights[miss[0]] = (weights[miss[0]] || 0) - w; }
+      continue;
+    }
     const id = ESPN_STAT_IDS[it?.statId];
-    if (!id) { unsupported.push(`ESPN stat ${it?.statId}`); continue; }
+    if (!id) { unsupported.push(ESPN_OTHER_STATS[it?.statId] || `ESPN stat ${it?.statId}`); continue; }
     if (isPointsType(scoringType)) {
-      const w = +(it.points ?? Object.values(it.pointsOverrides || {})[0] ?? 0);
       if (!w) continue;
       if (STAT_BY_ID.get(id).type !== 'sum') { unsupported.push(STAT_BY_ID.get(id).label); continue; } // procenat u ligi na poene
       weights[id] = (weights[id] || 0) + w;
@@ -828,6 +837,117 @@ const EN = {
   "{n} FPts": "{n} FPts",
   "{s} (nema u projekciji)": "{s} (not in projections)",
   "{s}: {w} po jedinici": "{s}: {w} per unit",
+  // Uvoz lige (faza 3.7)
+  "Roster se povlači iz ESPN-a": "Roster is pulled from ESPN",
+  "Roster se povlači sa platforme {p}": "Roster is pulled from {p}",
+  "Osveži iz ESPN-a": "Refresh from ESPN",
+  "Osveži sa platforme {p}": "Refresh from {p}",
+  "Kako?": "How?",
+  "Osveženo {ago}": "Refreshed {ago}",
+  "Osvežavam…": "Refreshing…",
+  "Rok za trejdove je prošao.": "The trade deadline has passed.",
+  "{n} h": "{n} h",
+  "Rok za trejdove: {d} (još {n}).": "Trade deadline: {d} ({n} left).",
+  "{p} trenutno ne odgovara. Prikazujem podatke od osvežavanja {ago}.": "{p} is not responding right now. Showing data from the refresh {ago}.",
+  "{p} više ne dozvoljava čitanje ove lige, verovatno je postala privatna. Prikazujem poslednje povučene podatke ({ago}).": "{p} no longer lets us read this league, it was probably made private. Showing the last data we pulled ({ago}).",
+  "Kako da liga ponovo bude javna": "How to make the league public again",
+  "Plasman u ligi po kategorijama": "League rank by category",
+  "Zbir cele sezone iz {p}, svi timovi lige. FG% i FT% iz pogodaka i pokušaja.": "Season totals from {p}, all teams in the league. FG% and FT% from makes and attempts.",
+  "U H2H ligi ovo je samo informativno: nedeljni mečevi se računaju posebno.": "In an H2H league this is for information only: weekly matchups are scored separately.",
+  "Tim": "Team",
+  "Procena plasmana u ligi posle trejda": "Estimated league rank after the trade",
+  "Procena čeka raspored utakmica.": "The estimate is waiting for the game schedule.",
+  "Procena": "Estimate",
+  "Promena": "Change",
+  "Procena: (Dobijaš − Daješ) po utakmici × preostale utakmice NBA timova, dodato na zbir tvog tima iz {p}. Ostali timovi ostaju isti. FG% i FT% se računaju iz pogodaka i pokušaja.": "Estimate: (You get − You give) per game × remaining games of the NBA teams, added to your team totals from {p}. Other teams stay the same. FG% and FT% are computed from makes and attempts.",
+  "U H2H ligi ovo je samo informativno.": "In an H2H league this is for information only.",
+  "Uskoro": "Soon",
+  "ESPN javna liga": "ESPN public league",
+  "Uvozimo timove, rostere, bodovanje i tabelu preko ID-ja lige.": "We import teams, rosters, scoring and standings from the league ID.",
+  "Sleeper liga": "Sleeper league",
+  "Unesi korisničko ime ili ID lige.": "Enter a username or league ID.",
+  "Fantrax javna liga": "Fantrax public league",
+  "Unesi ID lige ili link ka ligi.": "Enter the league ID or a link to the league.",
+  "Yahoo, CBS ili druga platforma: Nalepi roster": "Yahoo, CBS or another platform: Paste roster",
+  "Kopiraj stranicu tima i nalepi tekst. Igrače prepoznajemo sami.": "Copy the team page and paste the text. We recognize the players for you.",
+  "Ručni unos": "Manual entry",
+  "Napravi ligu i sam unesi igrače.": "Create a league and enter players yourself.",
+  "ESPN privatna liga": "ESPN private league",
+  "Za sada uvozimo samo javne lige.": "For now we only import public leagues.",
+  "Pogledaj kako da ligu označiš kao javnu.": "See how to make your league public.",
+  "Yahoo automatski uvoz": "Yahoo automatic import",
+  "Do tada koristi Nalepi roster.": "Until then, use Paste roster.",
+  "Uvezi ESPN ligu": "Import ESPN league",
+  "ID lige ili link ka ligi": "League ID or link to the league",
+  "npr. 123456 ili link sa leagueId=": "e.g. 123456 or a link with leagueId=",
+  "Gde da nađem ID?": "Where do I find the ID?",
+  "Ne vidim ID lige. Unesi broj (npr. 123456) ili link ka ligi u kome piše leagueId=.": "We can't see a league ID. Enter a number (e.g. 123456) or a league link that contains leagueId=.",
+  "Uvezi Sleeper ligu": "Import Sleeper league",
+  "Sleeper korisničko ime, ID lige ili link": "Sleeper username, league ID or link",
+  "npr. korisnicko_ime ili 1180226123456789012": "e.g. username or 1180226123456789012",
+  "Unesi Sleeper korisničko ime (bez razmaka) ili ID lige.": "Enter a Sleeper username (no spaces) or a league ID.",
+  "Uvezi Fantrax ligu": "Import Fantrax league",
+  "npr. link sa /league/ u adresi": "e.g. a link with /league/ in the address",
+  "Ne vidim ID lige. Nalepi link ka ligi (deo posle /league/).": "We can't see a league ID. Paste the league link (the part after /league/).",
+  "Samo javne lige. Ne tražimo lozinku, prijavu ni kolačiće.": "Public leagues only. We never ask for a password, login or cookies.",
+  "Uvezi": "Import",
+  "Ova liga je privatna. LM mora da je označi kao javnu.": "This league is private. The LM needs to make it public.",
+  "Pogledaj kako": "See how",
+  "Ova liga nije javna. Komesar mora da uključi javni pregled lige.": "This league isn't public. The commissioner needs to turn on public viewing.",
+  "Liga nije pronađena. Proveri ID.": "League not found. Check the ID.",
+  "Korisnik nije pronađen na Sleeperu. Proveri korisničko ime.": "User not found on Sleeper. Check the username.",
+  "Ovaj korisnik nema NBA ligu na Sleeperu za ovu sezonu.": "This user has no NBA league on Sleeper this season.",
+  "Ovaj korisnik ima više liga. Izaberi jednu:": "This user has several leagues. Pick one:",
+  "ESPN trenutno ne odgovara, probaj ponovo.": "ESPN isn't responding right now, try again.",
+  "{p} trenutno ne odgovara, probaj ponovo.": "{p} isn't responding right now, try again.",
+  "Povlačim ligu ({p})…": "Pulling the league ({p})…",
+  "Liga je već dodata": "League already added",
+  "„{n}” već postoji u tvojim ligama.": "“{n}” is already in your leagues.",
+  "Otvori ligu": "Open league",
+  "Neke stavke bodovanja ne podržavamo, rezultat je približan": "Some scoring items aren't supported, so results are approximate",
+  "Nismo prepoznali {n} igrača sa rostera: {list}.": "We couldn't match {n} roster players: {list}.",
+  "Koji je tvoj tim?": "Which team is yours?",
+  "{n} timova": "{n} teams",
+  "Ne prepoznajemo format ove lige. Izaberi ga ručno.": "We don't recognize this league's format. Pick it manually.",
+  "Izaberi format lige.": "Pick the league format.",
+  "Možeš da ga promeniš kasnije u podešavanjima lige.": "You can change it later in league settings.",
+  "Izaberi svoj tim.": "Pick your team.",
+  "Nalepi ponovo: {n}": "Paste again: {n}",
+  "Nalepi roster": "Paste roster",
+  "Na svojoj platformi (Yahoo, CBS, Fantrax…) otvori stranicu sa rosterom jednog tima.": "On your platform (Yahoo, CBS, Fantrax…) open the roster page of one team.",
+  "Označi celu stranicu (Ctrl+A, na Macu Cmd+A) i kopiraj (Ctrl+C ili Cmd+C).": "Select the whole page (Ctrl+A, Cmd+A on a Mac) and copy it (Ctrl+C or Cmd+C).",
+  "Nalepi ovde. Statistike, pozicije i statuse ignorišemo, tražimo samo imena igrača.": "Paste it here. We ignore stats, positions and statuses and only look for player names.",
+  "Ime tima": "Team name",
+  "kako se tim zove u ligi": "the team's name in the league",
+  "Ovo je moj tim": "This is my team",
+  "Tekst sa stranice tima": "Text from the team page",
+  "Nalepi ovde…": "Paste here…",
+  "Prepoznaj igrače": "Find players",
+  "Upiši naziv lige.": "Enter the league name.",
+  "Upiši ime tima.": "Enter the team name.",
+  "Nalepi tekst sa stranice tima.": "Paste the text from the team page.",
+  "Prepoznajem igrače…": "Finding players…",
+  "Nismo našli nijedno ime igrača. Proveri da li si nalepio stranicu sa rosterom.": "We didn't find any player names. Check that you pasted the roster page.",
+  "Preskoči": "Skip",
+  "Upiši ime igrača ili ostavi prazno": "Type a player name or leave empty",
+  "Proveri igrače": "Check players",
+  "Prepoznato igrača: {n}. Skini kvačicu sa onih koji nisu u timu.": "Players found: {n}. Untick anyone who isn't on the team.",
+  "Više mogućih igrača": "Several possible players",
+  "Neprepoznate linije": "Unrecognized lines",
+  "Upiši ime igrača (predlozi se pojavljuju dok kucaš) ili ostavi prazno da preskočiš.": "Type the player's name (suggestions appear as you type) or leave it empty to skip.",
+  "Sačuvaj i dodaj još jedan tim": "Save and add another team",
+  "Sačuvaj tim": "Save team",
+  "Izaberi bar jednog igrača.": "Pick at least one player.",
+  "Uvoz: {p}": "Import: {p}",
+  "Liga {id}, sezona {s}.": "League {id}, season {s}.",
+  "Roster, tabela i broj mesta dolaze sa platforme.": "Rosters, standings and roster spots come from the platform.",
+  "Rosteri su nalepljeni. Svaki tim možeš da nalepiš ponovo na stranici Liga.": "Rosters were pasted. You can paste any team again on the League page.",
+  "Trejd ide u Istoriju kao obavljen. Rosteri se ne menjaju ručno: povlače se iz {p} kad platforma obradi trejd.": "The trade goes to History as done. Rosters aren't edited by hand: they are pulled from {p} once the platform processes the trade.",
+  "Sačuvaj u Istoriju": "Save to History",
+  "Liga je uvezena, ali tvoj tim još nije izabran. Izaberi ga u podešavanjima lige.": "The league is imported, but your team isn't picked yet. Pick it in league settings.",
+  "Nalepi ponovo": "Paste again",
+  "Nalepi tim": "Paste team",
+  "Trejd je u Istoriji kao obavljen. Rosteri se osvežavaju sa platforme.": "The trade is in History as done. Rosters refresh from the platform.",
 };
 function t(sr, vars) {
   let out = (LANG === 'en' && EN[sr]) || sr;
@@ -859,6 +979,136 @@ function applyStaticText() {
   if (ft) ft.textContent = t('Podaci: javni {src} fantasy API (nezvaničan). Prosek po utakmici.', { src: DATA_SOURCE.name });
   document.querySelectorAll('[data-langsel]').forEach(sel => { sel.value = LANG; });
 }
+
+/* =====================================================================
+   Uvoz lige: čiste funkcije (bez DOM-a i mreže). Testovi: node tools/test_import.js
+   ===================================================================== */
+/** ESPN league ID iz broja ili URL-a (…?leagueId=123456…). Vraća string ili null. */
+function parseEspnLeagueId(input) {
+  const s = String(input ?? '').trim();
+  if (/^\d{3,12}$/.test(s)) return s;
+  const m = s.match(/[?&#]leagueId=(\d{3,12})\b/i);
+  return m ? m[1] : null;
+}
+/** Fantrax league ID: deo URL-a posle /league/ ili sam ID (slova i brojevi) */
+function parseFantraxLeagueId(input) {
+  const s = String(input ?? '').trim();
+  const m = s.match(/fantrax\.com\/(?:fantasy|newui\/fantasy)?\/?league\/([a-z0-9]{6,24})/i) || s.match(/[?&]leagueId=([a-z0-9]{6,24})\b/i);
+  if (m) return m[1].toLowerCase();
+  return /^[a-z0-9]{6,24}$/i.test(s) && /[a-z]/i.test(s) && /\d/.test(s) ? s.toLowerCase() : null;
+}
+/** Sleeper: URL lige ili broj lige -> { leagueId }; inače korisničko ime -> { username }; prazno -> null */
+function parseSleeperInput(input) {
+  const s = String(input ?? '').trim();
+  if (!s) return null;
+  const m = s.match(/sleeper\.(?:com|app)\/leagues\/(\d{6,25})/i);
+  if (m) return { leagueId: m[1] };
+  if (/^\d{10,25}$/.test(s)) return { leagueId: s };
+  return /^[A-Za-z0-9_.-]{2,30}$/.test(s) ? { username: s } : null;
+}
+
+const NAME_SUFFIXES = new Set(['jr', 'sr', 'ii', 'iii', 'iv', 'v']);
+/** Ključ imena: bez dijakritika, tačaka, apostrofa i sufiksa (Jr., III); "Jokic, Nikola" -> "nikola jokic" */
+function nameKey(raw) {
+  let s = String(raw ?? '');
+  if (/^[^,]+,\s*[^,]+$/.test(s.trim())) { const [last, first] = s.split(','); s = `${first} ${last}`; } // Fantrax: "Prezime, Ime"
+  s = s.toLowerCase().replace(/đ/g, 'dj').replace(/ø/g, 'o').replace(/ł/g, 'l').replace(/ß/g, 'ss')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/['’`.]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  const w = s.split(' ').filter(Boolean);
+  while (w.length > 2 && NAME_SUFFIXES.has(w[w.length - 1])) w.pop();
+  return w.join(' ');
+}
+/** Indeks imena za prepoznavanje: pun ključ, "inicijal + prezime" i spojeno ime (PJ = P.J.) */
+function buildNameIndex(pool) {
+  const full = new Map(), short = new Map();
+  const add = (m, k, id) => { if (!k) return; const a = m.get(k) || []; if (!a.includes(id)) a.push(id); m.set(k, a); };
+  for (const p of pool) {
+    const k = nameKey(p.name); if (!k) continue;
+    const w = k.split(' ');
+    add(full, k, p.id);
+    if (w.length >= 2) add(short, `${w[0][0]} ${w.slice(1).join(' ')}`, p.id);
+  }
+  return { full, short, byId: new Map(pool.map(p => [p.id, p])) };
+}
+/**
+ * Jedno ime -> { id } (jednoznačno), { ambiguous: [ids] } ili null.
+ * Hvata i "N. Jokic" / "N Jokic" kada samo jedan igrač odgovara.
+ */
+function matchName(raw, index) {
+  const k = nameKey(raw); if (!k) return null;
+  const hit = index.full.get(k);
+  if (hit) return hit.length === 1 ? { id: hit[0] } : { ambiguous: hit };
+  const w = k.split(' ');
+  if (w.length >= 2 && w[0].length === 1) {
+    const s = index.short.get(k);
+    if (s) return s.length === 1 ? { id: s[0] } : { ambiguous: s };
+  }
+  return null;
+}
+/** Reči koje nisu deo imena (pozicije, statusi, zaglavlja tabela, timske skraćenice) */
+const ROSTER_NOISE = new Set(('pg sg sf pf c g f gf fc util ut bn be bench ir il inj injured gtd dtd o out q p d ques prob susp sspd na nr ' +
+  'starters starter reserves players player pos position status opp team stats totals total season proj projected rank ' +
+  'min fgm fga fg ftm fta ft pm pts reb ast stl blk to tov gp gs ' +
+  'atl bos bkn brk cha chi cle dal den det gs gsw hou ind lac lal mem mia mil min no nop ny nyk okc orl phi phx pho por sac sa sas tor uta utah was wsh ' +
+  'vs at am pm fa w l add drop trade edit').split(' '));
+/**
+ * Tekst sa stranice tima (bilo koja platforma) -> { matched: [{ id, text }], ambiguous: [{ text, ids }], unmatched: [text] }.
+ * U svakom redu traži 2 do 4 uzastopne reči koje čine ime (najduže prvo); brojke, pozicije i statusi se preskaču.
+ */
+function parseRosterText(text, index) {
+  const matched = [], ambiguous = [], unmatched = [], seen = new Set();
+  for (const lineRaw of String(text ?? '').split(/\r?\n/)) {
+    const line = lineRaw.replace(/\t/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!line || !/[A-Za-zÀ-ž]{2}/.test(line)) continue;
+    // reči sa slovima (i inicijali sa tačkom); brojke i znakovi su granice
+    const words = line.split(/[\s,()|/•·]+/).filter(Boolean);
+    const isWord = w => /^[A-Za-zÀ-ž][A-Za-zÀ-ž'’.-]*$/.test(w);
+    let found = false;
+    for (let i = 0; i < words.length; i++) {
+      for (let len = 4; len >= 2; len--) {
+        const seg = words.slice(i, i + len);
+        if (seg.length < len || !seg.every(isWord)) continue;
+        const m = matchName(seg.join(' '), index);
+        if (!m) continue;
+        if (m.id != null) { if (!seen.has(m.id)) { seen.add(m.id); matched.push({ id: m.id, text: seg.join(' ') }); } }
+        else ambiguous.push({ text: seg.join(' '), ids: m.ambiguous });
+        found = true; i += len - 1; break;
+      }
+    }
+    if (found) continue;
+    // red koji liči na ime (2-4 reči sa velikim slovom, bez šuma), a nije prepoznat
+    const cand = words.filter(w => isWord(w) && !ROSTER_NOISE.has(nameKey(w)));
+    if (cand.length >= 2 && cand.length <= 4 && cand.every(w => /^[A-ZÀ-Ž]/.test(w)) && words.length <= 8) unmatched.push(cand.join(' '));
+  }
+  return { matched, ambiguous, unmatched };
+}
+
+/**
+ * Plasman po kategoriji (1 = najbolji). teams: [{ id, vals: { key: vrednost } }], cats: [{ key, lowerIsBetter, made?, att? }].
+ * Odnosi (made/att) se računaju ponderisano iz zbirova kad zbirovi postoje, inače iz gotove vrednosti.
+ * Nerešeno deli bolji plasman. Vraća { [teamId]: { [key]: rank } }.
+ */
+function rotoRanks(teams, cats) {
+  const out = Object.fromEntries(teams.map(t => [t.id, {}]));
+  for (const c of cats) {
+    const val = t => (c.made && c.att && t.vals[c.made] != null && t.vals[c.att] > 0 ? t.vals[c.made] / t.vals[c.att] : t.vals[c.key]);
+    const list = teams.map(t => ({ id: t.id, v: val(t) })).filter(x => x.v != null && Number.isFinite(x.v));
+    for (const x of list) {
+      const better = list.filter(y => (c.lowerIsBetter ? y.v < x.v - 1e-9 : y.v > x.v + 1e-9)).length;
+      out[x.id][c.key] = better + 1;
+    }
+  }
+  return out;
+}
+/** Procena plasmana posle trejda: totale tima myId promeni za delta (po ključu, i za made/att), pa rangiraj ponovo */
+function rotoProjection(teams, myId, delta, cats) {
+  const before = rotoRanks(teams, cats)[myId] || {};
+  const moved = teams.map(t => (t.id !== myId ? t : { ...t, vals: Object.fromEntries(Object.entries(t.vals).map(([k, v]) => [k, v != null && delta[k] != null ? v + delta[k] : v])) }));
+  const after = rotoRanks(moved, cats)[myId] || {};
+  return cats.map(c => ({ key: c.key, before: before[c.key] ?? null, after: after[c.key] ?? null }));
+}
+/* ==== kraj: Uvoz lige, čiste funkcije ==== */
 
 /* =====================================================================
    Pomoćne funkcije
@@ -1265,6 +1515,9 @@ function durabilityHTML(p) {
 }
 
 function setPlayers(players, ts) {
+  // glavna lista (top 600) + igrači sa uvezenih rostera van nje (keš, vidi ensurePlayers)
+  state.baseIds = new Set(players.map(p => p.id));
+  players = [...players, ...extrasGet().filter(p => !state.baseIds.has(p.id))];
   state.players = players;
   state.byId = new Map(players.map(p => [p.id, p]));
   state.loadedAt = ts;
@@ -1362,6 +1615,8 @@ function applyRoute() {
   hideTip(); if (!addLeague) closeModal(); closePopMenu();
   render();
   if (state.view === 'league') restoreScroll(); else window.scrollTo(0, 0);
+  const after = state.afterRoute; state.afterRoute = null; after?.(); // npr. sledeći tim u Nalepi roster posle pravljenja lige
+  maybeAutoSync();
 }
 
 /** Navigacija. Svaka liga čuva svoje tabove trejdova, pa promena lige ništa ne briše. */
@@ -1795,7 +2050,7 @@ function renderWsHead() {
     ${state.view === 'league' && lg ? `<button type="button" class="gear" data-action="league-settings" title="${esc(t('Podešavanja lige'))}" aria-label="${esc(t('Podešavanja lige'))}">⚙</button>` : ''}</div>`;
   if (state.view === 'league' && lg) {
     el.innerHTML = `<div class="wsh"><div class="wsh-t"><h1>${esc(lgName(lg))}</h1>
-      <span class="pbadge">${esc(platformLabel(lg.platform))}</span><button type="button" class="fchip" data-action="league-settings" title="${esc(formatSummary(leagueFormatOf(lg)))}">${esc(formatShort(leagueFormatOf(lg)))}</button>${lg.teamName ? `<span class="wsh-team">${esc(lg.teamName)}</span>` : ''}</div>${right}</div>`;
+      <span class="pbadge${isSynced(lg) ? ' synced' : ''}">${esc(platformLabel(lg.platform))}</span>${syncChipHTML(lg)}<button type="button" class="fchip" data-action="league-settings" title="${esc(formatSummary(leagueFormatOf(lg)))}">${esc(formatShort(leagueFormatOf(lg)))}</button>${lg.teamName ? `<span class="wsh-team">${esc(lg.teamName)}</span>` : ''}</div>${right}</div>${importBarsHTML(lg)}`;
   } else {
     el.innerHTML = `<div class="wsh"><div class="wsh-t"><h1>${t('Brzo poređenje')}</h1>${quickFormatChipHTML()}</div>${right}</div>`;
   }
@@ -1996,7 +2251,7 @@ function readFormatPicker(prefix) {
 }
 const fpPrefixOf = el => el.closest('[data-fpick]')?.dataset.fpick;
 document.addEventListener('change', e => {
-  if (e.target.id === 'al-platform' || e.target.id === 'ls-platform') { fpickPlatform(e.target.id.slice(0, 2), e.target.value); return; }
+  if (e.target.id === 'al-platform' || e.target.id === 'ls-platform' || e.target.id === 'pa-platform') { fpickPlatform(e.target.id.slice(0, 2), e.target.value); return; }
   const prefix = fpPrefixOf(e.target); if (!prefix) return;
   const d = fmtDrafts.get(prefix), el = e.target;
   if (el.dataset.fpType) {
@@ -2077,13 +2332,13 @@ function openLeagueSettings() {
     wide: true,
     body: `<div class="form">
       <label>${t('Naziv lige')}<input type="text" id="ls-name" maxlength="40" value="${esc(lgName(lg))}"></label>
-      <label>${t('Naziv mog tima')}<input type="text" id="ls-team" maxlength="40" value="${esc(lg.teamName || '')}"></label>
+      <label>${t('Naziv mog tima')}<input type="text" id="ls-team" maxlength="40" value="${esc(lg.teamName || '')}" ${isSynced(lg) ? 'readonly' : ''}></label>
       <div class="form-row">
-        <label>${t('Platforma')}<select id="ls-platform">${PLATFORMS.map(p => `<option value="${p.id}" ${p.id === lg.platform ? 'selected' : ''}>${esc(platformLabel(p.id))}</option>`).join('')}</select></label>
-        <label>${t('Broj timova')}<input type="number" id="ls-teams" min="2" max="30" value="${num(lg.teams)}"></label>
+        <label>${t('Platforma')}<select id="ls-platform" ${isSynced(lg) ? 'disabled' : ''}>${PLATFORMS.map(p => `<option value="${p.id}" ${p.id === lg.platform ? 'selected' : ''}>${esc(platformLabel(p.id))}</option>`).join('')}</select></label>
+        <label>${t('Broj timova')}<input type="number" id="ls-teams" min="2" max="30" value="${num(lg.teams)}" ${isSynced(lg) ? 'readonly' : ''}></label>
       </div>
       ${formatPickerHTML('ls', leagueFormatOf(lg), lg.platform)}
-      ${slotsFieldHTML('ls', lg.slots)}
+      ${isSynced(lg) ? `<fieldset class="plain" disabled>${slotsFieldHTML('ls', lg.slots)}</fieldset>` : slotsFieldHTML('ls', lg.slots)}
       <fieldset class="fmt"><legend>${t('Tabela (opciono)')}${st.updated ? ` <span class="hint">${t('Ažurirano: {d}', { d: fmtShortDate(st.updated) })}</span>` : ''}</legend>
         <div class="form-row">
           <label>${t('Mesto')}<input type="number" id="ls-rank" min="1" max="30" value="${num(st.rank)}"></label>
@@ -2096,7 +2351,7 @@ function openLeagueSettings() {
       </fieldset>
       <label>${t('Stanje mog tima')}<select id="ls-state"><option value="">–</option>${TEAM_STATES.map(s => `<option value="${s.id}" ${s.id === lg.teamState ? 'selected' : ''}>${t(s.sr)}</option>`).join('')}</select></label>
       <label>${t('Napomena')}<textarea id="ls-note" rows="3" maxlength="500">${esc(lg.note || '')}</textarea></label>
-      <button type="button" class="btn ghost" disabled>${t('Uvezi rostere sa {p}, uskoro', { p: esc(platformLabel(lg.platform)) })}</button>
+      ${importSettingsHTML(lg)}
       <div class="ls-export"><button type="button" class="linkbtn" data-action="export-league">⤓ ${t('Izvezi samo ovu ligu')}</button> <span class="hint export-msg"></span></div>
       <div class="ls-actions"><button type="button" class="linkbtn" data-action="league-dup">${t('Dupliraj ligu')}</button>
         <button type="button" class="linkbtn danger" data-action="league-del">${t('Obriši ligu')}</button></div>
@@ -2121,8 +2376,10 @@ function openLeagueSettings() {
         teamState: v('ls-state') || null, note: v('ls-note').trim(),
         standings: { ...newSt, updated: changed ? nowISO() : st.updated || null },
       };
+      const myTid = document.getElementById('ls-myteam')?.value;
       const apply = () => {
         Object.assign(lg, vals);
+        if (isSynced(lg) && myTid) { const tm = lg.import.teams.find(x => String(x.tid) === myTid); if (tm) setMyImportTeam(lg, tm.tid); }
         applyFormatChange(lg, oldF);
         touchLeague(lg); saveProfile(); render();
       };
@@ -2149,6 +2406,7 @@ function applyFormatChange(lg, oldF) {
 function duplicateLeague() {
   const lg = currentLeague(); if (!lg) return;
   const copy = { ...clone(lg), id: uid(), name: t('{n} (kopija)', { n: lgName(lg) }), created: nowISO(), updated: nowISO(), externalLeagueId: null, accountId: null };
+  if (isSynced(lg)) delete copy.import; // kopija uvezene lige je obična liga (ručno uređivanje, bez osvežavanja)
   profile.leagues.push(copy); saveProfile();
   closeModal();
   navigate('league', copy.id);
@@ -2171,8 +2429,8 @@ function deleteLeague() {
   });
 }
 
-/* ---------- Dodaj ligu (kratak korak; profil se pravi u pozadini) ---------- */
-function openAddLeague() {
+/* ---------- Ručni unos lige (kratak korak; profil se pravi u pozadini). Izbor načina: openAddLeague u modulu uvoza ---------- */
+function openManualLeague() {
   const needName = !profile?.name?.trim();
   showModal({
     title: t('Dodaj ligu'),
@@ -2225,6 +2483,655 @@ function createLeague(fields, myName = '') {
   location.hash = `league-${lg.id}/${carried ? 'trade' : 'overview'}`;
   return lg;
 }
+
+/* =====================================================================
+   Uvoz lige (samo javne lige): ESPN, Sleeper i Fantrax (iza zastavice), Nalepi roster.
+   Nikad ne tražimo lozinku, kolačiće (espn_s2, SWID) ni tokene.
+   Čuva se samo: naziv lige i timova, skraćenice, skor, mesto, zbirovi statistika timova (valuesByStat)
+   i ID-jevi igrača. Bez imena vlasnika (members) i bez GUID-ova vlasnika.
+   lg.import { source: 'espn' | 'sleeper' | 'fantrax' | 'paste', extId, season, syncedAt, error, myTid, deadline, playoffTeams,
+               teams: [{ tid, name, abbrev, record{ w, l, t }, seed, pf, vals{ PTS, FGM, FGA, ... } }] }
+   ===================================================================== */
+const IMPORT = {
+  TTL_MS: 10 * 60 * 1000,                 // pri otvaranju lige osveži ako je starije od ovoga (bez stalnog povlačenja)
+  DEADLINE_WARN_DAYS: 7,
+  EXTRAS_KEY: `fbaTrade.extras.v1.${CONFIG.SEASON}`, // igrači sa uvezenih rostera koji nisu u top 600
+  EXTRAS_MAX: 500,
+  NAMES_KEY: `fbaTrade.names.v1.${CONFIG.SEASON}`,   // svi aktivni igrači (ID, ime, tim) za prepoznavanje imena
+  NAMES_TTL_MS: 24 * 60 * 60 * 1000,                 // najviše jednom dnevno
+  NAMES_URL: `https://lm-api-reads.fantasy.espn.com/apis/v3/games/fba/seasons/${CONFIG.SEASON}/players?view=players_wl`,
+  ESPN_URL: (id, season) => `https://lm-api-reads.fantasy.espn.com/apis/v3/games/fba/seasons/${season}/segments/0/leagues/${id}?view=mTeam&view=mRoster&view=mSettings&view=mStandings`,
+  SLEEPER: 'https://api.sleeper.app/v1',
+  SLEEPER_NAMES_KEY: 'fbaTrade.sleeperNames.v1',
+  FANTRAX: 'https://www.fantrax.com/fxea/general',
+  FANTRAX_NAMES_KEY: 'fbaTrade.fantraxNames.v1',
+  FLAGS_KEY: 'rs.importFlags',            // {"sleeper":true,"fantrax":true} samo za testiranje (dok se ne potvrdi na pravoj ligi)
+};
+const importFlag = k => { try { return !!(JSON.parse(localStorage.getItem(IMPORT.FLAGS_KEY) || '{}') || {})[k]; } catch { return false; } };
+const SYNC_SOURCES = ['espn', 'sleeper', 'fantrax'];
+const SOURCE_LABEL = { espn: 'ESPN', sleeper: 'Sleeper', fantrax: 'Fantrax' };
+const isSynced = (lg = currentLeague()) => !!lg?.import && SYNC_SOURCES.includes(lg.import.source);
+const isPasted = (lg = currentLeague()) => lg?.import?.source === 'paste';
+const rosterLocked = () => isSynced(currentLeague());
+const lockText = (lg = currentLeague()) => (lg?.import?.source === 'espn' ? t('Roster se povlači iz ESPN-a') : t('Roster se povlači sa platforme {p}', { p: SOURCE_LABEL[lg?.import?.source] || '' }));
+const syncBtnText = src => (src === 'espn' ? t('Osveži iz ESPN-a') : t('Osveži sa platforme {p}', { p: SOURCE_LABEL[src] || '' }));
+/** Vodič za uvoz (javna stranica; otvara se u novom tabu da se ništa ne izgubi) */
+const howtoUrl = anchor => `${LANG === 'sr' ? '../sr/how-to-import/' : '../how-to-import/'}${anchor ? `#${anchor}` : ''}`;
+const howtoLink = (anchor, label) => `<a class="howto" href="${howtoUrl(anchor)}" target="_blank" rel="noopener">${label || t('Kako?')}</a>`;
+const recTxt = r => (r ? `${r.w}-${r.l}${r.t ? `-${r.t}` : ''}` : '');
+const cleanName = x => String(x ?? '').replace(/\s+/g, ' ').trim().slice(0, 40);
+const importErr = code => Object.assign(new Error(code), { code });
+/** Sezona: iz linka (seasonId=…) ako je navedena, inače tekuća */
+const seasonFromInput = s => { const m = String(s || '').match(/[?&#]seasonId=(\d{4})\b/); return m ? +m[1] : CONFIG.SEASON; };
+
+/** fetch bez kolačića, sa istekom; greške: private (401/403), notfound (404), network, empty (nije JSON) */
+async function fetchJSON(url, opts = {}) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), CONFIG.FETCH_TIMEOUT_MS);
+  try {
+    let res;
+    try { res = await fetch(url, { ...opts, signal: ctrl.signal, credentials: 'omit' }); } catch { throw importErr('network'); }
+    if (res.status === 401 || res.status === 403) throw importErr('private');
+    if (res.status === 404) throw importErr('notfound');
+    if (!res.ok) throw importErr('network');
+    try { return await res.json(); } catch { throw importErr('empty'); }
+  } finally { clearTimeout(timer); }
+}
+
+/* ---------- ESPN ---------- */
+async function fetchEspnLeague(id, season) {
+  let data;
+  try { data = await fetchJSON(IMPORT.ESPN_URL(id, season)); } catch (e) { throw importErr(e.code === 'empty' ? 'private' : e.code); }
+  // privatna liga bez prijave: prazan odgovor ili bez timova
+  if (!data || !Array.isArray(data.teams) || !data.teams.length || !data.settings) throw importErr('private');
+  return data;
+}
+/** valuesByStat (zbirovi cele sezone, ESPN id) -> naši ključevi (samo statistike koje se sabiraju) */
+function espnTeamVals(vbs) {
+  if (!vbs) return null;
+  const v = {};
+  for (const x of STAT_CATALOG) if (x.type === 'sum' && vbs[x.espn[0]] != null) v[x.id] = +vbs[x.espn[0]] || 0;
+  return Object.keys(v).length ? v : null;
+}
+/** ESPN odgovor -> naš oblik. Ne uzima members (prava imena) ni owners / primaryOwner (GUID). */
+function parseEspnLeague(data, extId, season) {
+  const s = data.settings || {};
+  const fmt = mapEspnFormat(s);
+  let active = 0, ir = 0;
+  for (const [k, v] of Object.entries(s.rosterSettings?.lineupSlotCounts || {})) { if (+k === IR_SLOT) ir += +v || 0; else active += +v || 0; } // 12 = klupa (BE), 13 = IR
+  const raw = new Map(); // playerId -> igrač iz rostera (rezerva kad ga ESPN ne vrati po ID-ju); ne čuva se
+  const teams = (data.teams || []).map(tm => {
+    const rec = tm.record?.overall || {};
+    const players = [];
+    for (const e of tm.roster?.entries || []) {
+      if (!e?.playerId) continue;
+      players.push({ id: e.playerId, ir: e.lineupSlotId === IR_SLOT });
+      if (e.playerPoolEntry?.player) raw.set(e.playerId, e.playerPoolEntry);
+    }
+    return {
+      tid: tm.id, name: cleanName(tm.name || [tm.location, tm.nickname].filter(Boolean).join(' ')) || `Team ${tm.id}`, abbrev: cleanName(tm.abbrev).slice(0, 6),
+      record: { w: +rec.wins || 0, l: +rec.losses || 0, t: +rec.ties || 0 }, seed: +tm.playoffSeed || null, pf: Math.round((+rec.pointsFor || 0) * 10) / 10,
+      vals: espnTeamVals(tm.valuesByStat), players,
+    };
+  });
+  const dl = +s.tradeSettings?.deadlineDate;
+  return {
+    source: 'espn', extId: String(extId), season, name: cleanName(s.name) || `ESPN ${extId}`, size: +s.size || teams.length,
+    format: fmt.format, fmtError: fmt.error, slots: { active: Math.max(1, active) || ROSTER_DEFAULT.ACTIVE, ir },
+    deadline: dl > 0 ? dl : null, playoffTeams: +s.scheduleSettings?.playoffTeamCount || null, teams, raw, scoringType: s.scoringSettings?.scoringType || null,
+  };
+}
+
+/* ---------- Spisak imena (prepoznavanje imena: Nalepi roster, Sleeper, Fantrax) ---------- */
+let namePool = null;
+/** Svi aktivni igrači iz ESPN-a (više od 1000) + igrači koje već imamo. Keš najviše jednom dnevno. */
+async function loadNamePool() {
+  if (namePool) return namePool;
+  const c = lsGet(IMPORT.NAMES_KEY);
+  let list = c?.list?.length && Date.now() - c.ts < IMPORT.NAMES_TTL_MS ? c.list : null;
+  if (!list) {
+    try {
+      const data = await fetchJSON(IMPORT.NAMES_URL, { headers: { 'X-Fantasy-Filter': JSON.stringify({ filterActive: { value: true } }) } });
+      list = (Array.isArray(data) ? data : []).filter(p => p?.id && p.fullName).map(p => [p.id, p.fullName, p.proTeamId || 0, p.defaultPositionId || 0, p.eligibleSlots || []]);
+      if (list.length) lsSet(IMPORT.NAMES_KEY, { ts: Date.now(), list });
+    } catch (e) { console.warn('Spisak imena nije učitan:', e.message); }
+    if (!list?.length) list = c?.list || [];
+  }
+  const map = new Map(list.map(([id, name, tid, pos, slots]) => [id, { id, name, tid, pos, slots }]));
+  for (const p of state.players) if (!map.has(p.id)) map.set(p.id, { id: p.id, name: p.name, tid: p.tid, pos: 0, slots: p.slots });
+  namePool = [...map.values()];
+  return namePool;
+}
+/** Igrač iz spiska imena u obliku ESPN igrača (rezerva za ensurePlayers) */
+const poolRaw = p => ({ id: p.id, fullName: p.name, proTeamId: p.tid, defaultPositionId: p.pos, eligibleSlots: p.slots || [] });
+const poolRawMap = (pool, ids) => { const by = new Map(pool.map(p => [p.id, p])); return new Map(ids.filter(id => by.has(id)).map(id => [id, poolRaw(by.get(id))])); };
+
+/* ---------- Igrači sa uvezenih rostera koji nisu u top 600 ---------- */
+const extrasGet = () => lsGet(IMPORT.EXTRAS_KEY)?.players || [];
+async function fetchPlayersByIds(ids) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += 100) {
+    const f = { players: { filterIds: { value: ids.slice(i, i + 100) }, filterStatsForSplitTypeIds: CONFIG.FILTER.players.filterStatsForSplitTypeIds, filterStatsForExternalIds: CONFIG.FILTER.players.filterStatsForExternalIds } };
+    const data = await fetchJSON(CONFIG.API_URL, { headers: { 'X-Fantasy-Filter': JSON.stringify(f) } });
+    const list = Array.isArray(data) ? data : data?.players || [];
+    out.push(...list.map(compactPlayer).filter(p => p.id && p.name));
+  }
+  return out;
+}
+const waitPlayers = async (ms = 30000) => { const t0 = Date.now(); while (!state.baseIds && !state.error && Date.now() - t0 < ms) await new Promise(r => setTimeout(r, 200)); };
+/** Dovuci igrače koji nisu u glavnoj listi (sa statistikom, po ID-ju); bez odgovora: osnovni podaci iz rostera / spiska imena */
+async function ensurePlayers(ids, raw = new Map()) {
+  await waitPlayers();
+  const need = [...new Set(ids)].filter(id => id && !state.baseIds?.has(id));
+  if (!need.length) return 0;
+  let got = [];
+  try { got = await fetchPlayersByIds(need); } catch (e) { console.warn('Igrači van liste nisu učitani:', e.message); }
+  const have = new Set(got.map(p => p.id));
+  for (const id of need) {
+    if (have.has(id) || !raw.get(id)) continue;
+    const p = compactPlayer(raw.get(id));
+    if (p.id && p.name) { got.push(p); have.add(id); }
+  }
+  lsSet(IMPORT.EXTRAS_KEY, { ts: Date.now(), players: [...got, ...extrasGet().filter(p => !have.has(p.id))].slice(0, IMPORT.EXTRAS_MAX) });
+  if (state.baseIds) setPlayers(state.players.filter(p => state.baseIds.has(p.id)), state.loadedAt);
+  return got.length;
+}
+
+/* ---------- Upis uvoza u ligu ---------- */
+function applyImport(lg, parsed, myTid) {
+  const now = nowISO();
+  const me = parsed.teams.find(x => x.tid === myTid) || null;
+  const ros = tm => ({ name: tm.name, players: tm.players.map(x => ({ ...x })), updated: now });
+  lg.import = {
+    source: parsed.source, extId: parsed.extId, season: parsed.season, syncedAt: now, error: null, myTid: me ? me.tid : null,
+    deadline: parsed.deadline, playoffTeams: parsed.playoffTeams, teams: parsed.teams.map(({ players, ...x }) => x),
+  };
+  const clampN = (v, [a, b]) => Math.max(a, Math.min(b, Math.round(+v) || a));
+  lg.platform = parsed.source; lg.externalLeagueId = parsed.extId; lg.teams = Math.max(2, Math.min(30, parsed.size || 12));
+  lg.slots = { active: clampN(parsed.slots.active, SLOT_RANGE.active), ir: clampN(parsed.slots.ir, SLOT_RANGE.ir) };
+  lg.roster = me ? ros(me) : emptyRoster('Moj tim');
+  lg.opps = Object.fromEntries(parsed.teams.filter(x => x !== me).map(x => [`e${x.tid}`, ros(x)]));
+  if (!lg.opps[lg.oppSel]) lg.oppSel = null;
+  if (me) lg.teamName = me.name;
+  lg.standings = { ...(lg.standings || {}), rank: me?.seed || null, record: me ? recTxt(me.record) : '', playoffTeams: parsed.playoffTeams || lg.standings?.playoffTeams || null, updated: now };
+  if (currentLeague() === lg) state.rosters = { my: lg.roster, opps: lg.opps, oppSel: lg.oppSel };
+  touchLeague(lg); saveProfile();
+}
+/** Promena "mog tima" u uvezenoj ligi: moj roster postaje protivnik i obrnuto */
+function setMyImportTeam(lg, tid) {
+  const imp = lg.import;
+  const tm = imp?.teams.find(x => x.tid === tid);
+  if (!tm || imp.myTid === tid) return;
+  if (imp.myTid != null) lg.opps[`e${imp.myTid}`] = { ...lg.roster, name: imp.teams.find(x => x.tid === imp.myTid)?.name || lg.roster.name };
+  lg.roster = lg.opps[`e${tid}`] || emptyRoster(tm.name);
+  delete lg.opps[`e${tid}`];
+  if (lg.oppSel === `e${tid}`) lg.oppSel = null;
+  imp.myTid = tid; lg.teamName = tm.name;
+  lg.standings = { ...(lg.standings || {}), rank: tm.seed || null, record: recTxt(tm.record) };
+  if (currentLeague() === lg) state.rosters = { my: lg.roster, opps: lg.opps, oppSel: lg.oppSel };
+  touchLeague(lg); saveProfile();
+}
+
+/* ---------- Sinhronizacija (bez stalnog povlačenja: pri otvaranju ako je starije od 10 min, ili dugmetom) ---------- */
+state.syncing = null;
+state.syncTried = {};
+async function fetchImport(src, q) {
+  if (src === 'espn') return parseEspnLeague(await fetchEspnLeague(q.extId, q.season), q.extId, q.season);
+  if (src === 'sleeper') return fetchSleeperLeague(q);
+  if (src === 'fantrax') return fetchFantraxLeague(q);
+  throw importErr('network');
+}
+async function syncLeague(lg, { auto = false } = {}) {
+  if (!isSynced(lg) || state.syncing) return;
+  state.syncing = lg.id; state.syncTried[lg.id] = Date.now();
+  render();
+  try {
+    const imp = lg.import;
+    const parsed = await fetchImport(imp.source, { extId: imp.extId, leagueId: imp.extId, season: imp.season });
+    const oldF = leagueFormatOf(lg);
+    // format iz platforme se osvežava samo dok ga korisnik nije ručno menjao
+    if (parsed.format && leagueFormatOf(lg).source === `import:${parsed.source}` && !sameFormat(oldF, parsed.format)) { lg.leagueFormat = parsed.format; applyFormatChange(lg, oldF); }
+    applyImport(lg, parsed, parsed.teams.some(x => x.tid === imp.myTid) ? imp.myTid : null);
+    await ensurePlayers(parsed.teams.flatMap(x => x.players.map(p => p.id)), parsed.raw);
+  } catch (e) {
+    // liga je postala privatna ili platforma ne odgovara: podaci ostaju, prikazuje se upozorenje
+    if (lg.import) { lg.import.error = e.code || 'network'; saveProfile(); }
+    if (!auto) console.warn('Osvežavanje lige nije uspelo:', e.code || e.message);
+  } finally {
+    state.syncing = null;
+    render();
+  }
+}
+function maybeAutoSync() {
+  const lg = currentLeague();
+  if (state.view !== 'league' || !isSynced(lg)) return;
+  const age = Date.now() - (Date.parse(lg.import.syncedAt) || 0);
+  if (age > IMPORT.TTL_MS && Date.now() - (state.syncTried[lg.id] || 0) > IMPORT.TTL_MS) syncLeague(lg, { auto: true });
+}
+
+/* ---------- Prikaz: oznaka sinhronizacije, rok za trejdove, upozorenja ---------- */
+function syncChipHTML(lg) {
+  if (!isSynced(lg)) return '';
+  const busy = state.syncing === lg.id;
+  const ago = lg.import.syncedAt ? t('Osveženo {ago}', { ago: timeAgo(Date.parse(lg.import.syncedAt)) }) : '';
+  return `<span class="sync-chip${lg.import.error ? ' warn' : ''}">${busy ? `<span class="spinner"></span>${t('Osvežavam…')}` : `${lg.import.error ? '⚠ ' : ''}${esc(ago)}`}
+    <button type="button" class="linkbtn" data-action="league-sync" ${busy ? 'disabled' : ''} title="${esc(syncBtnText(lg.import.source))}">↻ <span class="sc-l">${esc(syncBtnText(lg.import.source))}</span></button></span>`;
+}
+const daysTxt = n => `${n} ${plural(n, ['dan', 'dana', 'dana'], ['day', 'days'])}`;
+const fmtDateTime = ms => new Date(ms).toLocaleString(LOCALE(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+function deadlineBarHTML(lg) {
+  const dl = lg?.import?.deadline;
+  if (!dl) return '';
+  const ms = dl - Date.now();
+  if (ms < 0) return `<div class="banner info dl-bar"><span>⏱ ${t('Rok za trejdove je prošao.')}</span></div>`;
+  if (ms > IMPORT.DEADLINE_WARN_DAYS * 864e5) return '';
+  const left = ms < 864e5 ? t('{n} h', { n: Math.max(1, Math.round(ms / 36e5)) }) : daysTxt(Math.ceil(ms / 864e5));
+  return `<div class="banner warn dl-bar"><span>⏱ ${t('Rok za trejdove: {d} (još {n}).', { d: esc(fmtDateTime(dl)), n: left })}</span></div>`;
+}
+function syncErrorBarHTML(lg) {
+  const err = isSynced(lg) && lg.import.error;
+  if (!err) return '';
+  const p = SOURCE_LABEL[lg.import.source];
+  const when = lg.import.syncedAt ? timeAgo(Date.parse(lg.import.syncedAt)) : '';
+  if (err === 'network') return `<div class="banner warn"><span>⚠ ${t('{p} trenutno ne odgovara. Prikazujem podatke od osvežavanja {ago}.', { p, ago: when })}</span><button type="button" data-action="league-sync">${t('Pokušaj ponovo')}</button></div>`;
+  return `<div class="banner warn"><span>⚠ ${t('{p} više ne dozvoljava čitanje ove lige, verovatno je postala privatna. Prikazujem poslednje povučene podatke ({ago}).', { p, ago: when })}
+    ${howtoLink(lg.import.source, t('Kako da liga ponovo bude javna'))}</span></div>`;
+}
+/** Trake ispod zaglavlja lige: Pregled i Analiza trejda */
+const importBarsHTML = lg => (lg?.import && ['overview', 'trade'].includes(state.page) ? syncErrorBarHTML(lg) + deadlineBarHTML(lg) : '');
+
+/* ---------- Plasman po kategorijama iz zbirova cele sezone (svi timovi lige) ---------- */
+const rankCats = () => CATS.filter(c => !c.fpts && !isPunt(c));
+function importRanks(lg = currentLeague()) {
+  if (isPointsFmt() || lg?.import?.myTid == null) return null;
+  const teams = (lg.import.teams || []).filter(x => x.vals);
+  if (teams.length < 2 || !teams.some(x => x.tid === lg.import.myTid)) return null;
+  const cats = rankCats();
+  const mine = rotoRanks(teams.map(x => ({ id: x.tid, vals: x.vals })), cats)[lg.import.myTid] || {};
+  const list = cats.filter(c => mine[c.key] != null).map(c => ({ c, rank: mine[c.key], of: teams.length }));
+  return list.length ? list : null;
+}
+function importRanksHTML(lg = currentLeague()) {
+  const ranks = importRanks(lg);
+  if (!ranks) return '';
+  const sw = strongWeak(ranks);
+  const tag = c => (sw.strong.some(x => x.c === c) ? `<span class="slot-tag tag-in">${t('jak')}</span>` : sw.weak.some(x => x.c === c) ? `<span class="slot-tag tag-out">${t('slab')}</span>` : '');
+  const h2h = FMT_ACTIVE.scoringType !== 'roto';
+  return `<section class="pcard"><h3>${t('Plasman u ligi po kategorijama')}</h3>
+    <div class="catgrid">${ranks.map(x => `<div class="catcell"><span class="cl">${x.c.label}</span><b>${t('{n}. od {m}', { n: x.rank, m: x.of })}</b>${tag(x.c)}</div>`).join('')}</div>
+    <p class="pnote">${t('Zbir cele sezone iz {p}, svi timovi lige. FG% i FT% iz pogodaka i pokušaja.', { p: SOURCE_LABEL[lg.import.source] || '' })}${h2h ? ` ${t('U H2H ligi ovo je samo informativno: nedeljni mečevi se računaju posebno.')}` : ''}</p></section>`;
+}
+/** Tabela lige iz uvoza */
+function standingsHTML(lg) {
+  const list = [...(lg?.import?.teams || [])].sort((a, b) => (a.seed || 99) - (b.seed || 99));
+  if (!list.length) return '';
+  const pts = isPointsFmt();
+  return `<div class="tscroll"><table class="stand"><thead><tr><th>#</th><th>${t('Tim')}</th><th>${t('Skor')}</th>${pts ? `<th>${t('Poeni')}</th>` : ''}</tr></thead><tbody>
+    ${list.map(x => `<tr class="${x.tid === lg.import.myTid ? 'me' : ''}"><td>${x.seed || '–'}</td><td>${esc(x.name)}${x.abbrev ? ` <span class="hint">${esc(x.abbrev)}</span>` : ''}</td><td>${recTxt(x.record)}</td>${pts ? `<td>${fmtNum(x.pf)}</td>` : ''}</tr>`).join('')}
+    </tbody></table></div>`;
+}
+
+/* ---------- Analiza: procena plasmana posle trejda (roto; u H2H samo informativno) ---------- */
+const gamesLeft = tid => { const g = state.schedule?.[tid]; const done = gamesDone(tid); return g && done != null ? Math.max(0, g.length - done) : null; };
+function rotoProjHTML() {
+  const lg = currentLeague();
+  if (!lg?.import?.teams?.length || isPointsFmt() || lg.import.myTid == null) return '';
+  const teams = lg.import.teams.filter(x => x.vals);
+  if (teams.length < 2 || !teams.some(x => x.tid === lg.import.myTid) || (!giveIds().length && !getIds().length)) return '';
+  const head = `<div class="section-t">${t('Procena plasmana u ligi posle trejda')}</div>`;
+  if (!state.schedule) return `${head}<div class="card"><p class="pnote rp-note">${t('Procena čeka raspored utakmica.')}</p></div>`;
+  const delta = {};
+  const add = (id, sign) => {
+    const p = state.byId.get(id), line = p && playerLine(p), g = p ? gamesLeft(p.tid) : null;
+    if (!line || !g) return;
+    for (const k of SUM_KEYS) if (line[k] != null) delta[k] = (delta[k] || 0) + sign * line[k] * g;
+  };
+  getIds().forEach(id => add(id, 1));
+  giveIds().forEach(id => add(id, -1));
+  const cats = rankCats();
+  const proj = rotoProjection(teams.map(x => ({ id: x.tid, vals: x.vals })), lg.import.myTid, delta, cats);
+  const rows = proj.filter(x => x.before != null).map(x => {
+    const c = cats.find(y => y.key === x.key), d = x.before - x.after;
+    return `<tr><td>${c.label}</td><td>${x.before}.</td><td class="${d > 0 ? 'win' : d < 0 ? 'lose' : ''}">${x.after}.</td><td class="${d > 0 ? 'win' : d < 0 ? 'lose' : ''}">${d > 0 ? `▲ ${d}` : d < 0 ? `▼ ${-d}` : '='}</td></tr>`;
+  }).join('');
+  const h2h = FMT_ACTIVE.scoringType !== 'roto';
+  return `${head}<div class="card"><div class="tscroll"><table class="cmp rproj"><thead><tr><th>${t('Kat.')}</th><th>${t('Sada')}</th><th>${t('Procena')}</th><th>${t('Promena')}</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="pnote rp-note">${t('Procena: (Dobijaš − Daješ) po utakmici × preostale utakmice NBA timova, dodato na zbir tvog tima iz {p}. Ostali timovi ostaju isti. FG% i FT% se računaju iz pogodaka i pokušaja.', { p: SOURCE_LABEL[lg.import.source] || '' })}${h2h ? ` ${t('U H2H ligi ovo je samo informativno.')}` : ''}</p></div>`;
+}
+
+/* ---------- Dodaj ligu: izbor načina ---------- */
+function openAddLeague() {
+  const card = ({ id, icon, title, desc, how, soon = false }) => `<div class="imp-card${soon ? ' soon' : ''}">
+      ${soon ? '<div class="imp-main" aria-disabled="true">' : `<button type="button" class="imp-main" data-action="imp-go" data-imp="${id}">`}
+        <span class="imp-ic" aria-hidden="true">${icon}</span><span class="imp-tx"><b>${title}${soon ? ` <span class="soon-tag">${t('Uskoro')}</span>` : ''}</b><span>${desc}</span></span>
+      ${soon ? '</div>' : '</button>'}<span class="imp-how">${howtoLink(how)}</span></div>`;
+  const cards = [
+    card({ id: 'espn', icon: 'ESPN', title: t('ESPN javna liga'), desc: t('Uvozimo timove, rostere, bodovanje i tabelu preko ID-ja lige.'), how: 'espn' }),
+    importFlag('sleeper') && card({ id: 'sleeper', icon: 'SLP', title: t('Sleeper liga'), desc: t('Unesi korisničko ime ili ID lige.'), how: 'sleeper' }),
+    importFlag('fantrax') && card({ id: 'fantrax', icon: 'FTX', title: t('Fantrax javna liga'), desc: t('Unesi ID lige ili link ka ligi.'), how: 'fantrax' }),
+    card({ id: 'paste', icon: '📋', title: t('Yahoo, CBS ili druga platforma: Nalepi roster'), desc: t('Kopiraj stranicu tima i nalepi tekst. Igrače prepoznajemo sami.'), how: 'paste' }),
+    card({ id: 'manual', icon: '✎', title: t('Ručni unos'), desc: t('Napravi ligu i sam unesi igrače.'), how: 'paste' }),
+    card({ id: 'espn-private', icon: '🔒', title: t('ESPN privatna liga'), desc: `${t('Za sada uvozimo samo javne lige.')} ${howtoLink('espn', t('Pogledaj kako da ligu označiš kao javnu.'))}`, how: 'espn', soon: true }),
+    card({ id: 'yahoo', icon: 'Y!', title: t('Yahoo automatski uvoz'), desc: t('Do tada koristi Nalepi roster.'), how: 'yahoo', soon: true }),
+  ].filter(Boolean).join('');
+  showModal({ title: t('Dodaj ligu'), wide: true, body: `<div class="imp-grid">${cards}</div>`, cancel: t('Otkaži') });
+}
+function openImportMethod(k) {
+  closeModal();
+  if (k === 'manual') openManualLeague();
+  else if (k === 'paste') openPaste({});
+  else if (IMPORTERS[k]) openImport(k);
+}
+
+/* ---------- Uvoz preko ID-ja (ESPN; Sleeper i Fantrax iza zastavice) ---------- */
+const IMPORTERS = {
+  espn: {
+    title: () => t('Uvezi ESPN ligu'), label: () => t('ID lige ili link ka ligi'), ph: () => t('npr. 123456 ili link sa leagueId='),
+    idLink: () => howtoLink('espn-id', t('Gde da nađem ID?')),
+    parse: s => { const id = parseEspnLeagueId(s); return id ? { extId: id, season: seasonFromInput(s) } : null; },
+    bad: () => t('Ne vidim ID lige. Unesi broj (npr. 123456) ili link ka ligi u kome piše leagueId=.'),
+  },
+  sleeper: {
+    title: () => t('Uvezi Sleeper ligu'), label: () => t('Sleeper korisničko ime, ID lige ili link'), ph: () => t('npr. korisnicko_ime ili 1180226123456789012'),
+    idLink: () => howtoLink('sleeper', t('Gde da nađem ID?')),
+    parse: s => parseSleeperInput(s),
+    bad: () => t('Unesi Sleeper korisničko ime (bez razmaka) ili ID lige.'),
+  },
+  fantrax: {
+    title: () => t('Uvezi Fantrax ligu'), label: () => t('ID lige ili link ka ligi'), ph: () => t('npr. link sa /league/ u adresi'),
+    idLink: () => howtoLink('fantrax', t('Gde da nađem ID?')),
+    parse: s => { const id = parseFantraxLeagueId(s); return id ? { extId: id } : null; },
+    bad: () => t('Ne vidim ID lige. Nalepi link ka ligi (deo posle /league/).'),
+  },
+};
+function openImport(src, preset = '') {
+  const im = IMPORTERS[src];
+  showModal({
+    title: im.title(), wide: true,
+    body: `<div class="form"><label>${im.label()}<input type="text" id="imp-in" autocomplete="off" spellcheck="false" value="${esc(preset)}" placeholder="${esc(im.ph())}"></label>
+      <div class="imp-help">${im.idLink()}</div>
+      <p class="hint">${t('Samo javne lige. Ne tražimo lozinku, prijavu ni kolačiće.')}</p>
+      <div class="imp-msg" id="imp-msg" role="status" aria-live="polite"></div></div>`,
+    confirm: t('Uvezi'),
+    onConfirm: m => { runImport(src, m); return false; },
+  });
+  setTimeout(() => document.getElementById('imp-in')?.focus(), 30);
+}
+function importErrorHTML(code, src, extra) {
+  const p = SOURCE_LABEL[src];
+  if (code === 'private') return src === 'espn'
+    ? `${t('Ova liga je privatna. LM mora da je označi kao javnu.')} ${howtoLink('espn', t('Pogledaj kako'))}`
+    : `${t('Ova liga nije javna. Komesar mora da uključi javni pregled lige.')} ${howtoLink(src, t('Pogledaj kako'))}`;
+  if (code === 'notfound') return `${t('Liga nije pronađena. Proveri ID.')} ${IMPORTERS[src].idLink()}`;
+  if (code === 'nouser') return t('Korisnik nije pronađen na Sleeperu. Proveri korisničko ime.');
+  if (code === 'noleagues') return t('Ovaj korisnik nema NBA ligu na Sleeperu za ovu sezonu.');
+  if (code === 'choose') return `${t('Ovaj korisnik ima više liga. Izaberi jednu:')}<div class="imp-pick">${(extra || []).map(l => `<button type="button" class="linkbtn" data-action="imp-pick-league" data-src="${src}" data-id="${esc(l.id)}">${esc(l.name)}</button>`).join('')}</div>`;
+  return src === 'espn' ? t('ESPN trenutno ne odgovara, probaj ponovo.') : t('{p} trenutno ne odgovara, probaj ponovo.', { p });
+}
+async function runImport(src, m) {
+  const im = IMPORTERS[src];
+  const inp = document.getElementById('imp-in'), msg = document.getElementById('imp-msg'), ok = m.querySelector('[data-modal-ok]');
+  const q = im.parse(inp.value);
+  if (!q) { msg.innerHTML = `<span class="err">${im.bad()}</span>`; inp.focus(); return; }
+  ok.disabled = true;
+  msg.innerHTML = `<span class="spinner"></span> ${t('Povlačim ligu ({p})…', { p: SOURCE_LABEL[src] })}`;
+  try {
+    const parsed = await fetchImport(src, q);
+    if (!document.body.contains(m)) return; // prozor je zatvoren u međuvremenu
+    const dup = profile?.leagues.find(l => l.import?.source === src && l.import.extId === parsed.extId && String(l.import.season) === String(parsed.season));
+    if (dup) {
+      showModal({
+        title: t('Liga je već dodata'), body: `<p>${t('„{n}” već postoji u tvojim ligama.', { n: esc(lgName(dup)) })}</p>`,
+        confirm: t('Otvori ligu'), onConfirm: () => { location.hash = `league-${dup.id}/overview`; },
+      });
+      return;
+    }
+    openTeamPicker(parsed);
+  } catch (e) {
+    if (!document.body.contains(m)) return;
+    ok.disabled = false;
+    msg.innerHTML = `<span class="err">${importErrorHTML(e.code || 'network', src, e.leagues)}</span>`;
+  }
+}
+/** Posle uvoza: "Koji je tvoj tim?" (i format, ako ga ne prepoznajemo) */
+function openTeamPicker(parsed) {
+  const f = parsed.format;
+  const unsup = f?.unsupported?.length ? `<div class="banner warn"><span>⚠ ${t('Neke stavke bodovanja ne podržavamo, rezultat je približan')}: ${esc(f.unsupported.join(', '))}.</span></div>` : '';
+  const teams = [...parsed.teams].sort((a, b) => (a.seed || 99) - (b.seed || 99));
+  const missing = parsed.unmatched?.length ? `<p class="hint">${t('Nismo prepoznali {n} igrača sa rostera: {list}.', { n: parsed.unmatched.length, list: esc(parsed.unmatched.slice(0, 8).join(', ')) })}</p>` : '';
+  showModal({
+    title: t('Koji je tvoj tim?'), wide: true,
+    body: `<p><b>${esc(parsed.name)}</b> · ${t('{n} timova', { n: parsed.size })}${f ? ` · ${esc(formatShort(f))}` : ''}</p>${unsup}${missing}
+      ${f ? '' : `<p class="hint">${parsed.source === 'espn' ? t('Ne prepoznajemo format ove lige. Izaberi ga ručno.') : t('Izaberi format lige.')}</p>${formatPickerHTML('imp', defaultFormatFor(parsed.source, 'cat'), parsed.source)}`}
+      <div class="imp-teams" role="radiogroup" aria-label="${esc(t('Koji je tvoj tim?'))}">${teams.map(x => `<label class="imp-team"><input type="radio" name="imp-team" value="${esc(String(x.tid))}">
+        <span class="it-name">${esc(x.name)}</span><span class="it-meta">${esc([x.abbrev, recTxt(x.record), t('{n} igrača', { n: x.players.length })].filter(Boolean).join(' · '))}</span></label>`).join('')}</div>
+      <p class="hint">${t('Možeš da ga promeniš kasnije u podešavanjima lige.')}</p><div class="imp-msg" id="imp-msg2" role="status"></div>`,
+    confirm: t('Napravi ligu'),
+    onConfirm: () => {
+      const sel = document.querySelector('input[name="imp-team"]:checked');
+      if (!sel) { document.getElementById('imp-msg2').innerHTML = `<span class="err">${t('Izaberi svoj tim.')}</span>`; return false; }
+      let fmt = f;
+      if (!fmt) { const fp = readFormatPicker('imp'); if (fp.error) return false; fmt = fp.f; }
+      const tm = parsed.teams.find(x => String(x.tid) === sel.value);
+      const lg = createLeague({ name: parsed.name, leagueFormat: fmt, platform: parsed.source });
+      applyImport(lg, parsed, tm.tid);
+      ensurePlayers(parsed.teams.flatMap(x => x.players.map(p => p.id)), parsed.raw).then(() => render());
+    },
+  });
+}
+
+/* ---------- Sleeper (iza zastavice; imena igrača se prepoznaju po imenu, Sleeper nema ESPN ID) ---------- */
+const sleeperGet = path => fetchJSON(`${IMPORT.SLEEPER}${path}`);
+async function sleeperNames() {
+  const c = lsGet(IMPORT.SLEEPER_NAMES_KEY);
+  if (c?.map && Date.now() - c.ts < IMPORT.NAMES_TTL_MS) return c.map;
+  const data = await sleeperGet('/players/nba'); // ~2,5 MB, najviše jednom dnevno; čuva se samo ID -> ime
+  const map = {};
+  for (const [id, p] of Object.entries(data || {})) { const n = p?.full_name || [p?.first_name, p?.last_name].filter(Boolean).join(' '); if (n) map[id] = n; }
+  lsSet(IMPORT.SLEEPER_NAMES_KEY, { ts: Date.now(), map });
+  return map;
+}
+async function fetchSleeperLeague(q) {
+  let leagueId = q.leagueId;
+  if (!leagueId) {
+    let user;
+    try { user = await sleeperGet(`/user/${encodeURIComponent(q.username)}`); } catch (e) { throw importErr(e.code === 'network' ? 'network' : 'nouser'); }
+    if (!user?.user_id) throw importErr('nouser');
+    const st = await sleeperGet('/state/nba').catch(() => null);
+    const leagues = await sleeperGet(`/user/${user.user_id}/leagues/nba/${st?.season || CONFIG.SEASON - 1}`);
+    if (!Array.isArray(leagues) || !leagues.length) throw importErr('noleagues');
+    if (leagues.length > 1) throw Object.assign(importErr('choose'), { leagues: leagues.map(l => ({ id: l.league_id, name: cleanName(l.name) || l.league_id })) });
+    leagueId = leagues[0].league_id;
+  }
+  const [info, rosters, users] = await Promise.all([sleeperGet(`/league/${leagueId}`), sleeperGet(`/league/${leagueId}/rosters`), sleeperGet(`/league/${leagueId}/users`)]);
+  if (!info?.league_id || (info.sport && info.sport !== 'nba')) throw importErr('notfound');
+  const [names, pool] = await Promise.all([sleeperNames(), loadNamePool()]);
+  const index = buildNameIndex(pool);
+  // ime tima: team_name ili displayName (dozvoljeno); owner_id se ne čuva
+  const teamName = r => { const u = (users || []).find(x => x.user_id === r.owner_id); return cleanName(u?.metadata?.team_name || u?.display_name) || `Team ${r.roster_id}`; };
+  const unmatched = [], ids = [];
+  const teams = (Array.isArray(rosters) ? rosters : []).map(r => {
+    const ir = new Set(r.reserve || []), players = [];
+    for (const pid of r.players || []) {
+      const hit = names[pid] ? matchName(names[pid], index) : null;
+      if (hit?.id) { players.push({ id: hit.id, ir: ir.has(pid) }); ids.push(hit.id); } else unmatched.push(names[pid] || pid);
+    }
+    const s = r.settings || {};
+    return { tid: r.roster_id, name: teamName(r), abbrev: '', record: { w: +s.wins || 0, l: +s.losses || 0, t: +s.ties || 0 }, seed: null, pf: (+s.fpts || 0) + (+s.fpts_decimal || 0) / 100, vals: null, players };
+  });
+  [...teams].sort((a, b) => b.record.w - a.record.w || b.pf - a.pf).forEach((x, i) => { x.seed = i + 1; });
+  const pos = info.roster_positions || [];
+  return {
+    source: 'sleeper', extId: String(leagueId), season: String(info.season || ''), name: cleanName(info.name) || 'Sleeper', size: +info.total_rosters || teams.length,
+    format: null, fmtError: null, slots: { active: pos.length || ROSTER_DEFAULT.ACTIVE, ir: +info.settings?.reserve_slots || 0 },
+    deadline: null, playoffTeams: +info.settings?.playoff_teams || null, teams, raw: poolRawMap(pool, ids), unmatched,
+  };
+}
+
+/* ---------- Fantrax (iza zastavice; javne lige, igrači po imenu "Prezime, Ime") ---------- */
+async function fantraxNames() {
+  const c = lsGet(IMPORT.FANTRAX_NAMES_KEY);
+  if (c?.map && Date.now() - c.ts < IMPORT.NAMES_TTL_MS) return c.map;
+  const data = await fetchJSON(`${IMPORT.FANTRAX}/getPlayerIds?sport=NBA`);
+  const map = {};
+  for (const [k, p] of Object.entries(data || {})) { const id = p?.fantraxId || p?.id || k; if (p?.name) map[id] = p.name; }
+  lsSet(IMPORT.FANTRAX_NAMES_KEY, { ts: Date.now(), map });
+  return map;
+}
+async function fetchFantraxLeague(q) {
+  const id = encodeURIComponent(q.extId || q.leagueId);
+  let info;
+  try { info = await fetchJSON(`${IMPORT.FANTRAX}/getLeagueInfo?leagueId=${id}`); } catch (e) { throw importErr(e.code === 'empty' ? 'notfound' : e.code); }
+  // nepostojeća liga: 200 sa porukom o grešci
+  if (!info || info.error || info.errors || info.message) throw importErr(/permission|privat|public/i.test(JSON.stringify(info || '')) ? 'private' : 'notfound');
+  const ros = await fetchJSON(`${IMPORT.FANTRAX}/getTeamRosters?leagueId=${id}`);
+  const [names, pool] = await Promise.all([fantraxNames(), loadNamePool()]);
+  const index = buildNameIndex(pool);
+  const tinfo = info.teamInfo || {};
+  const unmatched = [], ids = [];
+  const teams = Object.entries(ros?.rosters || {}).map(([tid, r]) => {
+    const players = [];
+    for (const it of r?.rosterItems || []) {
+      const n = names[it.id], hit = n ? matchName(n, index) : null;
+      if (hit?.id) { players.push({ id: hit.id, ir: /^(IR|INJ)/i.test(String(it.status || '')) || it.position === 'IR' }); ids.push(hit.id); } else unmatched.push(n || it.id);
+    }
+    return { tid, name: cleanName(r?.teamName || tinfo[tid]?.name) || `Team ${tid}`, abbrev: '', record: { w: 0, l: 0, t: 0 }, seed: null, pf: 0, vals: null, players };
+  });
+  if (!teams.length) throw importErr('private');
+  return {
+    source: 'fantrax', extId: String(q.extId || q.leagueId), season: String(info.season || info.year || CONFIG.SEASON), name: cleanName(info.leagueName || info.name) || 'Fantrax', size: teams.length,
+    format: null, fmtError: null, slots: { active: ROSTER_DEFAULT.ACTIVE, ir: ROSTER_DEFAULT.IR }, deadline: null, playoffTeams: null, teams, raw: poolRawMap(pool, ids), unmatched,
+  };
+}
+
+/* ---------- Nalepi roster (Yahoo, CBS i druge platforme): jedan tim po jedan ---------- */
+let pasteFlow = null;
+const PASTE_PLATFORMS = ['yahoo', 'cbs', 'fantrax', 'sleeper', 'espn', 'other'];
+function openPaste({ leagueId = null, target = null } = {}) {
+  const lg = leagueId ? profile?.leagues.find(l => l.id === leagueId) || null : null;
+  const isNew = !lg;
+  const tgt = lg && target ? (target === 'my' ? lg.roster : lg.opps[target]) : null;
+  const hasMine = !!lg?.roster.players.length;
+  showModal({
+    title: tgt ? t('Nalepi ponovo: {n}', { n: esc(target === 'my' ? lg.teamName || tgt.name : tgt.name) }) : t('Nalepi roster'), wide: true,
+    body: `<ol class="paste-steps">
+        <li>${t('Na svojoj platformi (Yahoo, CBS, Fantrax…) otvori stranicu sa rosterom jednog tima.')}</li>
+        <li>${t('Označi celu stranicu (Ctrl+A, na Macu Cmd+A) i kopiraj (Ctrl+C ili Cmd+C).')}</li>
+        <li>${t('Nalepi ovde. Statistike, pozicije i statuse ignorišemo, tražimo samo imena igrača.')}</li></ol>
+      <div class="form">
+      ${isNew ? `<label>${t('Naziv lige')}<input type="text" id="pa-league" maxlength="40" placeholder="${t('npr. Liga sa posla')}"></label>
+        <div class="form-row"><label>${t('Platforma')}<select id="pa-platform">${PASTE_PLATFORMS.map(p => `<option value="${p}">${esc(platformLabel(p))}</option>`).join('')}</select></label>
+          <label>${t('Broj timova')}<input type="number" id="pa-teams" min="2" max="30" value="12"></label></div>
+        ${formatPickerHTML('pa', defaultFormatFor('yahoo', 'cat'), 'yahoo')}${slotsFieldHTML('pa')}` : ''}
+      ${tgt ? '' : `<label>${t('Ime tima')}<input type="text" id="pa-name" maxlength="30" placeholder="${t('kako se tim zove u ligi')}"></label>
+        <label class="check"><input type="checkbox" id="pa-mine" ${hasMine ? '' : 'checked'}> ${t('Ovo je moj tim')}</label>`}
+      <label>${t('Tekst sa stranice tima')}<textarea id="pa-text" rows="8" placeholder="${t('Nalepi ovde…')}"></textarea></label>
+      <div class="imp-msg" id="pa-msg" role="status" aria-live="polite"></div></div>`,
+    confirm: t('Prepoznaj igrače'),
+    onConfirm: m => { pasteParse(m, { lg, target, isNew }); return false; },
+  });
+  setTimeout(() => document.getElementById(isNew ? 'pa-league' : tgt ? 'pa-text' : 'pa-name')?.focus(), 30);
+}
+async function pasteParse(m, ctx) {
+  const v = id => document.getElementById(id)?.value ?? '';
+  const msg = document.getElementById('pa-msg');
+  const err = (txt, focus) => { msg.innerHTML = `<span class="err">${txt}</span>`; if (focus) document.getElementById(focus)?.focus(); };
+  const data = { text: v('pa-text') };
+  if (ctx.isNew) {
+    data.leagueName = v('pa-league').trim();
+    if (!data.leagueName) return err(t('Upiši naziv lige.'), 'pa-league');
+    const fp = readFormatPicker('pa');
+    if (fp.error) return;
+    Object.assign(data, { fmt: fp.f, platform: v('pa-platform'), teams: Math.max(2, Math.min(30, +v('pa-teams') || 12)), slots: readSlots('pa') });
+  }
+  if (!ctx.target) {
+    data.name = v('pa-name').trim();
+    if (!data.name) return err(t('Upiši ime tima.'), 'pa-name');
+    data.mine = !!document.getElementById('pa-mine')?.checked;
+  }
+  if (!data.text.trim()) return err(t('Nalepi tekst sa stranice tima.'), 'pa-text');
+  msg.innerHTML = `<span class="spinner"></span> ${t('Prepoznajem igrače…')}`;
+  const pool = await loadNamePool();
+  if (!document.body.contains(m)) return;
+  const index = buildNameIndex(pool);
+  const res = parseRosterText(data.text, index);
+  if (!res.matched.length && !res.ambiguous.length) return err(t('Nismo našli nijedno ime igrača. Proveri da li si nalepio stranicu sa rosterom.'), 'pa-text');
+  pasteFlow = { ...ctx, data, res, pool, index, byId: new Map(pool.map(p => [p.id, p])) };
+  pasteConfirm();
+}
+function pasteConfirm() {
+  const f = pasteFlow, { res } = f;
+  const P = id => state.byId.get(id) || f.byId.get(id) || { id, name: `#${id}` };
+  const team = p => PRO_TEAMS[p.tid] || 'FA';
+  const ok = x => `<li class="pa-ok"><label><input type="checkbox" data-pa-keep value="${x.id}" checked>${avatarHTML(P(x.id))}<span class="pa-n"><b>${esc(P(x.id).name)}</b><small>${esc(team(P(x.id)))} · ${esc(x.text)}</small></span></label></li>`;
+  const amb = (x, i) => `<li class="pa-amb"><span class="pa-line">${esc(x.text)}</span><select data-pa-amb="${i}"><option value="">${t('Preskoči')}</option>${x.ids.map(id => `<option value="${id}">${esc(P(id).name)} (${esc(team(P(id)))})</option>`).join('')}</select></li>`;
+  const un = (txt, i) => `<li class="pa-un"><span class="pa-line">${esc(txt)}</span><input type="text" list="pa-names" data-pa-un="${i}" autocomplete="off" placeholder="${esc(t('Upiši ime igrača ili ostavi prazno'))}"></li>`;
+  showModal({
+    title: t('Proveri igrače'), wide: true,
+    body: `<p>${t('Prepoznato igrača: {n}. Skini kvačicu sa onih koji nisu u timu.', { n: res.matched.length })}</p>
+      <ul class="pa-list">${res.matched.map(ok).join('')}</ul>
+      ${res.ambiguous.length ? `<h4 class="pa-h">${t('Više mogućih igrača')}</h4><ul class="pa-list">${res.ambiguous.map(amb).join('')}</ul>` : ''}
+      ${res.unmatched.length ? `<h4 class="pa-h">${t('Neprepoznate linije')}</h4><p class="hint">${t('Upiši ime igrača (predlozi se pojavljuju dok kucaš) ili ostavi prazno da preskočiš.')}</p><ul class="pa-list">${res.unmatched.map(un).join('')}</ul>` : ''}
+      <datalist id="pa-names">${f.pool.map(p => `<option value="${esc(p.name)}"></option>`).join('')}</datalist>
+      <div class="pa-more"><button type="button" class="linkbtn" data-action="paste-save-more">＋ ${t('Sačuvaj i dodaj još jedan tim')}</button></div>
+      <div class="imp-msg" id="pa-msg2" role="status"></div>`,
+    confirm: t('Sačuvaj tim'),
+    onConfirm: () => pasteSave(false),
+  });
+}
+function pasteSave(more) {
+  const f = pasteFlow;
+  if (!f) return;
+  const ids = [...document.querySelectorAll('[data-pa-keep]:checked')].map(x => +x.value);
+  document.querySelectorAll('[data-pa-amb]').forEach(s => { if (s.value) ids.push(+s.value); });
+  document.querySelectorAll('[data-pa-un]').forEach(inp => {
+    const q = inp.value.trim();
+    if (!q) return;
+    const id = f.pool.find(p => p.name === q)?.id ?? matchName(q, f.index)?.id;
+    if (id) ids.push(id);
+  });
+  const list = [...new Set(ids)];
+  if (!list.length) { document.getElementById('pa-msg2').innerHTML = `<span class="err">${t('Izaberi bar jednog igrača.')}</span>`; return false; }
+  closeModal();
+  let lg = f.lg;
+  if (lg && !profile.leagues.includes(lg)) lg = null; // liga je u međuvremenu obrisana
+  const created = !lg;
+  if (!lg) lg = createLeague({ name: f.data.leagueName || t('Moja liga'), platform: f.data.platform || 'other', leagueFormat: f.data.fmt, teams: f.data.teams || 12, slots: f.data.slots, import: { source: 'paste' } });
+  const now = nowISO();
+  const players = list.map(id => ({ id, ir: false }));
+  if (f.target) {
+    const r = f.target === 'my' ? lg.roster : lg.opps[f.target];
+    if (r) { r.players = players; r.updated = now; }
+  } else if (f.data.mine) {
+    if (lg.roster.players.length) lg.opps[`p${uid()}`] = { ...lg.roster, name: lg.teamName || lg.roster.name }; // dosadašnji "moj tim" postaje protivnik
+    lg.roster = { name: f.data.name, players, updated: now };
+    lg.teamName = f.data.name;
+  } else lg.opps[`p${uid()}`] = { name: f.data.name, players, updated: now };
+  if (!lg.import) lg.import = { source: 'paste' };
+  if (currentLeague() === lg) state.rosters = { my: lg.roster, opps: lg.opps, oppSel: lg.oppSel };
+  touchLeague(lg); saveProfile();
+  pasteFlow = null;
+  ensurePlayers(list, poolRawMap(f.pool, list)).then(() => render());
+  render();
+  if (more) { const next = () => openPaste({ leagueId: lg.id }); if (created) state.afterRoute = next; else setTimeout(next, 0); }
+  return true;
+}
+/** Podešavanja lige: deo za uvezenu ligu (moj tim, osvežavanje) */
+function importSettingsHTML(lg) {
+  if (isSynced(lg)) {
+    const imp = lg.import;
+    const season = /^\d{4}$/.test(String(imp.season)) && imp.source === 'espn' ? `${imp.season - 1}-${String(imp.season).slice(2)}` : String(imp.season || '');
+    return `<fieldset class="fmt"><legend>${t('Uvoz: {p}', { p: SOURCE_LABEL[imp.source] })}</legend>
+      <label>${t('Moj tim')}<select id="ls-myteam">${imp.myTid == null ? '<option value="">–</option>' : ''}${[...imp.teams].sort((a, b) => a.name.localeCompare(b.name)).map(x => `<option value="${esc(String(x.tid))}" ${x.tid === imp.myTid ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
+      <p class="hint">${t('Liga {id}, sezona {s}.', { id: esc(imp.extId), s: esc(season) })}${imp.syncedAt ? ` ${t('Osveženo {ago}', { ago: timeAgo(Date.parse(imp.syncedAt)) })}.` : ''} ${t('Roster, tabela i broj mesta dolaze sa platforme.')}</p>
+      <div><button type="button" class="linkbtn" data-action="league-sync">↻ ${esc(syncBtnText(imp.source))}</button></div></fieldset>`;
+  }
+  if (isPasted(lg)) return `<p class="hint">${t('Rosteri su nalepljeni. Svaki tim možeš da nalepiš ponovo na stranici Liga.')}</p>`;
+  return '';
+}
+/** Enter u polju za ID pokreće uvoz */
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'imp-in') { e.preventDefault(); document.querySelector('#modal [data-modal-ok]')?.click(); } });
+/* ==== kraj: Uvoz lige ==== */
 
 function renderPeriods() {
   $('#periods').innerHTML = PERIODS.map(p =>
@@ -2621,7 +3528,7 @@ function renderCompare(totals, cmp) {
   }).join('');
   el.innerHTML = `<div class="section-t">${t('Poređenje kategorija')} <span class="hint">· ${t('klik na kategoriju = punt')}</span></div>
     <div class="card"><div class="tscroll"><table class="cmp"><thead><tr><th>${t('Kat.')}</th>${SIDES.map(sd => `<th style="color:${sd.color}">${sd.name}</th>`).join('')}<th title="${esc(t('Dobijaš − Daješ, iz tvoje perspektive'))}">${t('Razlika')}</th></tr></thead>
-    <tbody>${rows}</tbody></table></div></div>`;
+    <tbody>${rows}</tbody></table></div></div>${rotoProjHTML()}`;
 }
 
 /** Poeni: tabela doprinosa umesto Poređenja kategorija */
@@ -3993,7 +4900,7 @@ function renderRosterSection(kind) {
         ? `<div class="notall"><span>⚠ ${kind === 'my'
             ? t('Nisu svi igrači iz Daješ na tvom rosteru ({list}), pa se Moj tim ne menja.', { list: plan.notOnRoster.map(id => esc(state.byId.get(id)?.name || id)).join(', ') })
             : t('Nisu svi igrači iz Dobijaš na rosteru tima {team} ({list}), pa se njegov roster ne menja.', { team: esc(r.name), list: plan.notOnRoster.map(id => esc(state.byId.get(id)?.name || id)).join(', ') })}</span>
-            ${addButtonHTML({ action: 'add-all', kind, label: plan.notOnRoster.length > 1 ? t('Dodaj sve ({n})', { n: plan.notOnRoster.length }) : t('Dodaj na roster'), n: plan.notOnRoster.length })}</div>`
+            ${rosterLocked() ? '' : addButtonHTML({ action: 'add-all', kind, label: plan.notOnRoster.length > 1 ? t('Dodaj sve ({n})', { n: plan.notOnRoster.length }) : t('Dodaj na roster'), n: plan.notOnRoster.length })}</div>`
         : '';
       body = `${updated}${addBox}${notAll}${toggle}
         <div class="tscroll"><table class="rtable"><thead>${headerRow()}</thead><tbody>${rosterTableHTML(kind, showPlan)}</tbody></table></div>
@@ -4232,6 +5139,7 @@ const hasRoom = (r, n = 1) => !!r && activeCount(r) + n <= ROSTER.ACTIVE;
 const fullTip = () => t('Maksimalan broj igrača u timu ({n}). Izbaci nekoga ili ga prebaci na IR da bi dodao novog.', { n: ROSTER.ACTIVE });
 
 function addToRoster(kind, id) {
+  if (rosterLocked()) return false;
   const r = rosterOf(kind);
   if (!r || rosterIds(r).includes(id) || !hasRoom(r)) return false;
   r.players.push({ id, ir: false });
@@ -4249,6 +5157,7 @@ function addAllToRoster(kind) {
 
 /** Prebaci na IR / vrati sa IR (poštuje limit aktivnih i IR mesta lige) */
 function toggleIR(kind, id) {
+  if (rosterLocked()) return;
   const r = rosterOf(kind);
   const x = r?.players.find(y => y.id === id);
   if (!x) return;
@@ -4269,6 +5178,25 @@ function toggleIR(kind, id) {
 /* ---------- Trejd obavljen: primeni na rostere + sačuvaj u istoriju ---------- */
 function tradeDone() {
   if (!giveIds().length || !getIds().length) return;
+  if (rosterLocked()) {
+    // uvezena liga: rosteri dolaze sa platforme, trejd se samo čuva u Istoriju
+    showModal({
+      title: t('Trejd se dogodio?'),
+      body: `<p>${SIDES[GIVE].name}: <b>${namesOf(giveIds())}</b><br>${SIDES[GET].name}: <b>${namesOf(getIds())}</b></p>
+        <p>${t('Trejd ide u Istoriju kao obavljen. Rosteri se ne menjaju ručno: povlače se iz {p} kad platforma obradi trejd.', { p: SOURCE_LABEL[currentLeague().import.source] })}</p>`,
+      confirm: t('Sačuvaj u Istoriju'),
+      onConfirm: () => {
+        saveTrade({ done: true, opp: rosterOf('opp')?.name || null });
+        removeTab(activeTab().id);
+        saveState();
+        state.notice = 'Trejd je u Istoriji kao obavljen. Rosteri se osvežavaju sa platforme.';
+        state.noticeLink = null;
+        syncLeague(currentLeague());
+        render();
+      },
+    });
+    return;
+  }
   const nm = id => esc(state.byId.get(id)?.name || `#${id}`);
   const list = ids => (ids.length ? ids.map(nm).join(', ') : '–');
   const plans = ['my', 'opp'].map(k => [k, rosterPlan(k)]).filter(([, pl]) => pl && pl.r.players.length);
@@ -4314,7 +5242,7 @@ function applyTrade(plans) {
 
 function removeFromRoster(kind, id) {
   const r = rosterOf(kind);
-  if (!r) return;
+  if (!r || rosterLocked()) return;
   r.players = r.players.filter(x => x.id !== id);
   r.updated = new Date().toISOString();
   saveRosters();
@@ -4619,7 +5547,7 @@ function updateDropdown(key) {
   searchUI.set(key, ui);
   const pref = searchPrefer(key);
   // "Dodaj u moj tim" u rezultatima, osim u pretrazi koja već dodaje na roster
-  const showAddMy = !/^(my|opp|lt)-add$/.test(key);
+  const showAddMy = !/^(my|opp|lt)-add$/.test(key) && !rosterLocked();
   const myIds = new Set(rosterIds(state.rosters.my));
   const myRoom = hasRoom(state.rosters.my);
   if (!results.length && !norm(ui.query)) { dd.hidden = true; inp.setAttribute('aria-expanded', 'false'); return; }
@@ -4903,6 +5831,11 @@ function showAllAlerts() {
 function renderOverview() {
   const lg = currentLeague(), r = state.rosters.my;
   const H = `<h2 class="page-t">${t('Pregled')}</h2>`;
+  if (!r.players.length && isSynced(lg)) {
+    return `${H}<div class="pcard empty-cta"><h3>${t('Koji je tvoj tim?')}</h3>
+      <p>${t('Liga je uvezena, ali tvoj tim još nije izabran. Izaberi ga u podešavanjima lige.')}</p>
+      <button type="button" class="btn" data-action="league-settings">⚙ ${t('Podešavanja lige')}</button></div>`;
+  }
   if (!r.players.length) {
     return `${H}<div class="pcard empty-cta"><h3>${t('Počni od svog tima')}</h3>
       <p>${t('Unesi igrače sa svog rostera ({a} aktivnih + {b} IR). Posle toga ovde vidiš kategorije tima, upozorenja i otvorene trejdove.', { a: ROSTER.ACTIVE, b: ROSTER.IR })}</p>
@@ -4954,7 +5887,7 @@ function renderOverview() {
   const histCard = hist.length ? `<section class="pcard"><h3>${t('Poslednji trejdovi')}</h3><ul class="olist">${hist.map(h => `<li><button type="button" class="orow" data-action="ov-hist" data-id="${h.id}">
       <span class="os"><span class="hist-date">${fmtDate(h.date)} · ${h.done ? t('obavljen') : t('ideja')}</span><br>${(h.teams[GIVE]?.ids || []).map(id => esc(h.names?.[id] || state.byId.get(id)?.name || id)).join(', ') || '–'} → ${(h.teams[GET]?.ids || []).map(id => esc(h.names?.[id] || state.byId.get(id)?.name || id)).join(', ') || '–'}</span></button></li>`).join('')}</ul></section>` : '';
 
-  return `${H}<div class="pgrid">${summary}${alertsCard}</div>${cats}<div class="pgrid">${tradesCard}${histCard}</div>`;
+  return `${H}<div class="pgrid">${summary}${alertsCard}</div>${cats}${importRanksHTML(lg)}<div class="pgrid">${tradesCard}${histCard}</div>`;
 }
 
 /* ---------- Uređivanje sačuvanog rostera (Moj tim i timovi u Ligi) ---------- */
@@ -4976,7 +5909,7 @@ function savedRosterTable(kind, rowActions) {
 }
 function rosterEditorHTML(kind, rowActions, emptyText) {
   const r = rosterOf(kind);
-  const addBox = hasRoom(r)
+  const addBox = rosterLocked() ? `<div class="full-note lock">🔒 ${esc(lockText())}</div>` : hasRoom(r)
     ? searchBoxHTML(`${kind}-add`, t('Dodaj igrača na roster…'))
     : `<div class="full-note" data-tip="${esc(fullTip())}">🔒 ${t('Maksimalan broj igrača u timu ({n}). Izbaci nekoga ili ga prebaci na IR da bi dodao novog.', { n: ROSTER.ACTIVE })}</div>`;
   const meta = `<div class="r-meta">${t('{a}/{b} aktivnih · {c}/{d} IR', { a: activeCount(r), b: ROSTER.ACTIVE, c: irCount(r), d: ROSTER.IR })} · ${t('Ažurirano: {d}', { d: fmtShortDate(r.updated) })}${isStale(r.updated) ? ` <span class="stale">· ${t('Roster možda nije aktuelan, proveri izmene.')}</span>` : ''}</div>`;
@@ -4985,12 +5918,12 @@ function rosterEditorHTML(kind, rowActions, emptyText) {
 /** Dugmad uz igrača u rosteru (isto na Moj tim, Liga i Analiza trejda) */
 const rosterIrBtn = (kind, id, toIr) => `<button class="mini" type="button" data-action="r-ir" data-kind="${kind}" data-id="${id}" title="${toIr ? t('Prebaci na IR') : t('Vrati sa IR')}">${toIr ? '→IR' : '←IR'}</button>`;
 const rosterRmBtn = (kind, id) => `<button class="rm" type="button" data-action="r-remove" data-kind="${kind}" data-id="${id}" aria-label="${t('Ukloni sa rostera')}" title="${t('Ukloni sa rostera')}">✕</button>`;
-const rosterBtns = (kind, p, x) => rosterIrBtn(kind, p.id, !x.ir) + rosterRmBtn(kind, p.id);
+const rosterBtns = (kind, p, x) => (rosterLocked() ? '' : rosterIrBtn(kind, p.id, !x.ir) + rosterRmBtn(kind, p.id)); // uvezena liga: roster se ne menja ručno
 
 /* ---------- Stranica: Moj tim ---------- */
 function renderTeamPage() {
   const lg = currentLeague();
-  return `<h2 class="page-t">${t('Moj tim')}${lg.teamName ? ` <span class="hint">${esc(lg.teamName)}</span>` : ''}</h2>
+  return `<h2 class="page-t">${t('Moj tim')}${lg.teamName ? ` <span class="hint">${esc(lg.teamName)}</span>` : ''}${isPasted(lg) ? ` <button type="button" class="linkbtn" data-action="paste-open" data-target="my">📋 ${t('Nalepi ponovo')}</button>` : ''}</h2>
     <section class="card">${rosterEditorHTML('my', (p, x) => linkHTML('team-trade', { cls: 'mini trade', attrs: `data-player="${p.id}" title="${esc(t('Trejduj ga'))}" aria-label="${esc(t('Trejduj ga'))}"`, label: '⇄' }) + rosterBtns('my', p, x),
       t('Unesi svoj roster ({a} aktivnih + {b} IR). Čuva se samo u ovom browseru.', { a: ROSTER.ACTIVE, b: ROSTER.IR }))}</section>`;
 }
@@ -5006,7 +5939,7 @@ function renderLeaguePage() {
       ? `${st.rank ? `<span>${t('Moje mesto')}: <b>${t('{n}. od {m}', { n: st.rank, m: lg.teams || '?' })}</b></span>` : ''}${st.record ? `<span>${t('Skor')}: <b>${esc(st.record)}</b></span>` : ''}`
       : `<span class="pnote">${t('Mesto i skor unosiš u podešavanjima lige.')}</span>`}
       <button type="button" class="linkbtn" data-action="league-settings">⚙ ${t('Podešavanja lige')}</button></div>
-    <div id="standings-full" hidden></div></section>`; // mesto za punu tabelu (uvoz lige)
+    ${standingsHTML(lg)}</section>${importRanksHTML(lg)}`; // puna tabela i plasman po kategorijama (uvoz lige)
   const form = state.ui.ltEdit === 'new' ? `<div class="pcard lt-form"><input type="text" data-lt-name maxlength="30" placeholder="${t('Ime tima, npr. Marko')}">
       <button type="button" class="btn" data-action="lt-save">${t('Napravi')}</button><button type="button" class="linkbtn" data-action="lt-cancel">${t('Otkaži')}</button></div>` : '';
   const card = ([oid, o]) => {
@@ -5028,10 +5961,12 @@ function renderLeaguePage() {
   let editor = '';
   if (sel) {
     const o = state.rosters.opps[sel];
+    const synced = isSynced(lg);
     const rename = state.ui.ltEdit === 'rename'
       ? `<div class="opp-form"><input type="text" data-lt-name maxlength="30" value="${esc(o.name)}"><button type="button" class="btn" data-action="lt-save">${t('Sačuvaj')}</button><button type="button" class="linkbtn" data-action="lt-cancel">${t('Otkaži')}</button></div>` : '';
     editor = `<section class="card lt-editor" id="lt-editor"><div class="card-h"><div class="side-title"><b>${esc(o.name)}</b><small>${t('Roster protivnika')}</small></div>
-      <button type="button" class="linkbtn" data-action="lt-rename">${t('Preimenuj')}</button><button type="button" class="linkbtn danger" data-action="lt-delete">${t('Obriši')}</button>
+      ${isPasted(lg) ? `<button type="button" class="linkbtn" data-action="paste-open" data-target="${sel}">📋 ${t('Nalepi ponovo')}</button>` : ''}
+      ${synced ? '' : `<button type="button" class="linkbtn" data-action="lt-rename">${t('Preimenuj')}</button><button type="button" class="linkbtn danger" data-action="lt-delete">${t('Obriši')}</button>`}
       <button type="button" class="iconbtn" data-action="lt-close" aria-label="${t('Zatvori')}">✕</button></div>${rename}
       ${rosterEditorHTML('lt', (p, x) => `${linkHTML('league-want', { cls: 'mini want', attrs: `data-player="${p.id}" data-opp="${sel}"` })}${rosterBtns('lt', p, x)}`,
         t('Unesi roster protivnika ({a} aktivnih + {b} IR). Čuva se samo u ovom browseru.', { a: ROSTER.ACTIVE, b: ROSTER.IR }))}</section>`;
@@ -5039,9 +5974,10 @@ function renderLeaguePage() {
   return `<h2 class="page-t">${t('Liga')} <span class="hint">${t('Uneto {a} od {b} timova', { a: enteredCount(), b: lg.teams || '?' })}</span></h2>
     ${table}
     <div class="tgrid">${opps.map(card).join('')}
-      <button type="button" class="tcard add" data-action="lt-new"><span class="plus">＋</span> ${t('Dodaj tim')}</button></div>
+      ${isSynced(lg) ? '' : `<button type="button" class="tcard add" data-action="lt-new"><span class="plus">＋</span> ${t('Dodaj tim')}</button>`}
+      ${isPasted(lg) ? `<button type="button" class="tcard add" data-action="paste-open"><span class="plus">📋</span> ${t('Nalepi tim')}</button>` : ''}</div>
     ${form}${editor}
-    ${teams.length < 3 ? `<p class="pnote">${isPointsFmt() ? t('Kad uneseš bar 3 tima (sa svojim), uz svaki tim vidiš i rang po poenima.') : t('Kad uneseš bar 3 tima (sa svojim), uz svaki tim vidiš dve najjače i dve najslabije kategorije.')}</p>` : ''}${opps.length ? notCountedHTML() : ''}`;
+    ${teams.length < 3 && !isSynced(lg) ? `<p class="pnote">${isPointsFmt() ? t('Kad uneseš bar 3 tima (sa svojim), uz svaki tim vidiš i rang po poenima.') : t('Kad uneseš bar 3 tima (sa svojim), uz svaki tim vidiš dve najjače i dve najslabije kategorije.')}</p>` : ''}${opps.length ? notCountedHTML() : ''}`;
 }
 
 /** Sadržaj stranice lige (sve osim Analize, koja koristi postojeće sekcije) */
@@ -5235,6 +6171,11 @@ document.addEventListener('click', e => {
     case 'profile': openProfile(); break;
     case 'wipe-all': wipeAll(); break;
     case 'add-league': openAddLeague(); break;
+    case 'imp-go': openImportMethod(el.dataset.imp); break;
+    case 'imp-pick-league': { const inp = document.getElementById('imp-in'); if (inp) { inp.value = el.dataset.id; document.querySelector('#modal [data-modal-ok]')?.click(); } break; }
+    case 'league-sync': syncLeague(currentLeague()); break;
+    case 'paste-open': if (currentLeague()) openPaste({ leagueId: currentLeague().id, target: el.dataset.target || null }); break;
+    case 'paste-save-more': pasteSave(true); break;
     case 'league-settings': openLeagueSettings(); break;
     case 'quick-format': openQuickFormat(); break;
     case 'sentfmt-close': { const tb = activeTab(); if (tb) { delete tb.sentFormat; persistTrades(); } render(); break; }

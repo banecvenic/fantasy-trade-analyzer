@@ -219,3 +219,20 @@
   .pv-score{font-size:32px}
 }
 .tool-tabs .ttabs{margin-top:10px}
+
+/* ---------- Vodič: kako uvesti ligu ---------- */
+.doc h3{font-size:15px;font-weight:700;margin:20px 0 6px;color:var(--text)}
+.doc code{font-size:13px;background:var(--card2);border:1px solid var(--line);border-radius:4px;padding:1px 5px;word-break:break-all}
+.doc ol.hsteps{margin:0 0 14px;padding-left:22px}
+.doc ol.hsteps li{margin:6px 0}
+.howto-toc ol{display:flex;flex-wrap:wrap;gap:6px;list-style:none;padding:0;margin:4px 0 16px}
+.howto-toc a{display:inline-block;padding:5px 12px;border:1px solid var(--line);border-radius:999px;font-size:13px;text-decoration:none;color:var(--text);background:var(--card)}
+.doc h2[id],.doc h3[id]{scroll-margin-top:80px}
+.shot{margin:10px 0 16px}
+.shot img{max-width:100%;border-radius:10px;border:1px solid var(--line)}
+.shot-ph{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:150px;padding:16px;border-radius:10px;background:var(--card2);border:1px dashed var(--line);color:var(--dim);text-align:center;font-size:13px}
+.shot-ph code{font-size:11px}
+.lm-box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:16px 0}
+.lm-box h3{margin-top:0}
+.lm-box blockquote{margin:8px 0 12px;padding:10px 12px;border-left:3px solid var(--info);background:var(--bg2);color:var(--text);font-size:14px;line-height:1.55}
+.btn-copy{background:var(--accent);color:#fff;border:0;border-radius:999px;padding:7px 16px;font:inherit;font-weight:600;font-size:13px;cursor:pointer}

@@ -174,18 +174,28 @@ test('ESPN: H2H poeni, podrazumevano bodovanje -> espn_points', () => {
 });
 
 test('ESPN: poeni za sezonu, svoje težine, nepoznata statistika i nula', () => {
-  const items = [espnItem(0, 1), espnItem(6, 1.2), espnItem(37, 5), espnItem(9, -0.5), espnItem(3, 0), espnItem(7, 2), espnItem(19, 10)];
+  const items = [espnItem(0, 1), espnItem(6, 1.2), espnItem(37, 5), espnItem(9, -0.5), espnItem(3, 0), espnItem(99, 2), espnItem(19, 10)];
   const { format } = mapEspnFormat({ scoringSettings: { scoringType: 'TOTAL_POINTS', scoringItems: items } });
   assert.strictEqual(format.scoringType, 'season_points');
   assert.strictEqual(format.preset, 'custom');
   assert.deepStrictEqual(format.weights, { PTS: 1, REB: 1.2, DD: 5, PF: -0.5 });
-  assert.deepStrictEqual(format.unsupported, ['ESPN stat 7', 'FG%']);
+  assert.deepStrictEqual(format.unsupported, ['ESPN stat 99', 'FG%']);
 });
 
 test('ESPN: format bez trejdova / jedna utakmica i prazna podešavanja', () => {
   assert.strictEqual(mapEspnFormat({ scoringSettings: { scoringType: 'H2H_SINGLE_SCORE', scoringItems: [] } }).error, 'type');
   assert.strictEqual(mapEspnFormat(null).error, 'empty');
   assert.strictEqual(mapEspnFormat({}).error, 'empty');
+});
+
+test('ESPN: prava liga 411647/2019 (H2H poeni sa promašajima, DD/TD i statistikama koje nemamo)', () => {
+  // scoringItems iz stvarnog odgovora (statId, points)
+  const items = [[6, 1], [7, -1], [23, -0.5], [24, -0.5], [1, 1.5], [2, 1.5], [11, -1], [12, -1], [13, 1], [15, 1], [37, 2.5], [39, 10], [10, -0.5], [0, 1], [38, 5], [3, 1]];
+  const { format } = mapEspnFormat({ scoringSettings: { scoringType: 'H2H_POINTS', scoringItems: items.map(([id, w]) => espnItem(id, w)) } });
+  assert.strictEqual(format.scoringType, 'h2h_points');
+  // FGM: +1 (pogodak) + 0.5 (promašaj = FGA − FGM sa −0.5); FGA: −0.5
+  assert.deepStrictEqual(format.weights, { REB: 1, FGA: -0.5, FGM: 1.5, FTA: -0.5, FTM: 1.5, BLK: 1.5, STL: 1.5, TO: -1, DD: 2.5, PTS: 1, TD: 5, AST: 1 });
+  assert.deepStrictEqual(format.unsupported, ['Ejections', 'Disqualifications', 'Quadruple-doubles', 'Technical fouls']);
 });
 
 console.log(`\n${n} testova prošlo`);

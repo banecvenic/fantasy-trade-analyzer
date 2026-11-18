@@ -30,6 +30,7 @@ PAGES = {
     'analyzer': {'en': 'trade-analyzer/', 'sr': 'sr/trade-analyzer/'},
     'privacy': {'en': 'privacy/', 'sr': 'sr/privacy/'},
     'about':   {'en': 'about/', 'sr': 'sr/about/'},
+    'howto':   {'en': 'how-to-import/', 'sr': 'sr/how-to-import/'},
 }
 
 # Alati sa početne: ready=False prikazuje "Coming soon"; kad alat postoji, ready=True i href (relativno od korena sajta)
@@ -176,6 +177,7 @@ T = {
         'save_row': 'Save your team and see how this trade changes it',
         'footer_about': 'About',
         'footer_privacy': 'Privacy',
+        'footer_howto': 'How to import a league',
         'footer_contact': 'Contact',
         'disclaimer': 'RosterSwing is not affiliated with ESPN, Yahoo or the NBA. Stats come from publicly available sources.',
         'skip': 'Skip to the trade analyzer',
@@ -246,6 +248,7 @@ T = {
         'save_row': 'Sačuvaj svoj tim i vidi kako trejd utiče na njega',
         'footer_about': 'O sajtu',
         'footer_privacy': 'Privatnost',
+        'footer_howto': 'Kako uvesti ligu',
         'footer_contact': 'Kontakt',
         'disclaimer': 'RosterSwing nije povezan sa ESPN, Yahoo ni NBA. Statistika dolazi iz javno dostupnih izvora.',
         'skip': 'Pređi na kalkulator',
@@ -359,6 +362,182 @@ ABOUT = {
 ''',
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# VODIČ: kako uvesti ligu (/how-to-import/, /sr/how-to-import/)
+# Slike: assets/howto/<ime>.png. Dok slike ne postoje, prikazuje se sivo polje sa opisom i imenom fajla.
+# ---------------------------------------------------------------------------
+HOWTO_SHOTS = {
+    'espn-league-id.png': ('ESPN league page with leagueId in the address bar', 'ESPN stranica lige sa leagueId u adresi'),
+    'espn-settings-basic.png': ('ESPN League > Settings > Basic on the website', 'ESPN League > Settings > Basic na sajtu'),
+    'espn-viewable-public.png': ('"Make league viewable to public" set to Yes', '"Make league viewable to public" na Yes'),
+    'fantrax-public.png': ('Fantrax Misc settings with "Allow public to view league"', 'Fantrax Misc podešavanja sa "Allow public to view league"'),
+    'sleeper-league-url.png': ('Sleeper league address with the league ID', 'Sleeper adresa lige sa ID-jem lige'),
+    'paste-select-all.png': ('Team roster page with the whole page selected', 'Stranica rostera tima sa označenom celom stranicom'),
+    'rosterswing-paste.png': ('RosterSwing Paste roster window with recognized players', 'RosterSwing prozor Nalepi roster sa prepoznatim igračima'),
+}
+
+
+def shot(name, lang, depth):
+    alt = HOWTO_SHOTS[name][0 if lang == 'en' else 1]
+    if os.path.exists(os.path.join(ROOT, 'assets', 'howto', name)):
+        return f'<figure class="shot"><img src="{rel(depth)}assets/howto/{name}" alt="{escape(alt)}" loading="lazy"></figure>'
+    return f'<figure class="shot shot-ph" role="img" aria-label="{escape(alt)}"><span>{escape(alt)}</span><code>assets/howto/{name}</code></figure>'
+
+
+LM_MSG = {
+    'en': "Hey, could you set our ESPN league to 'viewable to public'? It's under League > Settings > Basic on the website. It doesn't let anyone join, it just lets tools like RosterSwing read rosters so I can analyze trades.",
+    'sr': "Ćao, možeš li da podesiš našu ESPN ligu da bude 'viewable to public'? Nalazi se pod League > Settings > Basic na sajtu. To nikome ne dozvoljava da uđe u ligu, samo omogućava alatima kao što je RosterSwing da čitaju rostere, pa mogu da analiziram trejdove.",
+}
+
+HOWTO = {
+    'en': {
+        'title': 'How to Import Your Fantasy Basketball League | RosterSwing',
+        'desc': 'Import a public ESPN fantasy basketball league into RosterSwing, or paste rosters from Yahoo, CBS and other platforms. Step by step, no password needed.',
+        'h1': 'How to import your fantasy basketball league',
+        'intro': 'RosterSwing reads public leagues only. We never ask for your password, login or cookies. Pick your platform below.',
+        'toc': [('espn', 'ESPN'), ('yahoo', 'Yahoo'), ('fantrax', 'Fantrax'), ('sleeper', 'Sleeper'), ('paste', 'Paste roster (CBS, Yahoo, others)'), ('faq', 'FAQ')],
+        'open_app': 'Add your league',
+        'copy': 'Copy message', 'copied': 'Copied',
+        'espn': '''<h2 id="espn">ESPN</h2>
+<p>ESPN leagues are private by default. Only the League Manager (LM) can make a league public, and only on the ESPN website, not in the app.</p>
+<ol class="hsteps">
+<li>Open your league on <strong>fantasy.espn.com</strong> in a browser.</li>
+<li>Go to <strong>League</strong> &gt; <strong>Settings</strong> &gt; <strong>Basic</strong>.</li>
+<li>Find <strong>Make league viewable to public</strong> and set it to <strong>Yes</strong>, then save.</li>
+<li>In RosterSwing, click <strong>Add your league</strong> &gt; <strong>ESPN public league</strong> and paste the league ID or the league link.</li>
+</ol>
+{shot:espn-settings-basic.png}
+{shot:espn-viewable-public.png}
+<p>A public league can be viewed, not joined. Nobody can join your league or change anything because of this setting, and the LM can switch it back at any time.</p>
+<h3 id="espn-id">Where to find the league ID</h3>
+<p>Open the league on the ESPN website and look at the address bar. The number after <code>leagueId=</code> is the league ID, for example <code>leagueId=123456</code>. You can also paste the whole link, RosterSwing finds the ID for you.</p>
+{shot:espn-league-id.png}
+<div class="lm-box"><h3>Not the LM?</h3><p>Send this message to your League Manager:</p><blockquote id="lm-msg">{lm}</blockquote><button type="button" class="btn-copy" data-copy="lm-msg">{copy}</button></div>''',
+        'yahoo': '''<h2 id="yahoo">Yahoo</h2>
+<p>Automatic Yahoo import is coming soon. Until then, use <a href="#paste">Paste roster</a>: it takes about a minute per team.</p>
+<p>When the Yahoo import arrives, the league will need to be publicly viewable. The commissioner turns this on with the <strong>Make League Publicly Viewable</strong> option in the league settings. This is not the same as <strong>Publish League</strong>, which is a different setting.</p>''',
+        'fantrax': '''<h2 id="fantrax">Fantrax</h2>
+<p>Fantrax import is being tested and will open soon. Until then, use <a href="#paste">Paste roster</a>. To get the league ready, the commissioner goes to <strong>Commissioner</strong> &gt; <strong>League Setup</strong> &gt; <strong>Misc</strong> and turns on <strong>Allow public to view league</strong>.</p>
+{shot:fantrax-public.png}
+<p>The league ID is the part of the league address after <code>/league/</code>, for example <code>fantrax.com/fantasy/league/<strong>abc123xyz</strong>/home</code>.</p>''',
+        'sleeper': '''<h2 id="sleeper">Sleeper</h2>
+<p>Sleeper import is being tested and will open soon. Sleeper leagues need no settings change. The league ID is the long number in the league address, for example <code>sleeper.com/leagues/<strong>1180226123456789012</strong></code>, or you can enter your Sleeper username.</p>
+{shot:sleeper-league-url.png}''',
+        'paste': '''<h2 id="paste">Paste roster (CBS, Yahoo and other platforms)</h2>
+<p>Works with any platform that shows a roster page. You paste one team at a time.</p>
+<ol class="hsteps">
+<li>Open the roster page of one team on your platform (Yahoo, CBS, Fantrax or any other).</li>
+<li>Select the whole page with <strong>Ctrl+A</strong> (<strong>Cmd+A</strong> on a Mac) and copy it with <strong>Ctrl+C</strong> (<strong>Cmd+C</strong>).</li>
+<li>In RosterSwing, click <strong>Add your league</strong> &gt; <strong>Paste roster</strong>, paste the text and click <strong>Find players</strong>.</li>
+<li>Check the players. Pick the right player where a name fits more than one, and type the names we could not read.</li>
+<li>Click <strong>Save and add another team</strong> to paste the next team.</li>
+</ol>
+{shot:paste-select-all.png}
+{shot:rosterswing-paste.png}
+<p>Stats, positions and injury statuses in the pasted text are ignored. Only player names are used. Pasted leagues stay editable, and you can paste any team again when its roster changes.</p>''',
+        'faq_h': 'FAQ',
+        'faq': [
+            ('Is my data safe?', 'Yes. RosterSwing never asks for your password, login or cookies. We read only what a public league shows to everyone, and your leagues are saved in your own browser. We do not store real names of league members.'),
+            ('Why only public leagues?', 'Reading a private league needs your login cookies. We do not want to ask for them or keep them, so for now we import public leagues only.'),
+            ('Will private leagues be supported?', 'Private leagues are coming. Until then, the LM can make the league public, or you can use Paste roster.'),
+            ('Can strangers join my league if it is public?', 'No. Public means viewable, not joinable. Nobody can join or change anything, and the LM can switch the setting back at any time.'),
+        ],
+    },
+    'sr': {
+        'title': 'Kako da uvezeš fantasy basketball ligu | RosterSwing',
+        'desc': 'Uvezi javnu ESPN fantasy basketball ligu u RosterSwing, ili nalepi rostere sa Yahoo, CBS i drugih platformi. Korak po korak, bez lozinke.',
+        'h1': 'Kako da uvezeš svoju fantasy basketball ligu',
+        'intro': 'RosterSwing čita samo javne lige. Nikad ne tražimo lozinku, prijavu ni kolačiće. Izaberi svoju platformu ispod.',
+        'toc': [('espn', 'ESPN'), ('yahoo', 'Yahoo'), ('fantrax', 'Fantrax'), ('sleeper', 'Sleeper'), ('paste', 'Nalepi roster (CBS, Yahoo, ostali)'), ('faq', 'Česta pitanja')],
+        'open_app': 'Dodaj svoju ligu',
+        'copy': 'Kopiraj poruku', 'copied': 'Kopirano',
+        'espn': '''<h2 id="espn">ESPN</h2>
+<p>ESPN lige su podrazumevano privatne. Samo League Manager (LM) može da označi ligu kao javnu, i to samo na ESPN sajtu, ne u aplikaciji.</p>
+<ol class="hsteps">
+<li>Otvori svoju ligu na <strong>fantasy.espn.com</strong> u browseru.</li>
+<li>Idi na <strong>League</strong> &gt; <strong>Settings</strong> &gt; <strong>Basic</strong>.</li>
+<li>Nađi <strong>Make league viewable to public</strong>, podesi na <strong>Yes</strong> i sačuvaj.</li>
+<li>U RosterSwingu klikni <strong>Dodaj ligu</strong> &gt; <strong>ESPN javna liga</strong> i nalepi ID lige ili link ka ligi.</li>
+</ol>
+{shot:espn-settings-basic.png}
+{shot:espn-viewable-public.png}
+<p>Javnu ligu svako može da vidi, ali ne i da uđe u nju. Zbog ovog podešavanja niko ne može da se priključi ligi ni da bilo šta promeni, a LM može da ga vrati kad god hoće.</p>
+<h3 id="espn-id">Gde da nađem ID lige</h3>
+<p>Otvori ligu na ESPN sajtu i pogledaj adresu u browseru. Broj posle <code>leagueId=</code> je ID lige, na primer <code>leagueId=123456</code>. Možeš da nalepiš i ceo link, RosterSwing sam nalazi ID.</p>
+{shot:espn-league-id.png}
+<div class="lm-box"><h3>Nisi LM?</h3><p>Pošalji ovu poruku League Manageru:</p><blockquote id="lm-msg">{lm}</blockquote><button type="button" class="btn-copy" data-copy="lm-msg">{copy}</button></div>''',
+        'yahoo': '''<h2 id="yahoo">Yahoo</h2>
+<p>Automatski uvoz sa Yahoo stiže uskoro. Do tada koristi <a href="#paste">Nalepi roster</a>: treba oko minut po timu.</p>
+<p>Za Yahoo uvoz liga će morati da bude javno vidljiva. Komesar to uključuje opcijom <strong>Make League Publicly Viewable</strong> u podešavanjima lige. To nije isto što i <strong>Publish League</strong>, to je drugo podešavanje.</p>''',
+        'fantrax': '''<h2 id="fantrax">Fantrax</h2>
+<p>Fantrax uvoz se testira i uskoro se otvara. Do tada koristi <a href="#paste">Nalepi roster</a>. Da bi liga bila spremna, komesar ide na <strong>Commissioner</strong> &gt; <strong>League Setup</strong> &gt; <strong>Misc</strong> i uključuje <strong>Allow public to view league</strong>.</p>
+{shot:fantrax-public.png}
+<p>ID lige je deo adrese lige posle <code>/league/</code>, na primer <code>fantrax.com/fantasy/league/<strong>abc123xyz</strong>/home</code>.</p>''',
+        'sleeper': '''<h2 id="sleeper">Sleeper</h2>
+<p>Sleeper uvoz se testira i uskoro se otvara. Za Sleeper ligu ne treba menjati podešavanja. ID lige je dugačak broj u adresi lige, na primer <code>sleeper.com/leagues/<strong>1180226123456789012</strong></code>, a možeš da uneseš i svoje Sleeper korisničko ime.</p>
+{shot:sleeper-league-url.png}''',
+        'paste': '''<h2 id="paste">Nalepi roster (CBS, Yahoo i druge platforme)</h2>
+<p>Radi sa svakom platformom koja ima stranicu rostera. Nalepljuješ jedan po jedan tim.</p>
+<ol class="hsteps">
+<li>Na svojoj platformi (Yahoo, CBS, Fantrax ili bilo kojoj drugoj) otvori stranicu rostera jednog tima.</li>
+<li>Označi celu stranicu sa <strong>Ctrl+A</strong> (na Macu <strong>Cmd+A</strong>) i kopiraj sa <strong>Ctrl+C</strong> (<strong>Cmd+C</strong>).</li>
+<li>U RosterSwingu klikni <strong>Dodaj ligu</strong> &gt; <strong>Nalepi roster</strong>, nalepi tekst i klikni <strong>Prepoznaj igrače</strong>.</li>
+<li>Proveri igrače. Gde ime odgovara za više igrača, izaberi pravog, a imena koja nismo pročitali upiši sam.</li>
+<li>Klikni <strong>Sačuvaj i dodaj još jedan tim</strong> za sledeći tim.</li>
+</ol>
+{shot:paste-select-all.png}
+{shot:rosterswing-paste.png}
+<p>Statistike, pozicije i statusi povreda u nalepljenom tekstu se ignorišu, koriste se samo imena igrača. Nalepljene lige ostaju izmenjive, a svaki tim možeš ponovo da nalepiš kad mu se roster promeni.</p>''',
+        'faq_h': 'Česta pitanja',
+        'faq': [
+            ('Da li su moji podaci bezbedni?', 'Jesu. RosterSwing nikad ne traži lozinku, prijavu ni kolačiće. Čitamo samo ono što javna liga pokazuje svima, a lige se čuvaju u tvom browseru. Ne čuvamo prava imena članova lige.'),
+            ('Zašto samo javne lige?', 'Za čitanje privatne lige trebali bi nam kolačići tvoje prijave. Ne želimo da ih tražimo ni da ih čuvamo, pa za sada uvozimo samo javne lige.'),
+            ('Da li će privatne lige biti podržane?', 'Privatne lige stižu. Do tada LM može da označi ligu kao javnu, ili možeš da koristiš Nalepi roster.'),
+            ('Da li nepoznati ljudi mogu da uđu u ligu ako je javna?', 'Ne. Javna znači da se vidi, ne da se u nju ulazi. Niko ne može da se priključi ni da bilo šta promeni, a LM može da vrati podešavanje kad god hoće.'),
+        ],
+    },
+}
+
+COPY_JS = '''<script>
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-copy]'); if (!b) return;
+  const txt = document.getElementById(b.dataset.copy).innerText;
+  const done = () => { const o = b.textContent; b.textContent = b.dataset.done; setTimeout(() => { b.textContent = o; }, 1800); };
+  if (navigator.clipboard) navigator.clipboard.writeText(txt).then(done, done); else done();
+});
+</script>
+'''
+
+
+def howto(lang):
+    d = HOWTO[lang]
+    depth = 1 if lang == 'en' else 2
+    r = rel(depth)
+
+    def fill(html):
+        html = re.sub(r'\{shot:([\w.-]+)\}', lambda m: shot(m.group(1), lang, depth), html)
+        return html.replace('{lm}', escape(LM_MSG[lang])).replace('{copy}', escape(d['copy'])).replace('data-copy="lm-msg"', f'data-copy="lm-msg" data-done="{escape(d["copied"])}"')
+    toc = ''.join(f'<li><a href="#{a}">{escape(l)}</a></li>' for a, l in d['toc'])
+    faq = ''.join(f'<h3>{escape(q)}</h3><p>{escape(a)}</p>' for q, a in d['faq'])
+    faq_ld = ld({'@context': 'https://schema.org', '@type': 'FAQPage', 'inLanguage': lang,
+                 'mainEntity': [{'@type': 'Question', 'name': q, 'acceptedAnswer': {'@type': 'Answer', 'text': a}} for q, a in d['faq']]})
+    app = f'{r}app/#home&addleague=1'
+    body = ''.join(fill(d[k]) for k in ('espn', 'yahoo', 'fantrax', 'sleeper', 'paste'))
+    return head(lang, 'howto', d['title'], d['desc'], depth, extra=faq_ld) + header(lang, 'howto', depth) + f'''
+<main class="wrap">
+  <article class="doc howto">
+    <h1>{escape(d['h1'])}</h1>
+    <p>{escape(d['intro'])}</p>
+    <nav class="howto-toc" aria-label="{escape(d['h1'])}"><ol>{toc}</ol></nav>
+    <p><a class="btn" href="{app}">{escape(d['open_app'])}</a></p>
+    {body}
+    <h2 id="faq">{escape(d['faq_h'])}</h2>
+    {faq}
+  </article>
+</main>
+''' + footer(lang, depth) + COPY_JS + '</body>\n</html>\n'
 
 
 # ---------------------------------------------------------------------------
@@ -521,6 +700,7 @@ def footer(lang, depth):
       <span class="f-brand"><img src="{r}assets/favicon.svg" width="24" height="24" alt="RosterSwing"> Fantasy Basketball Tools</span>
       <nav class="f-links" aria-label="Footer">
         <a href="{r}{pre}about/">{t['footer_about']}</a>
+        <a href="{r}{pre}how-to-import/">{t['footer_howto']}</a>
         <a href="{r}{pre}privacy/">{t['footer_privacy']}</a>
         <a href="{CONTACT_URL}" rel="noopener">{t['footer_contact']}</a>
       </nav>
@@ -729,7 +909,7 @@ def analyzer(lang):
 
   <section aria-labelledby="how-h">
     <h2 id="how-h">{escape(t['how_h'])}</h2>
-    <ol class="steps">{steps}</ol>
+    <ol class="hsteps">{steps}</ol>
   </section>
 
   <section aria-labelledby="what-h">
@@ -782,6 +962,7 @@ def main():
         write(PAGES['analyzer'][lang] + 'index.html', analyzer(lang))
         write(PAGES['privacy'][lang] + 'index.html', doc(lang, 'privacy', PRIVACY[lang], 1 if lang == 'en' else 2))
         write(PAGES['about'][lang] + 'index.html', doc(lang, 'about', ABOUT[lang], 1 if lang == 'en' else 2))
+        write(PAGES['howto'][lang] + 'index.html', howto(lang))
     # /app/ nije u mapi sajta i ima <meta name="robots" content="noindex"> (ne blokira se ovde, da bi pretraživač video noindex)
     write_app_header()
     write('robots.txt', f'User-agent: *\nAllow: /\n\nSitemap: {SITE_URL}sitemap.xml\n')
