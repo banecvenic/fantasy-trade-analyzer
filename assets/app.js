@@ -5209,8 +5209,11 @@ function renderRosterSection(kind) {
   if (!el) return;
   const open = isSplit() || (kind === 'my' ? state.ui.myOpen : state.ui.oppOpen);
   const r = rosterOf(kind);
-  const head = kind === 'opp' ? oppPickerHTML() : '';
-  const edit = r || kind === 'my' ? `<div class="edit-roster">${linkHTML('trade-edit-roster', { attrs: `data-kind="${kind}"`, label: `✎ ${kind === 'my' ? t('Uredi roster') : t('Uredi roster u Ligi')}` })}</div>` : '';
+  // split: izabran protivnik se bira u zaglavlju, da igrači oba tima počinju u istoj visini
+  const inTitle = kind === 'opp' && r && isSplit();
+  const head = kind === 'opp' && !inTitle ? oppPickerHTML() : '';
+  // uvezene lige se same ažuriraju, pa nema ručnog uređivanja rostera
+  const edit = !rosterLocked() && (r || kind === 'my') ? `<div class="edit-roster">${linkHTML('trade-edit-roster', { attrs: `data-kind="${kind}"`, label: `✎ ${kind === 'my' ? t('Uredi roster') : t('Uredi roster u Ligi')}` })}</div>` : '';
   let body = '', hint = '';
   if (!r) {
     body = `<div class="empty-team">${oppList().length ? t('Izaberi protivnika sa kojim trejduješ.') : t('Još nema unetih timova. Dodaj ih na stranici Liga.')}</div>
@@ -5220,7 +5223,8 @@ function renderRosterSection(kind) {
     const plan = rosterPlan(kind);
     const addBox = edit;
     hint = t('{a}/{b} aktivnih · {c}/{d} IR', { a: activeCount(r), b: ROSTER.ACTIVE, c: irCount(r), d: ROSTER.IR });
-    const updated = `<div class="r-meta">${t('Ažurirano: {d}', { d: fmtShortDate(r.updated) })}${isStale(r.updated) ? ` <span class="stale">· ${t('Roster možda nije aktuelan, proveri izmene.')}</span>` : ''}</div>`;
+    const updText = `${t('Ažurirano: {d}', { d: fmtShortDate(r.updated) })}${isStale(r.updated) ? ` <span class="stale">· ${t('Roster možda nije aktuelan, proveri izmene.')}</span>` : ''}`;
+    const updated = `<div class="r-meta">${updText}</div>`;
     if (!r.players.length) {
       body = `${updated}<div class="empty-team cta">${t(kind === 'my' ? 'Unesi svoj roster ({a} aktivnih + {b} IR). Čuva se samo u ovom browseru.' : 'Unesi roster protivnika ({a} aktivnih + {b} IR). Čuva se samo u ovom browseru.', { a: ROSTER.ACTIVE, b: ROSTER.IR })}</div>${addBox}`;
     } else {
@@ -5234,6 +5238,7 @@ function renderRosterSection(kind) {
             <button type="button" data-rview="${kind}:after" aria-pressed="${view === 'after'}">${t('Posle trejda (pregled)')}</button>
             <button type="button" data-rview="${kind}:saved" aria-pressed="${view === 'saved'}">${t('Sačuvan roster')}</button>
           </div>
+          <span class="r-meta in-row">${updText}</span>
           <span class="preview-note">${view === 'after' ? t('Samo pregled: sačuvan roster se ne menja dok trejd ne potvrdiš.') : t('Ovo je tvoj sačuvani roster, bez trejda.')}</span>
         </div>` : '';
       // Nisu svi igrači sa izlazne strane na rosteru -> samo obaveštenje, roster se ne menja
@@ -5243,7 +5248,7 @@ function renderRosterSection(kind) {
             : t('Nisu svi igrači iz Dobijaš na rosteru tima {team} ({list}), pa se njegov roster ne menja.', { team: esc(r.name), list: plan.notOnRoster.map(id => esc(state.byId.get(id)?.name || id)).join(', ') })}</span>
             ${rosterLocked() ? '' : addButtonHTML({ action: 'add-all', kind, label: plan.notOnRoster.length > 1 ? t('Dodaj sve ({n})', { n: plan.notOnRoster.length }) : t('Dodaj na roster'), n: plan.notOnRoster.length })}</div>`
         : '';
-      body = `${updated}${addBox}${notAll}${toggle}
+      body = `${plan.tradeTouches ? '' : updated}${addBox}${notAll}${toggle}
         <div class="tscroll"><table class="rtable"><thead>${headerRow()}</thead><tbody>${rosterTableHTML(kind, showPlan)}</tbody></table></div>
         ${view === 'after' || (kind === 'opp' && (plan.dropSlots || plan.waiverSlots)) ? balanceHTML(kind, plan) : ''}
         <div class="tscroll"><table class="rtable sumtable"><tbody>${summaryRows(before, after, view === 'after')}</tbody></table></div>
@@ -5252,7 +5257,7 @@ function renderRosterSection(kind) {
     }
   }
   el.innerHTML = `<details class="card fold" data-fold="${kind}" ${open ? 'open' : ''}>
-    <summary><span>${KINDS[kind].title}${kind === 'opp' && r ? `: ${esc(r.name)}` : ''}</span><span class="hint">${hint}</span></summary>
+    <summary><span>${KINDS[kind].title}${inTitle ? `: ${oppSelectHTML()}` : kind === 'opp' && r ? `: ${esc(r.name)}` : ''}</span><span class="hint">${hint}</span></summary>
     <div class="fold-body">${head}${body}</div></details>`;
 }
 
@@ -5260,15 +5265,16 @@ function renderRosterSection(kind) {
 const oppList = () => Object.entries(state.rosters.opps).sort((a, b) => a[1].name.localeCompare(b[1].name, 'sr'));
 
 function oppPickerHTML() {
-  const sel = state.rosters.oppSel;
-  const opts = oppList().map(([oid, o]) => `<option value="${oid}" ${oid === sel ? 'selected' : ''}>${esc(o.name)} (${o.players.length})</option>`).join('');
   // Analiza: ovde se samo bira protivnik; timovi se dodaju, preimenuju i brišu na stranici Liga
   if (!oppList().length) return '';
-  return `<div class="opp-pick">
-      <select data-opp-select aria-label="${t('Izaberi protivnika')}">
+  return `<div class="opp-pick">${oppSelectHTML()}</div>`;
+}
+function oppSelectHTML() {
+  const sel = state.rosters.oppSel;
+  const opts = oppList().map(([oid, o]) => `<option value="${oid}" ${oid === sel ? 'selected' : ''}>${esc(o.name)} (${o.players.length})</option>`).join('');
+  return `<select data-opp-select aria-label="${t('Izaberi protivnika')}">
         <option value="">${t('Izaberi protivnika')}</option>${opts}
-      </select>
-    </div>`;
+      </select>`;
 }
 
 function oppSave() {
@@ -6604,6 +6610,10 @@ document.addEventListener('focusout', e => {
   setTimeout(() => { if (document.activeElement !== e.target && dd) dd.hidden = true; }, 120);
 });
 document.addEventListener('focusin', e => { if (e.target.dataset?.search != null) updateDropdown(e.target.dataset.search); });
+// split prikaz: timovi su uvek otvoreni, klik na zaglavlje ih ne sklapa
+document.addEventListener('click', e => {
+  if (isSplit() && e.target.closest('#rosters summary') && !e.target.closest('select')) e.preventDefault();
+}, true);
 // otvoreno/zatvoreno stanje sklopivih sekcija
 document.addEventListener('toggle', e => {
   const f = e.target.dataset?.fold;
