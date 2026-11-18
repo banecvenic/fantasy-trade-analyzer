@@ -862,6 +862,8 @@ const EN = {
   "{s}: {w} po jedinici": "{s}: {w} per unit",
   'Liga je povezana sa platformom {p}. Naziv, timovi, roster mesta i tabela dolaze iz lige. Format bodovanja biraš ovde.': 'This league is linked to {p}. Name, teams, roster spots and standings come from the league. Choose the scoring format here.',
   'Yahoo liga se ne osvežava sama: rosteri, tabela i protivnici se ne povlače sa Yahoo-a. Posle svake promene u ligi ažuriraj timove ručno (Nalepi tim ponovo). Uskoro stiže verzija koja sve povlači automatski.': 'Yahoo leagues do not update on their own: rosters, standings and opponents are not pulled from Yahoo. After every change in your league, update the teams by hand (paste the team again). A version that pulls everything automatically is coming soon.',
+  'Ubaci u Daješ': 'Add to You give',
+  'Ubaci u Dobijaš': 'Add to You get',
   'Novo: javi nam ako nešto nije uvezeno kako treba.': 'New: let us know if something was not imported correctly.',
   // Uvezena liga: podešavanja i kontekst cele lige
   'na {n}. mestu ({r})': 'in place {n} ({r})',
@@ -5098,19 +5100,24 @@ function summaryRows(before, after, showAfter) {
 
 function rosterTableHTML(kind, plan) {
   const P = id => state.byId.get(id);
-  // Analiza trejda: →IR i ✕ menjaju sačuvan roster, isto kao na stranicama Moj tim i Liga
-  const rm = id => rosterRmBtn(kind, id);
-  const irBtn = (id, toIr) => rosterIrBtn(kind, id, toIr);
+  // Analiza trejda: →IR i ✕ menjaju sačuvan roster, isto kao na stranicama Moj tim i Liga (osim u uvezenoj ligi)
+  // uvezena liga: roster se povlači iz lige, pa nema →IR ni ✕ (ručne i nalepljene lige ih imaju)
+  const locked = rosterLocked();
+  const rm = id => (locked ? '' : rosterRmBtn(kind, id));
+  const irBtn = (id, toIr) => (locked ? '' : rosterIrBtn(kind, id, toIr));
+  // ⇄: igrač odmah ide gore u trejd (moj tim -> Daješ, protivnik -> Dobijaš)
+  const trBtn = id => (kind === 'my' || kind === 'opp') && !takenIds().has(id)
+    ? `<button class="mini trade" type="button" data-action="r-trade" data-kind="${kind}" data-id="${id}" title="${esc(kind === 'my' ? t('Ubaci u Daješ') : t('Ubaci u Dobijaš'))}" aria-label="${esc(kind === 'my' ? t('Ubaci u Daješ') : t('Ubaci u Dobijaš'))}">⇄</button>` : '';
   const outSet = new Set(plan.outIds), dropSet = new Set(plan.dropsRemove || []);
   // Pregled: igrači koji ostaju na svojim mestima (sačuvani redosled), a dole redom
   // ODLAZI, IZBAČEN, DOLAZI, WAIVER. U prikazu "Sačuvan roster" plan je prazan, pa svi ostaju na mestu.
   const stay = [], leaving = [], dropped = [];
-  const irRow = id => P(id) && rosterRow(P(id), kind, { tags: [{ text: 'IR', cls: 'tag-ir' }], cls: 'ir', actions: irBtn(id, false) + rm(id), saved: true, ir: true });
+  const irRow = id => P(id) && rosterRow(P(id), kind, { tags: [{ text: 'IR', cls: 'tag-ir' }], cls: 'ir', actions: trBtn(id) + irBtn(id, false) + rm(id), saved: true, ir: true });
   for (const id of plan.activeBefore) {
     const p = P(id); if (!p) continue;
     if (outSet.has(id)) leaving.push({ id, ir: false });
     else if (dropSet.has(id)) dropped.push({ id, ir: false });
-    else stay.push(rosterRow(p, kind, { actions: irBtn(id, true) + rm(id), saved: true }));
+    else stay.push(rosterRow(p, kind, { actions: trBtn(id) + irBtn(id, true) + rm(id), saved: true }));
   }
   const irStay = [];
   for (const id of plan.irIds) {
@@ -6499,6 +6506,8 @@ document.addEventListener('click', e => {
     case 'export-league': exportData(el, 'league'); break;
     case 'import': importData(); break;
     case 'r-ir': toggleIR(el.dataset.kind, +el.dataset.id); break;
+    case 'r-trade': { const id = +el.dataset.id, ti = el.dataset.kind === 'my' ? GIVE : GET;
+      if (!takenIds().has(id)) { state.teams[ti].ids.push(id); saveState(); render(); } break; }
     case 'notice-close': state.notice = null; state.noticeLink = null; render(); break;
     case 'shared-close': state.sharedOpen = false; render(); break;
     case 'share': shareLink(el); break;
