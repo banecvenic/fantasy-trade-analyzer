@@ -548,6 +548,7 @@ const EN = {
   "Zatvori trejd": "Close trade",
   "Planiraj novi trejd": "Plan a new trade",
   "Zatvoriti trejd?": "Close trade?",
+  "Ne pitaj me ponovo": "Don't ask me again",
   "Trejd {x} biće uklonjen. Sačuvani trejdovi u istoriji ostaju.": "Trade {x} will be removed. Saved trades in history stay.",
   "U koju ligu da svrstam trejd?": "Which league should this trade go to?",
   "Otvara se deljeni trejd, u novom tabu. Postojeći trejdovi ostaju netaknuti.": "The shared trade opens in a new tab. Your existing trades stay untouched.",
@@ -1495,15 +1496,20 @@ function switchTab(id) {
   searchUI.clear();
   saveState(); render();
 }
+/** "Ne pitaj me ponovo" za zatvaranje taba trejda: pamti se samo u ovom browseru */
+const CLOSE_SKIP_KEY = 'fbaTrade.skipCloseConfirm';
+const skipCloseConfirm = () => { try { return localStorage.getItem(CLOSE_SKIP_KEY) === '1'; } catch { return false; } };
 function closeTab(id) {
   const tb = scopeTabs().tabs.find(x => x.id === id);
   if (!tb) return;
   const go = () => { removeTab(id); state.sharedOpen = false; saveState(); render(); };
-  if (!tabHasPlayers(tb)) { go(); return; }
+  if (!tabHasPlayers(tb) || skipCloseConfirm()) { go(); return; }
   showModal({
     title: t('Zatvoriti trejd?'),
-    body: `<p>${t('Trejd {x} biće uklonjen. Sačuvani trejdovi u istoriji ostaju.', { x: `<b>${esc(tabTitle(tb))}</b>` })}</p>`,
-    confirm: t('Zatvori'), danger: true, onConfirm: go,
+    body: `<p>${t('Trejd {x} biće uklonjen. Sačuvani trejdovi u istoriji ostaju.', { x: `<b>${esc(tabTitle(tb))}</b>` })}</p>
+      <label class="modal-check"><input type="checkbox" id="close-skip"> ${t('Ne pitaj me ponovo')}</label>`,
+    confirm: t('Zatvori'), danger: true,
+    onConfirm: m => { if (m.querySelector('#close-skip')?.checked) { try { localStorage.setItem(CLOSE_SKIP_KEY, '1'); } catch { /* bez pamćenja */ } } go(); },
   });
 }
 
