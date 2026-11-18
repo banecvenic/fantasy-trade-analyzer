@@ -594,6 +594,8 @@ footer{color:var(--dim);font-size:11px;text-align:center;margin-top:28px}
 body:not([data-view="league"]) #sidenav,body:not([data-view="league"]) #bottomnav,body:not([data-view="league"]) #backbar{display:none}
 body[data-view="league"] #leaguebar{display:none}
 body[data-view="league"]:not([data-page="trade"]) .trade-only{display:none}
+/* prikaz timova ima svoja pravila za širok ekran (#id), pa se van analize trejda sakriva izričito */
+body[data-view="league"]:not([data-page="trade"]) #rviewbar,body[data-view="league"]:not([data-page="trade"]) #rosters{display:none !important}
 body[data-view="league"]:not([data-page="trade"]) .status{margin:8px 0}
 body:not([data-view="league"]) .page-only,body[data-page="trade"] .page-only{display:none}
 .shell{display:flex;max-width:1500px;margin:0 auto;align-items:flex-start}
