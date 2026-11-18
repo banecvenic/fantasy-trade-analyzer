@@ -861,6 +861,7 @@ const EN = {
   "{s} (nema u projekciji)": "{s} (not in projections)",
   "{s}: {w} po jedinici": "{s}: {w} per unit",
   'Liga je povezana sa platformom {p}. Naziv, timovi, roster mesta i tabela dolaze iz lige. Format bodovanja biraš ovde.': 'This league is linked to {p}. Name, teams, roster spots and standings come from the league. Choose the scoring format here.',
+  'Yahoo liga se ne osvežava sama: rosteri, tabela i protivnici se ne povlače sa Yahoo-a. Posle svake promene u ligi ažuriraj timove ručno (Nalepi tim ponovo). Uskoro stiže verzija koja sve povlači automatski.': 'Yahoo leagues do not update on their own: rosters, standings and opponents are not pulled from Yahoo. After every change in your league, update the teams by hand (paste the team again). A version that pulls everything automatically is coming soon.',
   'Novo: javi nam ako nešto nije uvezeno kako treba.': 'New: let us know if something was not imported correctly.',
   // Uvezena liga: podešavanja i kontekst cele lige
   'na {n}. mestu ({r})': 'in place {n} ({r})',
@@ -2806,7 +2807,12 @@ function syncErrorBarHTML(lg) {
     ${howtoLink(lg.import.source, t('Kako da liga ponovo bude javna'))}</span></div>`;
 }
 /** Trake ispod zaglavlja lige: Pregled i Analiza trejda */
-const importBarsHTML = lg => (lg?.import && ['overview', 'trade'].includes(state.page) ? syncErrorBarHTML(lg) + deadlineBarHTML(lg) : '');
+/** Yahoo liga (nalepljena ili ručna): ništa se ne povlači samo, upozorenje na svim stranicama lige */
+const yahooBarHTML = lg => (lg?.platform === 'yahoo' && !isSynced(lg)
+  ? `<div class="banner warn yahoo-bar"><span>⚠ ${t('Yahoo liga se ne osvežava sama: rosteri, tabela i protivnici se ne povlače sa Yahoo-a. Posle svake promene u ligi ažuriraj timove ručno (Nalepi tim ponovo). Uskoro stiže verzija koja sve povlači automatski.')}</span>
+      <button type="button" data-action="paste-open">${t('Nalepi tim')}</button></div>`
+  : '');
+const importBarsHTML = lg => yahooBarHTML(lg) + (lg?.import && ['overview', 'trade'].includes(state.page) ? syncErrorBarHTML(lg) + deadlineBarHTML(lg) : '');
 
 /* ---------- Plasman po kategorijama iz zbirova cele sezone (svi timovi lige) ---------- */
 const rankCats = () => CATS.filter(c => !c.fpts && !isPunt(c));
