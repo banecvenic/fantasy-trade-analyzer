@@ -902,6 +902,10 @@ const EN = {
   "Izaberi protivnika ispod.": "Pick an opponent below.",
   "{x} nije u timu {team}.": "{x} is not on {team}.",
   "{x} nisu u timu {team}.": "{x} are not on {team}.",
+  "Procena plasmana": "Rank projection",
+  "Kraj sezone, posle trejda": "End of season, after trade",
+  "Mesto od {n} timova. Svi timovi su projektovani na celu sezonu istim tempom, a tvom timu je dodata razlika iz trejda (Dobijaš − Daješ po utakmici × preostale utakmice njihovih NBA timova). FG% i FT% iz pogodaka i pokušaja. Pretpostavka je da igrači igraju sve preostale utakmice.": "Rank out of {n} teams. All teams are projected to the full season at their current pace, and your team gets the trade difference (You get − You give per game × remaining games of their NBA teams). FG% and FT% from makes and attempts. Assumes the players play all remaining games.",
+  "Prikaz": "View",
   'Novo: javi nam ako nešto nije uvezeno kako treba.': 'New: let us know if something was not imported correctly.',
   // Uvezena liga: podešavanja i kontekst cele lige
   'na {n}. mestu ({r})': 'in place {n} ({r})',
@@ -2895,6 +2899,16 @@ function standingsHTML(lg) {
 
 /* ---------- Analiza: procena plasmana posle trejda (roto; u H2H samo informativno) ---------- */
 const gamesLeft = tid => { const g = state.schedule?.[tid]; const done = gamesDone(tid); return g && done != null ? Math.max(0, g.length - done) : null; };
+/** Koliko puta je cela NBA sezona veća od odigranog dela (ukupno utakmica / odigrano, prosek svih NBA timova), ili null */
+function seasonFactor() {
+  let done = 0, total = 0;
+  for (const tid of Object.keys(state.schedule || {})) {
+    const d = gamesDone(tid);
+    if (d == null) continue;
+    done += d; total += state.schedule[tid].length;
+  }
+  return done > 0 && total >= done ? total / done : null;
+}
 /** Procena plasmana posle trejda: [{ key, c, before, after }] ili null (nema uvoza, rasporeda ili trejda) */
 function rankProjection(lg = currentLeague()) {
   if (!lg?.import?.teams?.length || isPointsFmt() || lg.import.myTid == null || !state.schedule) return null;
@@ -2908,8 +2922,12 @@ function rankProjection(lg = currentLeague()) {
   };
   getIds().forEach(id => add(id, 1));
   giveIds().forEach(id => add(id, -1));
+  // zbirovi timova su do danas, a razlika iz trejda je za ostatak sezone: svi timovi se prvo projektuju na celu sezonu
+  const f = seasonFactor();
+  if (!f) return null;
+  const full = vals => Object.fromEntries(Object.entries(vals).map(([k, v]) => [k, v != null && SUM_KEYS.includes(k) ? v * f : v]));
   const cats = rankCats();
-  return rotoProjection(teams.map(x => ({ id: x.tid, vals: x.vals })), lg.import.myTid, delta, cats)
+  return rotoProjection(teams.map(x => ({ id: x.tid, vals: full(x.vals) })), lg.import.myTid, delta, cats)
     .filter(x => x.before != null).map(x => ({ ...x, c: cats.find(y => y.key === x.key) }));
 }
 
@@ -3855,9 +3873,28 @@ function renderCompare(totals, cmp) {
     if (!r.punted && tv == null && lowVolume(c, totals)) diff = diff.replace(/(<span class="sub dsub">|<\/td>$)/, ` <span class="lowvol" data-tip="${esc(t('Procenat na malom broju šuteva skoro ne utiče na tim.'))}">${t('mali obim')}</span>$1`);
     return `<tr class="${r.punted ? 'punt-row' : ''}"><td class="catth${puntCls(c)}" data-punt="${c.key}" title="${t('Klik: punt')}"><b>${c.label}</b></td>${tds}${diff}</tr>`;
   }).join('');
-  el.innerHTML = `<div class="section-t">${t('Poređenje kategorija')} <span class="hint">· ${t('klik na kategoriju = punt')}</span></div>
+  // uvezena liga: isti okvir prebacuje se na procenu plasmana u ligi posle trejda
+  const proj = isSynced(currentLeague()) ? rankProjection() : null;
+  const rank = proj?.length && state.ui.cmpView === 'rank';
+  const seg = proj?.length ? `<div class="seg small cmp-seg" role="group" aria-label="${t('Prikaz')}">
+      <button type="button" data-action="cmp-view" data-v="cats" aria-pressed="${!rank}">${t('Poređenje kategorija')}</button>
+      <button type="button" data-action="cmp-view" data-v="rank" aria-pressed="${rank}">${t('Procena plasmana')}</button></div>` : '';
+  el.innerHTML = rank
+    ? `<div class="section-t cmp-head"><span>${t('Procena plasmana u ligi posle trejda')}</span>${seg}</div>${rankProjHTML(proj)}`
+    : `<div class="section-t cmp-head"><span>${t('Poređenje kategorija')} <span class="hint">· ${t('klik na kategoriju = punt')}</span></span>${seg}</div>
     <div class="card"><div class="tscroll"><table class="cmp"><thead><tr><th>${t('Kat.')}</th>${SIDES.map(sd => `<th style="color:${sd.color}">${sd.name}</th>`).join('')}<th title="${esc(t('Dobijaš − Daješ, iz tvoje perspektive'))}">${t('Razlika')}</th></tr></thead>
     <tbody>${rows}</tbody></table></div></div>`;
+}
+/** Tabela procene plasmana (kategorije redom kao u Poređenju) */
+function rankProjHTML(proj) {
+  const lg = currentLeague(), of = lg.import.teams.filter(x => x.vals).length;
+  const rows = proj.map(x => {
+    const d = x.before - x.after, cls = d > 0 ? 'win' : d < 0 ? 'lose' : '';
+    return `<tr><td class="catth"><b>${x.c.label}</b></td><td>${x.before}.</td><td class="${cls}">${x.after}.</td><td class="${cls}">${d > 0 ? `▲ ${d}` : d < 0 ? `▼ ${-d}` : '='}</td></tr>`;
+  }).join('');
+  const h2h = FMT_ACTIVE.scoringType !== 'roto';
+  return `<div class="card"><div class="tscroll"><table class="cmp rproj"><thead><tr><th>${t('Kat.')}</th><th>${t('Sada')}</th><th>${t('Kraj sezone, posle trejda')}</th><th>${t('Promena')}</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="pnote rp-note">${t('Mesto od {n} timova. Svi timovi su projektovani na celu sezonu istim tempom, a tvom timu je dodata razlika iz trejda (Dobijaš − Daješ po utakmici × preostale utakmice njihovih NBA timova). FG% i FT% iz pogodaka i pokušaja. Pretpostavka je da igrači igraju sve preostale utakmice.', { n: of })}${h2h ? ` ${t('U H2H ligi ovo je samo informativno.')}` : ''}</p></div>`;
 }
 
 /** Poeni: tabela doprinosa umesto Poređenja kategorija */
@@ -6734,6 +6771,7 @@ document.addEventListener('click', e => {
     case 'save-trade': if (currentLeague()) saveTrade(); break;
     case 'trade-done': if (currentLeague()) tradeDone(); break;
     case 'offer-sent': if (rosterLocked()) offerSent(); break;
+    case 'cmp-view': state.ui.cmpView = el.dataset.v === 'rank' ? 'rank' : 'cats'; saveUI(); render(); break;
     case 'offer-accept': offerAccept(+el.dataset.id); break;
     case 'offer-reject': offerReject(+el.dataset.id); break;
     case 'temp-end': endTempSwap(currentLeague()); break;
