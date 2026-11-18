@@ -4560,7 +4560,7 @@ function buildReport(totals, cmp) {
   const oppR = currentLeague() ? rosterOf('opp') : null;
   if (oppR) {
     const o = reportItems('opp', totals, cmp);
-    res.opp = { name: oppR.name || rt('oppAnon'), pluses: o.pluses.slice(0, REPORT.OPP_PLUS), risks: o.risks.slice(0, REPORT.OPP_RISK) };
+    res.opp = { name: oppR.name || rt('oppAnon'), pluses: o.pluses.slice(0, REPORT.OPP_PLUS), risks: o.risks.slice(0, REPORT.OPP_RISK) }; // samo za tekst za AI (ugao protivnika); u običnom izveštaju se ne prikazuje
   }
   return res;
 }
@@ -4606,8 +4606,6 @@ function renderReport(totals, cmp) {
       ${reportListHTML('plus', rt('plus'), r.pluses)}
       ${reportListHTML('risk', rt('risk'), r.risks)}
       ${!r.pluses.length && !r.risks.length ? `<p class="hint">${rt('noData')}</p>` : ''}
-      ${r.opp && (r.opp.pluses.length || r.opp.risks.length) ? `<div class="rp-opp"><div class="rp-head small">${rt('oppHead', { name: esc(r.opp.name) })}</div>
-        ${reportListHTML('plus', rt('plus'), r.opp.pluses)}${reportListHTML('risk', rt('risk'), r.opp.risks)}</div>` : ''}
       ${missing.length ? `<p class="hint">${t('Napomena: bez podataka za ovaj period i ne računaju se: {list}.', { list: missing.map(esc).join(', ') })}</p>` : ''}
       <p class="rp-note">${rt('ruleNote', { src: DATA_SOURCE.name })}</p>
     </div>
