@@ -129,6 +129,9 @@ const IR_SLOT = 13;
 const IR_STATUSES = ['OUT', 'INJURY_RESERVE'];
 /** Osnovne pozicije igrača iz eligibleSlots (PG, SG, SF, PF, C; bez kombinovanih, UT, BE, IR) */
 const slotPositions = p => (p.slots || []).filter(s => s <= 4).map(s => SLOT_NAMES[s]);
+/** Sve pozicije igrača za prikaz, npr. "PF/C" (bez podataka: osnovna pozicija) */
+const posList = p => { const ps = slotPositions(p); return ps.length ? ps : [p.pos]; };
+const posTxt = p => posList(p).join('/');
 const isOut = p => ['OUT', 'INJURY_RESERVE', 'SUSPENSION'].includes(p.inj);
 const canIR = p => (p.slots || []).includes(IR_SLOT) && IR_STATUSES.includes(p.inj);
 
@@ -1911,7 +1914,7 @@ function playerRowHTML(p, { tags = [], cls = '', actions = '', sign = '', drag =
   const tagHTML = tags.map(tg => `<span class="slot-tag ${tg.cls}">${tg.raw ? tg.text : t(tg.text)}</span>`).join('');
   return `<tr class="${line ? '' : 'nodata'} ${cls}" ${attrs}>
     <td><div class="pl">${drag ? `<span class="drag" data-drag="${drag}" title="${t('Prevuci gore/dole')}" aria-label="${t('Pomeri igrača')}">≡</span>` : ''}${avatarHTML(p)}<div class="txt">${tagHTML ? `<span class="tags">${tagHTML}</span>` : ''}<span class="nm" title="${esc(p.name)}">${esc(p.name)}</span>
-      <span class="meta">${p.team} · ${p.pos} ${injHTML(p)} ${durabilityHTML(p)} ${weekGamesHTML(p)} ${line ? '' : `<span class="flag" title="${t('Nema podataka za ovaj period, ne računa se')}">0 GP</span>`}</span>
+      <span class="meta">${p.team} · ${posTxt(p)} ${injHTML(p)} ${durabilityHTML(p)} ${weekGamesHTML(p)} ${line ? '' : `<span class="flag" title="${t('Nema podataka za ovaj period, ne računa se')}">0 GP</span>`}</span>
       </div>${actions ? `<span class="acts">${actions}</span>` : ''}</div></td>
     ${minutesCell(p, line)}${cells}<td>${line ? Math.round(line.GP) : '0'}</td></tr>`;
 }
@@ -2366,6 +2369,15 @@ const RT = {
     sr: ['Popunjavaš poziciju {pos}: na rosteru si imao samo {n} takva igrača.', 'Dobijaš {pos}, a imao si samo {n} igrača na toj poziciji.'],
     en: ['You fill the {pos} spot: you only had {n} such players.', 'You get a {pos}, and you only had {n} players there.'],
   },
+  posFlexIn: {
+    sr: ['Više pozicija: {who}. Lakše se uklapa u postavu nego {single}, što je blaga prednost.', 'Dobijaš fleksibilnost u postavi: {who}, a {single} igra samo na jednoj poziciji.'],
+    en: ['More than one position: {who}. Easier to fit into your lineup than {single}, a slight edge.', 'You gain lineup flexibility: {who}, while {single} plays only one position.'],
+  },
+  posFlexInMild: { sr: ['Više pozicija: {who}, pa je postava nešto fleksibilnija.'], en: ['More than one position: {who}, so your lineup gets a bit more flexible.'] },
+  posFlexOut: { sr: ['Daješ igrača sa više pozicija: {who}, pa je postava manje fleksibilna.'], en: ['You give a player with more than one position: {who}, so your lineup gets less flexible.'] },
+  oPosFlexIn: { sr: ['Dobija fleksibilnost u postavi: {who}, a {single} igra samo na jednoj poziciji.'], en: ['Gains lineup flexibility: {who}, while {single} plays only one position.'] },
+  oPosFlexInMild: { sr: ['Više pozicija: {who}, pa mu je postava nešto fleksibilnija.'], en: ['More than one position: {who}, so their lineup gets a bit more flexible.'] },
+  oPosFlexOut: { sr: ['Daje igrača sa više pozicija: {who}, pa mu je postava manje fleksibilna.'], en: ['Gives a player with more than one position: {who}, so their lineup gets less flexible.'] },
   posNone: { sr: ['Posle trejda ostaješ bez igrača na poziciji {pos}.'], en: ['After the trade you have no players left at {pos}.'] },
   posThin: {
     sr: ['Posle trejda ostaješ sa {n} igrača na poziciji {pos}.'],
@@ -2675,12 +2687,13 @@ function reportItems(side, totals, cmp) {
 
   // ---- pozicije: šta daješ / dobijaš i uklapanje u roster ----
   let posLine = '';
-  const posOf = list => [...new Set(list.flatMap(f => { const ps = slotPositions(f.p); return ps.length ? ps : [f.p.pos]; }))];
+  const posOf = list => [...new Set(list.flatMap(f => posList(f.p)))];
+  const posWho = list => joinList(list.map(f => `${esc(f.p.name)} (${posTxt(f.p)})`));
   if (me && recv.length && send.length) {
-    posLine = rt('posLine', { give: posOf(send).join(', '), get: posOf(recv).join(', ') });
+    posLine = rt('posLine', { give: posWho(send), get: posWho(recv) });
     const plan = lg ? rosterPlan('my') : null;
     if (plan?.tradeTouches) {
-      const count = ids => { const m = {}; ids.forEach(id => { const p = state.byId.get(id); if (!p) return; (slotPositions(p).length ? slotPositions(p) : [p.pos]).forEach(ps => { m[ps] = (m[ps] || 0) + 1; }); }); return m; };
+      const count = ids => { const m = {}; ids.forEach(id => { const p = state.byId.get(id); if (!p) return; posList(p).forEach(ps => { m[ps] = (m[ps] || 0) + 1; }); }); return m; };
       const before = count(plan.activeBefore), after = count(plan.activeAfter);
       const recvPos = posOf(recv), sendPos = posOf(send);
       const fill = recvPos.filter(ps => !sendPos.includes(ps) && (before[ps] || 0) <= 2).sort((a, b) => (before[a] || 0) - (before[b] || 0))[0];
@@ -2688,6 +2701,17 @@ function reportItems(side, totals, cmp) {
       const thin = sendPos.filter(ps => (after[ps] || 0) <= 1 && (after[ps] || 0) < (before[ps] || 0))[0];
       if (thin) add(risks, 5.2, rt(after[thin] ? 'posThin' : 'posNone', { pos: thin, n: after[thin] || 0 }, seed), ['now']);
     }
+  }
+
+  // ---- više pozicija: blaga prednost (lakše se uklapa u postavu, npr. PF/C može i u F i u C mesto) ----
+  if (recv.length && send.length) {
+    const nPos = f => posList(f.p).length;
+    const flexIn = recv.filter(f => nPos(f) > 1 && !isOut(f.p)), flexOut = send.filter(f => nPos(f) > 1);
+    const avg = list => list.reduce((a, f) => a + nPos(f), 0) / list.length;
+    const who = list => joinList(list.map(f => `${esc(f.p.name)} (${posTxt(f.p)})`));
+    const single = list => joinList(list.filter(f => nPos(f) === 1).map(f => `${esc(f.p.name)} (${posTxt(f.p)})`));
+    if (flexIn.length && avg(recv) > avg(send)) add(pluses, 6, rt(K(send.every(f => nPos(f) === 1) ? 'posFlexIn' : 'posFlexInMild'), { who: who(flexIn), single: single(send) }, seed), ['now']);
+    else if (flexOut.length && avg(send) > avg(recv)) add(risks, 7, rt(K('posFlexOut'), { who: who(flexOut) }, seed), ['now']);
   }
 
   // ---- paket: neravnomeran trejd (samo moj deo; izbačeni i waiver već su u zbirovima) ----
@@ -2842,9 +2866,8 @@ const statOf = (p, key) => { const s = p.stats[PERIODS.find(x => x.key === key).
 /** Blok jednog igrača u trejdu */
 function aiPlayerBlock(p, tag = '') {
   const f = playerFacts(p);
-  const pos = slotPositions(p);
-  const lines = [`- ${p.name}${tag ? ` [${tag}]` : ''} (${p.team}, ${p.pos})`];
-  lines.push(`  ${L('Pozicije', 'Positions')}: ${pos.length ? pos.join(', ') : p.pos} · ${L('Status', 'Status')}: ${statusTxt(p)}`);
+  const lines = [`- ${p.name}${tag ? ` [${tag}]` : ''} (${p.team}, ${posTxt(p)})`];
+  lines.push(`  ${L('Pozicije', 'Positions')}: ${posList(p).join(', ')}${posList(p).length > 1 ? L(' (može na više mesta u postavi)', ' (fits several lineup spots)') : ''} · ${L('Status', 'Status')}: ${statusTxt(p)}`);
   const gp = [];
   if (f.dur) gp.push(L(`ova sezona ${f.dur.gp}/${f.dur.n} (${Math.round(f.dur.pct * 100)}%)`, `this season ${f.dur.gp}/${f.dur.n} (${Math.round(f.dur.pct * 100)}%)`));
   if (p.prevGP != null) gp.push(L(`prošla sezona ${Math.round(p.prevGP)}/${CONFIG.PREV_SEASON_GAMES} (${Math.round(p.prevGP / CONFIG.PREV_SEASON_GAMES * 100)}%)`, `last season ${Math.round(p.prevGP)}/${CONFIG.PREV_SEASON_GAMES} (${Math.round(p.prevGP / CONFIG.PREV_SEASON_GAMES * 100)}%)`));
@@ -2866,8 +2889,7 @@ function aiPlayerBlock(p, tag = '') {
 function aiRosterLine(id, ir) {
   const p = state.byId.get(id); if (!p) return null;
   const f = playerFacts(p);
-  const pos = slotPositions(p);
-  return `- ${p.name} (${p.team}, ${pos.length ? pos.join('/') : p.pos})${p.inj !== 'ACTIVE' ? ` · ${statusTxt(p)}` : ''} · MIN ${n1(f.minS)}${f.minR != null ? ` / 15d ${n1(f.minR)}` : ''}${f.dur ? ` · GP% ${Math.round(f.dur.pct * 100)}%` : ''} · ${catLineTxt(f.S)}${ir ? ' · IR' : ''}`;
+  return `- ${p.name} (${p.team}, ${posTxt(p)})${p.inj !== 'ACTIVE' ? ` · ${statusTxt(p)}` : ''} · MIN ${n1(f.minS)}${f.minR != null ? ` / 15d ${n1(f.minR)}` : ''}${f.dur ? ` · GP% ${Math.round(f.dur.pct * 100)}%` : ''} · ${catLineTxt(f.S)}${ir ? ' · IR' : ''}`;
 }
 
 /** Zbir tima po kategorijama (aktivni igrači) */
@@ -2926,6 +2948,8 @@ function aiInstructions(uneven) {
     'Evaluate this trade from my perspective. Most important criteria: each player\'s minutes and role now and going forward, health and reliability, and only then current numbers.'));
   if (lg) out.push(L(`Analiziraj kako se igrači koje dobijam uklapaju u moj roster: pozicije, kategorije u kojima sam već jak ili slab, da li dupliram ono što već imam, i da li mi roster${ROSTER.IR ? ' i IR mesta' : ''} dozvoljava${ROSTER.IR ? 'ju' : ''} ovaj trejd.`,
     `Analyze how the players I get fit my roster: positions, categories where I am already strong or weak, whether I am doubling up on what I already have, and whether my roster${ROSTER.IR ? ' and IR spots' : ''} allow this trade.`));
+  out.push(L('Igrači sa više pozicija (npr. PF/C) lakše se uklapaju u postavu: računaj to kao blagu prednost u odnosu na igrača sa jednom pozicijom.',
+    'Players with more than one position (e.g. PF/C) are easier to fit into a lineup: count that as a slight edge over a player with a single position.'));
   if (uneven) out.push(lg
     ? L(`Trejd nije ravnomeran, proceni ga kao paket: računaj i igrača koga izbacujem ili dodajem sa waivera.${askDrop ? ' Nisam naveo koga izbacujem, predloži koga sa rostera da izbacim i zašto.' : ''} Uporedi šta je bolje za moj tim: jedan jači igrač ili više solidnih koji igraju redovno, s obzirom na stanje mog tima, veličinu rostera i kategorije koje mi trebaju.`,
       `The trade is uneven, so evaluate it as a package: count the player I drop or add from waivers.${askDrop ? ' I have not said who I drop, so suggest who from my roster to drop and why.' : ''} Compare what is better for my team: one stronger player or several solid players who play regularly, given my team's situation, roster size and the categories I need.`)
@@ -3068,7 +3092,7 @@ function buildAIText(shortRosterNews = false) {
   if (opp && opp.players.length) {
     const act = opp.players.filter(x => !x.ir), irs = opp.players.filter(x => x.ir);
     const lines = [`${L('Protivnik', 'Opponent')}: ${opp.name} · ${act.length}/${ROSTER.ACTIVE} ${L('aktivnih', 'active')}${ROSTER.IR ? `, ${irs.length}/${ROSTER.IR} IR` : ''}`];
-    lines.push(...opp.players.map(x => { const p = state.byId.get(x.id); if (!p) return null; const f = playerFacts(p); return `- ${p.name} (${p.team}, ${p.pos})${p.inj !== 'ACTIVE' ? ` · ${statusTxt(p)}` : ''} · MIN ${n1(f.minS)}${f.dur ? ` · GP% ${Math.round(f.dur.pct * 100)}%` : ''}${x.ir ? ' · IR' : ''}`; }).filter(Boolean));
+    lines.push(...opp.players.map(x => { const p = state.byId.get(x.id); if (!p) return null; const f = playerFacts(p); return `- ${p.name} (${p.team}, ${posTxt(p)})${p.inj !== 'ACTIVE' ? ` · ${statusTxt(p)}` : ''} · MIN ${n1(f.minS)}${f.dur ? ` · GP% ${Math.round(f.dur.pct * 100)}%` : ''}${x.ir ? ' · IR' : ''}`; }).filter(Boolean));
     lines.push(`${L('Zbir protivnika', 'Opponent totals')}: ${teamValsTxt(act.map(x => x.id))}`);
     sec(L('PROTIVNIČKI ROSTER', 'OPPONENT ROSTER'), lines.join('\n'));
   }
@@ -3967,7 +3991,7 @@ function updateDropdown(key) {
   inp.setAttribute('aria-expanded', 'true');
   dd.innerHTML = results.length
     ? results.map((p, k) => `<li role="option" data-pick="${p.id}" data-key="${key}" aria-selected="${k === ui.sel}">
-        ${avatarHTML(p)}<div class="dd-main"><div>${esc(p.name)} ${pref?.set.has(p.id) ? `<span class="slot-tag tag-mine">${esc(pref.label)}</span>` : ''}</div><div class="meta">${p.team} · ${p.pos} ${injHTML(p)}</div></div>
+        ${avatarHTML(p)}<div class="dd-main"><div>${esc(p.name)} ${pref?.set.has(p.id) ? `<span class="slot-tag tag-mine">${esc(pref.label)}</span>` : ''}</div><div class="meta">${p.team} · ${posTxt(p)} ${injHTML(p)}</div></div>
         ${showAddMy && !myIds.has(p.id) ? `<button type="button" class="dd-addmy ${myRoom ? '' : 'is-disabled'}" data-addmy="${p.id}" ${myRoom ? `title="${esc(t('Dodaj u moj tim'))}"` : `aria-disabled="true" title="${esc(fullTip())}"`}>＋ ${t('Moj tim')}</button>` : ''}</li>`).join('')
     : `<li class="empty">${t('Nema igrača za „{q}“', { q: esc(ui.query) })}</li>`;
   dd.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
@@ -4756,14 +4780,14 @@ if (EMBED?.mini) {
   window.RSMini = {
     ready: () => state.players.length > 0,
     error: () => (state.players.length ? null : state.error),
-    search: (q, taken = []) => searchResults(q, new Set(taken)).slice(0, 6).map(p => ({ id: p.id, name: p.name, team: p.team, pos: p.pos })),
+    search: (q, taken = []) => searchResults(q, new Set(taken)).slice(0, 6).map(p => ({ id: p.id, name: p.name, team: p.team, pos: posTxt(p) })),
     name: id => state.byId.get(id)?.name || '',
     labels: () => CATS.map(c => c.label),
     /** Igrač za karticu: slika, tim, pozicija i 9 kategorija (već formatirano) */
     player(id) {
       const p = state.byId.get(id); if (!p) return null;
       const l = playerLine(p);
-      return { id, name: p.name, team: p.team, pos: p.pos, ini: initials(p.name), img: CONFIG.HEADSHOT_URL(id),
+      return { id, name: p.name, team: p.team, pos: posTxt(p), ini: initials(p.name), img: CONFIG.HEADSHOT_URL(id),
         min: l ? fmt1(l.MIN) : '-',
         vals: CATS.map(c => (!l ? '-' : c.type === 'pct' ? fmtPct(l[c.att] > 0 ? l[c.made] / l[c.att] : null) : fmt1(l[c.key]))) };
     },
