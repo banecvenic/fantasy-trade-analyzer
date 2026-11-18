@@ -948,6 +948,13 @@ const EN = {
   "Nalepi ponovo": "Paste again",
   "Nalepi tim": "Paste team",
   "Trejd je u Istoriji kao obavljen. Rosteri se osvežavaju sa platforme.": "The trade is in History as done. Rosters refresh from the platform.",
+  "Uvezi ligu": "Import league",
+  "Uvoz lige": "League import",
+  "Uvezi u ovu ligu": "Import into this league",
+  "Uvoz ide u ligu „{n}”: rosteri i timovi se zamenjuju podacima sa platforme, a istorija i otvoreni trejdovi ostaju.": "Importing into “{n}”: rosters and teams are replaced with data from the platform, while history and open trades stay.",
+  "Rosteri i timovi lige „{n}” biće zamenjeni podacima sa platforme. Istorija i otvoreni trejdovi ostaju.": "Rosters and teams of “{n}” will be replaced with data from the platform. History and open trades stay.",
+  "Rosteri su nalepljeni. Svaki tim možeš da nalepiš ponovo na stranici Liga, ili uvezi celu ligu sa ESPN-a.": "Rosters were pasted. You can paste any team again on the League page, or import the whole league from ESPN.",
+  "Povuci timove i rostere sa ESPN-a ili nalepi roster sa Yahoo, CBS i drugih platformi. Ova liga postaje uvezena, istorija i otvoreni trejdovi ostaju.": "Pull teams and rosters from ESPN or paste a roster from Yahoo, CBS and other platforms. This league becomes imported, while history and open trades stay.",
 };
 function t(sr, vars) {
   let out = (LANG === 'en' && EN[sr]) || sr;
@@ -2331,6 +2338,7 @@ function openLeagueSettings() {
     title: t('Podešavanja lige'),
     wide: true,
     body: `<div class="form">
+      ${importSettingsHTML(lg)}
       <label>${t('Naziv lige')}<input type="text" id="ls-name" maxlength="40" value="${esc(lgName(lg))}"></label>
       <label>${t('Naziv mog tima')}<input type="text" id="ls-team" maxlength="40" value="${esc(lg.teamName || '')}" ${isSynced(lg) ? 'readonly' : ''}></label>
       <div class="form-row">
@@ -2351,7 +2359,6 @@ function openLeagueSettings() {
       </fieldset>
       <label>${t('Stanje mog tima')}<select id="ls-state"><option value="">–</option>${TEAM_STATES.map(s => `<option value="${s.id}" ${s.id === lg.teamState ? 'selected' : ''}>${t(s.sr)}</option>`).join('')}</select></label>
       <label>${t('Napomena')}<textarea id="ls-note" rows="3" maxlength="500">${esc(lg.note || '')}</textarea></label>
-      ${importSettingsHTML(lg)}
       <div class="ls-export"><button type="button" class="linkbtn" data-action="export-league">⤓ ${t('Izvezi samo ovu ligu')}</button> <span class="hint export-msg"></span></div>
       <div class="ls-actions"><button type="button" class="linkbtn" data-action="league-dup">${t('Dupliraj ligu')}</button>
         <button type="button" class="linkbtn danger" data-action="league-del">${t('Obriši ligu')}</button></div>
@@ -2800,7 +2807,12 @@ function rotoProjHTML() {
 }
 
 /* ---------- Dodaj ligu: izbor načina ---------- */
-function openAddLeague() {
+/** Uvoz u postojeću ligu (id) umesto pravljenja nove; null = nova liga */
+let importInto = null;
+const importTargetLeague = () => (importInto ? profile?.leagues.find(l => l.id === importInto) || null : null);
+function openAddLeague(intoId = null) {
+  importInto = typeof intoId === 'string' ? intoId : null;
+  const into = importTargetLeague();
   const card = ({ id, icon, title, desc, how, soon = false }) => `<div class="imp-card${soon ? ' soon' : ''}">
       ${soon ? '<div class="imp-main" aria-disabled="true">' : `<button type="button" class="imp-main" data-action="imp-go" data-imp="${id}">`}
         <span class="imp-ic" aria-hidden="true">${icon}</span><span class="imp-tx"><b>${title}${soon ? ` <span class="soon-tag">${t('Uskoro')}</span>` : ''}</b><span>${desc}</span></span>
@@ -2810,16 +2822,17 @@ function openAddLeague() {
     importFlag('sleeper') && card({ id: 'sleeper', icon: 'SLP', title: t('Sleeper liga'), desc: t('Unesi korisničko ime ili ID lige.'), how: 'sleeper' }),
     importFlag('fantrax') && card({ id: 'fantrax', icon: 'FTX', title: t('Fantrax javna liga'), desc: t('Unesi ID lige ili link ka ligi.'), how: 'fantrax' }),
     card({ id: 'paste', icon: '📋', title: t('Yahoo, CBS ili druga platforma: Nalepi roster'), desc: t('Kopiraj stranicu tima i nalepi tekst. Igrače prepoznajemo sami.'), how: 'paste' }),
-    card({ id: 'manual', icon: '✎', title: t('Ručni unos'), desc: t('Napravi ligu i sam unesi igrače.'), how: 'paste' }),
+    !into && card({ id: 'manual', icon: '✎', title: t('Ručni unos'), desc: t('Napravi ligu i sam unesi igrače.'), how: 'paste' }),
     card({ id: 'espn-private', icon: '🔒', title: t('ESPN privatna liga'), desc: `${t('Za sada uvozimo samo javne lige.')} ${howtoLink('espn', t('Pogledaj kako da ligu označiš kao javnu.'))}`, how: 'espn', soon: true }),
     card({ id: 'yahoo', icon: 'Y!', title: t('Yahoo automatski uvoz'), desc: t('Do tada koristi Nalepi roster.'), how: 'yahoo', soon: true }),
   ].filter(Boolean).join('');
-  showModal({ title: t('Dodaj ligu'), wide: true, body: `<div class="imp-grid">${cards}</div>`, cancel: t('Otkaži') });
+  const intro = into ? `<p class="hint">${t('Uvoz ide u ligu „{n}”: rosteri i timovi se zamenjuju podacima sa platforme, a istorija i otvoreni trejdovi ostaju.', { n: esc(lgName(into)) })}</p>` : '';
+  showModal({ title: into ? t('Uvezi u ovu ligu') : t('Dodaj ligu'), wide: true, body: `${intro}<div class="imp-grid">${cards}</div>`, cancel: t('Otkaži') });
 }
 function openImportMethod(k) {
   closeModal();
   if (k === 'manual') openManualLeague();
-  else if (k === 'paste') openPaste({});
+  else if (k === 'paste') openPaste({ leagueId: importTargetLeague()?.id || null });
   else if (IMPORTERS[k]) openImport(k);
 }
 
@@ -2878,7 +2891,7 @@ async function runImport(src, m) {
   try {
     const parsed = await fetchImport(src, q);
     if (!document.body.contains(m)) return; // prozor je zatvoren u međuvremenu
-    const dup = profile?.leagues.find(l => l.import?.source === src && l.import.extId === parsed.extId && String(l.import.season) === String(parsed.season));
+    const dup = profile?.leagues.find(l => l.id !== importInto && l.import?.source === src && l.import.extId === parsed.extId && String(l.import.season) === String(parsed.season));
     if (dup) {
       showModal({
         title: t('Liga je već dodata'), body: `<p>${t('„{n}” već postoji u tvojim ligama.', { n: esc(lgName(dup)) })}</p>`,
@@ -2905,16 +2918,29 @@ function openTeamPicker(parsed) {
       ${f ? '' : `<p class="hint">${parsed.source === 'espn' ? t('Ne prepoznajemo format ove lige. Izaberi ga ručno.') : t('Izaberi format lige.')}</p>${formatPickerHTML('imp', defaultFormatFor(parsed.source, 'cat'), parsed.source)}`}
       <div class="imp-teams" role="radiogroup" aria-label="${esc(t('Koji je tvoj tim?'))}">${teams.map(x => `<label class="imp-team"><input type="radio" name="imp-team" value="${esc(String(x.tid))}">
         <span class="it-name">${esc(x.name)}</span><span class="it-meta">${esc([x.abbrev, recTxt(x.record), t('{n} igrača', { n: x.players.length })].filter(Boolean).join(' · '))}</span></label>`).join('')}</div>
-      <p class="hint">${t('Možeš da ga promeniš kasnije u podešavanjima lige.')}</p><div class="imp-msg" id="imp-msg2" role="status"></div>`,
-    confirm: t('Napravi ligu'),
+      <p class="hint">${t('Možeš da ga promeniš kasnije u podešavanjima lige.')}</p>
+      ${importTargetLeague() ? `<p class="hint">${t('Rosteri i timovi lige „{n}” biće zamenjeni podacima sa platforme. Istorija i otvoreni trejdovi ostaju.', { n: esc(lgName(importTargetLeague())) })}</p>` : ''}
+      <div class="imp-msg" id="imp-msg2" role="status"></div>`,
+    confirm: importTargetLeague() ? t('Uvezi u ovu ligu') : t('Napravi ligu'),
     onConfirm: () => {
       const sel = document.querySelector('input[name="imp-team"]:checked');
       if (!sel) { document.getElementById('imp-msg2').innerHTML = `<span class="err">${t('Izaberi svoj tim.')}</span>`; return false; }
       let fmt = f;
       if (!fmt) { const fp = readFormatPicker('imp'); if (fp.error) return false; fmt = fp.f; }
       const tm = parsed.teams.find(x => String(x.tid) === sel.value);
-      const lg = createLeague({ name: parsed.name, leagueFormat: fmt, platform: parsed.source });
+      const into = importTargetLeague();
+      importInto = null;
+      let lg;
+      if (into) {
+        // postojeća liga postaje uvezena: naziv, istorija, punt i tabovi trejdova ostaju
+        lg = into;
+        const oldF = leagueFormatOf(lg);
+        lg.leagueFormat = fmt;
+        applyFormatChange(lg, oldF);
+        if (currentLeague() !== lg) location.hash = `league-${lg.id}/overview`;
+      } else lg = createLeague({ name: parsed.name, leagueFormat: fmt, platform: parsed.source });
       applyImport(lg, parsed, tm.tid);
+      render();
       ensurePlayers(parsed.teams.flatMap(x => x.players.map(p => p.id)), parsed.raw).then(() => render());
     },
   });
@@ -3126,8 +3152,9 @@ function importSettingsHTML(lg) {
       <p class="hint">${t('Liga {id}, sezona {s}.', { id: esc(imp.extId), s: esc(season) })}${imp.syncedAt ? ` ${t('Osveženo {ago}', { ago: timeAgo(Date.parse(imp.syncedAt)) })}.` : ''} ${t('Roster, tabela i broj mesta dolaze sa platforme.')}</p>
       <div><button type="button" class="linkbtn" data-action="league-sync">↻ ${esc(syncBtnText(imp.source))}</button></div></fieldset>`;
   }
-  if (isPasted(lg)) return `<p class="hint">${t('Rosteri su nalepljeni. Svaki tim možeš da nalepiš ponovo na stranici Liga.')}</p>`;
-  return '';
+  const btn = `<div><button type="button" class="btn" data-action="league-import">⤓ ${t('Uvezi ligu')}</button></div>`;
+  if (isPasted(lg)) return `<fieldset class="fmt"><legend>${t('Uvoz lige')}</legend><p class="hint">${t('Rosteri su nalepljeni. Svaki tim možeš da nalepiš ponovo na stranici Liga, ili uvezi celu ligu sa ESPN-a.')}</p>${btn}</fieldset>`;
+  return `<fieldset class="fmt"><legend>${t('Uvoz lige')}</legend><p class="hint">${t('Povuci timove i rostere sa ESPN-a ili nalepi roster sa Yahoo, CBS i drugih platformi. Ova liga postaje uvezena, istorija i otvoreni trejdovi ostaju.')}</p>${btn}</fieldset>`;
 }
 /** Enter u polju za ID pokreće uvoz */
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'imp-in') { e.preventDefault(); document.querySelector('#modal [data-modal-ok]')?.click(); } });
@@ -5938,7 +5965,8 @@ function renderLeaguePage() {
     <div class="ov-team">${st.rank || st.record
       ? `${st.rank ? `<span>${t('Moje mesto')}: <b>${t('{n}. od {m}', { n: st.rank, m: lg.teams || '?' })}</b></span>` : ''}${st.record ? `<span>${t('Skor')}: <b>${esc(st.record)}</b></span>` : ''}`
       : `<span class="pnote">${t('Mesto i skor unosiš u podešavanjima lige.')}</span>`}
-      <button type="button" class="linkbtn" data-action="league-settings">⚙ ${t('Podešavanja lige')}</button></div>
+      <button type="button" class="linkbtn" data-action="league-settings">⚙ ${t('Podešavanja lige')}</button>
+      ${isSynced(lg) ? '' : `<button type="button" class="btn" data-action="league-import">⤓ ${t('Uvezi ligu')}</button>`}</div>
     ${standingsHTML(lg)}</section>${importRanksHTML(lg)}`; // puna tabela i plasman po kategorijama (uvoz lige)
   const form = state.ui.ltEdit === 'new' ? `<div class="pcard lt-form"><input type="text" data-lt-name maxlength="30" placeholder="${t('Ime tima, npr. Marko')}">
       <button type="button" class="btn" data-action="lt-save">${t('Napravi')}</button><button type="button" class="linkbtn" data-action="lt-cancel">${t('Otkaži')}</button></div>` : '';
@@ -6174,6 +6202,7 @@ document.addEventListener('click', e => {
     case 'imp-go': openImportMethod(el.dataset.imp); break;
     case 'imp-pick-league': { const inp = document.getElementById('imp-in'); if (inp) { inp.value = el.dataset.id; document.querySelector('#modal [data-modal-ok]')?.click(); } break; }
     case 'league-sync': syncLeague(currentLeague()); break;
+    case 'league-import': if (currentLeague()) { closeModal(); openAddLeague(currentLeague().id); } break;
     case 'paste-open': if (currentLeague()) openPaste({ leagueId: currentLeague().id, target: el.dataset.target || null }); break;
     case 'paste-save-more': pasteSave(true); break;
     case 'league-settings': openLeagueSettings(); break;
