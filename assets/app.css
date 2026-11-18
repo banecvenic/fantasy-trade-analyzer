@@ -862,3 +862,9 @@ fieldset.plain:disabled{opacity:.6}
   #rosters.split summary::before{display:none}
   #rosters.split summary select{background:var(--bg2);border:1px solid var(--line);border-radius:6px;color:var(--text);padding:4px 8px;font:inherit;font-size:15px;max-width:240px;cursor:pointer}
 }
+/* sortiranje roster tabela */
+th.sortth{cursor:pointer;user-select:none;white-space:nowrap}
+th.sortth:hover{color:var(--text)}
+th.sortth.sorted{color:var(--text)}
+th.sortth .sarr{margin-left:3px;font-size:9px;color:var(--accent);vertical-align:1px}
+th.sortth .i{cursor:help}

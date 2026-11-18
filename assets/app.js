@@ -906,6 +906,7 @@ const EN = {
   "Kraj sezone, posle trejda": "End of season, after trade",
   "Mesto od {n} timova. Svi timovi su projektovani na celu sezonu istim tempom, a tvom timu je dodata razlika iz trejda (Dobijaš − Daješ po utakmici × preostale utakmice njihovih NBA timova). FG% i FT% iz pogodaka i pokušaja. Pretpostavka je da igrači igraju sve preostale utakmice.": "Rank out of {n} teams. All teams are projected to the full season at their current pace, and your team gets the trade difference (You get − You give per game × remaining games of their NBA teams). FG% and FT% from makes and attempts. Assumes the players play all remaining games.",
   "Prikaz": "View",
+  "Sortiraj po {c}": "Sort by {c}",
   'Novo: javi nam ako nešto nije uvezeno kako treba.': 'New: let us know if something was not imported correctly.',
   // Uvezena liga: podešavanja i kontekst cele lige
   'na {n}. mestu ({r})': 'in place {n} ({r})',
@@ -3573,8 +3574,73 @@ const catTh = c => (isPointsFmt()
   ? `<th class="${c.fpts ? 'fpts' : 'wth'}" ${c.fpts ? `title="${esc(t('Fantasy poeni po utakmici'))}"` : `title="${esc(t('{s}: {w} po jedinici', { s: c.label, w: fmtNum(c.w) }))}"`}>${c.label}</th>`
   : `<th class="catth${puntCls(c)}" data-punt="${c.key}" title="${isPunt(c) ? t('Vrati kategoriju') : t('Punt: isključi iz rezultata')}">${c.label}</th>`);
 
+const minTip = () => t('Minuti u izabranom periodu. Pređi mišem ili tapni na broj za trend: sezona → 30 → 15 → 7 dana. Poslednjih 15 dana vs sezona: zeleno ↑ / crveno ↓ = ±{a} min ili više, ↑↑ / ↓↓ = ±{b} min ili više (bar {g} utakmice).', { a: MINUTES.ALERT, b: MINUTES.STRONG, g: MINUTES.MIN_GP });
+/** Zaglavlje tabela Daješ / Dobijaš: klik na kategoriju = punt */
 function headerRow() {
-  return `<tr><th>${t('Igrač')}</th><th class="minth" data-tip="${esc(t('Minuti u izabranom periodu. Pređi mišem ili tapni na broj za trend: sezona → 30 → 15 → 7 dana. Poslednjih 15 dana vs sezona: zeleno ↑ / crveno ↓ = ±{a} min ili više, ↑↑ / ↓↓ = ±{b} min ili više (bar {g} utakmice).', { a: MINUTES.ALERT, b: MINUTES.STRONG, g: MINUTES.MIN_GP }))}">MIN<span class="i">ⓘ</span></th>${CATS.map(catTh).join('')}<th>GP</th></tr>`;
+  return `<tr><th>${t('Igrač')}</th><th class="minth" data-tip="${esc(minTip())}">MIN<span class="i">ⓘ</span></th>${CATS.map(catTh).join('')}<th>GP</th></tr>`;
+}
+
+/* ---------- Sortiranje roster tabela (samo prikaz; pamti se po tabeli i ligi) ---------- */
+const SORT_KEY = 'fbaTrade.sort.v1';
+const sortStore = () => lsGet(SORT_KEY) || {};
+/** Tabela: Moj tim (stranica tima i analiza), protivnik u analizi, svaki tim na stranici Liga */
+const sortTableId = kind => (kind === 'lt' ? `lt:${state.leagueTeam}` : kind);
+function sortOf(kind) {
+  const lg = currentLeague();
+  const s = lg ? sortStore()[lg.id]?.[sortTableId(kind)] : null;
+  return s && sortCols().includes(s.col) ? s : null;
+}
+function setSort(kind, s) {
+  const lg = currentLeague();
+  if (!lg) return;
+  const st = sortStore(), m = st[lg.id] || (st[lg.id] = {});
+  if (s) m[sortTableId(kind)] = s; else delete m[sortTableId(kind)];
+  lsSet(SORT_KEY, st);
+}
+const sortCols = () => ['MIN', ...CATS.map(c => c.key), 'GP'];
+/** Vrednost za sortiranje u izabranom periodu; null = bez podataka (uvek na dnu) */
+function sortVal(p, key) {
+  const line = p && playerLine(p);
+  if (!line || !(line.GP > 0)) return null;
+  if (key === 'MIN') return line.MIN ?? null;
+  if (key === 'GP') return line.GP;
+  const c = CATS.find(x => x.key === key);
+  const v = c ? catValue(line, c) : null;
+  return v != null && Number.isFinite(v) ? v : null;
+}
+/** Igrači po aktivnoj koloni (bez sortiranja: sačuvan redosled). Bez podataka idu dole u oba smera. */
+function sortIds(kind, ids) {
+  const s = sortOf(kind);
+  if (!s) return ids;
+  const sign = s.dir === 'asc' ? 1 : -1;
+  return ids.map((id, i) => ({ id, i, v: sortVal(state.byId.get(id), s.col) }))
+    .sort((a, b) => (a.v == null) - (b.v == null) || (a.v != null && b.v != null ? (a.v - b.v) * sign : 0) || a.i - b.i)
+    .map(x => x.id);
+}
+/** Prvi klik: najveće gore (TO i kolone gde je manje bolje: najmanje gore), drugi klik obrnuto */
+function clickSort(kind, col) {
+  const s = sortOf(kind);
+  const first = CATS.find(c => c.key === col)?.lowerIsBetter ? 'asc' : 'desc';
+  setSort(kind, { col, dir: s?.col === col ? (s.dir === 'asc' ? 'desc' : 'asc') : first });
+  render();
+}
+/** Pre ručnog pomeranja: prikazani (sortirani) redosled postaje sačuvan, a sortiranje se briše */
+function freezeSort(kind) {
+  if (!sortOf(kind)) return;
+  const r = rosterOf(kind);
+  const by = new Map(r.players.map(x => [x.id, x]));
+  const ids = ir => sortIds(kind, r.players.filter(x => !!x.ir === ir).map(x => x.id));
+  r.players = [...ids(false), ...ids(true)].map(id => by.get(id));
+  setSort(kind, null);
+}
+/** Zaglavlje roster tabela: klik na statističku kolonu sortira (kategorije se ovde ne gase) */
+function rosterHeaderRow(kind) {
+  const s = sortOf(kind);
+  const th = (key, label, extra = '', cls = '') => {
+    const on = s?.col === key;
+    return `<th class="sortth ${cls}${on ? ' sorted' : ''}" data-sort="${key}" data-skind="${kind}" aria-sort="${on ? (s.dir === 'asc' ? 'ascending' : 'descending') : 'none'}" title="${esc(t('Sortiraj po {c}', { c: label }))}">${label}${extra}${on ? `<span class="sarr">${s.dir === 'asc' ? '▲' : '▼'}</span>` : ''}</th>`;
+  };
+  return `<tr><th>${t('Igrač')}</th>${th('MIN', 'MIN', `<span class="i" data-tip="${esc(minTip())}">ⓘ</span>`, 'minth')}${CATS.map(c => th(c.key, c.label, '', c.fpts ? 'fpts' : '')).join('')}${th('GP', 'GP')}</tr>`;
 }
 
 /** Strelica trenda za igrača i kategoriju, ili '' */
@@ -3662,15 +3728,16 @@ function minutesCell(p, line) {
 }
 
 /** Generički red igrača: slika, ime, oznake, MIN, 9 kategorija sa trendom, GP */
-function playerRowHTML(p, { tags = [], cls = '', actions = '', sign = '', drag = '', attrs = '' } = {}) {
+function playerRowHTML(p, { tags = [], cls = '', actions = '', sign = '', drag = '', attrs = '', punt = true } = {}) {
   const line = playerLine(p);
+  const pcOf = c => (punt ? puntCls(c) : ''); // roster tabele: ugašena kategorija se ne boji
   const cells = CATS.map(c => {
-    const pc = puntCls(c) ? ` class="${puntCls(c).trim()}"` : '';
+    const pc = pcOf(c) ? ` class="${pcOf(c).trim()}"` : '';
     if (!line) return `<td${pc}>-</td>`;
     const tr = trendHTML(p, c);
     const v = catValue(line, c);
     if (c.type === 'pct' || v == null) return `<td${pc}>${tr}${fmtCat(c, v)}</td>`;
-    return `<td class="${c.fpts ? 'fpts' : ''}${puntCls(c)}">${tr}${sign}${fmt1(v)}</td>`;
+    return `<td class="${c.fpts ? 'fpts' : ''}${pcOf(c)}">${tr}${sign}${fmt1(v)}</td>`;
   }).join('');
   const tagHTML = tags.map(tg => `<span class="slot-tag ${tg.cls}">${tg.raw ? tg.text : t(tg.text)}</span>`).join('');
   return `<tr class="${line ? '' : 'nodata'} ${cls}" ${attrs}>
@@ -5159,13 +5226,14 @@ const isStale = iso => iso && Date.now() - new Date(iso).getTime() > ROSTER.STAL
 /** Red rostera u istom stilu kao gornje tabele, sa oznakama i akcijama */
 /** Red rostera; sačuvani igrači (ne DOLAZI/WAIVER) imaju ručicu za pomeranje */
 function rosterRow(p, kind, { tags = [], cls = '', actions = '', saved = false, ir = false } = {}) {
-  return playerRowHTML(p, { tags, cls, actions,
+  return playerRowHTML(p, { tags, cls, actions, punt: false,
     drag: saved ? `${kind}:${p.id}` : '',
     attrs: saved ? `data-rid="${p.id}" data-rir="${ir ? 1 : 0}" data-rkind="${kind}"` : '' });
 }
 
 /** Tri reda ispod rostera: Pre / Posle / Razlika (iste kolone kao tabele igrača) */
 function summaryRows(before, after, showAfter) {
+  const puntCls = () => ''; // roster tabele: ugašena kategorija se ne boji
   const cells = tot => CATS.map(c => {
     const v = tot.vals[c.key];
     return `<td class="${puntCls(c).trim()}${c.fpts ? ' fpts' : ''}">${c.type === 'pct' ? `${fmtCat(c, v)}<span class="sub">${tot.sum[c.made].toFixed(1)}/${tot.sum[c.att].toFixed(1)}</span>` : fmtCat(c, v)}</td>`;
@@ -5198,14 +5266,14 @@ function rosterTableHTML(kind, plan) {
   // ODLAZI, IZBAČEN, DOLAZI, WAIVER. U prikazu "Sačuvan roster" plan je prazan, pa svi ostaju na mestu.
   const stay = [], leaving = [], dropped = [];
   const irRow = id => P(id) && rosterRow(P(id), kind, { tags: [{ text: 'IR', cls: 'tag-ir' }], cls: 'ir', actions: trBtn(id) + irBtn(id, false) + rm(id), saved: true, ir: true });
-  for (const id of plan.activeBefore) {
+  for (const id of sortIds(kind, plan.activeBefore)) {
     const p = P(id); if (!p) continue;
     if (outSet.has(id)) leaving.push({ id, ir: false });
     else if (dropSet.has(id)) dropped.push({ id, ir: false });
     else stay.push(rosterRow(p, kind, { actions: trBtn(id) + irBtn(id, true) + rm(id), saved: true }));
   }
   const irStay = [];
-  for (const id of plan.irIds) {
+  for (const id of sortIds(kind, plan.irIds)) {
     if (outSet.has(id)) leaving.push({ id, ir: true });
     else if (dropSet.has(id)) dropped.push({ id, ir: true });
     else irStay.push(id);
@@ -5325,7 +5393,7 @@ function renderRosterSection(kind) {
             ${rosterLocked() ? '' : addButtonHTML({ action: 'add-all', kind, label: plan.notOnRoster.length > 1 ? t('Dodaj sve ({n})', { n: plan.notOnRoster.length }) : t('Dodaj na roster'), n: plan.notOnRoster.length })}</div>`
         : '';
       body = `${plan.tradeTouches ? '' : updated}${addBox}${notAll}${toggle}
-        <div class="tscroll"><table class="rtable"><thead>${isSplit() ? splitHeaderRow() : headerRow()}</thead><tbody>${rosterTableHTML(kind, showPlan)}</tbody></table></div>
+        <div class="tscroll"><table class="rtable"><thead>${isSplit() ? splitHeaderRow() : rosterHeaderRow(kind)}</thead><tbody>${rosterTableHTML(kind, showPlan)}</tbody></table></div>
         ${view === 'after' || (kind === 'opp' && (plan.dropSlots || plan.waiverSlots)) ? balanceHTML(kind, plan) : ''}
         <div class="tscroll"><table class="rtable sumtable"><tbody>${summaryRows(before, after, view === 'after')}</tbody></table></div>
         ${missing.length ? `<div class="card-warn">⚠ ${t('Bez podataka za izabrani period, ne računa se: {list}', { list: missing.map(esc).join(', ') })}</div>` : ''}
@@ -6495,14 +6563,15 @@ function savedRosterTable(kind, rowActions) {
   const P = id => state.byId.get(id);
   const hl = state.ui.highlight;
   const rows = [];
-  for (const x of r.players.filter(y => !y.ir)) { const p = P(x.id); if (p) rows.push(rosterRow(p, kind, { actions: rowActions(p, x), saved: true, cls: hl === p.id ? 'hl' : '' })); }
-  const ir = r.players.filter(y => y.ir);
+  const ordered = ir => { const by = new Map(r.players.map(x => [x.id, x])); return sortIds(kind, r.players.filter(y => !!y.ir === ir).map(y => y.id)).map(id => by.get(id)); };
+  for (const x of ordered(false)) { const p = P(x.id); if (p) rows.push(rosterRow(p, kind, { actions: rowActions(p, x), saved: true, cls: hl === p.id ? 'hl' : '' })); }
+  const ir = ordered(true);
   if (ir.length) {
     rows.push(`<tr class="irhead"><td colspan="${CATS.length + 3}">${t('IR · ne računa se u zbirove ({a}/{b})', { a: ir.length, b: ROSTER.IR })}</td></tr>`);
     for (const x of ir) { const p = P(x.id); if (p) rows.push(rosterRow(p, kind, { tags: [{ text: 'IR', cls: 'tag-ir' }], cls: `ir ${hl === p.id ? 'hl' : ''}`, actions: rowActions(p, x), saved: true, ir: true })); }
   }
   const tot = sumPlayers(activeIdsOf(r));
-  return `<div class="tscroll"><table class="rtable"><thead>${headerRow()}</thead><tbody>${rows.join('')}</tbody>
+  return `<div class="tscroll"><table class="rtable"><thead>${rosterHeaderRow(kind)}</thead><tbody>${rows.join('')}</tbody>
     <tfoot>${summaryRows(tot, tot, false)}</tfoot></table></div>`;
 }
 function rosterEditorHTML(kind, rowActions, emptyText) {
@@ -6907,6 +6976,13 @@ document.addEventListener('change', e => {
 });
 if (!EMBED?.mini) window.addEventListener('hashchange', applyRoute); // i na /trade-analyzer/: link nalepljen u isti tab
 
+/* ---------- Klik na zaglavlje roster tabele: sortiranje (ⓘ kod MIN samo otvara objašnjenje) ---------- */
+document.addEventListener('click', e => {
+  const th = e.target.closest('th[data-sort]');
+  if (!th || e.target.closest('[data-tip]')) return;
+  clickSort(th.dataset.skind, th.dataset.sort);
+});
+
 /* ---------- Pomeranje igrača u rosteru (≡): miš i dodir ---------- */
 let drag = null;
 function clearDropMarks() { document.querySelectorAll('.drop-before,.drop-after').forEach(x => x.classList.remove('drop-before', 'drop-after')); }
@@ -6938,6 +7014,7 @@ function endDrag() {
   const d = drag; drag = null;
   d.row.classList.remove('dragging'); document.body.classList.remove('is-dragging'); clearDropMarks();
   if (d.target == null) return;
+  freezeSort(d.kind); // ručno pomeranje: prikazani redosled ostaje, strelica sa zaglavlja nestaje
   const r = rosterOf(d.kind);
   const from = r.players.findIndex(x => x.id === d.id);
   if (from < 0) return;
