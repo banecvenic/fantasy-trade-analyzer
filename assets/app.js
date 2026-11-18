@@ -28,8 +28,8 @@ const CONFIG = (() => {
     PREV_SEASON_GAMES: 82,
     FETCH_TIMEOUT_MS: 25000,
     SLOW_NOTICE_MS: 5000,
-    CACHE_KEY: `fbaTrade.players.v3.${SEASON}`, // v3: + pozicije (eligibleSlots), % owned, vesti, outlook
-    OLD_CACHE_KEYS: [`fbaTrade.players.v2.${SEASON}`],
+    CACHE_KEY: `fbaTrade.players.v4.${SEASON}`, // v4: + statistike za druge formate (OREB, DREB, 3PA, PF, GS, DD, TD)
+    OLD_CACHE_KEYS: [`fbaTrade.players.v2.${SEASON}`, `fbaTrade.players.v3.${SEASON}`],
     // Vesti po igraču (Rotowire preko ESPN-a, na engleskom). Javno, CORS radi.
     // feed je od najnovije ka starijoj i meša Rotowire beleške sa opštim ESPN člancima i video snimcima:
     // uzima se 8 najnovijih stavki i od njih 3 najnovije Rotowire beleške o igraču
@@ -69,9 +69,14 @@ const PERIODS = [
   { key: 'proj',   sr: 'Projekcija', statId: s => `10${s}` },
 ].map(p => Object.defineProperty(p, 'label', { get() { return t(this.sr); } }));
 
-/** Ključevi u averageStats */
-/** MIN = '40' provereno: split 5 za utakmicu 401909879 (Wembanyama) = 27, isto kao ESPN gamelog. */
-const STAT = { PTS: '0', BLK: '1', STL: '2', AST: '3', REB: '6', TO: '11', FGM: '13', FGA: '14', FTM: '15', FTA: '16', TPM: '17', MIN: '40', GP: '42' };
+/** Ključevi u averageStats (sve vrednosti su prosek po utakmici; u "stats" su sezonski zbirovi).
+ *  MIN = '40' provereno: split 5 za utakmicu 401909879 (Wembanyama) = 27, isto kao ESPN gamelog.
+ *  OREB 4, DREB 5, PF 9, 3PA 18, DD 37, TD 38, GS 41 provereno 18. 11. 2026. sa ESPN stranicama igrača
+ *  (Jokić, Sabonis, Young, Hachimura: zbirovi sezone i DD2/TD3/GS se poklapaju). */
+const STAT = {
+  PTS: '0', BLK: '1', STL: '2', AST: '3', OREB: '4', DREB: '5', REB: '6', PF: '9', TO: '11',
+  FGM: '13', FGA: '14', FTM: '15', FTA: '16', TPM: '17', TPA: '18', DD: '37', TD: '38', MIN: '40', GS: '41', GP: '42',
+};
 /** Stats id za celu prošlu sezonu (za trajnost) */
 const PREV_SEASON_STAT_ID = `00${CONFIG.SEASON - 1}`;
 /** Strelice trenda: poslednjih 15 dana vs sezona (prikaz samo u periodu "Sezona") */
@@ -167,6 +172,103 @@ const FORMATS = [
 ];
 const formatLabel = (id, short = false) => { const f = FORMATS.find(x => x.id === id) || FORMATS[0]; return t(short && f.srShort ? f.srShort : f.srLabel, { n: CATS.length }); };
 const TEAM_COLORS = SIDES.map(x => x.color);
+
+/* =====================================================================
+   Formati lige: katalog statistika, gotove postavke i model leagueFormat.
+   Jedan model za ručni unos, uvoz lige i buduću prijavu (normalizeFormat).
+   ===================================================================== */
+/** Katalog statistika. id = ključ u našim podacima (isti kao u STAT i CATS).
+ *  type 'sum': prosek po utakmici, sabira se. type 'ratio': uvek ponderisano preko zbirova (num / den), nikad prosek procenata.
+ *  dir: 'high' više je bolje, 'low' manje je bolje. lowVol: prag "malog obima" po imeniocu (po utakmici, zbir strane).
+ *  proj: false = ESPN projekcija nema tu statistiku (u projekciji je uvek 0), pa se u periodu Projekcija ne računa. */
+const STAT_CATALOG = [
+  { id: 'PTS',  label: 'PTS',  en: 'Points',              sr: 'Poeni',                 espn: ['0'],  type: 'sum', dir: 'high' },
+  { id: 'REB',  label: 'REB',  en: 'Rebounds',            sr: 'Skokovi',               espn: ['6'],  type: 'sum', dir: 'high' },
+  { id: 'OREB', label: 'OREB', en: 'Offensive rebounds',  sr: 'Skokovi u napadu',      espn: ['4'],  type: 'sum', dir: 'high', proj: false },
+  { id: 'DREB', label: 'DREB', en: 'Defensive rebounds',  sr: 'Skokovi u odbrani',     espn: ['5'],  type: 'sum', dir: 'high', proj: false },
+  { id: 'AST',  label: 'AST',  en: 'Assists',             sr: 'Asistencije',           espn: ['3'],  type: 'sum', dir: 'high' },
+  { id: 'STL',  label: 'STL',  en: 'Steals',              sr: 'Ukradene lopte',        espn: ['2'],  type: 'sum', dir: 'high' },
+  { id: 'BLK',  label: 'BLK',  en: 'Blocks',              sr: 'Blokade',               espn: ['1'],  type: 'sum', dir: 'high' },
+  { id: 'TPM',  label: '3PM',  en: 'Threes made',         sr: 'Pogođene trojke',       espn: ['17'], type: 'sum', dir: 'high' },
+  { id: 'TPA',  label: '3PA',  en: 'Threes attempted',    sr: 'Pokušane trojke',       espn: ['18'], type: 'sum', dir: 'high' },
+  { id: 'TPP',  label: '3P%',  en: 'Three-point %',       sr: 'Procenat za tri',       espn: ['17', '18'], type: 'ratio', num: 'TPM', den: 'TPA', dir: 'high', lowVol: 1 },
+  { id: 'FGM',  label: 'FGM',  en: 'Field goals made',    sr: 'Pogođeni šutevi',       espn: ['13'], type: 'sum', dir: 'high' },
+  { id: 'FGA',  label: 'FGA',  en: 'Field goals attempted', sr: 'Pokušani šutevi',     espn: ['14'], type: 'sum', dir: 'high' },
+  { id: 'FGP',  label: 'FG%',  en: 'Field goal %',        sr: 'Procenat šuta',         espn: ['13', '14'], type: 'ratio', num: 'FGM', den: 'FGA', dir: 'high', lowVol: 3 },
+  { id: 'FTM',  label: 'FTM',  en: 'Free throws made',    sr: 'Pogođena slobodna bacanja', espn: ['15'], type: 'sum', dir: 'high' },
+  { id: 'FTA',  label: 'FTA',  en: 'Free throws attempted', sr: 'Pokušana slobodna bacanja', espn: ['16'], type: 'sum', dir: 'high' },
+  { id: 'FTP',  label: 'FT%',  en: 'Free throw %',        sr: 'Procenat slobodnih bacanja', espn: ['15', '16'], type: 'ratio', num: 'FTM', den: 'FTA', dir: 'high', lowVol: 1.5 },
+  { id: 'TO',   label: 'TO',   en: 'Turnovers',           sr: 'Izgubljene lopte',      espn: ['11'], type: 'sum', dir: 'low' },
+  { id: 'ATO',  label: 'A/TO', en: 'Assist to turnover',  sr: 'Asistencije / izgubljene', espn: ['3', '11'], type: 'ratio', num: 'AST', den: 'TO', dir: 'high', lowVol: 1 },
+  { id: 'PF',   label: 'PF',   en: 'Personal fouls',      sr: 'Lične greške',          espn: ['9'],  type: 'sum', dir: 'low', proj: false },
+  { id: 'MIN',  label: 'MIN',  en: 'Minutes',             sr: 'Minuti',                espn: ['40'], type: 'sum', dir: 'high' },
+  { id: 'GS',   label: 'GS',   en: 'Games started',       sr: 'Utakmice u startu',     espn: ['41'], type: 'sum', dir: 'high', proj: false },
+  { id: 'DD',   label: 'DD',   en: 'Double-doubles',      sr: 'Dabl-dablovi',          espn: ['37'], type: 'sum', dir: 'high', proj: false },
+  { id: 'TD',   label: 'TD',   en: 'Triple-doubles',      sr: 'Tripl-dablovi',         espn: ['38'], type: 'sum', dir: 'high', proj: false },
+];
+const STAT_BY_ID = new Map(STAT_CATALOG.map(x => [x.id, x]));
+const statName = id => { const x = STAT_BY_ID.get(id); return x ? (LANG === 'en' ? x.en : x.sr) : id; };
+
+const SCORING_TYPES = ['h2h_each', 'h2h_most', 'roto', 'h2h_points', 'season_points'];
+const isPointsType = st => st === 'h2h_points' || st === 'season_points';
+
+/** Gotove postavke. Poeni: proverene vrednosti sa zvaničnih stranica ESPN i Yahoo (podrazumevano bodovanje). */
+const FORMAT_PRESETS = {
+  '9cat': { kind: 'cat', srLabel: '9 kategorija', categories: ['PTS', 'REB', 'AST', 'TPM', 'STL', 'BLK', 'FGP', 'FTP', 'TO'] },
+  '8cat': { kind: 'cat', srLabel: '8 kategorija (bez TO)', categories: ['PTS', 'REB', 'AST', 'TPM', 'STL', 'BLK', 'FGP', 'FTP'] },
+  espn_points: { kind: 'points', srLabel: 'ESPN bodovanje', weights: { PTS: 1, TPM: 1, FGM: 2, FGA: -1, FTM: 1, FTA: -1, REB: 1, AST: 2, STL: 4, BLK: 4, TO: -2 } },
+  espn_points_classic: { kind: 'points', srLabel: 'ESPN bodovanje (lige pre 2020)', weights: { PTS: 1, FGM: 1, FGA: -1, FTM: 1, FTA: -1, REB: 1, AST: 1, STL: 1, BLK: 1, TO: -1 } },
+  yahoo_points: { kind: 'points', srLabel: 'Yahoo bodovanje', weights: { PTS: 1, REB: 1.2, AST: 1.5, STL: 3, BLK: 3, TO: -1 } },
+};
+const DEFAULT_FORMAT = Object.freeze({ scoringType: 'h2h_each', categories: FORMAT_PRESETS['9cat'].categories, weights: {}, preset: '9cat', source: 'manual', unsupported: [] });
+const FORMAT_LIMITS = { MIN_CATS: 2, MAX_UNSUPPORTED: 20, UNSUPPORTED_LEN: 40, MAX_WEIGHT: 100 };
+
+const sameWeights = (a, b) => { const ka = Object.keys(a), kb = Object.keys(b); return ka.length === kb.length && ka.every(k => b[k] === a[k]); };
+
+/**
+ * Proveri i normalizuj leagueFormat (ručni unos, uvoz, stari podaci). Uvek vraća ispravan objekat:
+ * nepoznate statistike iz kategorija i težina se izbacuju, preset se proverava prema sadržaju
+ * (ako se ne poklapa, postaje "custom"), a kad nešto ne može da se popravi, vraća 9-cat H2H.
+ */
+function normalizeFormat(raw) {
+  if (!raw || typeof raw !== 'object') return { ...DEFAULT_FORMAT, categories: [...DEFAULT_FORMAT.categories], weights: {}, unsupported: [] };
+  const scoringType = SCORING_TYPES.includes(raw.scoringType) ? raw.scoringType : 'h2h_each';
+  const points = isPointsType(scoringType);
+  const source = typeof raw.source === 'string' && /^(manual|import:[a-z]+)$/.test(raw.source) ? raw.source : 'manual';
+  const unsupported = [...new Set((Array.isArray(raw.unsupported) ? raw.unsupported : [])
+    .map(x => String(x ?? '').replace(/\s+/g, ' ').trim().slice(0, FORMAT_LIMITS.UNSUPPORTED_LEN)).filter(Boolean))].slice(0, FORMAT_LIMITS.MAX_UNSUPPORTED);
+  const kind = points ? 'points' : 'cat';
+  const presetIn = FORMAT_PRESETS[raw.preset]?.kind === kind ? raw.preset : null;
+  // postavka koja odgovara sadržaju (za "custom" koji je isti kao neka gotova postavka)
+  const presetHit = test => Object.entries(FORMAT_PRESETS).find(([, x]) => x.kind === kind && test(x))?.[0] || 'custom';
+  if (points) {
+    const weights = {};
+    for (const [k, v] of Object.entries(raw.weights && typeof raw.weights === 'object' ? raw.weights : {})) {
+      const n = +v;
+      if (STAT_BY_ID.get(k)?.type === 'sum' && Number.isFinite(n) && n !== 0 && Math.abs(n) <= FORMAT_LIMITS.MAX_WEIGHT) weights[k] = Math.round(n * 100) / 100;
+    }
+    if (!Object.keys(weights).length) { const preset = presetIn || 'espn_points'; return { scoringType, categories: [], weights: { ...FORMAT_PRESETS[preset].weights }, preset, source, unsupported }; }
+    const preset = presetIn && sameWeights(weights, FORMAT_PRESETS[presetIn].weights) ? presetIn : presetHit(x => sameWeights(weights, x.weights));
+    return { scoringType, categories: [], weights, preset, source, unsupported };
+  }
+  const cats = [...new Set((Array.isArray(raw.categories) ? raw.categories : []).filter(id => STAT_BY_ID.has(id)))];
+  if (cats.length < FORMAT_LIMITS.MIN_CATS) { const preset = presetIn || '9cat'; return { scoringType, categories: [...FORMAT_PRESETS[preset].categories], weights: {}, preset, source, unsupported }; }
+  const same = x => x.categories.length === cats.length && x.categories.every(id => cats.includes(id));
+  const preset = presetIn && same(FORMAT_PRESETS[presetIn]) ? presetIn : presetHit(same);
+  return { scoringType, categories: cats, weights: {}, preset, source, unsupported }; // redosled ostaje kako je zadat
+}
+
+/** Podrazumevani format pri dodavanju lige: platforma + vrsta (kategorije ili poeni) */
+function defaultFormatFor(platform, kind = 'cat') {
+  if (kind !== 'points') return normalizeFormat({ scoringType: 'h2h_each', preset: '9cat' });
+  const preset = platform === 'espn' ? 'espn_points' : platform === 'yahoo' ? 'yahoo_points' : 'custom';
+  return normalizeFormat({ scoringType: 'h2h_points', preset, weights: preset === 'custom' ? { PTS: 1 } : undefined });
+}
+/** Stari zapis lige (lg.format = 'h2h-cat') -> leagueFormat */
+const legacyFormat = () => normalizeFormat({ scoringType: 'h2h_each', categories: [...FORMAT_PRESETS['9cat'].categories], preset: '9cat', source: 'manual' });
+/** Format lige (uvek ispravan); bez lige (brzo poređenje) za sada 9-cat H2H */
+const leagueFormatOf = lg => (lg ? normalizeFormat(lg.leagueFormat || legacyFormat()) : normalizeFormat(null));
+
 
 /* =====================================================================
    Jezik (SR / EN)
@@ -747,7 +849,7 @@ const saveUI = () => lsSet(CONFIG.UI_KEY, state.ui);
 /* =====================================================================
    Profil i lige (samo lokalno; struktura je spremna da profil kasnije postane nalog)
    profil { schema, id, name, created, settings{lang}, leagues[], lastLeagueId }
-   liga { id, name, teamName, platform, format, teams, slots{active, ir}, standings{...}, teamState, note,
+   liga { id, name, teamName, platform, format, leagueFormat (vidi normalizeFormat), teams, slots{active, ir}, standings{...}, teamState, note,
           punt[], roster, opps{}, oppSel, history[], balance, externalLeagueId, accountId, created, updated }
    Keš igrača i rasporeda je globalan (van profila).
    ===================================================================== */
@@ -759,7 +861,7 @@ const emptyBalance = () => ({ my: { drops: [], waivers: [] }, opp: { drops: [], 
 
 function newLeague(fields = {}) {
   return {
-    id: uid(), name: '', teamName: '', platform: PLATFORMS[0].id, format: FORMATS[0].id, teams: 12,
+    id: uid(), name: '', teamName: '', platform: PLATFORMS[0].id, format: FORMATS[0].id, leagueFormat: legacyFormat(), teams: 12,
     slots: { active: ROSTER_DEFAULT.ACTIVE, ir: ROSTER_DEFAULT.IR },
     standings: { rank: null, record: '', playoffTeams: null, playoffWeek: null, updated: null },
     teamState: null, note: '', punt: [],
@@ -3543,6 +3645,7 @@ function importData() {
       onConfirm: () => {
         if (!profile) profile = newProfile('');
         const copy = { ...newLeague(), ...clone(lg), id: uid(), updated: nowISO() };
+        copy.leagueFormat = leagueFormatOf(copy);
         if (profile.leagues.some(l => l.name === copy.name)) copy.name = t('{n} (uvoz)', { n: copy.name });
         profile.leagues.push(copy); profile.lastLeagueId = copy.id; saveProfile();
         location.hash = `league-${copy.id}`;
@@ -4769,6 +4872,12 @@ addEventListener('scroll', hideTip, { passive: true });
 
 /* ===================================================================== */
 /* Pokretanje: migracija starih podataka, pa poslednja korišćena liga */
+// formati lige: postojeće lige dobijaju 9-cat H2H, svaka liga se proverava (i posle uvoza kopije)
+if (profile?.leagues?.length) {
+  let changed = false;
+  for (const lg of profile.leagues) { const f = leagueFormatOf(lg); if (JSON.stringify(f) !== JSON.stringify(lg.leagueFormat)) { lg.leagueFormat = f; changed = true; } }
+  if (changed) saveProfile();
+}
 if (!profile || profile.schema !== SCHEMA_VERSION) {
   if (profile && profile.schema !== SCHEMA_VERSION) profile.schema = SCHEMA_VERSION; // buduće migracije šeme idu ovde
   migrateLegacy();
