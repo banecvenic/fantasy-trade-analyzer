@@ -868,3 +868,23 @@ th.sortth:hover{color:var(--text)}
 th.sortth.sorted{color:var(--text)}
 th.sortth .sarr{margin-left:3px;font-size:9px;color:var(--accent);vertical-align:1px}
 th.sortth .i{cursor:help}
+
+/* Kartice kategorija: snaga rostera (od sada) vs stvarni plasman (od početka sezone) */
+.pcard h3 .i{font-size:13px;font-weight:400;color:var(--muted);cursor:help;margin-left:6px}
+.cchip{display:inline-block;vertical-align:middle;line-height:16px;margin-left:6px;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.02em}
+.cchip.now{background:var(--win-bg);color:var(--win-text)}
+.cchip.season{background:var(--info-bg);color:var(--info)}
+.season-ranks{border-left:3px solid var(--info)}
+.now-cats{border-left:3px solid var(--rs-green)}
+.season-ranks .catcell{background:transparent;border-style:dashed}
+
+/* Redosled kolona: prevlačenje zaglavlja */
+th[data-col]{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+th.col-dragging{opacity:.4}
+th.col-drop-before{box-shadow:inset 3px 0 0 var(--accent2)}
+th.col-drop-after{box-shadow:inset -3px 0 0 var(--accent2)}
+body.is-coldrag,body.is-coldrag *{cursor:grabbing !important}
+.ls-cols{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+#toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);max-width:min(520px,calc(100vw - 32px));background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:1000}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+@media (max-width:760px){#toast{bottom:80px}}

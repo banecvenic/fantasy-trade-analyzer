@@ -368,10 +368,45 @@ function syncCats(f = activeFormat()) {
   const list = isPointsType(f.scoringType)
     ? [FPTS_COL, ...Object.entries(f.weights).map(([id, w]) => catFromStat(id, w))]
     : f.categories.map(id => catFromStat(id));
-  CATS.length = 0; CATS.push(...list);
+  CATS.length = 0; CATS.push(...orderCats(list));
   // punt: samo kategorije koje postoje u formatu; u ligama na poene punta nema
   if (state.punt?.size) for (const k of [...state.punt]) if (isPointsType(f.scoringType) || !f.categories.includes(k)) state.punt.delete(k);
   return f;
+}
+/* ---------- Redosled kolona: podrazumevano kao na platformi lige; prevlačenjem zaglavlja korisnik bira svoj (pamti se samo za tu ligu) ----------
+   ESPN i Yahoo prikazuju kategorije uvek istim redom (9-cat ESPN: FG% FT% 3PM REB AST STL BLK TO PTS; Yahoo: FG% FT% 3PTM PTS REB AST ST BLK TO),
+   bez obzira na redosled u podešavanjima lige. Ostale platforme i ručne lige: redosled iz formata. FPts je uvek prva kolona. */
+const COL_ORDER = {
+  espn: ['FGM', 'FGA', 'FGP', 'FTM', 'FTA', 'FTP', 'TPM', 'TPA', 'TPP', 'OREB', 'DREB', 'REB', 'AST', 'STL', 'BLK', 'TO', 'ATO', 'PF', 'DD', 'TD', 'GS', 'MIN', 'PTS'],
+  yahoo: ['FGM', 'FGA', 'FGP', 'FTM', 'FTA', 'FTP', 'TPM', 'TPA', 'TPP', 'PTS', 'OREB', 'DREB', 'REB', 'AST', 'STL', 'BLK', 'TO', 'ATO', 'PF', 'DD', 'TD', 'GS', 'MIN'],
+};
+const COLS_KEY = 'fbaTrade.cols.v1';
+const colsLeague = () => (EMBED?.mini ? null : currentLeague());
+/** Sačuvan redosled (ključevi kolona) za ligu, ili null = podrazumevani */
+function customCols(lg = colsLeague()) {
+  const v = lg ? lsGet(COLS_KEY)?.[lg.id] : null;
+  return Array.isArray(v) && v.length ? v : null;
+}
+/** Kolone po redu iz liste ključeva; kolone kojih nema u listi zadržavaju svoj redosled i idu posle */
+const byOrder = (list, order) => list.map((c, i) => ({ c, i, o: order.indexOf(c.key) }))
+  .sort((a, b) => (a.o < 0) - (b.o < 0) || (a.o >= 0 && b.o >= 0 ? a.o - b.o : a.i - b.i)).map(x => x.c);
+function defaultCats(list, lg = colsLeague()) {
+  const fixed = list.filter(c => c.fpts), rest = list.filter(c => !c.fpts);
+  const plat = COL_ORDER[lg?.platform];
+  return [...fixed, ...(plat ? byOrder(rest, plat) : rest)];
+}
+function orderCats(list, lg = colsLeague()) {
+  const base = defaultCats(list, lg), cust = customCols(lg);
+  return cust ? [...base.filter(c => c.fpts), ...byOrder(base.filter(c => !c.fpts), cust)] : base;
+}
+/** Sačuvaj redosled za aktivnu ligu (isti kao podrazumevani = briše se) */
+function setCols(keys) {
+  const lg = colsLeague();
+  if (!lg) return;
+  const st = lsGet(COLS_KEY) || {};
+  const def = defaultCats(CATS).filter(c => !c.fpts).map(c => c.key);
+  if (!keys || keys.join() === def.join()) delete st[lg.id]; else st[lg.id] = keys;
+  lsSet(COLS_KEY, st);
 }
 const isPointsFmt = () => isPointsType(FMT_ACTIVE.scoringType);
 /** Fantasy poeni po utakmici za jedan red statistike (null statistike, npr. DD u projekciji, ne donose poene) */
@@ -425,7 +460,6 @@ const EN = {
   "Izaberi protivnika sa kojim trejduješ.": "Pick the opponent you are trading with.",
   "Još nema unetih timova. Dodaj ih na stranici Liga.": "No teams entered yet. Add them on the League page.",
   "Kad uneseš bar 3 tima (sa svojim), uz svaki tim vidiš dve najjače i dve najslabije kategorije.": "Once you enter at least 3 teams (yours included), each team shows its two strongest and two weakest categories.",
-  "Kategorije mog tima": "My team categories",
   "Mesto i skor unosiš u podešavanjima lige.": "Enter your place and record in league settings.",
   "Mete za trejd": "Trade targets",
   "Moj tim ukratko": "My team at a glance",
@@ -450,7 +484,6 @@ const EN = {
   "Pregled": "Overview",
   "Pronađi trejd": "Find a trade",
   "Proširi na druge timove": "Search other teams",
-  "Rang među {n} unetih timova. Zbir aktivnih igrača, {p}.": "Rank among {n} entered teams. Sum of active players, {p}.",
   "Roster protivnika": "Opponent roster",
   "Stranice lige": "League pages",
   "Sve lige": "All leagues",
@@ -907,6 +940,21 @@ const EN = {
   "Mesto od {n} timova. Svi timovi su projektovani na celu sezonu istim tempom, a tvom timu je dodata razlika iz trejda (Dobijaš − Daješ po utakmici × preostale utakmice njihovih NBA timova). FG% i FT% iz pogodaka i pokušaja. Pretpostavka je da igrači igraju sve preostale utakmice.": "Rank out of {n} teams. All teams are projected to the full season at their current pace, and your team gets the trade difference (You get − You give per game × remaining games of their NBA teams). FG% and FT% from makes and attempts. Assumes the players play all remaining games.",
   "Prikaz": "View",
   "Sortiraj po {c}": "Sort by {c}",
+  "Snaga trenutnog rostera": "Current roster strength",
+  "od sada": "from now on",
+  "Koliko je jak tvoj roster od danas: proseci po utakmici igrača koje sada imaš, poređeni sa trenutnim rosterima ostalih timova. Ne zavisi od broja odigranih utakmica ni od igrača koji su ranije bili u timu. Na ovo utiče trejd.": "How strong your roster is from today: per-game averages of the players you have now, compared with the other teams' current rosters. It does not depend on games played or on players who were on the team earlier. Trades change this.",
+  "Prosek po utakmici, zbir aktivnih igrača koje sada imaš ({p}). Rang među trenutnim rosterima {n} timova.": "Per game, sum of the active players you have now ({p}). Rank among the current rosters of {n} teams.",
+  "Stvarni plasman u sezoni": "Actual season standing",
+  "od početka sezone": "since the season started",
+  "Gde tim stvarno stoji u kategorijama od početka sezone, po ukupnim brojkama iz {p}. Računaju se i igrači koji više nisu u timu i broj odigranih utakmica (više utakmica = veći zbirovi, i više izgubljenih lopti). Trejd ovo ne menja.": "Where the team actually stands in each category since the season started, from {p} totals. Players who are no longer on the team count too, and so do games played (more games = bigger totals, and more turnovers). Trades do not change this.",
+  "Ukupno od početka sezone iz {p}, svi timovi lige, sa svim igračima koji su igrali za tim. FG% i FT% iz pogodaka i pokušaja.": "Totals since the season started from {p}, all teams in the league, with every player who played for the team. FG% and FT% from makes and attempts.",
+  "Prevuci levo ili desno da promeniš redosled kolona.": "Drag left or right to reorder columns.",
+  "Klik sortira po {c}. Prevuci levo ili desno da promeniš redosled kolona.": "Click to sort by {c}. Drag left or right to reorder columns.",
+  "Redosled kolona je sačuvan samo za ovu ligu. Podrazumevani redosled vraćaš u podešavanjima lige.": "Column order saved for this league only. You can restore the default order in league settings.",
+  "Vrati podrazumevani redosled kolona": "Restore default column order",
+  "kao na platformi {p}": "as on {p}",
+  "kao u formatu lige": "as in the league format",
+  "Vraćen je podrazumevani redosled kolona.": "Default column order restored.",
   'Novo: javi nam ako nešto nije uvezeno kako treba.': 'New: let us know if something was not imported correctly.',
   // Uvezena liga: podešavanja i kontekst cele lige
   'na {n}. mestu ({r})': 'in place {n} ({r})',
@@ -943,8 +991,6 @@ const EN = {
   "{p} trenutno ne odgovara. Prikazujem podatke od osvežavanja {ago}.": "{p} is not responding right now. Showing data from the refresh {ago}.",
   "{p} više ne dozvoljava čitanje ove lige, verovatno je postala privatna. Prikazujem poslednje povučene podatke ({ago}).": "{p} no longer lets us read this league, it was probably made private. Showing the last data we pulled ({ago}).",
   "Kako da liga ponovo bude javna": "How to make the league public again",
-  "Plasman u ligi po kategorijama": "League rank by category",
-  "Zbir cele sezone iz {p}, svi timovi lige. FG% i FT% iz pogodaka i pokušaja.": "Season totals from {p}, all teams in the league. FG% and FT% from makes and attempts.",
   "U H2H ligi ovo je samo informativno: nedeljni mečevi se računaju posebno.": "In an H2H league this is for information only: weekly matchups are scored separately.",
   "Tim": "Team",
   "Procena plasmana u ligi posle trejda": "Estimated league rank after the trade",
@@ -2462,6 +2508,7 @@ function openLeagueSettings() {
       </fieldset>
       <label>${t('Stanje mog tima')}<select id="ls-state"><option value="">–</option>${TEAM_STATES.map(s => `<option value="${s.id}" ${s.id === lg.teamState ? 'selected' : ''}>${t(s.sr)}</option>`).join('')}</select></label>
       <label>${t('Napomena')}<textarea id="ls-note" rows="3" maxlength="500">${esc(lg.note || '')}</textarea></label>
+      ${colsResetHTML(lg)}
       <div class="ls-export"><button type="button" class="linkbtn" data-action="export-league">⤓ ${t('Izvezi samo ovu ligu')}</button> <span class="hint export-msg"></span></div>
       <div class="ls-actions"><button type="button" class="linkbtn" data-action="league-dup">${t('Dupliraj ligu')}</button>
         <button type="button" class="linkbtn danger" data-action="league-del">${t('Obriši ligu')}</button></div>
@@ -2884,9 +2931,10 @@ function importRanksHTML(lg = currentLeague(), tid = lg?.import?.myTid, teamName
   const sw = strongWeak(ranks);
   const tag = c => (sw.strong.some(x => x.c === c) ? `<span class="slot-tag tag-in">${t('jak')}</span>` : sw.weak.some(x => x.c === c) ? `<span class="slot-tag tag-out">${t('slab')}</span>` : '');
   const h2h = FMT_ACTIVE.scoringType !== 'roto';
-  return `<section class="pcard${teamName ? ' lt-ranks' : ''}"><h3>${t('Plasman u ligi po kategorijama')}${teamName ? ` <span class="hint">${esc(teamName)}</span>` : ''}</h3>
+  const src = SOURCE_LABEL[lg.import.source] || '';
+  return `<section class="pcard season-ranks${teamName ? ' lt-ranks' : ''}"><h3>${t('Stvarni plasman u sezoni')} <span class="cchip season">${t('od početka sezone')}</span><span class="i" data-tip="${esc(t('Gde tim stvarno stoji u kategorijama od početka sezone, po ukupnim brojkama iz {p}. Računaju se i igrači koji više nisu u timu i broj odigranih utakmica (više utakmica = veći zbirovi, i više izgubljenih lopti). Trejd ovo ne menja.', { p: src }))}">ⓘ</span>${teamName ? ` <span class="hint">${esc(teamName)}</span>` : ''}</h3>
     <div class="catgrid">${ranks.map(x => `<div class="catcell"><span class="cl">${x.c.label}</span><b>${t('{n}. od {m}', { n: x.rank, m: x.of })}</b>${tag(x.c)}</div>`).join('')}</div>
-    <p class="pnote">${t('Zbir cele sezone iz {p}, svi timovi lige. FG% i FT% iz pogodaka i pokušaja.', { p: SOURCE_LABEL[lg.import.source] || '' })}${h2h ? ` ${t('U H2H ligi ovo je samo informativno: nedeljni mečevi se računaju posebno.')}` : ''}</p></section>`;
+    <p class="pnote">${t('Ukupno od početka sezone iz {p}, svi timovi lige, sa svim igračima koji su igrali za tim. FG% i FT% iz pogodaka i pokušaja.', { p: src })}${h2h ? ` ${t('U H2H ligi ovo je samo informativno: nedeljni mečevi se računaju posebno.')}` : ''}</p></section>`;
 }
 /** Tabela lige iz uvoza */
 function standingsHTML(lg) {
@@ -3046,6 +3094,7 @@ function openSyncedSettings(lg) {
       <label>${t('Napomena')}<textarea id="ls-note" rows="3" maxlength="500">${esc(lg.note || '')}</textarea></label>
       <div class="ls-sync"><button type="button" class="linkbtn" data-action="league-sync">↻ ${esc(syncBtnText(imp.source))}</button>
         <button type="button" class="linkbtn" data-action="league-unlink">⛓ ${t('Prekini vezu sa platformom {p}', { p: esc(src) })}</button></div>
+      ${colsResetHTML(lg)}
       <div class="ls-export"><button type="button" class="linkbtn" data-action="export-league">⤓ ${t('Izvezi samo ovu ligu')}</button> <span class="hint export-msg"></span></div>
       <div class="ls-actions"><button type="button" class="linkbtn" data-action="league-dup">${t('Dupliraj ligu')}</button>
         <button type="button" class="linkbtn danger" data-action="league-del">${t('Obriši ligu')}</button></div>
@@ -3067,6 +3116,9 @@ function openSyncedSettings(lg) {
     },
   });
 }
+/** Podešavanja lige: vraćanje podrazumevanog redosleda kolona (vidi se samo kad je redosled promenjen) */
+const colsResetHTML = lg => (customCols(lg) ? `<div class="ls-cols"><button type="button" class="linkbtn" data-action="cols-reset">↺ ${t('Vrati podrazumevani redosled kolona')}</button>
+  <span class="hint">${COL_ORDER[lg.platform] ? t('kao na platformi {p}', { p: esc(platformLabel(lg.platform)) }) : t('kao u formatu lige')}</span></div>` : '');
 /** Prekid veze sa platformom: liga ostaje sa poslednjim podacima kao obična (ručna) liga */
 function unlinkLeague() {
   const lg = currentLeague();
@@ -3571,8 +3623,8 @@ function injHTML(p) {
 
 /** Zaglavlje kategorije: klik = punt */
 const catTh = c => (isPointsFmt()
-  ? `<th class="${c.fpts ? 'fpts' : 'wth'}" ${c.fpts ? `title="${esc(t('Fantasy poeni po utakmici'))}"` : `title="${esc(t('{s}: {w} po jedinici', { s: c.label, w: fmtNum(c.w) }))}"`}>${c.label}</th>`
-  : `<th class="catth${puntCls(c)}" data-punt="${c.key}" title="${isPunt(c) ? t('Vrati kategoriju') : t('Punt: isključi iz rezultata')}">${c.label}</th>`);
+  ? `<th class="${c.fpts ? 'fpts' : 'wth'}" ${c.fpts ? `title="${esc(t('Fantasy poeni po utakmici'))}"` : `data-col="${c.key}" title="${esc(`${t('{s}: {w} po jedinici', { s: c.label, w: fmtNum(c.w) })}. ${t('Prevuci levo ili desno da promeniš redosled kolona.')}`)}"`}>${c.label}</th>`
+  : `<th class="catth${puntCls(c)}" data-punt="${c.key}" data-col="${c.key}" title="${esc(`${isPunt(c) ? t('Vrati kategoriju') : t('Punt: isključi iz rezultata')}. ${t('Prevuci levo ili desno da promeniš redosled kolona.')}`)}">${c.label}</th>`);
 
 const minTip = () => t('Minuti u izabranom periodu. Pređi mišem ili tapni na broj za trend: sezona → 30 → 15 → 7 dana. Poslednjih 15 dana vs sezona: zeleno ↑ / crveno ↓ = ±{a} min ili više, ↑↑ / ↓↓ = ±{b} min ili više (bar {g} utakmice).', { a: MINUTES.ALERT, b: MINUTES.STRONG, g: MINUTES.MIN_GP });
 /** Zaglavlje tabela Daješ / Dobijaš: klik na kategoriju = punt */
@@ -3636,11 +3688,12 @@ function freezeSort(kind) {
 /** Zaglavlje roster tabela: klik na statističku kolonu sortira (kategorije se ovde ne gase) */
 function rosterHeaderRow(kind) {
   const s = sortOf(kind);
-  const th = (key, label, extra = '', cls = '') => {
+  const th = (key, label, extra = '', cls = '', col = false) => {
     const on = s?.col === key;
-    return `<th class="sortth ${cls}${on ? ' sorted' : ''}" data-sort="${key}" data-skind="${kind}" aria-sort="${on ? (s.dir === 'asc' ? 'ascending' : 'descending') : 'none'}" title="${esc(t('Sortiraj po {c}', { c: label }))}">${label}${extra}${on ? `<span class="sarr">${s.dir === 'asc' ? '▲' : '▼'}</span>` : ''}</th>`;
+    const tip = col ? t('Klik sortira po {c}. Prevuci levo ili desno da promeniš redosled kolona.', { c: label }) : t('Sortiraj po {c}', { c: label });
+    return `<th class="sortth ${cls}${on ? ' sorted' : ''}" data-sort="${key}" data-skind="${kind}"${col ? ` data-col="${key}"` : ''} aria-sort="${on ? (s.dir === 'asc' ? 'ascending' : 'descending') : 'none'}" title="${esc(tip)}">${label}${extra}${on ? `<span class="sarr">${s.dir === 'asc' ? '▲' : '▼'}</span>` : ''}</th>`;
   };
-  return `<tr><th>${t('Igrač')}</th>${th('MIN', 'MIN', `<span class="i" data-tip="${esc(minTip())}">ⓘ</span>`, 'minth')}${CATS.map(c => th(c.key, c.label, '', c.fpts ? 'fpts' : '')).join('')}${th('GP', 'GP')}</tr>`;
+  return `<tr><th>${t('Igrač')}</th>${th('MIN', 'MIN', `<span class="i" data-tip="${esc(minTip())}">ⓘ</span>`, 'minth')}${CATS.map(c => th(c.key, c.label, '', c.fpts ? 'fpts' : '', !c.fpts)).join('')}${th('GP', 'GP')}</tr>`;
 }
 
 /** Strelica trenda za igrača i kategoriju, ili '' */
@@ -6529,10 +6582,10 @@ function renderOverview() {
     <div class="catgrid"><div class="catcell fpts"><span class="cl">FPts</span><b>${catVal(FPTS_COL, me?.tot.vals.FPTS)}</b>${fptsRank ? `<span class="rk">${t('{n}. od {m}', { n: fptsRank, m: teams.length })}</span>` : ''}</div>
       ${topSrc.map(x => `<div class="catcell"><span class="cl">${x.c.label}</span><b>${x.v.toFixed(1)}</b><span class="rk">${t('FPts iz {s}', { s: x.c.label })}</span></div>`).join('')}</div>
     <p class="pnote">${t('Fantasy poeni po utakmici, zbir aktivnih igrača, {p}. Tri statistike koje timu donose najviše poena.', { p: PERIODS.find(p => p.key === state.period).label.toLowerCase() })}${teams.length < 3 ? ` ${t('Rang se prikazuje kad uneseš bar 3 tima.')}` : ''}</p>${notCountedHTML()}</section>`
-  : `<section class="pcard"><h3>${t('Kategorije mog tima')}</h3>
+  : `<section class="pcard now-cats"><h3>${t('Snaga trenutnog rostera')} <span class="cchip now">${t('od sada')}</span><span class="i" data-tip="${esc(t('Koliko je jak tvoj roster od danas: proseci po utakmici igrača koje sada imaš, poređeni sa trenutnim rosterima ostalih timova. Ne zavisi od broja odigranih utakmica ni od igrača koji su ranije bili u timu. Na ovo utiče trejd.'))}">ⓘ</span></h3>
     <div class="catgrid">${CATS.map(c => `<div class="catcell${puntCls(c)}"><span class="cl">${c.label}</span><b>${catVal(c, me?.tot.vals[c.key])}</b>
       ${rk[c.key] ? `<span class="rk">${t('{n}. od {m}', { n: rk[c.key].rank, m: rk[c.key].of })}</span>` : ''}${tag(c)}</div>`).join('')}</div>
-    ${ranks ? `<p class="pnote">${t('Rang među {n} unetih timova. Zbir aktivnih igrača, {p}.', { n: teams.length, p: PERIODS.find(p => p.key === state.period).label.toLowerCase() })}</p>`
+    ${ranks ? `<p class="pnote">${t('Prosek po utakmici, zbir aktivnih igrača koje sada imaš ({p}). Rang među trenutnim rosterima {n} timova.', { n: teams.length, p: PERIODS.find(p => p.key === state.period).label.toLowerCase() })}</p>`
       : `<p class="pnote">${t('Zbir aktivnih igrača. Uneto {a} od {b} timova.', { a: teams.length, b: lg.teams || '?' })}</p>${linkHTML('ov-few-teams', { card: 'cats' })}`}${notCountedHTML()}</section>`;
 
   const alerts = rosterAlerts();
@@ -6864,6 +6917,11 @@ document.addEventListener('click', e => {
     case 'league-del': deleteLeague(); break;
     case 'export': exportData(el, 'profile'); break;
     case 'export-league': exportData(el, 'league'); break;
+    case 'cols-reset': {
+      setCols(null);
+      el.closest('.ls-cols')?.replaceWith(Object.assign(document.createElement('p'), { className: 'hint', textContent: t('Vraćen je podrazumevani redosled kolona.') }));
+      render(); break;
+    }
     case 'import': importData(); break;
     case 'r-ir': toggleIR(el.dataset.kind, +el.dataset.id); break;
     case 'rlayout': state.ui.rosterLayout = el.dataset.v === 'split' ? 'split' : 'stack'; saveUI(); render(); break;
@@ -7027,6 +7085,79 @@ function endDrag() {
 }
 document.addEventListener('pointerup', endDrag);
 document.addEventListener('pointercancel', endDrag);
+
+/* ---------- Redosled kolona: prevlačenje zaglavlja levo/desno (miš: povuci; dodir: zadrži pa povuci) ---------- */
+let colDrag = null, colSwallow = 0;
+const clearColMarks = () => document.querySelectorAll('.col-drop-before,.col-drop-after').forEach(x => x.classList.remove('col-drop-before', 'col-drop-after'));
+function stopColDrag() {
+  if (!colDrag) return;
+  clearTimeout(colDrag.timer);
+  colDrag.th.classList.remove('col-dragging'); document.body.classList.remove('is-coldrag'); clearColMarks();
+  colDrag = null;
+}
+function startColDrag() {
+  colDrag.on = true;
+  colDrag.th.classList.add('col-dragging'); document.body.classList.add('is-coldrag');
+  hideTip();
+  if (colDrag.touch) navigator.vibrate?.(15);
+}
+document.addEventListener('pointerdown', e => {
+  const th = e.target.closest('th[data-col]');
+  if (!th || e.button > 0 || e.target.closest('[data-tip]')) return;
+  stopColDrag();
+  colDrag = { th, key: th.dataset.col, x: e.clientX, y: e.clientY, id: e.pointerId, touch: e.pointerType !== 'mouse', on: false, target: null, before: true };
+  if (colDrag.touch) colDrag.timer = setTimeout(() => { if (colDrag && !colDrag.on) startColDrag(); }, 450);
+});
+document.addEventListener('pointermove', e => {
+  if (!colDrag || e.pointerId !== colDrag.id) return;
+  if (!colDrag.on) {
+    const dx = e.clientX - colDrag.x, dy = e.clientY - colDrag.y;
+    if (Math.hypot(dx, dy) < 8) return;
+    // dodir pre dugog pritiska = skrolovanje tabele; miš uspravno = nije prevlačenje
+    if (colDrag.touch || Math.abs(dx) < Math.abs(dy)) { stopColDrag(); return; }
+    startColDrag();
+  }
+  e.preventDefault();
+  const tr = colDrag.th.parentElement;
+  const sc = tr.closest('.tscroll');
+  if (sc) { const r = sc.getBoundingClientRect(); if (e.clientX < r.left + 30) sc.scrollLeft -= 10; else if (e.clientX > r.right - 30) sc.scrollLeft += 10; }
+  // kolona ispod pokazivača (po x, i kad je prst ispod zaglavlja)
+  const el = [...tr.querySelectorAll('th[data-col]')].find(x => { const r = x.getBoundingClientRect(); return e.clientX >= r.left && e.clientX < r.right; });
+  clearColMarks(); colDrag.target = null;
+  if (!el || el === colDrag.th) return;
+  const r = el.getBoundingClientRect();
+  colDrag.before = e.clientX < r.left + r.width / 2;
+  colDrag.target = el.dataset.col;
+  el.classList.add(colDrag.before ? 'col-drop-before' : 'col-drop-after');
+}, { passive: false });
+// dodir: dok traje prevlačenje kolone stranica se ne skroluje, a dugi pritisak ne otvara meni
+document.addEventListener('touchmove', e => { if (colDrag?.on) e.preventDefault(); }, { passive: false });
+document.addEventListener('contextmenu', e => { if (colDrag) e.preventDefault(); });
+function endColDrag(e) {
+  if (!colDrag || e.pointerId !== colDrag.id) return;
+  const d = colDrag; stopColDrag();
+  if (!d.on) return;
+  colSwallow = Date.now() + 500; // klik posle prevlačenja ne sortira i ne gasi kategoriju
+  if (!d.target) return;
+  const keys = CATS.filter(c => !c.fpts).map(c => c.key).filter(k => k !== d.key);
+  keys.splice(keys.indexOf(d.target) + (d.before ? 0 : 1), 0, d.key);
+  setCols(keys);
+  render();
+  if (customCols()) toast(t('Redosled kolona je sačuvan samo za ovu ligu. Podrazumevani redosled vraćaš u podešavanjima lige.'));
+}
+/** Kratka poruka dole na ekranu (nestaje sama) */
+let toastTimer = 0;
+function toast(msg, ms = 4500) {
+  let el = document.getElementById('toast');
+  if (!el) { el = Object.assign(document.createElement('div'), { id: 'toast', role: 'status' }); document.body.appendChild(el); }
+  el.textContent = msg; el.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('on'), ms);
+}
+document.addEventListener('pointerup', endColDrag);
+document.addEventListener('pointercancel', e => { if (colDrag && e.pointerId === colDrag.id && !colDrag.on) stopColDrag(); else endColDrag(e); });
+document.addEventListener('click', e => {
+  if (Date.now() < colSwallow && e.target.closest('th')) { colSwallow = 0; e.stopImmediatePropagation(); e.preventDefault(); }
+}, true);
 
 /* ---------- Tooltip: hover na desktopu, tap na telefonu ([data-tip]) ---------- */
 const tipEl = Object.assign(document.createElement('div'), { id: 'tip', hidden: true });
