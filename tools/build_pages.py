@@ -366,7 +366,7 @@ ABOUT = {
 
 # ---------------------------------------------------------------------------
 # VODIČ: kako uvesti ligu (/how-to-import/, /sr/how-to-import/)
-# Slike: assets/howto/<ime>.png. Dok slike ne postoje, prikazuje se sivo polje sa opisom i imenom fajla.
+# Slike: assets/howto/<ime>.png. Dok slika ne postoji, na stranici je samo HTML komentar (ništa se ne vidi).
 # ---------------------------------------------------------------------------
 HOWTO_SHOTS = {
     'espn-league-id.png': ('ESPN league page with leagueId in the address bar', 'ESPN stranica lige sa leagueId u adresi'),
@@ -381,9 +381,12 @@ HOWTO_SHOTS = {
 
 def shot(name, lang, depth):
     alt = HOWTO_SHOTS[name][0 if lang == 'en' else 1]
+    sr_name = name.replace('.png', '-sr.png')  # srpska verzija slike (npr. ekran aplikacije na srpskom), ako postoji
+    if lang == 'sr' and os.path.exists(os.path.join(ROOT, 'assets', 'howto', sr_name)):
+        name = sr_name
     if os.path.exists(os.path.join(ROOT, 'assets', 'howto', name)):
         return f'<figure class="shot"><img src="{rel(depth)}assets/howto/{name}" alt="{escape(alt)}" loading="lazy"></figure>'
-    return f'<figure class="shot shot-ph" role="img" aria-label="{escape(alt)}"><span>{escape(alt)}</span><code>assets/howto/{name}</code></figure>'
+    return f'<!-- slika: assets/howto/{name} ({escape(alt)}) -->'  # dok slike nema, na stranici se ništa ne prikazuje
 
 
 LM_MSG = {
@@ -421,9 +424,9 @@ HOWTO = {
         'fantrax': '''<h2 id="fantrax">Fantrax</h2>
 <p>Fantrax import is being tested and will open soon. Until then, use <a href="#paste">Paste roster</a>. To get the league ready, the commissioner goes to <strong>Commissioner</strong> &gt; <strong>League Setup</strong> &gt; <strong>Misc</strong> and turns on <strong>Allow public to view league</strong>.</p>
 {shot:fantrax-public.png}
-<p>The league ID is the part of the league address after <code>/league/</code>, for example <code>fantrax.com/fantasy/league/<strong>abc123xyz</strong>/home</code>.</p>''',
+<p>The league ID is the part of the league address after <code>/league/</code>, for example <code class="wrap">fantrax.com/fantasy/league/<strong>abc123xyz</strong>/home</code>.</p>''',
         'sleeper': '''<h2 id="sleeper">Sleeper</h2>
-<p>Sleeper import is being tested and will open soon. Sleeper leagues need no settings change. The league ID is the long number in the league address, for example <code>sleeper.com/leagues/<strong>1180226123456789012</strong></code>, or you can enter your Sleeper username.</p>
+<p>Sleeper import is being tested and will open soon. Sleeper leagues need no settings change. The league ID is the long number in the league address, for example <code class="wrap">sleeper.com/leagues/<strong>1180226123456789012</strong></code>, or you can enter your Sleeper username.</p>
 {shot:sleeper-league-url.png}''',
         'paste': '''<h2 id="paste">Paste roster (CBS, Yahoo and other platforms)</h2>
 <p>Works with any platform that shows a roster page. You paste one team at a time.</p>
@@ -474,9 +477,9 @@ HOWTO = {
         'fantrax': '''<h2 id="fantrax">Fantrax</h2>
 <p>Fantrax uvoz se testira i uskoro se otvara. Do tada koristi <a href="#paste">Nalepi roster</a>. Da bi liga bila spremna, komesar ide na <strong>Commissioner</strong> &gt; <strong>League Setup</strong> &gt; <strong>Misc</strong> i uključuje <strong>Allow public to view league</strong>.</p>
 {shot:fantrax-public.png}
-<p>ID lige je deo adrese lige posle <code>/league/</code>, na primer <code>fantrax.com/fantasy/league/<strong>abc123xyz</strong>/home</code>.</p>''',
+<p>ID lige je deo adrese lige posle <code>/league/</code>, na primer <code class="wrap">fantrax.com/fantasy/league/<strong>abc123xyz</strong>/home</code>.</p>''',
         'sleeper': '''<h2 id="sleeper">Sleeper</h2>
-<p>Sleeper uvoz se testira i uskoro se otvara. Za Sleeper ligu ne treba menjati podešavanja. ID lige je dugačak broj u adresi lige, na primer <code>sleeper.com/leagues/<strong>1180226123456789012</strong></code>, a možeš da uneseš i svoje Sleeper korisničko ime.</p>
+<p>Sleeper uvoz se testira i uskoro se otvara. Za Sleeper ligu ne treba menjati podešavanja. ID lige je dugačak broj u adresi lige, na primer <code class="wrap">sleeper.com/leagues/<strong>1180226123456789012</strong></code>, a možeš da uneseš i svoje Sleeper korisničko ime.</p>
 {shot:sleeper-league-url.png}''',
         'paste': '''<h2 id="paste">Nalepi roster (CBS, Yahoo i druge platforme)</h2>
 <p>Radi sa svakom platformom koja ima stranicu rostera. Nalepljuješ jedan po jedan tim.</p>
