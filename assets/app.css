@@ -79,7 +79,7 @@ body[data-view="home"] .hcenter .seg{display:none}
 body:not([data-view="home"]) .only-home{display:none}
 body[data-view="home"] .only-ws,body[data-view="home"] #tradewarn,body[data-view="home"] #score,body[data-view="home"] #teams,
 body[data-view="home"] #compare,body[data-view="home"] #report,body[data-view="home"] #myteam,body[data-view="home"] #oppteam,body[data-view="home"] #history{display:none}
-body[data-view="quick"] #myteam,body[data-view="quick"] #oppteam,body[data-view="quick"] #history{display:none}
+body[data-view="quick"] #myteam,body[data-view="quick"] #oppteam,body[data-view="quick"] #history,body[data-view="quick"] #rviewbar,body[data-view="home"] #rviewbar{display:none !important}
 .ttabs{display:flex;align-items:stretch;gap:4px;margin-top:12px;overflow-x:auto;scrollbar-width:thin;border-bottom:1px solid var(--line);padding-bottom:0}
 .ttab{display:flex;align-items:center;gap:2px;flex:0 0 auto;max-width:230px;background:var(--bg2);border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;color:var(--muted)}
 .ttab.on{background:var(--card,var(--bg));color:var(--text);border-color:var(--accent);box-shadow:inset 0 2px 0 var(--accent)}
@@ -820,3 +820,22 @@ fieldset.plain:disabled{opacity:.6}
 .ls-sync{display:flex;flex-wrap:wrap;gap:6px 18px}
 .beta-tag{color:var(--accent);border-color:currentColor;background:none}
 .pcard.lt-ranks{margin-top:14px}
+
+/* Moj tim / Protivnik: izbor prikaza (samo desktop); split = jedan pored drugog, samo igrači i dugme za trejd */
+#rviewbar{display:none}
+.rview{display:inline-flex;gap:2px;padding:3px;border:1px solid var(--line);border-radius:999px;background:var(--card)}
+.rview .ic{width:40px;height:32px;border:0;border-radius:999px;background:none;color:var(--muted);cursor:pointer;display:grid;place-items:center}
+.rview .ic:hover{color:var(--text)}
+.rview .ic[aria-pressed="true"]{background:var(--accent);color:#fff}
+@media (min-width:1100px){
+  #rviewbar{display:flex;justify-content:center;align-items:center;gap:14px;margin:18px 0 8px}
+  #rosters.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;align-items:start}
+  #rosters.split .rtable{min-width:0;width:100%;table-layout:auto}
+  #rosters.split .rtable th:not(:first-child),#rosters.split .rtable td:not(:first-child){display:none}
+  #rosters.split .rtable th:first-child,#rosters.split .rtable td:first-child{width:auto;max-width:none}
+  #rosters.split .sumtable,#rosters.split .balance,#rosters.split .card-warn,#rosters.split .r-done,#rosters.split .slot-chips,
+  #rosters.split [data-action="r-ir"],#rosters.split [data-action="r-remove"]{display:none}
+  #rosters.split .view-row{flex-wrap:wrap}
+  #rosters.split #oppteam .opp-pick{display:flex;justify-content:center;margin:18px 0 8px}
+  #rosters.split .empty-team{text-align:center}
+}

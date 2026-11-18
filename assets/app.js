@@ -864,6 +864,10 @@ const EN = {
   'Yahoo liga se ne osvežava sama: rosteri, tabela i protivnici se ne povlače sa Yahoo-a. Posle svake promene u ligi ažuriraj timove ručno (Nalepi tim ponovo). Uskoro stiže verzija koja sve povlači automatski.': 'Yahoo leagues do not update on their own: rosters, standings and opponents are not pulled from Yahoo. After every change in your league, update the teams by hand (paste the team again). A version that pulls everything automatically is coming soon.',
   'Ubaci u Daješ': 'Add to You give',
   'Ubaci u Dobijaš': 'Add to You get',
+  'Prikaz timova': 'Team view',
+  'Jedan ispod drugog, sa statistikom': 'One below the other, with stats',
+  'Jedan pored drugog, samo igrači': 'Side by side, players only',
+  'Prikaži statistiku': 'Show stats',
   'Novo: javi nam ako nešto nije uvezeno kako treba.': 'New: let us know if something was not imported correctly.',
   // Uvezena liga: podešavanja i kontekst cele lige
   'na {n}. mestu ({r})': 'in place {n} ({r})',
@@ -2039,6 +2043,7 @@ function render() {
   renderCompare(totals, cmp);
   renderNudge();
   renderReport(totals, cmp);
+  renderRosterViewBar();
   renderRosterSection('my');
   renderRosterSection('opp');
   renderHistory();
@@ -3774,10 +3779,14 @@ function lowVolume(c, totals) {
 }
 
 /** Povezana liga: protivnik je tim čiji roster ima sve igrače koje dobijam (izveštaj i AI tekst tako uvek imaju njegov roster i plasman) */
+let autoOppKey = null; // proverava se samo kad se promene igrači koje dobijam (ručno "Izaberi protivnika" ostaje prazno)
 function autoOppForSynced() {
   const lg = currentLeague();
   if (!isSynced(lg) || !getIds().length) return;
   const ids = getIds();
+  const key = `${lg.id}:${ids.join(',')}`;
+  if (key === autoOppKey) return;
+  autoOppKey = key;
   const cur = rosterOf('opp');
   if (cur && ids.every(id => rosterIds(cur).includes(id))) return;
   const hits = Object.entries(state.rosters.opps).filter(([, r]) => ids.every(id => rosterIds(r).includes(id)));
@@ -5178,10 +5187,27 @@ function balanceHTML(kind, plan) {
   return (chosen ? `<div class="chips slot-chips">${chosen}</div>` : '') + inputs + offNotes + warn;
 }
 
+/* ---------- Prikaz Moj tim / Protivnik: jedan ispod drugog ili jedan pored drugog (samo desktop) ---------- */
+const SPLIT_MQ = window.matchMedia ? matchMedia('(min-width: 1100px)') : { matches: false };
+const isSplit = () => state.ui.rosterLayout === 'split' && SPLIT_MQ.matches;
+SPLIT_MQ.addEventListener?.('change', () => { if (state.view === 'league' && state.page === 'trade') render(); });
+const ICON_STACK = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="4" width="16" height="7" rx="1.5"/><rect x="4" y="13" width="16" height="7" rx="1.5"/></svg>';
+const ICON_SPLIT = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="8" height="16" rx="1.5"/><rect x="13" y="4" width="8" height="16" rx="1.5"/></svg>';
+function renderRosterViewBar() {
+  const el = $('#rviewbar');
+  if (!el) return;
+  document.getElementById('rosters')?.classList.toggle('split', isSplit());
+  if (!currentLeague()) { el.innerHTML = ''; return; }
+  const split = state.ui.rosterLayout === 'split';
+  const b = (v, icon, label) => `<button type="button" class="ic" data-action="rlayout" data-v="${v}" aria-pressed="${split === (v === 'split')}" title="${esc(label)}" aria-label="${esc(label)}">${icon}</button>`;
+  el.innerHTML = `<div class="rview" role="group" aria-label="${esc(t('Prikaz timova'))}">${b('stack', ICON_STACK, t('Jedan ispod drugog, sa statistikom'))}${b('split', ICON_SPLIT, t('Jedan pored drugog, samo igrači'))}</div>
+    ${split ? `<button type="button" class="linkbtn rview-stats" data-action="rlayout" data-v="stack">${t('Prikaži statistiku')}</button>` : ''}`;
+}
+
 function renderRosterSection(kind) {
   const el = $(`#${kind === 'my' ? 'myteam' : 'oppteam'}`);
   if (!el) return;
-  const open = kind === 'my' ? state.ui.myOpen : state.ui.oppOpen;
+  const open = isSplit() || (kind === 'my' ? state.ui.myOpen : state.ui.oppOpen);
   const r = rosterOf(kind);
   const head = kind === 'opp' ? oppPickerHTML() : '';
   const edit = r || kind === 'my' ? `<div class="edit-roster">${linkHTML('trade-edit-roster', { attrs: `data-kind="${kind}"`, label: `✎ ${kind === 'my' ? t('Uredi roster') : t('Uredi roster u Ligi')}` })}</div>` : '';
@@ -6506,6 +6532,7 @@ document.addEventListener('click', e => {
     case 'export-league': exportData(el, 'league'); break;
     case 'import': importData(); break;
     case 'r-ir': toggleIR(el.dataset.kind, +el.dataset.id); break;
+    case 'rlayout': state.ui.rosterLayout = el.dataset.v === 'split' ? 'split' : 'stack'; saveUI(); render(); break;
     case 'r-trade': { const id = +el.dataset.id, ti = el.dataset.kind === 'my' ? GIVE : GET;
       if (!takenIds().has(id)) { state.teams[ti].ids.push(id); saveState(); render(); } break; }
     case 'notice-close': state.notice = null; state.noticeLink = null; render(); break;
