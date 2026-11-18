@@ -5201,7 +5201,7 @@ function renderRosterViewBar() {
   const split = state.ui.rosterLayout === 'split';
   const b = (v, icon, label) => `<button type="button" class="ic" data-action="rlayout" data-v="${v}" aria-pressed="${split === (v === 'split')}" title="${esc(label)}" aria-label="${esc(label)}">${icon}</button>`;
   el.innerHTML = `<div class="rview" role="group" aria-label="${esc(t('Prikaz timova'))}">${b('stack', ICON_STACK, t('Jedan ispod drugog, sa statistikom'))}${b('split', ICON_SPLIT, t('Jedan pored drugog, samo igrači'))}</div>
-    ${split ? `<button type="button" class="linkbtn rview-stats" data-action="rlayout" data-v="stack">${t('Prikaži statistiku')}</button>` : ''}`;
+`;
 }
 
 function renderRosterSection(kind) {
@@ -5249,7 +5249,7 @@ function renderRosterSection(kind) {
             ${rosterLocked() ? '' : addButtonHTML({ action: 'add-all', kind, label: plan.notOnRoster.length > 1 ? t('Dodaj sve ({n})', { n: plan.notOnRoster.length }) : t('Dodaj na roster'), n: plan.notOnRoster.length })}</div>`
         : '';
       body = `${plan.tradeTouches ? '' : updated}${addBox}${notAll}${toggle}
-        <div class="tscroll"><table class="rtable"><thead>${headerRow()}</thead><tbody>${rosterTableHTML(kind, showPlan)}</tbody></table></div>
+        <div class="tscroll"><table class="rtable"><thead>${isSplit() ? splitHeaderRow() : headerRow()}</thead><tbody>${rosterTableHTML(kind, showPlan)}</tbody></table></div>
         ${view === 'after' || (kind === 'opp' && (plan.dropSlots || plan.waiverSlots)) ? balanceHTML(kind, plan) : ''}
         <div class="tscroll"><table class="rtable sumtable"><tbody>${summaryRows(before, after, view === 'after')}</tbody></table></div>
         ${missing.length ? `<div class="card-warn">⚠ ${t('Bez podataka za izabrani period, ne računa se: {list}', { list: missing.map(esc).join(', ') })}</div>` : ''}
@@ -5260,6 +5260,9 @@ function renderRosterSection(kind) {
     <summary><span>${KINDS[kind].title}${inTitle ? `: ${oppSelectHTML()}` : kind === 'opp' && r ? `: ${esc(r.name)}` : ''}</span><span class="hint">${hint}</span></summary>
     <div class="fold-body">${head}${body}</div></details>`;
 }
+
+// split: kolona Igrač sa dugmetom koje vraća prikaz sa statistikom
+const splitHeaderRow = () => `<tr><th><div class="th-split"><span>${t('Igrač')}</span><button type="button" class="linkbtn rview-stats" data-action="rlayout" data-v="stack">${t('Prikaži statistiku')}</button></div></th></tr>`;
 
 /* ---------- Protivnik: sačuvani timovi po imenu ---------- */
 const oppList = () => Object.entries(state.rosters.opps).sort((a, b) => a[1].name.localeCompare(b[1].name, 'sr'));
