@@ -455,6 +455,7 @@ const EN = {
   "Sve lige": "All leagues",
   "Tabela lige": "Standings",
   "Trejduj ga": "Trade him",
+  "Trejduj": "Trade",
   "Trejduj sa ovim timom": "Trade with this team",
   "Unesi igrače sa svog rostera ({a} aktivnih + {b} IR). Posle toga ovde vidiš kategorije tima, upozorenja i otvorene trejdove.": "Enter the players on your roster ({a} active + {b} IR). Then you will see your team categories, alerts and open trades here.",
   "Unesi još timova da vidiš gde si jak a gde slab": "Enter more teams to see where you are strong and weak",
@@ -5116,7 +5117,7 @@ function rosterTableHTML(kind, plan) {
   const irBtn = (id, toIr) => (locked ? '' : rosterIrBtn(kind, id, toIr));
   // ⇄: igrač odmah ide gore u trejd (moj tim -> Daješ, protivnik -> Dobijaš)
   const trBtn = id => (kind === 'my' || kind === 'opp') && !takenIds().has(id)
-    ? `<button class="mini trade" type="button" data-action="r-trade" data-kind="${kind}" data-id="${id}" title="${esc(kind === 'my' ? t('Ubaci u Daješ') : t('Ubaci u Dobijaš'))}" aria-label="${esc(kind === 'my' ? t('Ubaci u Daješ') : t('Ubaci u Dobijaš'))}">⇄</button>` : '';
+    ? `<button class="mini trade" type="button" data-action="r-trade" data-kind="${kind}" data-id="${id}" title="${esc(kind === 'my' ? t('Ubaci u Daješ') : t('Ubaci u Dobijaš'))}" aria-label="${esc(kind === 'my' ? t('Ubaci u Daješ') : t('Ubaci u Dobijaš'))}">⇄<span class="tlabel">${t('Trejduj')}</span></button>` : '';
   const outSet = new Set(plan.outIds), dropSet = new Set(plan.dropsRemove || []);
   // Pregled: igrači koji ostaju na svojim mestima (sačuvani redosled), a dole redom
   // ODLAZI, IZBAČEN, DOLAZI, WAIVER. U prikazu "Sačuvan roster" plan je prazan, pa svi ostaju na mestu.
@@ -5274,7 +5275,7 @@ function oppPickerHTML() {
 }
 function oppSelectHTML() {
   const sel = state.rosters.oppSel;
-  const opts = oppList().map(([oid, o]) => `<option value="${oid}" ${oid === sel ? 'selected' : ''}>${esc(o.name)} (${o.players.length})</option>`).join('');
+  const opts = oppList().map(([oid, o]) => `<option value="${oid}" ${oid === sel ? 'selected' : ''}>${esc(o.name)}</option>`).join('');
   return `<select data-opp-select aria-label="${t('Izaberi protivnika')}">
         <option value="">${t('Izaberi protivnika')}</option>${opts}
       </select>`;

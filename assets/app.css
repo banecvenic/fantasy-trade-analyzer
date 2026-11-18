@@ -451,6 +451,7 @@ tr.irhead td{font-size:11px;color:var(--muted);background:var(--bg2);text-align:
 @media (max-width:640px){ header.top .wrap{position:relative} }
 .r-meta{font-size:11px;color:var(--muted);padding:10px 12px 0}
 .r-meta .stale{color:var(--warn)}
+.mini.trade .tlabel{display:none}
 .view-row .r-meta.in-row{padding:0;margin-left:auto;text-align:right}
 .view-row .preview-note{flex-basis:100%}
 .balance.top{padding:4px 12px 10px}
@@ -841,6 +842,8 @@ fieldset.plain:disabled{opacity:.6}
   #rosters.split #oppteam .opp-pick{display:flex;justify-content:center;margin:18px 0 8px}
   #rosters.split .empty-team{text-align:center}
   #rosters.split summary{cursor:default;min-height:56px}
+  #rosters.split .mini.trade{width:auto;padding:0 10px;gap:6px;display:inline-flex;align-items:center}
+  #rosters.split .mini.trade .tlabel{display:inline;font-size:12px;font-weight:600}
   #rosters.split .th-split{display:flex;align-items:center;justify-content:space-between;gap:8px}
   #rosters.split .th-split .rview-stats{font-weight:500;text-transform:none;letter-spacing:0}
   #rosters.split summary::before{display:none}
