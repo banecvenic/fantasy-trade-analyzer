@@ -3003,14 +3003,14 @@ function openAddLeague(intoId = null) {
   const card = ({ id, icon, title, desc, how, soon = false }) => `<div class="imp-card${soon ? ' soon' : ''}">
       ${soon ? '<div class="imp-main" aria-disabled="true">' : `<button type="button" class="imp-main" data-action="imp-go" data-imp="${id}">`}
         <span class="imp-ic" aria-hidden="true">${icon}</span><span class="imp-tx"><b>${title}${soon ? ` <span class="soon-tag">${t('Uskoro')}</span>` : ''}</b><span>${desc}</span></span>
-      ${soon ? '</div>' : '</button>'}<span class="imp-how">${howtoLink(how)}</span></div>`;
+      ${soon ? '</div>' : '</button>'}${how ? `<span class="imp-how">${howtoLink(how)}</span>` : ''}</div>`;
   const cards = [
     card({ id: 'espn', icon: 'ESPN', title: t('ESPN javna liga'), desc: t('Uvozimo timove, rostere, bodovanje i tabelu preko ID-ja lige.'), how: 'espn' }),
     importFlag('sleeper') && card({ id: 'sleeper', icon: 'SLP', title: t('Sleeper liga'), desc: t('Unesi korisničko ime ili ID lige.'), how: 'sleeper' }),
     importFlag('fantrax') && card({ id: 'fantrax', icon: 'FTX', title: t('Fantrax javna liga'), desc: t('Unesi ID lige ili link ka ligi.'), how: 'fantrax' }),
     card({ id: 'paste', icon: '📋', title: t('Yahoo, CBS ili druga platforma: Nalepi roster'), desc: t('Kopiraj stranicu tima i nalepi tekst. Igrače prepoznajemo sami.'), how: 'paste' }),
     !into && card({ id: 'manual', icon: '✎', title: t('Ručni unos'), desc: t('Napravi ligu i sam unesi igrače.'), how: 'paste' }),
-    card({ id: 'espn-private', icon: '🔒', title: t('ESPN privatna liga'), desc: `${t('Za sada uvozimo samo javne lige.')} ${howtoLink('espn', t('Pogledaj kako da ligu označiš kao javnu.'))}`, how: 'espn', soon: true }),
+    card({ id: 'espn-private', icon: '🔒', title: t('ESPN privatna liga'), desc: `${t('Za sada uvozimo samo javne lige.')} ${howtoLink('espn', t('Pogledaj kako da ligu označiš kao javnu.'))}`, soon: true }),
     card({ id: 'yahoo', icon: 'Y!', title: t('Yahoo automatski uvoz'), desc: t('Do tada koristi Nalepi roster.'), how: 'yahoo', soon: true }),
   ].filter(Boolean).join('');
   const intro = into ? `<p class="hint">${t('Uvoz ide u ligu „{n}”: rosteri i timovi se zamenjuju podacima sa platforme, a istorija i otvoreni trejdovi ostaju.', { n: esc(lgName(into)) })}</p>` : '';
