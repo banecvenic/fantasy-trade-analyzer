@@ -2817,22 +2817,23 @@ const importBarsHTML = lg => yahooBarHTML(lg) + (lg?.import && ['overview', 'tra
 
 /* ---------- Plasman po kategorijama iz zbirova cele sezone (svi timovi lige) ---------- */
 const rankCats = () => CATS.filter(c => !c.fpts && !isPunt(c));
-function importRanks(lg = currentLeague()) {
-  if (isPointsFmt() || lg?.import?.myTid == null) return null;
+/** Plasman jednog tima po kategorijama (podrazumevano moj tim) */
+function importRanks(lg = currentLeague(), tid = lg?.import?.myTid) {
+  if (isPointsFmt() || tid == null || !lg?.import) return null;
   const teams = (lg.import.teams || []).filter(x => x.vals);
-  if (teams.length < 2 || !teams.some(x => x.tid === lg.import.myTid)) return null;
+  if (teams.length < 2 || !teams.some(x => x.tid === tid)) return null;
   const cats = rankCats();
-  const mine = rotoRanks(teams.map(x => ({ id: x.tid, vals: x.vals })), cats)[lg.import.myTid] || {};
+  const mine = rotoRanks(teams.map(x => ({ id: x.tid, vals: x.vals })), cats)[tid] || {};
   const list = cats.filter(c => mine[c.key] != null).map(c => ({ c, rank: mine[c.key], of: teams.length }));
   return list.length ? list : null;
 }
-function importRanksHTML(lg = currentLeague()) {
-  const ranks = importRanks(lg);
+function importRanksHTML(lg = currentLeague(), tid = lg?.import?.myTid, teamName = '') {
+  const ranks = importRanks(lg, tid);
   if (!ranks) return '';
   const sw = strongWeak(ranks);
   const tag = c => (sw.strong.some(x => x.c === c) ? `<span class="slot-tag tag-in">${t('jak')}</span>` : sw.weak.some(x => x.c === c) ? `<span class="slot-tag tag-out">${t('slab')}</span>` : '');
   const h2h = FMT_ACTIVE.scoringType !== 'roto';
-  return `<section class="pcard"><h3>${t('Plasman u ligi po kategorijama')}</h3>
+  return `<section class="pcard${teamName ? ' lt-ranks' : ''}"><h3>${t('Plasman u ligi po kategorijama')}${teamName ? ` <span class="hint">${esc(teamName)}</span>` : ''}</h3>
     <div class="catgrid">${ranks.map(x => `<div class="catcell"><span class="cl">${x.c.label}</span><b>${t('{n}. od {m}', { n: x.rank, m: x.of })}</b>${tag(x.c)}</div>`).join('')}</div>
     <p class="pnote">${t('Zbir cele sezone iz {p}, svi timovi lige. FG% i FT% iz pogodaka i pokušaja.', { p: SOURCE_LABEL[lg.import.source] || '' })}${h2h ? ` ${t('U H2H ligi ovo je samo informativno: nedeljni mečevi se računaju posebno.')}` : ''}</p></section>`;
 }
@@ -2864,21 +2865,6 @@ function rankProjection(lg = currentLeague()) {
   const cats = rankCats();
   return rotoProjection(teams.map(x => ({ id: x.tid, vals: x.vals })), lg.import.myTid, delta, cats)
     .filter(x => x.before != null).map(x => ({ ...x, c: cats.find(y => y.key === x.key) }));
-}
-function rotoProjHTML() {
-  const lg = currentLeague();
-  if (!lg?.import?.teams?.length || isPointsFmt() || lg.import.myTid == null) return '';
-  if (!lg.import.teams.some(x => x.vals && x.tid === lg.import.myTid) || (!giveIds().length && !getIds().length)) return '';
-  const head = `<div class="section-t">${t('Procena plasmana u ligi posle trejda')}</div>`;
-  if (!state.schedule) return `${head}<div class="card"><p class="pnote rp-note">${t('Procena čeka raspored utakmica.')}</p></div>`;
-  const proj = rankProjection(lg) || [];
-  const rows = proj.map(x => {
-    const d = x.before - x.after, cls = d > 0 ? 'win' : d < 0 ? 'lose' : '';
-    return `<tr><td>${x.c.label}</td><td>${x.before}.</td><td class="${cls}">${x.after}.</td><td class="${cls}">${d > 0 ? `▲ ${d}` : d < 0 ? `▼ ${-d}` : '='}</td></tr>`;
-  }).join('');
-  const h2h = FMT_ACTIVE.scoringType !== 'roto';
-  return `${head}<div class="card"><div class="tscroll"><table class="cmp rproj"><thead><tr><th>${t('Kat.')}</th><th>${t('Sada')}</th><th>${t('Procena')}</th><th>${t('Promena')}</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <p class="pnote rp-note">${t('Procena: (Dobijaš − Daješ) po utakmici × preostale utakmice NBA timova, dodato na zbir tvog tima iz {p}. Ostali timovi ostaju isti. FG% i FT% se računaju iz pogodaka i pokušaja.', { p: SOURCE_LABEL[lg.import.source] || '' })}${h2h ? ` ${t('U H2H ligi ovo je samo informativno.')}` : ''}</p></div>`;
 }
 
 /* ---------- Kontekst cele lige za izveštaj i tekst za AI (samo uvezene lige) ---------- */
@@ -3821,7 +3807,7 @@ function renderCompare(totals, cmp) {
   }).join('');
   el.innerHTML = `<div class="section-t">${t('Poređenje kategorija')} <span class="hint">· ${t('klik na kategoriju = punt')}</span></div>
     <div class="card"><div class="tscroll"><table class="cmp"><thead><tr><th>${t('Kat.')}</th>${SIDES.map(sd => `<th style="color:${sd.color}">${sd.name}</th>`).join('')}<th title="${esc(t('Dobijaš − Daješ, iz tvoje perspektive'))}">${t('Razlika')}</th></tr></thead>
-    <tbody>${rows}</tbody></table></div></div>${rotoProjHTML()}`;
+    <tbody>${rows}</tbody></table></div></div>`;
 }
 
 /** Poeni: tabela doprinosa umesto Poređenja kategorija */
@@ -6293,6 +6279,9 @@ function renderLeaguePage() {
       <button type="button" class="iconbtn" data-action="lt-close" aria-label="${t('Zatvori')}">✕</button></div>${rename}
       ${rosterEditorHTML('lt', (p, x) => `${linkHTML('league-want', { cls: 'mini want', attrs: `data-player="${p.id}" data-opp="${sel}"` })}${rosterBtns('lt', p, x)}`,
         t('Unesi roster protivnika ({a} aktivnih + {b} IR). Čuva se samo u ovom browseru.', { a: ROSTER.ACTIVE, b: ROSTER.IR }))}</section>`;
+    // povezana liga: plasman ovog tima po kategorijama, ispod njegovog rostera
+    const tm = synced ? lg.import.teams.find(x => `e${x.tid}` === sel) : null;
+    if (tm) editor += importRanksHTML(lg, tm.tid, tm.name);
   }
   return `<h2 class="page-t">${t('Liga')} <span class="hint">${t('Uneto {a} od {b} timova', { a: enteredCount(), b: lg.teams || '?' })}</span></h2>
     ${table}

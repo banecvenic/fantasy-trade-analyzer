@@ -795,8 +795,6 @@ table.stand th,table.stand td{padding:6px 8px;border-bottom:1px solid var(--line
 table.stand th{font-size:11px;color:var(--muted);font-weight:700}
 table.stand td:first-child,table.stand th:first-child{width:28px;text-align:center}
 table.stand tr.me td{background:rgba(var(--info-rgb),.1);font-weight:700}
-.rproj td.win{color:var(--win-text);font-weight:700}
-.rproj td.lose{color:var(--lose-text);font-weight:700}
 .rp-note{margin:8px 12px 10px}
 .paste-steps{margin:0 0 12px;padding-left:20px;display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
 .form label.check{flex-direction:row;align-items:center;gap:8px;font-size:13px;color:var(--text)}
@@ -821,3 +819,4 @@ fieldset.plain:disabled{opacity:.6}
 .ro-row b{text-align:right;font-weight:600}
 .ls-sync{display:flex;flex-wrap:wrap;gap:6px 18px}
 .beta-tag{color:var(--accent);border-color:currentColor;background:none}
+.pcard.lt-ranks{margin-top:14px}
