@@ -837,6 +837,27 @@ const EN = {
   "{n} FPts": "{n} FPts",
   "{s} (nema u projekciji)": "{s} (not in projections)",
   "{s}: {w} po jedinici": "{s}: {w} per unit",
+  // Uvezena liga: podešavanja i kontekst cele lige
+  'na {n}. mestu ({r})': 'in place {n} ({r})',
+  'Liga: ti si {a}': 'League: you are {a}',
+  '{name} je {a}': '{name} is {a}',
+  'Poeni za celu sezonu: ti si {a}. od {m}{o}': 'Season points for: you rank {a} of {m}{o}',
+  ', {name} je {b}.': ', {name} ranks {b}.',
+  'Tvoj plasman po kategorijama: najjači {s}, najslabiji {w}': 'Your league rank by category: strongest {s}, weakest {w}',
+  '{name} po kategorijama: najjači {s}, najslabiji {w}': '{name} by category: strongest {s}, weakest {w}',
+  'Procena plasmana posle trejda: {list}': 'Estimated rank after the trade: {list}',
+  'Procena plasmana posle trejda: plasman po kategorijama se ne menja.': 'Estimated rank after the trade: no category rank changes.',
+  'Liga je povezana sa platformom {p}. Naziv, timovi, format, roster mesta i tabela dolaze iz lige i menjaju se samo tamo.': 'This league is linked to {p}. Name, teams, format, roster spots and standings come from the league and can only be changed there.',
+  'Roster': 'Roster',
+  '{a} aktivnih + {b} IR': '{a} active + {b} IR',
+  '(iz plasmana)': '(from standings)',
+  'Liga na platformi': 'League on platform',
+  'sezona {s}': 'season {s}',
+  'Poslednje osvežavanje': 'Last refresh',
+  'Prekini vezu sa platformom {p}': 'Unlink from {p}',
+  'Prekinuti vezu sa platformom {p}?': 'Unlink from {p}?',
+  'Liga ostaje sa poslednjim povučenim podacima i postaje obična liga: rosteri, tabela i podešavanja se dalje menjaju ručno, a osvežavanje prestaje. Vezu možeš ponovo da uspostaviš dugmetom Uvezi ligu.': 'The league keeps the last synced data and becomes a regular league: rosters, standings and settings are edited by hand from now on and refreshing stops. You can link it again with the Import league button.',
+  'Prekini vezu': 'Unlink',
   // Uvoz lige (faza 3.7)
   "Roster se povlači iz ESPN-a": "Roster is pulled from ESPN",
   "Roster se povlači sa platforme {p}": "Roster is pulled from {p}",
@@ -2332,6 +2353,7 @@ const TEAM_STATES = [
 
 function openLeagueSettings() {
   const lg = currentLeague(); if (!lg) return;
+  if (isSynced(lg)) { openSyncedSettings(lg); return; } // uvezena liga: sve dolazi iz lige
   const st = lg.standings || {};
   const num = v => (v == null || v === '' ? '' : v);
   showModal({
@@ -2586,6 +2608,8 @@ function parseEspnLeague(data, extId, season) {
     source: 'espn', extId: String(extId), season, name: cleanName(s.name) || `ESPN ${extId}`, size: +s.size || teams.length,
     format: fmt.format, fmtError: fmt.error, slots: { active: Math.max(1, active) || ROSTER_DEFAULT.ACTIVE, ir },
     deadline: dl > 0 ? dl : null, playoffTeams: +s.scheduleSettings?.playoffTeamCount || null, teams, raw, scoringType: s.scoringSettings?.scoringType || null,
+    // nedelja plejofa = posle poslednje nedelje regularnog dela; tekuća nedelja iz statusa lige
+    playoffWeek: +s.scheduleSettings?.matchupPeriodCount ? +s.scheduleSettings.matchupPeriodCount + 1 : null, week: +data.status?.currentMatchupPeriod || null,
   };
 }
 
@@ -2651,16 +2675,19 @@ function applyImport(lg, parsed, myTid) {
   const ros = tm => ({ name: tm.name, players: tm.players.map(x => ({ ...x })), updated: now });
   lg.import = {
     source: parsed.source, extId: parsed.extId, season: parsed.season, syncedAt: now, error: null, myTid: me ? me.tid : null,
-    deadline: parsed.deadline, playoffTeams: parsed.playoffTeams, teams: parsed.teams.map(({ players, ...x }) => x),
+    deadline: parsed.deadline, playoffTeams: parsed.playoffTeams, playoffWeek: parsed.playoffWeek || null, week: parsed.week || null,
+    teams: parsed.teams.map(({ players, ...x }) => x),
   };
+  lg.teamState = null; // stanje tima se računa iz plasmana u ligi
   const clampN = (v, [a, b]) => Math.max(a, Math.min(b, Math.round(+v) || a));
+  lg.name = parsed.name || lg.name;
   lg.platform = parsed.source; lg.externalLeagueId = parsed.extId; lg.teams = Math.max(2, Math.min(30, parsed.size || 12));
   lg.slots = { active: clampN(parsed.slots.active, SLOT_RANGE.active), ir: clampN(parsed.slots.ir, SLOT_RANGE.ir) };
   lg.roster = me ? ros(me) : emptyRoster('Moj tim');
   lg.opps = Object.fromEntries(parsed.teams.filter(x => x !== me).map(x => [`e${x.tid}`, ros(x)]));
   if (!lg.opps[lg.oppSel]) lg.oppSel = null;
   if (me) lg.teamName = me.name;
-  lg.standings = { ...(lg.standings || {}), rank: me?.seed || null, record: me ? recTxt(me.record) : '', playoffTeams: parsed.playoffTeams || lg.standings?.playoffTeams || null, updated: now };
+  lg.standings = { rank: me?.seed || null, record: me ? recTxt(me.record) : '', playoffTeams: parsed.playoffTeams || null, playoffWeek: parsed.playoffWeek || null, updated: now };
   if (currentLeague() === lg) state.rosters = { my: lg.roster, opps: lg.opps, oppSel: lg.oppSel };
   touchLeague(lg); saveProfile();
 }
@@ -2780,13 +2807,11 @@ function standingsHTML(lg) {
 
 /* ---------- Analiza: procena plasmana posle trejda (roto; u H2H samo informativno) ---------- */
 const gamesLeft = tid => { const g = state.schedule?.[tid]; const done = gamesDone(tid); return g && done != null ? Math.max(0, g.length - done) : null; };
-function rotoProjHTML() {
-  const lg = currentLeague();
-  if (!lg?.import?.teams?.length || isPointsFmt() || lg.import.myTid == null) return '';
+/** Procena plasmana posle trejda: [{ key, c, before, after }] ili null (nema uvoza, rasporeda ili trejda) */
+function rankProjection(lg = currentLeague()) {
+  if (!lg?.import?.teams?.length || isPointsFmt() || lg.import.myTid == null || !state.schedule) return null;
   const teams = lg.import.teams.filter(x => x.vals);
-  if (teams.length < 2 || !teams.some(x => x.tid === lg.import.myTid) || (!giveIds().length && !getIds().length)) return '';
-  const head = `<div class="section-t">${t('Procena plasmana u ligi posle trejda')}</div>`;
-  if (!state.schedule) return `${head}<div class="card"><p class="pnote rp-note">${t('Procena čeka raspored utakmica.')}</p></div>`;
+  if (teams.length < 2 || !teams.some(x => x.tid === lg.import.myTid) || (!giveIds().length && !getIds().length)) return null;
   const delta = {};
   const add = (id, sign) => {
     const p = state.byId.get(id), line = p && playerLine(p), g = p ? gamesLeft(p.tid) : null;
@@ -2796,14 +2821,176 @@ function rotoProjHTML() {
   getIds().forEach(id => add(id, 1));
   giveIds().forEach(id => add(id, -1));
   const cats = rankCats();
-  const proj = rotoProjection(teams.map(x => ({ id: x.tid, vals: x.vals })), lg.import.myTid, delta, cats);
-  const rows = proj.filter(x => x.before != null).map(x => {
-    const c = cats.find(y => y.key === x.key), d = x.before - x.after;
-    return `<tr><td>${c.label}</td><td>${x.before}.</td><td class="${d > 0 ? 'win' : d < 0 ? 'lose' : ''}">${x.after}.</td><td class="${d > 0 ? 'win' : d < 0 ? 'lose' : ''}">${d > 0 ? `▲ ${d}` : d < 0 ? `▼ ${-d}` : '='}</td></tr>`;
+  return rotoProjection(teams.map(x => ({ id: x.tid, vals: x.vals })), lg.import.myTid, delta, cats)
+    .filter(x => x.before != null).map(x => ({ ...x, c: cats.find(y => y.key === x.key) }));
+}
+function rotoProjHTML() {
+  const lg = currentLeague();
+  if (!lg?.import?.teams?.length || isPointsFmt() || lg.import.myTid == null) return '';
+  if (!lg.import.teams.some(x => x.vals && x.tid === lg.import.myTid) || (!giveIds().length && !getIds().length)) return '';
+  const head = `<div class="section-t">${t('Procena plasmana u ligi posle trejda')}</div>`;
+  if (!state.schedule) return `${head}<div class="card"><p class="pnote rp-note">${t('Procena čeka raspored utakmica.')}</p></div>`;
+  const proj = rankProjection(lg) || [];
+  const rows = proj.map(x => {
+    const d = x.before - x.after, cls = d > 0 ? 'win' : d < 0 ? 'lose' : '';
+    return `<tr><td>${x.c.label}</td><td>${x.before}.</td><td class="${cls}">${x.after}.</td><td class="${cls}">${d > 0 ? `▲ ${d}` : d < 0 ? `▼ ${-d}` : '='}</td></tr>`;
   }).join('');
   const h2h = FMT_ACTIVE.scoringType !== 'roto';
   return `${head}<div class="card"><div class="tscroll"><table class="cmp rproj"><thead><tr><th>${t('Kat.')}</th><th>${t('Sada')}</th><th>${t('Procena')}</th><th>${t('Promena')}</th></tr></thead><tbody>${rows}</tbody></table></div>
     <p class="pnote rp-note">${t('Procena: (Dobijaš − Daješ) po utakmici × preostale utakmice NBA timova, dodato na zbir tvog tima iz {p}. Ostali timovi ostaju isti. FG% i FT% se računaju iz pogodaka i pokušaja.', { p: SOURCE_LABEL[lg.import.source] || '' })}${h2h ? ` ${t('U H2H ligi ovo je samo informativno.')}` : ''}</p></div>`;
+}
+
+/* ---------- Kontekst cele lige za izveštaj i tekst za AI (samo uvezene lige) ---------- */
+/** { me, opp, teams (po tabeli), ranks { tid: { kat: mesto } }, cats, leaders, pts, pfRank, val } ili null */
+function leagueCtx(lg = currentLeague()) {
+  if (!isSynced(lg) || !lg.import.teams?.length) return null;
+  const imp = lg.import, all = imp.teams;
+  const me = all.find(x => x.tid === imp.myTid) || null;
+  const oppKey = state.rosters?.oppSel;
+  const opp = oppKey ? all.find(x => `e${x.tid}` === oppKey) || null : null;
+  const pts = isPointsFmt();
+  const cats = pts ? [] : rankCats();
+  const withVals = all.filter(x => x.vals);
+  const ranks = cats.length && withVals.length >= 2 ? rotoRanks(withVals.map(x => ({ id: x.tid, vals: x.vals })), cats) : null;
+  const val = (tm, c) => (c.made && c.att && tm.vals?.[c.att] > 0 ? tm.vals[c.made] / tm.vals[c.att] : tm.vals?.[c.key] ?? null);
+  const leaders = ranks ? cats.map(c => { const best = withVals.filter(x => ranks[x.tid]?.[c.key] === 1); return best.length ? { c, teams: best, v: val(best[0], c) } : null; }).filter(Boolean) : [];
+  const byPf = [...all].sort((a, b) => b.pf - a.pf);
+  const pfRank = tm => (tm ? byPf.indexOf(tm) + 1 : null);
+  return { lg, imp, me, opp, teams: [...all].sort((a, b) => (a.seed || 99) - (b.seed || 99)), ranks, cats, leaders, pts, pfRank, byPf, val };
+}
+/** Jake i slabe kategorije tima po plasmanu u ligi: { strong: [{c, r}], weak: [...] } */
+function teamRankSplit(ctx, tm, n = 3) {
+  const r = ctx.ranks?.[tm?.tid];
+  if (!r) return null;
+  const list = ctx.cats.filter(c => r[c.key] != null).map(c => ({ c, r: r[c.key] })).sort((a, b) => a.r - b.r);
+  return { strong: list.slice(0, n), weak: list.slice(-n).reverse(), all: list };
+}
+const rankListTxt = l => l.map(x => `${x.c.label} ${x.r}.`).join(', ');
+/** Vrednost kategorije iz zbira cele sezone za prikaz (procenat .471, A/TO 1.85, zbir 7608) */
+const totalTxt = (c, v) => (v == null ? '-' : c.type === 'pct' ? (c.ratio ? v.toFixed(2) : fmtPct(v)) : String(Math.round(v)));
+
+/** Redovi za vrh izveštaja (HTML) */
+function leagueReportLines() {
+  const ctx = leagueCtx();
+  if (!ctx?.me) return [];
+  const out = [];
+  const pos = tm => t('na {n}. mestu ({r})', { n: tm.seed || '?', r: recTxt(tm.record) });
+  out.push(`🏆 ${t('Liga: ti si {a}', { a: pos(ctx.me) })}${ctx.opp ? `, ${t('{name} je {a}', { name: `<b>${esc(ctx.opp.name)}</b>`, a: pos(ctx.opp) })}` : ''}.`);
+  if (ctx.pts) {
+    const m = ctx.lg.teams;
+    out.push(t('Poeni za celu sezonu: ti si {a}. od {m}{o}', { a: ctx.pfRank(ctx.me), m, o: ctx.opp ? t(', {name} je {b}.', { name: esc(ctx.opp.name), b: ctx.pfRank(ctx.opp) }) : '.' }));
+  } else {
+    const mine = teamRankSplit(ctx, ctx.me);
+    if (mine) out.push(t('Tvoj plasman po kategorijama: najjači {s}, najslabiji {w}', { s: rankListTxt(mine.strong), w: rankListTxt(mine.weak) }));
+    const his = ctx.opp && teamRankSplit(ctx, ctx.opp);
+    if (his) out.push(t('{name} po kategorijama: najjači {s}, najslabiji {w}', { name: `<b>${esc(ctx.opp.name)}</b>`, s: rankListTxt(his.strong), w: rankListTxt(his.weak) }));
+    const proj = rankProjection();
+    if (proj) {
+      const ch = proj.filter(x => x.after !== x.before);
+      out.push(ch.length ? t('Procena plasmana posle trejda: {list}', { list: ch.map(x => `${x.c.label} ${x.before}. → ${x.after}.`).join(', ') }) : t('Procena plasmana posle trejda: plasman po kategorijama se ne menja.'));
+    }
+  }
+  return out;
+}
+
+/** Odeljak za AI: tabela cele lige, plasman oba tima, lideri lige, procena posle trejda */
+function leagueAIText() {
+  const ctx = leagueCtx();
+  if (!ctx) return '';
+  const { lg, imp, me, opp } = ctx;
+  const lines = [];
+  const tag = tm => (tm === me ? L(' (ja)', ' (me)') : tm === opp ? L(' (protivnik)', ' (opponent)') : '');
+  lines.push(`${L('Tabela', 'Standings')} (${L('mesto, tim, skor', 'place, team, record')}${ctx.pts ? L(', poeni za celu sezonu', ', season points for') : ''}):`);
+  lines.push(...ctx.teams.map(x => `${x.seed || '-'}. ${x.name}${tag(x)} ${recTxt(x.record)}${ctx.pts ? ` · ${fmtNum(x.pf)}` : ''}`));
+  const info = [];
+  if (imp.playoffTeams) info.push(L(`U plejof ide ${imp.playoffTeams} timova`, `${imp.playoffTeams} teams make the playoffs`));
+  if (imp.playoffWeek) info.push(L(`plejof počinje u ${imp.playoffWeek}. nedelji`, `playoffs start in week ${imp.playoffWeek}`));
+  if (imp.week) info.push(L(`sada je ${imp.week}. nedelja`, `it is now week ${imp.week}`));
+  if (imp.deadline) info.push(imp.deadline < Date.now() ? L('rok za trejdove je prošao', 'the trade deadline has passed') : L(`rok za trejdove: ${aiDate(new Date(imp.deadline).toISOString())}`, `trade deadline: ${aiDate(new Date(imp.deadline).toISOString())}`));
+  if (info.length) lines.push(`${info.join(', ')}.`);
+  if (ctx.pts) {
+    lines.push(L(`Poeni za celu sezonu, mesto: ja ${ctx.pfRank(me) || '-'}. od ${lg.teams}${opp ? `, protivnik ${ctx.pfRank(opp)}.` : ''}`, `Season points for, rank: me ${ctx.pfRank(me) || '-'} of ${lg.teams}${opp ? `, opponent ${ctx.pfRank(opp)}` : ''}`));
+    lines.push(`${L('Najviše poena', 'Most points')}: ${ctx.byPf.slice(0, 3).map(x => `${x.name}${tag(x)} ${fmtNum(x.pf)}`).join(', ')}`);
+  } else if (ctx.ranks) {
+    const rk = tm => ctx.cats.filter(c => ctx.ranks[tm.tid]?.[c.key] != null).map(c => `${c.label} ${ctx.ranks[tm.tid][c.key]}`).join(', ');
+    lines.push(`\n${L(`Plasman po kategorijama (zbir cele sezone iz ${SOURCE_LABEL[imp.source]}, 1 = najbolji od ${lg.teams})`, `Rank by category (season totals from ${SOURCE_LABEL[imp.source]}, 1 = best of ${lg.teams})`)}:`);
+    if (me) lines.push(`${L('Ja', 'Me')} (${me.name}): ${rk(me)}`);
+    if (opp) lines.push(`${L('Protivnik', 'Opponent')} (${opp.name}): ${rk(opp)}`);
+    lines.push(`\n${L('Lideri lige po kategorijama (zbir cele sezone)', 'League leaders by category (season totals)')}:`);
+    lines.push(...ctx.leaders.map(x => `${x.c.label}: ${x.teams.map(tm => `${tm.name}${tag(tm)}`).join(', ')} (${totalTxt(x.c, x.v)})${me && x.teams.includes(me) ? '' : me ? L(`; ja ${totalTxt(x.c, ctx.val(me, x.c))}`, `; me ${totalTxt(x.c, ctx.val(me, x.c))}`) : ''}`));
+    const proj = rankProjection();
+    if (proj) lines.push(`\n${L('Procena mog plasmana posle trejda (preostale utakmice, ostali timovi isti)', 'Estimated rank after the trade (remaining games, other teams unchanged)')}: ${proj.map(x => `${x.c.label} ${x.before}→${x.after}`).join(', ')}`);
+  }
+  return lines.join('\n');
+}
+
+/* ---------- Podešavanja uvezene lige: sve iz lige, menja se samo moj tim i napomena ---------- */
+function openSyncedSettings(lg) {
+  const imp = lg.import, f = leagueFormatOf(lg), st = lg.standings || {}, src = SOURCE_LABEL[imp.source];
+  const fromLeague = f.source === `import:${imp.source}`; // Sleeper / Fantrax: format je izabran ručno pri uvozu
+  const sit = teamSituation(lg);
+  const season = /^\d{4}$/.test(String(imp.season)) && imp.source === 'espn' ? `${imp.season - 1}-${String(imp.season).slice(2)}` : String(imp.season || '');
+  const row = (k, v) => (v == null || v === '' ? '' : `<div class="ro-row"><span>${k}</span><b>${v}</b></div>`);
+  showModal({
+    title: t('Podešavanja lige'), wide: true,
+    body: `<div class="form">
+      <div class="banner info ro-note"><span>🔗 ${t('Liga je povezana sa platformom {p}. Naziv, timovi, format, roster mesta i tabela dolaze iz lige i menjaju se samo tamo.', { p: src })}</span></div>
+      <label>${t('Moj tim')}<select id="ls-myteam">${imp.myTid == null ? '<option value="">–</option>' : ''}${[...imp.teams].sort((a, b) => a.name.localeCompare(b.name)).map(x => `<option value="${esc(String(x.tid))}" ${x.tid === imp.myTid ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
+      <div class="ro-grid">
+        ${row(t('Naziv lige'), esc(lgName(lg)))}
+        ${row(t('Platforma'), esc(src))}
+        ${row(t('Broj timova'), lg.teams)}
+        ${fromLeague ? row(t('Format'), `<span title="${esc(formatSummary(f))}">${esc(formatShort(f))}</span>`) : ''}
+        ${row(t('Roster'), t('{a} aktivnih + {b} IR', { a: lg.slots?.active, b: lg.slots?.ir ?? 0 }))}
+        ${row(t('Mesto'), st.rank ? t('{n}. od {m}', { n: st.rank, m: lg.teams }) : '')}
+        ${row(t('Skor'), esc(st.record || ''))}
+        ${row(t('Timova u plejofu'), st.playoffTeams)}
+        ${row(t('Nedelja plejofa'), st.playoffWeek)}
+        ${row(t('Stanje mog tima'), sit ? `${esc(stateLabel(sit.state))} <span class="hint">${t('(iz plasmana)')}</span>` : '')}
+        ${row(t('Liga na platformi'), `${esc(imp.extId)} · ${t('sezona {s}', { s: esc(season) })}`)}
+        ${row(t('Poslednje osvežavanje'), imp.syncedAt ? esc(timeAgo(Date.parse(imp.syncedAt))) : '')}
+      </div>
+      ${fromLeague ? '' : formatPickerHTML('ls', f, lg.platform)}
+      <label>${t('Napomena')}<textarea id="ls-note" rows="3" maxlength="500">${esc(lg.note || '')}</textarea></label>
+      <div class="ls-sync"><button type="button" class="linkbtn" data-action="league-sync">↻ ${esc(syncBtnText(imp.source))}</button>
+        <button type="button" class="linkbtn" data-action="league-unlink">⛓ ${t('Prekini vezu sa platformom {p}', { p: esc(src) })}</button></div>
+      <div class="ls-export"><button type="button" class="linkbtn" data-action="export-league">⤓ ${t('Izvezi samo ovu ligu')}</button> <span class="hint export-msg"></span></div>
+      <div class="ls-actions"><button type="button" class="linkbtn" data-action="league-dup">${t('Dupliraj ligu')}</button>
+        <button type="button" class="linkbtn danger" data-action="league-del">${t('Obriši ligu')}</button></div>
+    </div>`,
+    confirm: t('Sačuvaj'),
+    onConfirm: () => {
+      if (!fromLeague) {
+        const fp = readFormatPicker('ls');
+        if (fp.error) return false;
+        const oldF = leagueFormatOf(lg);
+        lg.leagueFormat = fp.f;
+        applyFormatChange(lg, oldF);
+      }
+      lg.note = document.getElementById('ls-note').value.trim();
+      const tidV = document.getElementById('ls-myteam').value;
+      const tm = tidV ? imp.teams.find(x => String(x.tid) === tidV) : null;
+      if (tm) setMyImportTeam(lg, tm.tid);
+      touchLeague(lg); saveProfile(); render();
+    },
+  });
+}
+/** Prekid veze sa platformom: liga ostaje sa poslednjim podacima kao obična (ručna) liga */
+function unlinkLeague() {
+  const lg = currentLeague();
+  if (!isSynced(lg)) return;
+  const p = SOURCE_LABEL[lg.import.source];
+  showModal({
+    title: t('Prekinuti vezu sa platformom {p}?', { p: esc(p) }),
+    body: `<p>${t('Liga ostaje sa poslednjim povučenim podacima i postaje obična liga: rosteri, tabela i podešavanja se dalje menjaju ručno, a osvežavanje prestaje. Vezu možeš ponovo da uspostaviš dugmetom Uvezi ligu.')}</p>`,
+    confirm: t('Prekini vezu'),
+    onConfirm: () => {
+      const f = leagueFormatOf(lg);
+      lg.leagueFormat = { ...f, source: 'manual' };
+      delete lg.import;
+      touchLeague(lg); saveProfile(); render();
+    },
+  });
 }
 
 /* ---------- Dodaj ligu: izbor načina ---------- */
@@ -4301,7 +4488,7 @@ function buildReport(totals, cmp) {
 
 /** Redovi konteksta: situacija iz tabele i profil tima u odnosu na ligu */
 function reportContext() {
-  const out = [];
+  const out = [...leagueReportLines()]; // uvezena liga: tabela, plasman oba tima, procena
   const sit = teamSituation();
   if (sit) {
     const table = sit.rank && sit.teams ? rt('sitTable', { rank: sit.rank, teams: sit.teams, rec: sit.record ? rt('sitRec', { r: esc(sit.record) }) : '', po: sit.inPO == null ? '' : rt(sit.inPO ? 'sitIn' : 'sitOut') })
@@ -4498,6 +4685,11 @@ function aiInstructions(uneven) {
     if (tsx) out.push(L(`Stanje mog tima: ${t(tsx.sr)}.`, `My team's situation: ${t(tsx.sr)}.`));
     if (state.punt.size) out.push(L(`Puntujem: ${CATS.filter(isPunt).map(c => c.label).join(', ')}. Te kategorije se ne računaju.`, `I am punting: ${CATS.filter(isPunt).map(c => c.label).join(', ')}. Those categories do not count.`));
     if (lg.note) out.push(L(`Napomena: ${lg.note}`, `Note: ${lg.note}`));
+    if (isSynced(lg)) out.push(pts
+      ? L('Imaš podatke cele lige: tabelu i poene svih timova. Iskoristi ih: koliko sam blizu plejofa ili vrha, koliko je protivnik blizu, i da li mu trejd realno pomaže s obzirom na njegov plasman.',
+        'You have data for the whole league: standings and points of every team. Use it: how close I am to the playoffs or the top, how close the opponent is, and whether the trade really helps them given their position.')
+      : L('Imaš podatke cele lige: tabelu, plasman svakog tima po kategorijama i lidere lige. Iskoristi ih: koliko sam blizu plejofa ili vrha, u kojim kategorijama realno mogu da dobijem ili izgubim mesta u ligi, gde mi mali dobitak ništa ne menja jer sam daleko od susednog tima, šta treba protivniku s obzirom na njegov plasman i da li mu ovaj trejd pomaže.',
+        'You have data for the whole league: standings, every team\'s rank in each category and the league leaders. Use it: how close I am to the playoffs or the top, in which categories I can realistically gain or lose places in the league, where a small gain changes nothing because I am far from the next team, what the opponent needs given their position and whether this trade helps them.'));
   }
   out.push(L('Proceni ovaj trejd iz moje perspektive. Najvažniji kriterijumi: minutaža i uloga igrača sada i u budućnosti, zdravlje i pouzdanost, pa tek onda trenutne brojke.',
     'Evaluate this trade from my perspective. Most important criteria: each player\'s minutes and role now and going forward, health and reliability, and only then current numbers.'));
@@ -4529,6 +4721,7 @@ function aiInstructions(uneven) {
       ['Short recommendation: accept / decline / negotiate, in one sentence', 'What I gain long term', 'What I risk', 'Fit with my roster', 'How the trade affects my team by category', 'If the answer is negotiate: a concrete counteroffer'])
     : L(['Kratka preporuka: prihvati / odbij / pregovaraj, u jednoj rečenici', 'Šta se dobija dugoročno', 'Šta se rizikuje', 'Pitanja o ligi i rosteru koja bi promenila odgovor', 'Kako trejd utiče po kategorijama', 'Ako je odgovor pregovaraj: konkretan kontra-predlog'],
       ['Short recommendation: accept / decline / negotiate, in one sentence', 'What is gained long term', 'What is at risk', 'Questions about the league and roster that would change the answer', 'How the trade affects each category', 'If the answer is negotiate: a concrete counteroffer']);
+  if (lg && isSynced(lg) && !pts) steps[4] = L('Kako trejd utiče na moj tim po kategorijama i na moj plasman u ligi', 'How the trade affects my team by category and my place in the league');
   if (pts) steps[4] = lg ? L('Kako trejd menja fantasy poene mog tima po utakmici', 'How the trade changes my team\'s fantasy points per game') : L('Kako trejd menja fantasy poene po utakmici', 'How the trade changes fantasy points per game');
   steps.push(oppStep);
   out.push(steps.map((s, i) => `${i + 1}. ${s}`).join('\n'));
@@ -4575,6 +4768,7 @@ function buildAIText(shortRosterNews = false) {
   ctx.push(`${L('Izabrani period za poređenje', 'Selected comparison period')}: ${per}`);
   ctx.push(`${L('Vesti', 'News')}: Rotowire (${L('preko ESPN-a, na engleskom', 'via ESPN')})`);
   sec(L('LIGA I KONTEKST', 'LEAGUE AND CONTEXT'), ctx.join('\n'));
+  if (lg && isSynced(lg)) sec(L(`CELA LIGA (uvezeno sa ${SOURCE_LABEL[lg.import.source]})`, `WHOLE LEAGUE (imported from ${SOURCE_LABEL[lg.import.source]})`), leagueAIText());
 
   // 4.3 Trejd
   const tr = [];
@@ -6202,6 +6396,7 @@ document.addEventListener('click', e => {
     case 'imp-go': openImportMethod(el.dataset.imp); break;
     case 'imp-pick-league': { const inp = document.getElementById('imp-in'); if (inp) { inp.value = el.dataset.id; document.querySelector('#modal [data-modal-ok]')?.click(); } break; }
     case 'league-sync': syncLeague(currentLeague()); break;
+    case 'league-unlink': closeModal(); unlinkLeague(); break;
     case 'league-import': if (currentLeague()) { closeModal(); openAddLeague(currentLeague().id); } break;
     case 'paste-open': if (currentLeague()) openPaste({ leagueId: currentLeague().id, target: el.dataset.target || null }); break;
     case 'paste-save-more': pasteSave(true); break;
