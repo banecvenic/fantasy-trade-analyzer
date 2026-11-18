@@ -2934,12 +2934,21 @@ function aiInstructions(uneven) {
   out.push(L(`Ako možeš da pretražuješ internet, proveri najnovije vesti za igrače u trejdu${lg ? ' i za ključne igrače mog rostera' : ''}: povrede, promene uloge, glasine o trejdovima u NBA. Navedi šta si našao i od kog datuma. Ako ne možeš da pretražuješ internet, reci to na početku i osloni se na vesti ispod.`,
     `If you can browse the internet, check the latest news for the players in the trade${lg ? ' and for the key players on my roster' : ''}: injuries, role changes, NBA trade rumors. Say what you found and from what date. If you cannot browse, say so at the start and rely on the news below.`));
   out.push(L('Budi iskren, i kad je trejd loš za mene, reci.', 'Be honest, and if the trade is bad for me, say so.'));
+  const oppKnown = !!(lg && rosterOf('opp')?.players.length);
+  out.push(oppKnown
+    ? L('Planiram da pošaljem ovu ponudu, pa na kraju pogledaj trejd i iz ugla protivnika. Njegov roster je ispod: proceni kako trejd menja njegov tim (kategorije, pozicije, dubina, povrede) i da li mu odgovara.',
+      'I plan to send this offer, so at the end look at the trade from the opponent\'s side too. Their roster is below: judge how the trade changes their team (categories, positions, depth, injuries) and whether it suits them.')
+    : L('Planiram da pošaljem ovu ponudu, pa na kraju pogledaj trejd i iz ugla druge strane. Nemam njegov roster, pa razmišljaj kao tipičan menadžer i reci šta bi o njegovom timu trebalo da znam da bi procena bila tačnija.',
+      'I plan to send this offer, so at the end look at the trade from the other side too. I do not have their roster, so think like a typical manager and say what I should know about their team to make the read more accurate.'));
+  const oppStep = L('Pogled iz ugla protivnika: zašto bi mogao da odbije, kako vidi trejd s obzirom na svoj tim, da li sam preterao ili tražim previše, šta bi mogao da traži zauzvrat ili kao dodatak, i sve načine na koje bi mogao da razmišlja, uključujući ono što ja iz svog ugla možda ne vidim',
+    'The opponent\'s view: why they might decline, how they see the trade given their team, whether I am asking too much, what they might ask for in return or as an add-on, and every way they might think about it, including what I may be missing from my side');
   out.push(L('Odgovori ovim redom:', 'Answer in this order:'));
   const steps = lg
     ? L(['Kratka preporuka: prihvati / odbij / pregovaraj, u jednoj rečenici', 'Šta dobijam dugoročno', 'Šta rizikujem', 'Uklapanje u moj roster', 'Kako trejd utiče na moj tim po kategorijama', 'Ako je odgovor pregovaraj: konkretan kontra-predlog'],
       ['Short recommendation: accept / decline / negotiate, in one sentence', 'What I gain long term', 'What I risk', 'Fit with my roster', 'How the trade affects my team by category', 'If the answer is negotiate: a concrete counteroffer'])
     : L(['Kratka preporuka: prihvati / odbij / pregovaraj, u jednoj rečenici', 'Šta se dobija dugoročno', 'Šta se rizikuje', 'Pitanja o ligi i rosteru koja bi promenila odgovor', 'Kako trejd utiče po kategorijama', 'Ako je odgovor pregovaraj: konkretan kontra-predlog'],
       ['Short recommendation: accept / decline / negotiate, in one sentence', 'What is gained long term', 'What is at risk', 'Questions about the league and roster that would change the answer', 'How the trade affects each category', 'If the answer is negotiate: a concrete counteroffer']);
+  steps.push(oppStep);
   out.push(steps.map((s, i) => `${i + 1}. ${s}`).join('\n'));
   out.push(L('Odgovori na srpskom, kratko i jasno.', 'Reply in English, short and clear.'));
   return out.join('\n');
