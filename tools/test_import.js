@@ -75,6 +75,17 @@ test('ime: skraćeno "N. Jokic" samo kad je jednoznačno; dvosmisleno se ne poga
   assert.strictEqual(matchName('Michael Jordan', IDX), null);
 });
 
+test('ime: nadimak i puno ime (Ron = Ronald, Nicolas = Nic), samo uz isto prezime i jednoznačno', () => {
+  const idx = buildNameIndex([{ id: 1, name: 'Ronald Holland II' }, { id: 2, name: 'Nic Claxton' }, { id: 3, name: 'Jalen Williams' }, { id: 4, name: 'Jaylin Williams' }, { id: 5, name: 'Robert Williams III' }]);
+  assert.deepStrictEqual(matchName('Ron Holland', idx), { id: 1 });
+  assert.deepStrictEqual(matchName('Holland, Ron', idx), { id: 1 });
+  assert.deepStrictEqual(matchName('Nicolas Claxton', idx), { id: 2 });
+  assert.deepStrictEqual(matchName('Rob Williams', idx), { id: 5 });
+  assert.strictEqual(matchName('Ja Williams', idx), null);     // kratko i dvosmisleno
+  assert.deepStrictEqual(matchName('Jal Williams', idx), { id: 3 }); // samo Jalen počinje sa "jal"
+  assert.strictEqual(matchName('Ron Williams', idx), null);   // isto prezime, ali nijedno ime ne počinje sa "ron"
+});
+
 test('nalepljen roster (Yahoo stil): imena iz šuma, statusi i statistike se ignorišu, neprepoznata imena se vraćaju', () => {
   const text = [
     'Starters\tPos\tStatus\tOpp\tFGM/A\tFG%\tPTS',

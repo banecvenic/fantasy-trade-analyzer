@@ -1095,6 +1095,15 @@ function matchName(raw, index) {
     const s = index.short.get(k);
     if (s) return s.length === 1 ? { id: s[0] } : { ambiguous: s };
   }
+  // nadimak ili puno ime: "Ron Holland" = "Ronald Holland II", "Nicolas Claxton" = "Nic Claxton"; isto prezime, jedno ime počinje drugim, samo jedan igrač
+  if (w.length >= 2 && w[0].length >= 3) {
+    const rest = w.slice(1).join(' ');
+    const c = (index.short.get(`${w[0][0]} ${rest}`) || []).filter(id => {
+      const f = nameKey(index.byId.get(id)?.name || '').split(' ')[0] || '';
+      return f.length >= 3 && (f.startsWith(w[0]) || w[0].startsWith(f));
+    });
+    if (c.length === 1) return { id: c[0] };
+  }
   return null;
 }
 /** Reči koje nisu deo imena (pozicije, statusi, zaglavlja tabela, timske skraćenice) */
