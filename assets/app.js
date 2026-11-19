@@ -5255,7 +5255,8 @@ function rosterPlan(kind) {
   // Trejd je "moj" tek kad su SVI igrači sa izlazne strane (moj: Daješ, protivnik: Dobijaš) na ovom rosteru.
   // Dok nisu: niko ne odlazi, niko ne dolazi, Moj tim se ne menja (samo obaveštenje + "Dodaj sve").
   const notOnRoster = [...outSet].filter(id => !onRoster.has(id));
-  const allIn = outSet.size > 0 && notOnRoster.length === 0;
+  // i kad izlazna strana još nije popunjena: igrači sa druge strane već dolaze u pregled "Posle trejda"
+  const allIn = (outSet.size > 0 || state.teams[KINDS[kind].in].ids.length > 0) && notOnRoster.length === 0;
   const outIds = allIn ? rosterIds(r).filter(id => outSet.has(id)) : [];
   const incoming = allIn ? state.teams[KINDS[kind].in].ids.filter(id => !onRoster.has(id)) : [];
   const pre = [...activeBefore.filter(id => !outIds.includes(id)), ...incoming];
@@ -5428,16 +5429,17 @@ function renderRosterSection(kind) {
       const before = sumPlayers(plan.activeBefore), after = sumPlayers(plan.activeAfter);
       const missing = [...new Set([...before.missing, ...after.missing])];
       // Pregled posle trejda (samo prikaz) ili sačuvan roster kakav jeste
-      const view = plan.tradeTouches ? (state.ui.rosterView?.[kind] || 'after') : 'saved';
+      // dugmad Posle trejda / Sačuvan roster stoje uvek (bez trejda oba prikaza su ista)
+      const view = state.ui.rosterView?.[kind] || 'after';
       const showPlan = view === 'after' ? plan : { ...plan, outIds: [], incoming: [], drops: [], dropsRemove: [], waivers: [] };
-      const toggle = plan.tradeTouches ? `<div class="view-row">
+      const toggle = `<div class="view-row">
           <div class="seg small" role="group" aria-label="${t('Prikaz rostera')}">
             <button type="button" data-rview="${kind}:after" aria-pressed="${view === 'after'}">${t('Posle trejda (pregled)')}</button>
             <button type="button" data-rview="${kind}:saved" aria-pressed="${view === 'saved'}">${t('Sačuvan roster')}</button>
           </div>
           <span class="r-meta in-row">${updText}</span>
           <span class="preview-note">${view === 'after' ? t('Samo pregled: sačuvan roster se ne menja dok trejd ne potvrdiš.') : t('Ovo je tvoj sačuvani roster, bez trejda.')}</span>
-        </div>` : '';
+        </div>`;
       // Nisu svi igrači sa izlazne strane na rosteru -> samo obaveštenje, roster se ne menja
       const notAll = plan.notOnRoster.length && !plan.tradeTouches
         ? `<div class="notall"><span>⚠ ${kind === 'my'
@@ -5445,7 +5447,7 @@ function renderRosterSection(kind) {
             : t('Nisu svi igrači iz Dobijaš na rosteru tima {team} ({list}), pa se njegov roster ne menja.', { team: esc(r.name), list: plan.notOnRoster.map(id => esc(state.byId.get(id)?.name || id)).join(', ') })}</span>
             ${rosterLocked() ? '' : addButtonHTML({ action: 'add-all', kind, label: plan.notOnRoster.length > 1 ? t('Dodaj sve ({n})', { n: plan.notOnRoster.length }) : t('Dodaj na roster'), n: plan.notOnRoster.length })}</div>`
         : '';
-      body = `${plan.tradeTouches ? '' : updated}${addBox}${notAll}${toggle}
+      body = `${addBox}${notAll}${toggle}
         <div class="tscroll"><table class="rtable"><thead>${isSplit() ? splitHeaderRow() : rosterHeaderRow(kind)}</thead><tbody>${rosterTableHTML(kind, showPlan)}</tbody></table></div>
         ${view === 'after' || (kind === 'opp' && (plan.dropSlots || plan.waiverSlots)) ? balanceHTML(kind, plan) : ''}
         <div class="tscroll"><table class="rtable sumtable"><tbody>${summaryRows(before, after, view === 'after')}</tbody></table></div>
