@@ -345,6 +345,33 @@ function mapSleeperFormat(sc) {
   if (!Object.keys(weights).length) return { format: null, error: 'empty' };
   return { format: normalizeFormat({ scoringType: 'h2h_points', categories: [], weights, preset: 'custom', source: 'import:sleeper', unsupported }), error: null };
 }
+/* ---------- Fantrax: getLeagueInfo.scoringSystem -> leagueFormat ----------
+   Provereno na pravim ligama (H2H poeni): type 'HEAD_TO_HEAD_POINTS_BASED', stavke u scoringCategorySettings[].configs[] sa scoringCategory.code/shortName i points.
+   Nazivi tipova za kategorije nisu provereni na pravoj ligi: čitaju se po rečima (ROTISSERIE, CATEGOR, MOST), a nepoznat tip vraća grešku pa korisnik bira ručno. */
+const FANTRAX_STAT = { PTS: 'PTS', REB: 'REB', OREB: 'OREB', DREB: 'DREB', AST: 'AST', ST: 'STL', STL: 'STL', BLK: 'BLK', TO: 'TO', '3PTM': 'TPM', '3PM': 'TPM', '3PTA': 'TPA', '3PA': 'TPA', '3PT%': 'TPP', '3P%': 'TPP', FGM: 'FGM', FGA: 'FGA', 'FG%': 'FGP', FTM: 'FTM', FTA: 'FTA', 'FT%': 'FTP', 'A/TO': 'ATO', 'AST/TO': 'ATO', PF: 'PF', DD: 'DD', '2D': 'DD', TD: 'TD', '3D': 'TD', GS: 'GS', MIN: 'MIN' };
+const FANTRAX_CODE = { INDIVIDUAL_POINTS: 'PTS', INDIVIDUAL_REBOUNDS: 'REB', INDIVIDUAL_ASSISTS: 'AST', INDIVIDUAL_STEALS: 'STL', INDIVIDUAL_BLOCKS: 'BLK', INDIVIDUAL_TURNOVERS: 'TO' };
+function fantraxScoringType(type) {
+  const x = String(type || '').toUpperCase();
+  if (x.includes('POINT')) return x.includes('HEAD') ? 'h2h_points' : 'season_points';
+  if (x.includes('ROTIS') || x === 'ROTO') return 'roto';
+  if (x.includes('HEAD') && x.includes('CATEG')) return x.includes('MOST') ? 'h2h_most' : 'h2h_each';
+  return null;
+}
+function mapFantraxFormat(sys) {
+  const scoringType = fantraxScoringType(sys?.type);
+  if (!scoringType) return { format: null, error: 'type' };
+  const pts = isPointsType(scoringType), weights = {}, categories = [], unsupported = [];
+  for (const g of sys.scoringCategorySettings || []) for (const c of g?.configs || []) {
+    const sc = c?.scoringCategory || {}, id = FANTRAX_CODE[sc.code] || FANTRAX_STAT[String(sc.shortName || '').toUpperCase()];
+    const w = +c.points || 0;
+    if (pts && !w) continue;
+    if (!id || (pts && STAT_BY_ID.get(id).type !== 'sum')) { unsupported.push(sc.name || sc.shortName || sc.code || 'Fantrax'); continue; }
+    if (pts) weights[id] = Math.round(((weights[id] || 0) + w) * 1000) / 1000;
+    else if (!categories.includes(id)) categories.push(id);
+  }
+  if (pts ? !Object.keys(weights).length : !categories.length) return { format: null, error: 'empty' };
+  return { format: normalizeFormat({ scoringType, categories, weights, preset: 'custom', source: 'import:fantrax', unsupported }), error: null };
+}
 /** Format lige (uvek ispravan); bez lige (brzo poređenje) za sada 9-cat H2H */
 const leagueFormatOf = lg => (lg ? normalizeFormat(lg.leagueFormat || legacyFormat()) : normalizeFormat(null));
 
@@ -374,12 +401,14 @@ function syncCats(f = activeFormat()) {
   return f;
 }
 /* ---------- Redosled kolona: podrazumevano kao na platformi lige; prevlačenjem zaglavlja korisnik bira svoj (pamti se samo za tu ligu) ----------
-   ESPN i Yahoo prikazuju kategorije uvek istim redom (9-cat ESPN: FG% FT% 3PM REB AST STL BLK TO PTS; Yahoo: FG% FT% 3PTM PTS REB AST ST BLK TO),
+   ESPN i Yahoo (a po njemu i Fantrax i Sleeper) prikazuju kategorije uvek istim redom (9-cat ESPN: FG% FT% 3PM REB AST STL BLK TO PTS; Yahoo: FG% FT% 3PTM PTS REB AST ST BLK TO),
    bez obzira na redosled u podešavanjima lige. Ostale platforme i ručne lige: redosled iz formata. FPts je uvek prva kolona. */
 const COL_ORDER = {
   espn: ['FGM', 'FGA', 'FGP', 'FTM', 'FTA', 'FTP', 'TPM', 'TPA', 'TPP', 'OREB', 'DREB', 'REB', 'AST', 'STL', 'BLK', 'TO', 'ATO', 'PF', 'DD', 'TD', 'GS', 'MIN', 'PTS'],
   yahoo: ['FGM', 'FGA', 'FGP', 'FTM', 'FTA', 'FTP', 'TPM', 'TPA', 'TPP', 'PTS', 'OREB', 'DREB', 'REB', 'AST', 'STL', 'BLK', 'TO', 'ATO', 'PF', 'DD', 'TD', 'GS', 'MIN'],
 };
+// Fantrax i Sleeper vraćaju stavke bodovanja bez stalnog reda (npr. abecedno), pa se slažu kao Yahoo (PTS REB AST STL BLK TO)
+COL_ORDER.fantrax = COL_ORDER.sleeper = COL_ORDER.yahoo;
 const COLS_KEY = 'fbaTrade.cols.v1';
 const colsLeague = () => (EMBED?.mini ? null : currentLeague());
 /** Sačuvan redosled (ključevi kolona) za ligu, ili null = podrazumevani */
@@ -955,6 +984,8 @@ const EN = {
   "kao na platformi {p}": "as on {p}",
   "kao u formatu lige": "as in the league format",
   "Vraćen je podrazumevani redosled kolona.": "Default column order restored.",
+  "Format lige je sada preuzet sa platforme {p}: {f}.": "The league format is now taken from {p}: {f}.",
+  "Ova liga je iz sezone koja je završena ({s}). Rosteri su sa kraja te sezone. Za tekuću sezonu uvezi novi ID lige: {p} pravi novu ligu svake sezone.": "This league is from a finished season ({s}). Rosters are from the end of that season. For the current season, import the new league ID: {p} creates a new league every season.",
   'Novo: javi nam ako nešto nije uvezeno kako treba.': 'New: let us know if something was not imported correctly.',
   // Uvezena liga: podešavanja i kontekst cele lige
   'na {n}. mestu ({r})': 'in place {n} ({r})',
@@ -2855,6 +2886,11 @@ async function syncLeague(lg, { auto = false } = {}) {
     const oldF = leagueFormatOf(lg);
     // format iz platforme se osvežava samo dok ga korisnik nije ručno menjao
     if (parsed.format && leagueFormatOf(lg).source === `import:${parsed.source}` && !sameFormat(oldF, parsed.format)) { lg.leagueFormat = parsed.format; applyFormatChange(lg, oldF); }
+    // Fantrax lige uvezene pre automatskog prepoznavanja formata: format iz lige se preuzima jednom
+    else if (parsed.format && parsed.source === 'fantrax' && !lg.fmtAdopted && oldF.source !== 'import:fantrax') {
+      lg.fmtAdopted = true; lg.leagueFormat = parsed.format; applyFormatChange(lg, oldF);
+      if (!auto || currentLeague() === lg) setTimeout(() => toast(t('Format lige je sada preuzet sa platforme {p}: {f}.', { p: SOURCE_LABEL.fantrax, f: formatShort(parsed.format) })), 50);
+    }
     const temp = imp.temp;
     applyImport(lg, parsed, parsed.teams.some(x => x.tid === imp.myTid) ? imp.myTid : null);
     checkOffers(lg);
@@ -3242,10 +3278,11 @@ function openTeamPicker(parsed) {
   const f = parsed.format;
   const unsup = f?.unsupported?.length ? `<div class="banner warn"><span>⚠ ${t('Neke stavke bodovanja ne podržavamo, rezultat je približan')}: ${esc(f.unsupported.join(', '))}.</span></div>` : '';
   const teams = [...parsed.teams].sort((a, b) => (a.seed || 99) - (b.seed || 99));
+  const ended = parsed.ended ? `<div class="banner warn"><span>⚠ ${t('Ova liga je iz sezone koja je završena ({s}). Rosteri su sa kraja te sezone. Za tekuću sezonu uvezi novi ID lige: {p} pravi novu ligu svake sezone.', { s: esc(/^\d{4}$/.test(parsed.season) ? `${parsed.season}-${String(+parsed.season + 1).slice(2)}` : parsed.season), p: SOURCE_LABEL[parsed.source] })}</span></div>` : '';
   const missing = parsed.unmatched?.length ? `<p class="hint">${t('Nismo prepoznali {n} igrača sa rostera: {list}.', { n: parsed.unmatched.length, list: esc(parsed.unmatched.slice(0, 8).join(', ')) })}</p>` : '';
   showModal({
     title: t('Koji je tvoj tim?'), wide: true,
-    body: `<p><b>${esc(parsed.name)}</b> · ${t('{n} timova', { n: parsed.size })}${f ? ` · ${esc(formatShort(f))}` : ''}</p>${unsup}${missing}
+    body: `<p><b>${esc(parsed.name)}</b> · ${t('{n} timova', { n: parsed.size })}${f ? ` · ${esc(formatShort(f))}` : ''}</p>${ended}${unsup}${missing}
       ${f ? '' : `<p class="hint">${parsed.source === 'espn' ? t('Ne prepoznajemo format ove lige. Izaberi ga ručno.') : t('Izaberi format lige.')}</p>${formatPickerHTML('imp', defaultFormatFor(parsed.source, parsed.source === 'sleeper' ? 'points' : 'cat'), parsed.source)}`}
       <div class="imp-teams" role="radiogroup" aria-label="${esc(t('Koji je tvoj tim?'))}">${teams.map(x => `<label class="imp-team"><input type="radio" name="imp-team" value="${esc(String(x.tid))}">
         <span class="it-name">${esc(x.name)}</span><span class="it-meta">${esc([x.abbrev, recTxt(x.record), t('{n} igrača', { n: x.players.length })].filter(Boolean).join(' · '))}</span></label>`).join('')}</div>
@@ -3324,7 +3361,7 @@ async function fetchSleeperLeague(q) {
     source: 'sleeper', extId: String(leagueId), season: String(info.season || ''), name: cleanName(info.name) || 'Sleeper', size: +info.total_rosters || teams.length,
     format: fmt.format, fmtError: null, slots: { active: pos.length || ROSTER_DEFAULT.ACTIVE, ir: +st.reserve_slots || 0 },
     deadline: null, playoffTeams: +st.playoff_teams || null, teams, raw: poolRawMap(pool, ids), unmatched,
-    playoffWeek: +st.playoff_week_start || null, week: +st.leg || null,
+    playoffWeek: +st.playoff_week_start || null, week: +st.leg || null, ended: info.status === 'complete',
   };
 }
 
@@ -3352,10 +3389,15 @@ function applyFantraxStandings(teams, data) {
     else if (num(r.win ?? r.wins) != null) tm.record = { w: num(r.win ?? r.wins), l: num(r.loss ?? r.losses) || 0, t: num(r.tie ?? r.ties) || 0 };
     const rank = num(r.rank);
     if (rank) tm.seed = rank;
-    const pf = num(r.pointsFor ?? r.fantasyPoints ?? r.fpts ?? (rec ? null : r.points));
+    const pf = num(r.totalPointsFor ?? r.pointsFor ?? r.fantasyPoints ?? r.fpts ?? (rec ? null : r.points));
     if (pf != null) tm.pf = pf;
   }
   if (!teams.some(x => x.seed)) [...teams].sort((a, b) => b.record.w - a.record.w || b.pf - a.pf).forEach((x, i) => { if (x.record.w + x.record.l + x.pf) x.seed = i + 1; });
+}
+/** Tekuća nedelja (scoring period) po datumu; getTeamRosters.period je u nekim ligama dan sezone, pa se ne koristi */
+function fantraxWeek(periods, now = Date.now()) {
+  const p = (periods || []).find(x => Date.parse(x.startDate) <= now && now <= Date.parse(x.endDate));
+  return p ? +p.number || null : null;
 }
 async function fetchFantraxLeague(q) {
   const id = encodeURIComponent(q.extId || q.leagueId);
@@ -3377,12 +3419,18 @@ async function fetchFantraxLeague(q) {
     return { tid, name: cleanName(r?.teamName || tinfo[tid]?.name) || `Team ${tid}`, abbrev: '', record: { w: 0, l: 0, t: 0 }, seed: null, pf: 0, vals: null, players };
   });
   if (!teams.length) throw importErr('private');
-  // tabela (nije obavezna): oblik odgovora nije proveren na pravoj ligi, pa se čita oprezno i greška se preskače
+  // tabela (nije obavezna): niz { teamId, rank, points: "W-L-T", totalPointsFor }; greška se preskače
   const stand = await fetchJSON(`${IMPORT.FANTRAX}/getStandings?leagueId=${id}`).catch(() => null);
   applyFantraxStandings(teams, stand);
+  const fmt = mapFantraxFormat(info.scoringSystem);
+  const ri = info.rosterInfo || {}, po = info.playoffs || {};
+  // IR mesta Fantrax ne vraća: najveći broj igrača na IR u nekom timu (bar podrazumevano)
+  const irMax = Math.max(0, ...teams.map(x => x.players.filter(p => p.ir).length));
   return {
-    source: 'fantrax', extId: String(q.extId || q.leagueId), season: String(info.season || info.year || CONFIG.SEASON), name: cleanName(info.leagueName || info.name) || 'Fantrax', size: teams.length,
-    format: null, fmtError: null, slots: { active: ROSTER_DEFAULT.ACTIVE, ir: ROSTER_DEFAULT.IR }, deadline: null, playoffTeams: null, teams, raw: poolRawMap(pool, ids), unmatched,
+    source: 'fantrax', extId: String(q.extId || q.leagueId), season: String(info.seasonYear || info.season || CONFIG.SEASON), name: cleanName(info.leagueName || info.name) || 'Fantrax', size: teams.length,
+    format: fmt.format, fmtError: fmt.error, slots: { active: +ri.maxTotalPlayers || ROSTER_DEFAULT.ACTIVE, ir: Math.max(ROSTER_DEFAULT.IR, irMax) }, deadline: null,
+    playoffTeams: po.used === false ? null : +po.numPlayoffTeams || null, playoffWeek: po.used === false ? null : +po.firstPlayoffPeriod || null, week: fantraxWeek(info.scoringPeriods),
+    ended: !!info.endDate && Date.parse(info.endDate) + 864e5 < Date.now(), teams, raw: poolRawMap(pool, ids), unmatched,
   };
 }
 
