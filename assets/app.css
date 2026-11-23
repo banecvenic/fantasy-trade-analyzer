@@ -936,7 +936,7 @@ body.is-coldrag,body.is-coldrag *{cursor:grabbing !important}
 .pm-log tr.next td.nx{text-align:left;font-style:italic}
 .pm-log tr.bonus td.fpts{color:var(--win-text)}
 .pm-log tr.bonus td:first-child{box-shadow:inset 3px 0 0 var(--win-text)}
-.pm-more{margin-top:6px}
+.pm-more{display:block;margin:10px auto 0}
 .pm-news{padding:8px 0;border-bottom:1px solid var(--line)}
 .pm-news time{display:block;font-size:11px;color:var(--muted);margin-bottom:2px}
 .pm-news p{margin:4px 0 0;font-size:13px;line-height:1.45;color:var(--text)}

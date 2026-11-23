@@ -1259,7 +1259,6 @@ const EN = {
   "Dodaj u Daješ": "Add to Give",
   "Dodaj u Dobijaš": "Add to Get",
   "Dodato u trejd": "Added to the trade",
-  "Otvori trejd": "Open trade",
   "Bonus": "Bonus",
   "sledeća utakmica": "next game",
   "Prethodni igrač: {n}": "Previous player: {n}",
@@ -6483,10 +6482,10 @@ function gameCell(c, line) {
 }
 /** Dugme za trejd: moj igrač u Daješ, protivnikov u Dobijaš; bez lige oba; free agent bez dugmeta */
 function pmActHTML(p, own) {
-  const b = (side, label) => `<button type="button" class="btn ${side === GIVE ? 'give' : 'get'}" data-pm-add="${side}" data-id="${p.id}">＋ ${label}</button>`;
+  const b = (side, label) => `<button type="button" class="btn ${side === GIVE ? 'give' : 'get'}" data-pm-add="${side}" data-id="${p.id}">${own ? '⇄' : '＋'} ${label}</button>`;
   if (!own) return b(GIVE, t('Dodaj u Daješ')) + b(GET, t('Dodaj u Dobijaš'));
-  if (own.kind === 'my') return b(GIVE, t('Dodaj u Daješ'));
-  if (own.kind === 'opp') return b(GET, t('Dodaj u Dobijaš'));
+  if (own.kind === 'my') return b(GIVE, t('Trejduj'));
+  if (own.kind === 'opp') return b(GET, t('Trejduj'));
   return '';
 }
 /** Dodaj u trejd: u aktivni tab; protivnikov igrač ide u aktivni tab samo ako protivnik nije izabran ili je isti, inače nova analiza sa njegovim timom */
@@ -6501,10 +6500,13 @@ function pmAddToTrade(id, side) {
       if (!takenIds().has(id)) state.teams[GET].ids.push(id);
     }
   } else if (!takenIds().has(id)) state.teams[side].ids.push(id);
+  // analiza mora da pokaže aktivni trejd, ne trejd iz istorije ili deljeni link
+  state.histView = null; state.sharedOpen = false; searchUI.clear();
   saveState(); persistTrades();
   closeModal();
-  render();
-  toast(t('Dodato u trejd'), 5000, { label: t('Otvori trejd'), on: () => { setBack?.('trade'); goPage('trade'); } });
+  // u ligi odmah otvori Analizu trejda; bez lige je analiza već na stranici
+  if (state.view === 'league' && state.page !== 'trade') { setBack('trade'); goPage('trade'); } else render();
+  toast(t('Dodato u trejd'));
 }
 function playerModalHTML(p) {
   const own = playerOwner(p.id), rk = playerRank(p), inj = INJURY[p.inj];
@@ -6547,7 +6549,7 @@ function playerModalHTML(p) {
     const upcoming = !srt || (srt.col === 'date' && srt.dir === 'desc') ? sched.filter(g => g.date > Date.now()).slice(0, PM.NEXT).reverse() : [];
     const sth = (key, label, cls = '') => { const on = srt?.col === key; return `<th class="sortth ${cls}${on ? ' sorted' : ''}" data-pm-sort="${key}" aria-sort="${on ? (srt.dir === 'asc' ? 'ascending' : 'descending') : 'none'}" title="${esc(t('Sortiraj po {c}', { c: label }))}">${label}${on ? `<span class="sarr">${srt.dir === 'asc' ? '▲' : '▼'}</span>` : ''}</th>`; };
     const ncol = CATS.length + 3 + (bcol ? 1 : 0);
-    log = `<div class="tscroll"><table class="pm-tbl pm-log"><thead><tr>${sth('date', t('Datum'), 'dt')}<th class="op">${t('Protiv')}</th>${sth('MIN', 'MIN')}${CATS.map(c => sth(c.key, c.label, c.fpts ? 'fpts' : '') + (c.fpts && bcol ? sth('BONUS', t('Bonus')) : '')).join('')}</tr></thead><tbody>
+    log = `<div class="tscroll"><table class="pm-tbl pm-log"><thead><tr>${sth('date', t('Datum'), 'dt')}<th class="op">${t('Protiv')}</th>${sth('MIN', 'MIN')}${CATS.map(c => sth(c.key, c.type === 'pct' && !c.ratio ? c.label.replace('%', '') : c.label, c.fpts ? 'fpts' : '') + (c.fpts && bcol ? sth('BONUS', t('Bonus')) : '')).join('')}</tr></thead><tbody>
       ${upcoming.map(g => `<tr class="next"><td class="dt">${pmDate(g.date)}</td><td class="op">${esc(gameOpp(p, g.id))}</td><td colspan="${ncol - 2}" class="nx">${t('sledeća utakmica')}</td></tr>`).join('')}
       ${list.map(g => { const b = gameBonus(g.line); return `<tr${b ? ` class="bonus" title="${esc(t('Bonus u ovoj utakmici: {n} FPts', { n: fmtNum(b) }))}"` : ''}><td class="dt">${pmDate(g.date)}</td><td class="op">${esc(gameOpp(p, g.gid || sched.find(x => x.date === g.date)?.id))}</td><td>${Math.round(g.line.MIN)}</td>${CATS.map(c => gameCell(c, g.line) + (c.fpts && bcol ? `<td>${b ? `+${fmtNum(b)}` : '0'}</td>` : '')).join('')}</tr>`; }).join('')}
     </tbody></table></div>
