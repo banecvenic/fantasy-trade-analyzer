@@ -11,8 +11,8 @@ const start = src.indexOf('   Formati lige: katalog statistika');
 const end = src.indexOf('const leagueFormatOf');
 if (start < 0 || end < 0) throw new Error('Nije nađen modul formata u app.js');
 const code = src.slice(src.lastIndexOf('/*', start), src.indexOf('\n', end));
-const api = new Function('LANG', `${code}\nreturn { STAT_CATALOG, STAT_BY_ID, FORMAT_PRESETS, normalizeFormat, defaultFormatFor, legacyFormat, leagueFormatOf, encodeFormat, decodeFormat, sameFormat, mapEspnFormat };`)('sr');
-const { STAT_CATALOG, FORMAT_PRESETS, normalizeFormat, defaultFormatFor, leagueFormatOf, encodeFormat, decodeFormat, sameFormat, mapEspnFormat } = api;
+const api = new Function('LANG', `${code}\nreturn { STAT_CATALOG, STAT_BY_ID, FORMAT_PRESETS, normalizeFormat, defaultFormatFor, legacyFormat, leagueFormatOf, encodeFormat, decodeFormat, sameFormat, mapEspnFormat, mapFantraxFormat, fantraxScoringType };`)('sr');
+const { STAT_CATALOG, FORMAT_PRESETS, normalizeFormat, defaultFormatFor, leagueFormatOf, encodeFormat, decodeFormat, sameFormat, mapEspnFormat, mapFantraxFormat, fantraxScoringType } = api;
 
 let n = 0;
 const test = (name, fn) => { fn(); n++; console.log(`ok  ${name}`); };
@@ -208,6 +208,21 @@ test('bonusi po utakmici: normalizacija, link, preset postaje custom', () => {
   assert.deepStrictEqual(back.bonus, f.bonus);
   assert.deepStrictEqual(back.weights, f.weights);
   assert.deepStrictEqual(normalizeFormat({ scoringType: 'h2h_each', bonus: [{ s: 'PTS', n: 40, w: 2 }] }).bonus, []);
+});
+
+test('Fantrax: kategorije iz pravih liga (H2H MULTI_WIN 9-cat, Rotisserie 8-cat)', () => {
+  const cfg = (code, shortName) => ({ weight: 1, scoringCategory: { code, shortName } });
+  const nine = [['INDIVIDUAL_ASSISTS', 'AST'], ['INDIVIDUAL_BLOCKS', 'BLK'], ['INDIVIDUAL_POINTS', 'PTS'], ['INDIVIDUAL_REBOUNDS', 'REB'], ['INDIVIDUAL_STEALS', 'ST'], ['INDIVIDUAL_THREE_POINTERS_MADE', '3PTM'], ['INDIVIDUAL_TURNOVERS', 'TO'], ['INDIVIDUAL_FIELD_GOAL_PERCENTAGE', 'FG%'], ['INDIVIDUAL_FREE_THROW_PERCENTAGE', 'FT%']];
+  const h2h = mapFantraxFormat({ type: 'HEAD_TO_HEAD_ROTI_MULTI_WIN', scoringCategorySettings: [{ configs: nine.map(x => cfg(...x)) }] });
+  assert.strictEqual(h2h.error, null);
+  assert.strictEqual(h2h.format.scoringType, 'h2h_each');
+  assert.strictEqual(h2h.format.preset, '9cat');
+  const roto = mapFantraxFormat({ type: 'ROTISSERIE', scoringCategorySettings: [{ configs: nine.filter(x => x[1] !== 'TO').map(x => cfg(...x)) }] });
+  assert.strictEqual(roto.format.scoringType, 'roto');
+  assert.strictEqual(roto.format.preset, '8cat');
+  assert.strictEqual(fantraxScoringType('HEAD_TO_HEAD_ROTI_SINGLE_WIN'), 'h2h_most');
+  assert.strictEqual(fantraxScoringType('HEAD_TO_HEAD_POINTS_BASED'), 'h2h_points');
+  assert.strictEqual(fantraxScoringType('NESTO_NOVO'), null);
 });
 
 console.log(`\n${n} testova prošlo`);
