@@ -28,8 +28,8 @@ const CONFIG = (() => {
     PREV_SEASON_GAMES: 82,
     FETCH_TIMEOUT_MS: 25000,
     SLOW_NOTICE_MS: 5000,
-    CACHE_KEY: `fbaTrade.players.v6.${SEASON}`, // v6: + tehničke, flagrantne, izbacivanja, diskvalifikacije, četvorostruki dabl-dablovi // v5: + statistike za druge formate (OREB, DREB, 3PA, PF, GS, DD, TD); u projekciji ih nema (null)
-    OLD_CACHE_KEYS: [`fbaTrade.players.v2.${SEASON}`, `fbaTrade.players.v3.${SEASON}`, `fbaTrade.players.v4.${SEASON}`, `fbaTrade.players.v5.${SEASON}`],
+    CACHE_KEY: `fbaTrade.players.v7.${SEASON}`, // v7: DD i TD u projekciji iz sezone // v6: + tehničke, flagrantne, izbacivanja, diskvalifikacije, četvorostruki dabl-dablovi // v5: + statistike za druge formate (OREB, DREB, 3PA, PF, GS, DD, TD); u projekciji ih nema (null)
+    OLD_CACHE_KEYS: [`fbaTrade.players.v2.${SEASON}`, `fbaTrade.players.v3.${SEASON}`, `fbaTrade.players.v4.${SEASON}`, `fbaTrade.players.v5.${SEASON}`, `fbaTrade.players.v6.${SEASON}`],
     // Vesti po igraču (Rotowire preko ESPN-a, na engleskom). Javno, CORS radi.
     // feed je od najnovije ka starijoj i meša Rotowire beleške sa opštim ESPN člancima i video snimcima:
     // uzima se 8 najnovijih stavki i od njih 3 najnovije Rotowire beleške o igraču
@@ -53,7 +53,7 @@ const CONFIG = (() => {
     HISTORY_KEY: 'fbaTrade.history.v1', // samo lokalno, ne ide u link
     // Statistika po utakmici (split 5) za izabrane igrače. NAPOMENA: filterStatsForExternalIds
     // izbacuje split 5 (externalId tih unosa je ID utakmice), zato se ovde ne koristi.
-    GAMELOG_FILTER: ids => ({ players: { filterIds: { value: ids }, filterStatsForSplitTypeIds: { value: [5] } } }),
+    GAMELOG_FILTER: (ids, games = null) => ({ players: { filterIds: { value: ids }, filterStatsForSplitTypeIds: { value: [5] }, ...(games ? { filterStatsForExternalIds: { value: games } } : {}) } }), // games: ID-jevi utakmica ove sezone (bez njih stiže i cela prošla sezona, ~6x više podataka)
     CACHE_TTL_MS: 6 * 60 * 60 * 1000, // 6h
     HEADSHOT_URL: id => `https://a.espncdn.com/i/headshots/nba/players/full/${id}.png`,
     DROPDOWN_MAX: 10,
@@ -79,7 +79,7 @@ const STAT = {
   EJ: '7', FF: '8', TF: '10', DQ: '12', QD: '39', // retke stavke za lige na poene (proseci po periodu postoje u averageStats i u utakmicama)
 };
 /** Statistike kojih nema u ESPN projekciji (provereno: 0 kod svih 348 igrača sa projekcijom) */
-const NO_PROJ_KEYS = ['OREB', 'DREB', 'PF', 'GS', 'DD', 'TD'];
+const NO_PROJ_KEYS = ['OREB', 'DREB', 'PF', 'GS']; // DD i TD: prosek sezone kao procena (PROJ_FROM_SEASON)
 const PROJ_STAT_ID = `10${CONFIG.SEASON}`;
 /** Stats id za celu prošlu sezonu (za trajnost) */
 const PREV_SEASON_STAT_ID = `00${CONFIG.SEASON - 1}`;
@@ -198,7 +198,7 @@ const STAT_CATALOG = [
   { id: 'GS',   label: 'GS',   en: 'Games started',       sr: 'Utakmice u startu',     espn: ['41'], type: 'sum', dir: 'high', proj: false },
   { id: 'DD',   label: 'DD',   en: 'Double-doubles',      sr: 'Dabl-dablovi',          espn: ['37'], type: 'sum', dir: 'high', proj: false },
   { id: 'TD',   label: 'TD',   en: 'Triple-doubles',      sr: 'Tripl-dablovi',         espn: ['38'], type: 'sum', dir: 'high', proj: false },
-  { id: 'QD',   label: 'QD',   en: 'Quadruple-doubles',   sr: 'Četvorostruki dabl-dablovi', espn: ['39'], type: 'sum', dir: 'high', rare: true },
+  { id: 'QD',   label: 'QD',   en: 'Quadruple-doubles',   sr: 'Četvorostruki dabl-dablovi', espn: ['39'], type: 'sum', dir: 'high', rare: true, cat: false }, // cat: false = samo za poene (računamo ga iz utakmica; ESPN polje 39 nije provereno)
   { id: 'TF',   label: 'TF',   en: 'Technical fouls',     sr: 'Tehničke greške',       espn: ['10'], type: 'sum', dir: 'low', rare: true },
   { id: 'FF',   label: 'FF',   en: 'Flagrant fouls',      sr: 'Flagrantne greške',     espn: ['8'],  type: 'sum', dir: 'low', rare: true },
   { id: 'EJ',   label: 'EJ',   en: 'Ejections',           sr: 'Izbacivanja iz igre',   espn: ['7'],  type: 'sum', dir: 'low', rare: true },
@@ -261,7 +261,7 @@ function normalizeFormat(raw) {
     const preset = bonus.length ? 'custom' : presetIn && sameWeights(weights, FORMAT_PRESETS[presetIn].weights) ? presetIn : presetHit(x => sameWeights(weights, x.weights));
     return { scoringType, categories: [], weights, preset, source, unsupported, bonus };
   }
-  const cats = [...new Set((Array.isArray(raw.categories) ? raw.categories : []).filter(id => STAT_BY_ID.has(id)))];
+  const cats = [...new Set((Array.isArray(raw.categories) ? raw.categories : []).filter(id => STAT_BY_ID.has(id) && STAT_BY_ID.get(id).cat !== false))];
   if (cats.length < FORMAT_LIMITS.MIN_CATS) { const preset = presetIn || '9cat'; return { scoringType, categories: [...FORMAT_PRESETS[preset].categories], weights: {}, preset, source, unsupported, bonus: [] }; }
   const same = x => x.categories.length === cats.length && x.categories.every(id => cats.includes(id));
   const preset = presetIn && same(FORMAT_PRESETS[presetIn]) ? presetIn : presetHit(same);
@@ -316,6 +316,8 @@ const ESPN_MISSED = { 23: ['FGM', 'FGA'], 24: ['FTM', 'FTA'], 25: ['TPM', 'TPA']
 const ESPN_OTHER_STATS = { 22: 'Adjusted FG%' };
 /** Retke stavke: projekcija ih nema, pa se u periodu Projekcija uzima prosek sezone */
 const RARE_KEYS = ['QD', 'TF', 'FF', 'EJ', 'DQ'];
+/** Statistike kojih nema u ESPN projekciji, a u projekciji se uzima prosek sezone (procena, označeno ≈ uz FPts) */
+const PROJ_FROM_SEASON = [...RARE_KEYS, 'DD', 'TD'];
 /**
  * Vraća { format, error }. error: 'empty' (nema podešavanja), 'type' (format bez trejdova ili gde se računa jedna utakmica, npr. H2H_SINGLE_SCORE).
  * Statistike koje nemamo idu u unsupported ("ESPN stat 7"), kategorije zadržavaju redosled iz lige.
@@ -339,7 +341,8 @@ function mapEspnFormat(settings) {
       if (!w) continue;
       if (STAT_BY_ID.get(id).type !== 'sum') { unsupported.push(STAT_BY_ID.get(id).label); continue; } // procenat u ligi na poene
       weights[id] = (weights[id] || 0) + w;
-    } else if (!categories.includes(id)) categories.push(id);
+    } else if (STAT_BY_ID.get(id).cat === false) unsupported.push(STAT_BY_ID.get(id).en); // samo za poene (npr. QD), u kategorijama ne može tačno
+    else if (!categories.includes(id)) categories.push(id);
   }
   const format = normalizeFormat({ scoringType, categories, weights, preset: 'custom', source: 'import:espn', unsupported });
   return { format, error: null };
@@ -351,8 +354,8 @@ const SLEEPER_STAT = { tf: 'TF', ff: 'FF', qd: 'QD', pts: 'PTS', reb: 'REB', ore
 const SLEEPER_COMBO = { pts_reb: ['PTS', 'REB'], pts_ast: ['PTS', 'AST'], reb_ast: ['REB', 'AST'], pts_reb_ast: ['PTS', 'REB', 'AST'], blk_stl: ['BLK', 'STL'] };
 const SLEEPER_MISSED = { fgmi: ['FGM', 'FGA'], ftmi: ['FTM', 'FTA'], tpmi: ['TPM', 'TPA'] };
 const SLEEPER_OTHER = {};
-/** Bonus za prag u jednoj utakmici: bonus_pt_40p = 40+ poena (provereno na pravoj ligi: pt, reb, ast) */
-const SLEEPER_BONUS_STAT = { pt: 'PTS', pts: 'PTS', reb: 'REB', ast: 'AST', stl: 'STL', blk: 'BLK', tpm: 'TPM', '3pm': 'TPM' };
+/** Bonus za prag u jednoj utakmici: bonus_pt_40p = 40+ poena */
+const SLEEPER_BONUS_STAT = { pt: 'PTS', reb: 'REB', ast: 'AST' }; // Sleeper ima samo ove pragove (ključevi u api.sleeper.app/stats/nba/2025: bonus_pt_40p, bonus_pt_50p, bonus_reb_20p, bonus_ast_15p)
 function mapSleeperFormat(sc) {
   if (!sc || typeof sc !== 'object') return { format: null, error: 'empty' };
   const weights = {}, unsupported = [], bonus = [];
@@ -392,6 +395,7 @@ function mapFantraxFormat(sys) {
     if (pts && !w) continue;
     if (!id || (pts && STAT_BY_ID.get(id).type !== 'sum')) { unsupported.push(sc.name || sc.shortName || sc.code || 'Fantrax'); continue; }
     if (pts) weights[id] = Math.round(((weights[id] || 0) + w) * 1000) / 1000;
+    else if (STAT_BY_ID.get(id).cat === false) unsupported.push(sc.name || sc.shortName);
     else if (!categories.includes(id)) categories.push(id);
   }
   if (pts ? !Object.keys(weights).length : !categories.length) return { format: null, error: 'empty' };
@@ -409,7 +413,7 @@ function catFromStat(id, w = null) {
   const x = STAT_BY_ID.get(id);
   return {
     key: id, label: x.label, type: x.type === 'ratio' ? 'pct' : 'sum', made: x.num, att: x.den, ratio: id === 'ATO',
-    lowerIsBetter: w != null ? w < 0 : x.dir === 'low', lowVol: x.lowVol || 0, noProj: x.proj === false || NO_PROJ_KEYS.includes(x.num) || NO_PROJ_KEYS.includes(x.den), w,
+    lowerIsBetter: w != null ? w < 0 : x.dir === 'low', lowVol: x.lowVol || 0, noProj: (x.proj === false && !(w != null && PROJ_FROM_SEASON.includes(id))) || NO_PROJ_KEYS.includes(x.num) || NO_PROJ_KEYS.includes(x.den), w, // poeni: DD/TD u projekciji iz proseka sezone (procena)
   };
 }
 const FPTS_COL = { key: 'FPTS', label: 'FPts', type: 'sum', fpts: true, lowerIsBetter: false, lowVol: 0, noProj: false, w: null };
@@ -463,48 +467,228 @@ function setCols(keys) {
   lsSet(COLS_KEY, st);
 }
 const isPointsFmt = () => isPointsType(FMT_ACTIVE.scoringType);
-/** Fantasy poeni po utakmici za jedan red statistike (null statistike, npr. DD u projekciji, ne donose poene) */
-function fptsOf(line, weights = FMT_ACTIVE.weights) {
+/* =====================================================================
+   Utakmice: čiste funkcije (dabl-dablovi iz statistike utakmice, bonusi za prag, prosek za period)
+   Provereno na ESPN utakmicama 300 igrača (23. 11. 2026): ESPN DD = utakmice sa 2+ kategorije od 10+
+   (tripl-dabl se računa i kao dabl-dabl), TD = 3+. Sleeper isto (Jalen Johnson 2025-26: dd 49 = naša računica).
+   Fantrax "Double Doubles plus Triple Doubles" (2D) po nazivu računa i tripl-dablove.
+   ===================================================================== */
+const MULTI_KEYS = ['PTS', 'REB', 'AST', 'STL', 'BLK'];
+const multiCount = l => MULTI_KEYS.filter(k => (l?.[k] ?? 0) >= 10).length;
+/** DD, TD i QD jedne utakmice (zbirno: tripl-dabl je i dabl-dabl) */
+function derivedOf(line) {
+  const n = multiCount(line);
+  return { DD: n >= 2 ? 1 : 0, TD: n >= 3 ? 1 : 0, QD: n >= 4 ? 1 : 0 };
+}
+/** Poeni od bonusa za prag u jednoj utakmici (npr. 40+ poena); svaki prag se računa posebno (50 poena = i 40+ i 50+) */
+const gameBonusPts = (line, bonus = []) => bonus.reduce((a, b) => a + ((line?.[b.s] ?? 0) >= b.n ? b.w : 0), 0);
+/** Prosek po utakmici za period: { n, B: bonus, DD, TD, QD }; days = null za celu sezonu; null kad nema utakmica u periodu */
+function periodAgg(games, bonus = [], days = null, now = Date.now()) {
+  const list = days ? (games || []).filter(g => g.date >= now - days * 864e5) : (games || []);
+  if (!list.length) return null;
+  const a = { n: list.length, B: 0, DD: 0, TD: 0, QD: 0 };
+  for (const g of list) { const d = derivedOf(g.line); a.B += gameBonusPts(g.line, bonus); a.DD += d.DD; a.TD += d.TD; a.QD += d.QD; }
+  for (const k of ['B', 'DD', 'TD', 'QD']) a[k] /= list.length;
+  return a;
+}
+/** FPts za red statistike; agg (iz utakmica) menja DD/TD/QD i dodaje bonus */
+function fptsCalc(line, weights, agg = null) {
   if (!line) return null;
   let s = 0;
-  for (const [k, w] of Object.entries(weights)) s += w * (line[k] ?? 0);
-  if (weights === FMT_ACTIVE.weights && FMT_ACTIVE.bonus?.length) s += bonusOf(line) || 0;
-  return s;
+  for (const [k, w] of Object.entries(weights)) s += w * ((agg && k in agg && ['DD', 'TD', 'QD'].includes(k) ? agg[k] : line[k]) ?? 0);
+  return s + (agg?.B || 0);
 }
-/* ---------- Bonusi po utakmici: računaju se iz utakmica igrača (state.gameLogs), za isti period kao prosek ----------
-   Redovi statistike igrača nose _pid i _sid (vidi setPlayers). Projekcija: prosek bonusa iz cele sezone. */
+/** Da li se igrač u međuvremenu igrao: utakmica njegovog tima je završena (početak + 3 h) posle poslednjeg povlačenja */
+const logsStale = (entry, teamGames, now = Date.now(), dayMs = 864e5) => !entry || now - entry.ts > dayMs || (teamGames || []).some(g => g.date + 3 * 36e5 > entry.ts && g.date + 3 * 36e5 < now);
+/* ==== kraj: Utakmice, čiste funkcije ==== */
+
+/** Fantasy poeni po utakmici za jedan red statistike (null statistike, npr. DD u projekciji, ne donose poene).
+ *  Liga na poene sa bonusima ili QD: kad imamo utakmice igrača, DD/TD/QD i bonus se računaju iz utakmica za isti period. */
+function fptsOf(line, weights = FMT_ACTIVE.weights) {
+  if (!line) return null;
+  if (weights !== FMT_ACTIVE.weights || line._pid == null || !needsGames()) return fptsCalc(line, weights);
+  return fptsCalc(line, weights, playerAgg(line._pid, line._sid));
+}
+/* ---------- Utakmice za FPts: bonusi za prag i QD (ostalo stiže tačno iz ESPN proseka) ---------- */
 const BONUS_DAYS = { l7: 7, l15: 15, l30: 30 };
-function bonusOf(line) {
-  const pid = line?._pid;
-  if (pid == null) return null;
-  const games = state.gameLogs.get(pid);
-  if (!games) return null;
-  const per = PERIODS.find(x => x.statId(CONFIG.SEASON) === line._sid)?.key;
-  const days = BONUS_DAYS[per];
-  const list = days ? games.filter(g => g.date >= Date.now() - days * 864e5) : games;
-  if (!list.length) return 0;
-  let sum = 0;
-  for (const g of list) for (const b of FMT_ACTIVE.bonus) if ((g.line[b.s] ?? 0) >= b.n) sum += b.w;
-  return sum / list.length;
+/** Format traži utakmice: bonusi za prag ili četvorostruki dabl-dabl (ESPN polje 39 nismo mogli da proverimo, pa ga računamo sami) */
+const needsGames = () => isPointsFmt() && (FMT_ACTIVE.bonus?.length > 0 || !!FMT_ACTIVE.weights.QD);
+const perOfSid = sid => PERIODS.find(x => x.statId(CONFIG.SEASON) === sid)?.key;
+/** Prosek iz utakmica za igrača i period (projekcija: cela sezona, kao procena); bez utakmica: sačuvan prosek (localStorage) */
+function playerAgg(pid, sid) {
+  const per = perOfSid(sid), games = state.gameLogs.get(pid);
+  if (games) return periodAgg(games, FMT_ACTIVE.bonus, BONUS_DAYS[per] || null);
+  return bonusAvgGet(pid, per === 'proj' ? 'season' : per);
 }
-/** Igrači čije utakmice trebaju za bonuse: moj roster, protivnici u ligi i trejd */
+/** Sačuvani proseci bonusa po igraču (za rang lige pre nego što se utakmice učitaju): { [formatKey]: { [pid]: { ts, season: agg, l7, l15, l30 } } } */
+const BONUS_AVG_KEY = 'fbaTrade.bonusAvg.v1';
+let bonusAvgMem = null;
+const fmtKeyNow = () => encodeFormat(FMT_ACTIVE);
+function bonusAvgGet(pid, per) {
+  bonusAvgMem ||= lsGet(BONUS_AVG_KEY) || {};
+  return bonusAvgMem[fmtKeyNow()]?.[pid]?.[per] || null;
+}
+function bonusAvgSave(ids) {
+  bonusAvgMem ||= lsGet(BONUS_AVG_KEY) || {};
+  const k = fmtKeyNow(), m = bonusAvgMem[k] || (bonusAvgMem[k] = {});
+  for (const id of ids) {
+    const g = state.gameLogs.get(id);
+    if (!g) continue;
+    m[id] = { ts: Date.now(), season: periodAgg(g, FMT_ACTIVE.bonus), l7: periodAgg(g, FMT_ACTIVE.bonus, 7), l15: periodAgg(g, FMT_ACTIVE.bonus, 15), l30: periodAgg(g, FMT_ACTIVE.bonus, 30) };
+  }
+  // najviše 3 formata, stariji se brišu
+  const keys = Object.keys(bonusAvgMem);
+  if (keys.length > 3) keys.filter(x => x !== k).slice(0, keys.length - 3).forEach(x => delete bonusAvgMem[x]);
+  lsSet(BONUS_AVG_KEY, bonusAvgMem);
+}
+/** Igrači za koje trebaju utakmice: roster otvorene lige (moj i protivnici) i AKTIVNI tab trejda */
 function bonusPlayerIds() {
   const r = state.rosters || {};
   const ids = new Set([...(r.my?.players || []), ...Object.values(r.opps || {}).flatMap(o => o.players || [])].map(x => x.id));
-  for (const tb of scopeTabs?.().tabs || []) for (const side of tb.teams || []) (side.ids || []).forEach(id => ids.add(id));
+  for (const side of activeTab()?.teams || []) (side.ids || []).forEach(id => ids.add(id));
   return [...ids].filter(id => state.byId.has(id));
 }
-let bonusLoading = false;
-/** Povuci utakmice koje fale (u delovima), pa ponovo iscrtaj. Jedan zahtev u isto vreme. */
+let bonusRun = false;
 async function ensureBonusLogs() {
-  if (bonusLoading || !isPointsFmt() || !FMT_ACTIVE.bonus?.length || !state.byId?.size) return;
+  if (bonusRun || !needsGames() || !state.byId?.size) return;
   const need = bonusPlayerIds().filter(id => !state.gameLogs.has(id));
   if (!need.length) return;
-  bonusLoading = true;
-  try { for (let i = 0; i < need.length; i += 40) await fetchGameLogsQuiet(need.slice(i, i + 40)); } finally { bonusLoading = false; }
+  bonusRun = true;
+  try { await ensureLogs(need); bonusAvgSave(need); } finally { bonusRun = false; }
   render();
 }
-const bonusPending = () => isPointsFmt() && FMT_ACTIVE.bonus?.length > 0 && (bonusLoading || bonusPlayerIds().some(id => !state.gameLogs.has(id)));
+const bonusPending = () => needsGames() && (bonusRun || bonusPlayerIds().some(id => !state.gameLogs.has(id) && !bonusAvgGet(id, 'season')));
+/** Oznaka "procena" uz FPts u projekciji (bonusi i retke stavke iz proseka sezone) */
+const projEstimate = () => state.period === 'proj' && isPointsFmt() && (FMT_ACTIVE.bonus?.length > 0 || Object.keys(FMT_ACTIVE.weights).some(k => PROJ_FROM_SEASON.includes(k)));
+const projEstHTML = () => (projEstimate() ? `<span class="i est" data-tip="${esc(t('Procena: projekcija nema bonuse, dabl-dablove ni retke stavke (tehničke, flagrantne...). Za njih uzimamo prosek po utakmici iz ove sezone.'))}">≈</span>` : '');
+
+/* ---------- Keš utakmica (IndexedDB, po igraču) i povlačenje sa ESPN-a ----------
+   Ponovo se povlači najviše jednom dnevno ili posle nove utakmice igrača (po rasporedu). Zahtevi idu jedan po jedan
+   sa pauzom od 300 ms; posle greške ili 429 ESPN se ne zove 10 minuta i koristi se keš (i zastareo). */
+const LOGS = { DB: 'rosterswing', STORE: 'gamelogs', PAUSE_MS: 300, BACKOFF_MS: 10 * 60e3, TEAMS_PER_CALL: 4, MAX_IDS: 40 };
+const logNet = { calls: 0, bytes: 0, idb: 0, backoffUntil: 0 }; // brojač za proveru (window.logNet u konzoli)
+let logDb = null;
+function idbOpen() {
+  if (logDb) return logDb;
+  logDb = new Promise(res => {
+    try {
+      const rq = indexedDB.open(LOGS.DB, 1);
+      rq.onupgradeneeded = () => rq.result.createObjectStore(LOGS.STORE, { keyPath: 'pid' });
+      rq.onsuccess = () => res(rq.result);
+      rq.onerror = () => res(null);
+    } catch { res(null); }
+  });
+  return logDb;
+}
+async function idbGetMany(ids) {
+  const db = await idbOpen(), out = new Map();
+  if (!db) return out;
+  await new Promise(res => {
+    try {
+      const tx = db.transaction(LOGS.STORE, 'readonly'), st = tx.objectStore(LOGS.STORE);
+      for (const id of ids) { const rq = st.get(id); rq.onsuccess = () => { if (rq.result?.season === CONFIG.SEASON) out.set(id, rq.result); }; }
+      tx.oncomplete = res; tx.onerror = res; tx.onabort = res;
+    } catch { res(); }
+  });
+  return out;
+}
+async function idbPutMany(entries) {
+  const db = await idbOpen();
+  if (!db || !entries.length) return;
+  await new Promise(res => {
+    try {
+      const tx = db.transaction(LOGS.STORE, 'readwrite'), st = tx.objectStore(LOGS.STORE);
+      for (const e of entries) st.put(e);
+      tx.oncomplete = res; tx.onerror = res; tx.onabort = res;
+    } catch { res(); }
+  });
+}
+const sleepMs = ms => new Promise(r => setTimeout(r, ms));
+/** Jedan zahtev: utakmice igrača (games = ID-jevi utakmica ove sezone za filter); vraća Map pid -> [{ date, gid, line }] */
+async function fetchLogsCall(ids, games, gameDate) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), CONFIG.FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(CONFIG.API_URL, { headers: { 'X-Fantasy-Filter': JSON.stringify(CONFIG.GAMELOG_FILTER(ids, games)) }, signal: ctrl.signal });
+    logNet.calls++;
+    if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status });
+    const txt = await res.text();
+    logNet.bytes += txt.length;
+    const out = new Map();
+    for (const raw of JSON.parse(txt).players || []) {
+      const p = raw.player, list = [];
+      for (const st of p.stats || []) {
+        if (st.statSplitTypeId !== 5 || st.seasonId !== CONFIG.SEASON || !st.stats) continue;
+        const date = gameDate.get(String(st.externalId));
+        if (date == null) continue; // utakmica nije u rasporedu -> ne možemo pouzdano da je datiramo
+        const line = {};
+        for (const [k, sid] of Object.entries(STAT)) line[k] = +st.stats[sid] || 0;
+        if (line.GP > 0 && line.MIN > 0) list.push({ date, gid: String(st.externalId), line }); // računaju se samo utakmice sa minutima
+      }
+      out.set(p.id, list.sort((a, b) => a.date - b.date));
+    }
+    return out;
+  } finally { clearTimeout(timer); }
+}
+let logQueue = Promise.resolve();
+/** Utakmice za igrače: memorija -> IndexedDB -> ESPN (samo što fali ili je zastarelo). Posle poziva state.gameLogs ima sve tražene (ili null kad nema podataka). */
+function ensureLogs(ids) {
+  const job = logQueue.then(() => ensureLogsNow([...new Set(ids)])).catch(e => console.warn('Utakmice:', e.message));
+  logQueue = job;
+  return job;
+}
+async function ensureLogsNow(ids) {
+  if (!state.schedule) await loadSchedule().catch(() => null);
+  const sched = state.schedule || {};
+  const want = ids.filter(id => !state.gameLogs.has(id) || state.gameLogs.get(id) === null);
+  if (!want.length) return;
+  const cached = await idbGetMany(want);
+  logNet.idb += cached.size;
+  const fetchIds = [];
+  for (const id of want) {
+    const c = cached.get(id), p = state.byId.get(id);
+    if (c) state.gameLogs.set(id, c.games); // i zastareo keš se odmah koristi
+    if (!c || logsStale(c, sched[p?.tid])) fetchIds.push(id);
+  }
+  if (!fetchIds.length || !Object.keys(sched).length || Date.now() < logNet.backoffUntil) {
+    for (const id of want) if (!state.gameLogs.has(id)) state.gameLogs.set(id, null);
+    return;
+  }
+  const gameDate = new Map(Object.values(sched).flat().map(g => [String(g.id), g.date]));
+  // po NBA timu (filter po utakmicama tima drastično smanjuje odgovor), do 4 tima po zahtevu
+  const byTeam = new Map();
+  for (const id of fetchIds) { const tid = state.byId.get(id)?.tid; const k = sched[tid] ? tid : 'x'; byTeam.set(k, [...(byTeam.get(k) || []), id]); }
+  const groups = [], teams = [...byTeam.keys()].filter(k => k !== 'x');
+  for (let i = 0; i < teams.length; i += LOGS.TEAMS_PER_CALL) {
+    const tids = teams.slice(i, i + LOGS.TEAMS_PER_CALL), pids = tids.flatMap(k => byTeam.get(k));
+    for (let j = 0; j < pids.length; j += LOGS.MAX_IDS) groups.push({ pids: pids.slice(j, j + LOGS.MAX_IDS), games: tids.flatMap(k => sched[k].map(g => +g.id)) });
+  }
+  if (byTeam.has('x')) groups.push({ pids: byTeam.get('x'), games: null });
+  const save = [], redo = [];
+  try {
+    for (const [i, g] of groups.entries()) {
+      if (i) await sleepMs(LOGS.PAUSE_MS);
+      const got = await fetchLogsCall(g.pids, g.games, gameDate);
+      for (const id of g.pids) {
+        const list = got.get(id) || [];
+        // promenio tim tokom sezone: utakmice za stari tim nisu u filteru, pa se igrač povlači bez filtera
+        const gp = Math.round(state.byId.get(id)?.stats[PERIODS[0].statId(CONFIG.SEASON)]?.GP || 0);
+        if (g.games && list.length < gp) { redo.push(id); continue; }
+        state.gameLogs.set(id, list); save.push({ pid: id, season: CONFIG.SEASON, ts: Date.now(), games: list });
+      }
+    }
+    if (redo.length) {
+      await sleepMs(LOGS.PAUSE_MS);
+      const got = await fetchLogsCall(redo, null, gameDate);
+      for (const id of redo) { const list = got.get(id) || []; state.gameLogs.set(id, list); save.push({ pid: id, season: CONFIG.SEASON, ts: Date.now(), games: list }); }
+    }
+  } catch (e) {
+    logNet.backoffUntil = Date.now() + LOGS.BACKOFF_MS; // greška ili 429: pauza, koristi se keš
+    console.warn('Utakmice nisu učitane:', e.message);
+  }
+  await idbPutMany(save);
+  for (const id of want) if (!state.gameLogs.has(id)) state.gameLogs.set(id, null); // ne pokušavaj u krug u ovoj sesiji
+}
 /** Statistike sa težinom kojih nema u projekciji (za napomenu u periodu Projekcija) */
 const projMissing = () => (state.period === 'proj' ? CATS.filter(c => c.noProj).map(c => c.label) : []);
 /** Napomena "Ne računa se: ..." (statistike lige koje nemamo + one kojih nema u projekciji) */
@@ -1063,7 +1247,7 @@ const EN = {
   "Bonus u ovoj utakmici: {n} FPts": "Bonus in this game: {n} FPts",
   "Još nije igrao ove sezone.": "Has not played this season yet.",
   "Prikaži manje": "Show less",
-  "Prikaži sve ({n})": "Show all ({n})",
+  "Prikaži sve ({n})": "View all ({n})",
   "FPts po utakmici uključuju bonuse lige ({list}). Utakmice sa bonusom su označene.": "FPts per game include the league bonuses ({list}). Games with a bonus are highlighted.",
   "Prikaži još ({n})": "Show {n} more",
   "Nema skorijih vesti.": "No recent news.",
@@ -1072,6 +1256,21 @@ const EN = {
   "Vesti": "News",
   "Pregled sezone (ESPN)": "Season outlook (ESPN)",
   "Status": "Status",
+  "Dodaj u Daješ": "Add to Give",
+  "Dodaj u Dobijaš": "Add to Get",
+  "Dodato u trejd": "Added to the trade",
+  "Otvori trejd": "Open trade",
+  "Bonus": "Bonus",
+  "sledeća utakmica": "next game",
+  "Prethodni igrač: {n}": "Previous player: {n}",
+  "Sledeći igrač: {n}": "Next player: {n}",
+  "Procena: projekcija nema bonuse, dabl-dablove ni retke stavke (tehničke, flagrantne...). Za njih uzimamo prosek po utakmici iz ove sezone.": "Estimate: the projection has no bonuses, double-doubles or rare items (technical, flagrant...). For those we use the per-game average from this season.",
+  "DD, TD i QD su dabl-dabl, tripl-dabl i četvorostruki dabl-dabl (tripl-dabl se računa i kao dabl-dabl). TF, FF, EJ i DQ su tehničke, flagrantne, izbacivanja i isključenja.": "DD, TD and QD are double-double, triple-double and quadruple-double (a triple-double also counts as a double-double). TF, FF, EJ and DQ are technical fouls, flagrant fouls, ejections and disqualifications.",
+  "Poeni za prag u jednoj utakmici, npr. 40+ poena = 2. Računa se iz statistike svake utakmice.": "Points for reaching a threshold in one game, e.g. 40+ points = 2. Calculated from each game's stats.",
+  "Prag": "Threshold",
+  "poena": "points",
+  "Ukloni bonus": "Remove bonus",
+  "Dodaj bonus": "Add bonus",
   'Novo: javi nam ako nešto nije uvezeno kako treba.': 'New: let us know if something was not imported correctly.',
   // Uvezena liga: podešavanja i kontekst cele lige
   'na {n}. mestu ({r})': 'in place {n} ({r})',
@@ -1429,7 +1628,7 @@ function compactPlayer(raw) {
     stats[s.id] = o;
   }
   const season = stats[PERIODS[0].statId(CONFIG.SEASON)], proj = stats[PROJ_STAT_ID];
-  if (season && proj) for (const k of RARE_KEYS) proj[k] = season[k];
+  if (season && proj) for (const k of PROJ_FROM_SEASON) proj[k] = season[k];
   return {
     id: p.id,
     name: p.fullName,
@@ -2468,6 +2667,8 @@ function formatSummary(f) {
 /** Radni format po komponenti (prefix): { f, platform, touched }. f nije normalizovan dok se ne sačuva. */
 const fmtDrafts = new Map();
 const WEIGHT_STATS = () => STAT_CATALOG.filter(x => x.type === 'sum');
+/** Statistike za bonuse za prag u editoru bodovanja */
+const BONUS_STATS = ['PTS', 'REB', 'AST', 'STL', 'BLK', 'TPM'];
 const verifiedPoints = platform => ['espn', 'yahoo'].includes(platform);
 
 function formatPickerHTML(prefix, fmt, platform = null) {
@@ -2489,13 +2690,22 @@ function fpickInner(prefix) {
     detail = `<div class="fp-sub"><div class="fp-t">${t('Kategorije')}</div>
       <div class="fp-presets">${radio('preset', '9cat', f.preset, esc(t('9 kategorija')))}${radio('preset', '8cat', f.preset, esc(t('8 kategorija (bez TO)')))}${radio('preset', 'custom', f.preset, esc(t('Svoje kategorije')))}</div>
       ${f.preset === 'custom' ? `<p class="hint">${t('Čekiraj kategorije svoje lige (najmanje 2) i složi ih redom kao u ligi.')}</p>
-        <ul class="fp-cats">${sel.map((id, i) => row(STAT_BY_ID.get(id), true, i)).join('')}${STAT_CATALOG.filter(x => !sel.includes(x.id)).map(x => row(x, false)).join('')}</ul>` : ''}</div>`;
+        <ul class="fp-cats">${sel.map((id, i) => row(STAT_BY_ID.get(id), true, i)).join('')}${STAT_CATALOG.filter(x => !sel.includes(x.id) && x.cat !== false).map(x => row(x, false)).join('')}</ul>` : ''}</div>`;
   } else {
     const presets = ['espn_points', 'espn_points_classic', 'yahoo_points'].map(id => radio('preset', id, f.preset, esc(t(FORMAT_PRESETS[id].srLabel)))).join('') + radio('preset', 'custom', f.preset, esc(t('Svoje bodovanje')));
     detail = `<div class="fp-sub"><div class="fp-t">${t('Bodovanje')}</div>
       <div class="fp-presets">${presets}</div>
       ${!verifiedPoints(d.platform) && d.platform ? `<p class="hint">${t('Prepiši bodovanje iz podešavanja svoje lige.')}</p>` : ''}
       <div class="fp-weights">${WEIGHT_STATS().map(x => `<label title="${esc(LANG === 'en' ? x.en : x.sr)}"><span>${esc(x.label)}</span><input type="number" step="0.1" inputmode="decimal" data-fp-w="${x.id}" value="${f.weights[x.id] ?? ''}" placeholder="0"></label>`).join('')}</div>
+      <p class="hint">${t('DD, TD i QD su dabl-dabl, tripl-dabl i četvorostruki dabl-dabl (tripl-dabl se računa i kao dabl-dabl). TF, FF, EJ i DQ su tehničke, flagrantne, izbacivanja i isključenja.')}</p>
+      <div class="fp-bonus"><div class="fp-t2">${t('Bonusi po utakmici')}</div>
+        <p class="hint">${t('Poeni za prag u jednoj utakmici, npr. 40+ poena = 2. Računa se iz statistike svake utakmice.')}</p>
+        ${(f.bonus || []).map((b, i) => `<div class="fp-brow" data-fp-bi="${i}">
+          <select data-fp-bs aria-label="${esc(t('Statistika'))}">${BONUS_STATS.map(id => `<option value="${id}" ${id === b.s ? 'selected' : ''}>${esc(STAT_BY_ID.get(id).label)}</option>`).join('')}</select>
+          <label><input type="number" min="1" max="200" step="1" inputmode="numeric" data-fp-bn value="${b.n}" aria-label="${esc(t('Prag'))}">+</label>
+          <span>=</span><label><input type="number" step="0.5" inputmode="decimal" data-fp-bw value="${b.w}" aria-label="${esc(t('Poeni'))}"> ${t('poena')}</label>
+          <button type="button" class="linkbtn" data-fp-brm aria-label="${esc(t('Ukloni bonus'))}">✕</button></div>`).join('')}
+        <button type="button" class="linkbtn" data-fp-badd>＋ ${t('Dodaj bonus')}</button></div>
       <p class="hint fp-check">${t('Proveri bodovanje u podešavanjima svoje lige, lige ga često menjaju.')}</p></div>`;
   }
   return `<legend>${t('Format lige')}</legend>
@@ -2517,7 +2727,7 @@ const fpickSum = prefix => { const el = fpickEl(prefix)?.querySelector('.fp-sum'
 function fpickPlatform(prefix, platform) {
   const d = fmtDrafts.get(prefix); if (!d) return;
   d.platform = platform;
-  if (isPointsType(d.f.scoringType) && !d.touched) d.f = { ...clone(defaultFormatFor(platform, 'points')), scoringType: d.f.scoringType, unsupported: d.f.unsupported };
+  if (isPointsType(d.f.scoringType) && !d.touched) d.f = { ...clone(defaultFormatFor(platform, 'points')), scoringType: d.f.scoringType, unsupported: d.f.unsupported, bonus: d.f.bonus || [] };
   fpickRender(prefix);
 }
 /** Pročitaj izbor: { f } ili { error } (prikazuje grešku u komponenti) */
@@ -2541,7 +2751,7 @@ document.addEventListener('change', e => {
   } else if (el.dataset.fpPreset) {
     const pr = el.dataset.fpPreset;
     if (isPointsType(d.f.scoringType)) d.touched = true; // izabrano bodovanje se ne menja sa platformom
-    if (pr !== 'custom') { d.f.preset = pr; if (isPointsType(d.f.scoringType)) d.f.weights = { ...FORMAT_PRESETS[pr].weights }; else d.f.categories = [...FORMAT_PRESETS[pr].categories]; }
+    if (pr !== 'custom') { d.f.preset = pr; if (isPointsType(d.f.scoringType)) { d.f.weights = { ...FORMAT_PRESETS[pr].weights }; d.f.bonus = []; } else d.f.categories = [...FORMAT_PRESETS[pr].categories]; }
     else d.f.preset = 'custom';
     fpickRender(prefix);
   } else if (el.dataset.fpCheck) {
@@ -2560,13 +2770,38 @@ document.addEventListener('input', e => {
     d.touched = true;
     // izmenjena težina: postavka postaje "Svoje bodovanje"
     const hit = Object.entries(FORMAT_PRESETS).find(([, x]) => x.kind === 'points' && sameWeights(d.f.weights, x.weights));
-    d.f.preset = hit ? hit[0] : 'custom';
+    d.f.preset = hit && !d.f.bonus?.length ? hit[0] : 'custom';
     fpickEl(prefix).querySelectorAll('[data-fp-preset]').forEach(r => { r.checked = r.value === d.f.preset; });
     fpickSum(prefix);
   } else if (el.matches('[data-fp-uns]')) {
     d.f.unsupported = el.value.split(',').map(x => x.trim()).filter(Boolean);
     fpickSum(prefix);
+  } else if (el.matches('[data-fp-bn], [data-fp-bw]')) {
+    const b = d.f.bonus?.[+el.closest('[data-fp-bi]').dataset.fpBi];
+    if (b) { b[el.matches('[data-fp-bn]') ? 'n' : 'w'] = +el.value; d.touched = true; fpBonusPreset(prefix); }
   }
+});
+/** Bonus u bodovanju: postavka postaje "Svoje bodovanje" */
+function fpBonusPreset(prefix) {
+  const d = fmtDrafts.get(prefix);
+  if (d.f.bonus?.length) d.f.preset = 'custom';
+  fpickEl(prefix)?.querySelectorAll('[data-fp-preset]').forEach(r => { r.checked = r.value === d.f.preset; });
+  fpickSum(prefix);
+}
+document.addEventListener('change', e => {
+  const el = e.target.closest('[data-fp-bs]'); if (!el) return;
+  const prefix = fpPrefixOf(el), d = fmtDrafts.get(prefix), b = d.f.bonus?.[+el.closest('[data-fp-bi]').dataset.fpBi];
+  if (b) { b.s = el.value; d.touched = true; fpBonusPreset(prefix); }
+});
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-fp-badd], [data-fp-brm]'); if (!el) return;
+  const prefix = fpPrefixOf(el), d = fmtDrafts.get(prefix);
+  d.f.bonus ||= [];
+  if (el.matches('[data-fp-badd]')) d.f.bonus.push({ s: 'PTS', n: 40, w: 2 });
+  else d.f.bonus.splice(+el.closest('[data-fp-bi]').dataset.fpBi, 1);
+  d.touched = true;
+  if (d.f.bonus.length) d.f.preset = 'custom';
+  fpickRender(prefix);
 });
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-fp-move]'); if (!b) return;
@@ -3772,7 +4007,7 @@ function injHTML(p) {
 
 /** Zaglavlje kategorije: klik = punt */
 const catTh = c => (isPointsFmt()
-  ? `<th class="${c.fpts ? 'fpts' : 'wth'}" ${c.fpts ? `title="${esc(t('Fantasy poeni po utakmici'))}"` : `data-col="${c.key}" title="${esc(`${t('{s}: {w} po jedinici', { s: c.label, w: fmtNum(c.w) })}. ${t('Prevuci levo ili desno da promeniš redosled kolona.')}`)}"`}>${c.label}</th>`
+  ? `<th class="${c.fpts ? 'fpts' : 'wth'}" ${c.fpts ? `title="${esc(t('Fantasy poeni po utakmici'))}"` : `data-col="${c.key}" title="${esc(`${t('{s}: {w} po jedinici', { s: c.label, w: fmtNum(c.w) })}. ${t('Prevuci levo ili desno da promeniš redosled kolona.')}`)}"`}>${c.label}${c.fpts ? projEstHTML() : ''}</th>`
   : `<th class="catth${puntCls(c)}" data-punt="${c.key}" data-col="${c.key}" title="${esc(`${isPunt(c) ? t('Vrati kategoriju') : t('Punt: isključi iz rezultata')}. ${t('Prevuci levo ili desno da promeniš redosled kolona.')}`)}">${c.label}</th>`);
 
 const minTip = () => t('Minuti u izabranom periodu. Pređi mišem ili tapni na broj za trend: sezona → 30 → 15 → 7 dana. Poslednjih 15 dana vs sezona: zeleno ↑ / crveno ↓ = ±{a} min ili više, ↑↑ / ↓↓ = ±{b} min ili više (bar {g} utakmice).', { a: MINUTES.ALERT, b: MINUTES.STRONG, g: MINUTES.MIN_GP });
@@ -3842,7 +4077,7 @@ function rosterHeaderRow(kind) {
     const tip = col ? t('Klik sortira po {c}. Prevuci levo ili desno da promeniš redosled kolona.', { c: label }) : t('Sortiraj po {c}', { c: label });
     return `<th class="sortth ${cls}${on ? ' sorted' : ''}" data-sort="${key}" data-skind="${kind}"${col ? ` data-col="${key}"` : ''} aria-sort="${on ? (s.dir === 'asc' ? 'ascending' : 'descending') : 'none'}" title="${esc(tip)}">${label}${extra}${on ? `<span class="sarr">${s.dir === 'asc' ? '▲' : '▼'}</span>` : ''}</th>`;
   };
-  return `<tr><th>${t('Igrač')}</th>${th('MIN', 'MIN', `<span class="i" data-tip="${esc(minTip())}">ⓘ</span>`, 'minth')}${CATS.map(c => th(c.key, c.label, '', c.fpts ? 'fpts' : '', !c.fpts)).join('')}${th('GP', 'GP')}</tr>`;
+  return `<tr><th>${t('Igrač')}</th>${th('MIN', 'MIN', `<span class="i" data-tip="${esc(minTip())}">ⓘ</span>`, 'minth')}${CATS.map(c => th(c.key, c.label, c.fpts ? projEstHTML() : '', c.fpts ? 'fpts' : '', !c.fpts)).join('')}${th('GP', 'GP')}</tr>`;
 }
 
 /** Strelica trenda za igrača i kategoriju, ili '' */
@@ -5820,7 +6055,14 @@ function showModal({ title, body, confirm = t('U redu'), cancel = t('Otkaži'), 
   (m.querySelector('[data-modal-ok]') || m.querySelector('[data-modal-close]:not(.modal-back)'))?.focus();
   return m;
 }
-const closeModal = () => document.getElementById('modal')?.remove();
+const closeModal = () => {
+  const m = document.getElementById('modal');
+  if (!m) return;
+  const pm = m.classList.contains('pm-modal');
+  m.remove();
+  // profil igrača je dodao history state: skini ga da Nazad ne bi bio "prazan" korak
+  if (pm && pmHist) { pmHist = false; if (history.state?.pm) history.back(); }
+};
 document.addEventListener('click', e => {
   if (e.target.closest('[data-modal-close]')) { closeModal(); return; }
   if (e.target.closest('#modal [data-link]')) setTimeout(closeModal, 0); // npr. "Prebaci na IR" iz Svi alerti
@@ -6185,43 +6427,22 @@ async function loadGameLogs(ids) {
   if (!need.length) { render(); return; }
   state.gameLogStatus = { loading: true, error: null };
   render();
-  try {
-    if (!state.schedule) await loadSchedule();
-    if (!state.schedule) throw new Error(t('raspored nije dostupan (potreban za datume utakmica)'));
-    const gameDate = new Map(Object.values(state.schedule).flat().map(g => [String(g.id), g.date]));
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), CONFIG.FETCH_TIMEOUT_MS);
-    const res = await fetch(CONFIG.API_URL, { headers: { 'X-Fantasy-Filter': JSON.stringify(CONFIG.GAMELOG_FILTER(need)) }, signal: ctrl.signal });
-    clearTimeout(timer);
-    if (!res.ok) throw new Error(t('{src} je vratio grešku {n}', { src: DATA_SOURCE.name, n: res.status }));
-    const data = await res.json();
-    for (const raw of data.players || []) {
-      const p = raw.player, games = [];
-      for (const st of p.stats || []) {
-        if (st.statSplitTypeId !== 5 || st.seasonId !== CONFIG.SEASON || !st.stats) continue;
-        const date = gameDate.get(String(st.externalId));
-        if (date == null) continue; // utakmica nije u rasporedu -> ne možemo pouzdano da je datiramo
-        const line = {};
-        for (const [k, sid] of Object.entries(STAT)) line[k] = +st.stats[sid] || 0;
-        if (line.GP > 0 && line.MIN > 0) games.push({ date, line }); // računaju se samo utakmice sa minutima
-      }
-      state.gameLogs.set(p.id, games.sort((a, b) => a.date - b.date));
-    }
-    for (const id of need) if (!state.gameLogs.has(id)) state.gameLogs.set(id, []);
-    state.gameLogStatus = { loading: false, error: null };
-  } catch (e) {
-    state.gameLogStatus = { loading: false, error: e.name === 'AbortError' ? t('{src} ne odgovara', { src: DATA_SOURCE.name }) : e.message };
-  }
+  await ensureLogs(need);
+  state.gameLogStatus = { loading: false, error: need.some(id => state.gameLogs.get(id) === null) ? t('{src} ne odgovara', { src: DATA_SOURCE.name }) : null };
   render();
 }
 
-/* ---------- Profil igrača (modal): klik na ime ili sliku igrača u bilo kojoj tabeli ----------
-   Zaglavlje (tim, pozicije, status, vlasnik u ligi, % u ligama, rang), proseci po periodima, sve utakmice sezone
-   (FPts po utakmici sa bonusima), sledeće utakmice i vesti. Strelice listaju igrače iz iste tabele. */
-let pmState = null; // { id, list, all, newsAll }
-const PM = { GAMES: 10, NEXT: 3, NEWS: 2 };
-/** Čiji je igrač u aktivnoj ligi: { kind: 'my' | 'opp' | 'fa', name, opp } */
+/* ---------- Profil igrača (modal): klik na ime ili sliku igrača bilo gde (rosteri, trejd, Liga, Istorija, pretraga, upozorenja) ----------
+   Desktop: modal (Esc, klik van, ✕), strelice levo i desno van modala listaju igrače iz iste tabele (i ← →).
+   Telefon: preko celog ekrana; dugme Nazad zatvara (history state). Bez lige (/trade-analyzer/): bez dela o vlasniku. */
+let pmState = null; // { id, list, all, newsAll, sort: { col, dir } | null }
+let pmHist = false;  // dodat je history state za modal (Nazad ga zatvara)
+const PM = { GAMES: 7, NEXT: 3, NEWS: 2 };
+/** Dugme sa imenom igrača koje otvara profil (za tekst: istorija, upozorenja) */
+const pmLink = (id, name) => `<button type="button" class="pm-link" data-pm="${id}">${esc(name)}</button>`;
+/** Čiji je igrač u otvorenoj ligi: { kind: 'my' | 'opp' | 'fa', name, opp }; bez lige null */
 function playerOwner(id) {
+  if (!currentLeague()) return null;
   const r = state.rosters || {};
   if (r.my?.players.some(x => x.id === id)) return { kind: 'my', name: currentLeague()?.teamName || t('Moj tim') };
   for (const [oid, o] of Object.entries(r.opps || {})) if (o.players.some(x => x.id === id)) return { kind: 'opp', name: o.name, opp: oid };
@@ -6234,7 +6455,9 @@ function playerRank(p) {
   if (v == null) return null;
   return { n: state.players.filter(x => (val(x) ?? -Infinity) > v).length + 1, of: state.players.length };
 }
-const gameBonus = line => (isPointsFmt() ? FMT_ACTIVE.bonus.reduce((a, b) => a + ((line[b.s] ?? 0) >= b.n ? b.w : 0), 0) : 0);
+const gameBonus = line => (isPointsFmt() ? gameBonusPts(line, FMT_ACTIVE.bonus) : 0);
+/** FPts jedne utakmice: DD/TD/QD iz statistike utakmice + bonus za prag */
+const gameFpts = line => fptsCalc(line, FMT_ACTIVE.weights, { ...derivedOf(line), B: gameBonus(line) });
 /** Protivnik u utakmici: "@BOS" (gost) ili "BOS" (domaćin) */
 function gameOpp(p, gameId) {
   const g = (state.schedule?.[p.tid] || []).find(x => String(x.id) === String(gameId));
@@ -6243,50 +6466,93 @@ function gameOpp(p, gameId) {
   return `${home ? '' : '@'}${PRO_TEAMS[home ? g.a : g.h] ?? '?'}`;
 }
 const pmDate = ms => new Date(ms).toLocaleDateString(LOCALE(), { day: 'numeric', month: 'numeric' });
+const hasBonusCol = () => isPointsFmt() && FMT_ACTIVE.bonus?.length > 0;
+/** Vrednost kolone za jednu utakmicu (za prikaz i sortiranje) */
+function gameVal(c, line) {
+  if (c.fpts) return gameFpts(line);
+  if (c.type === 'pct') return line[c.att] > 0 ? line[c.made] / line[c.att] : null;
+  if (['DD', 'TD', 'QD'].includes(c.key)) return derivedOf(line)[c.key];
+  return catValue({ ...line, GP: 1 }, c);
+}
 /** Ćelija kategorije za jednu utakmicu: procenti kao pogoci-pokušaji (9-22) */
 function gameCell(c, line) {
-  if (c.fpts) return `<td class="fpts">${fmt1(fptsOf(line, FMT_ACTIVE.weights) + gameBonus(line))}</td>`;
+  if (c.fpts) return `<td class="fpts">${fmt1(gameFpts(line))}</td>`;
   if (c.type === 'pct') return `<td>${Math.round(line[c.made] ?? 0)}-${Math.round(line[c.att] ?? 0)}</td>`;
-  const v = catValue({ ...line, GP: 1 }, c);
+  const v = gameVal(c, line);
   return `<td>${v == null ? '-' : c.ratio ? v.toFixed(2) : Math.round(v * 10) / 10}</td>`;
+}
+/** Dugme za trejd: moj igrač u Daješ, protivnikov u Dobijaš; bez lige oba; free agent bez dugmeta */
+function pmActHTML(p, own) {
+  const b = (side, label) => `<button type="button" class="btn ${side === GIVE ? 'give' : 'get'}" data-pm-add="${side}" data-id="${p.id}">＋ ${label}</button>`;
+  if (!own) return b(GIVE, t('Dodaj u Daješ')) + b(GET, t('Dodaj u Dobijaš'));
+  if (own.kind === 'my') return b(GIVE, t('Dodaj u Daješ'));
+  if (own.kind === 'opp') return b(GET, t('Dodaj u Dobijaš'));
+  return '';
+}
+/** Dodaj u trejd: u aktivni tab; protivnikov igrač ide u aktivni tab samo ako protivnik nije izabran ili je isti, inače nova analiza sa njegovim timom */
+function pmAddToTrade(id, side) {
+  const own = playerOwner(id);
+  activateTab(scopeTabs().active);
+  if (own?.kind === 'opp' && side === GET) {
+    const cur = state.rosters.oppSel;
+    if (cur && cur !== own.opp) openInAnalysis([[], [id]], { opp: own.opp });
+    else {
+      if (!cur) { state.rosters.oppSel = own.opp; saveRosters(); }
+      if (!takenIds().has(id)) state.teams[GET].ids.push(id);
+    }
+  } else if (!takenIds().has(id)) state.teams[side].ids.push(id);
+  saveState(); persistTrades();
+  closeModal();
+  render();
+  toast(t('Dodato u trejd'), 5000, { label: t('Otvori trejd'), on: () => { setBack?.('trade'); goPage('trade'); } });
 }
 function playerModalHTML(p) {
   const own = playerOwner(p.id), rk = playerRank(p), inj = INJURY[p.inj];
   const per = PERIODS.find(x => x.key === state.period);
-  const i = pmState.list.indexOf(p.id), prev = i > 0 ? state.byId.get(pmState.list[i - 1]) : null, next = i >= 0 && i < pmState.list.length - 1 ? state.byId.get(pmState.list[i + 1]) : null;
-  const nav = (x, dir) => (x ? `<button type="button" class="pm-nav ${dir}" data-pm-go="${x.id}" aria-label="${esc(x.name)}"><span aria-hidden="true">${dir === 'prev' ? '‹' : '›'}</span><small>${esc(x.name)}</small></button>` : '<span></span>');
-  const act = own.kind === 'my' ? linkHTML('team-trade', { cls: 'btn', attrs: `data-player="${p.id}"` })
-    : own.kind === 'opp' ? linkHTML('league-want', { cls: 'btn', attrs: `data-player="${p.id}" data-opp="${esc(own.opp)}"` }) : '';
+  const chg = p.own ? Math.round(p.own.chg * 10) / 10 : 0;
+  const act = pmActHTML(p, own);
   const head = `<div class="pm-head">
-      <div class="pm-photo"><img src="${CONFIG.HEADSHOT_URL(p.id)}" alt="" onerror="this.remove()"><span>${esc(initials(p.name))}</span></div>
+      <div class="pm-photo"><span>${esc(initials(p.name))}</span><img src="${CONFIG.HEADSHOT_URL(p.id)}" alt="" onerror="this.remove()"></div>
       <div class="pm-id"><div class="pm-team">${esc(p.team)} · ${esc(posTxt(p))}</div>
         <div class="pm-facts">
-          <span><small>${t('Status')}</small><b class="${inj ? `inj ${inj.cls}` : 'ok'}">${inj ? esc(p.inj.replace(/_/g, ' ')) : t('Zdrav')}</b></span>
-          <span><small>${t('Vlasnik')}</small><b>${esc(own.name)}</b></span>
-          ${p.own ? `<span><small>${t('U ligama')}</small><b>${p.own.pct.toFixed(1)}%</b></span>` : ''}
+          <span><small>${t('Status')}</small><b class="${inj ? `inj ${inj.cls}` : 'ok'}">${inj ? esc(p.inj.replace(/_/g, ' ').toLowerCase().replace(/^./, x => x.toUpperCase())) : t('Zdrav')}</b></span>
+          ${own ? `<span><small>${t('Vlasnik')}</small><b>${esc(own.name)}</b></span>` : ''}
+          ${p.own ? `<span><small>${t('U ligama')}</small><b>${p.own.pct.toFixed(1)}% <em class="${chg > 0 ? 'up' : chg < 0 ? 'down' : ''}">(${chg > 0 ? '+' : ''}${chg.toFixed(1)})</em></b></span>` : ''}
           ${rk ? `<span><small>${t('Rang ({p})', { p: per.label.toLowerCase() })}</small><b>#${rk.n}</b></span>` : ''}
         </div>${act ? `<div class="pm-act">${act}</div>` : ''}</div></div>`;
   // proseci po periodima
+  const bcol = hasBonusCol();
   const rows = PERIODS.map(x => ({ x, st: statOf(p, x.key) })).filter(r => r.st);
-  const avg = rows.length ? `<section class="pm-sec"><h4>${t('Proseci')}</h4><div class="tscroll"><table class="pm-tbl"><thead><tr><th></th><th>MIN</th>${CATS.map(c => `<th class="${c.fpts ? 'fpts' : ''}">${c.label}</th>`).join('')}<th>GP</th></tr></thead><tbody>
-      ${rows.map(({ x, st }) => `<tr class="${x.key === state.period ? 'cur' : ''}"><th>${esc(x.label)}</th><td>${fmt1(st.MIN)}</td>${CATS.map(c => { const v = catValue(st, c); return `<td class="${c.fpts ? 'fpts' : ''}">${v == null ? '-' : fmtCat(c, v)}</td>`; }).join('')}<td>${Math.round(st.GP)}</td></tr>`).join('')}
+  const avg = rows.length ? `<section class="pm-sec"><h4>${t('Proseci')}</h4><div class="tscroll"><table class="pm-tbl"><thead><tr><th></th><th>MIN</th>${CATS.map(c => `<th class="${c.fpts ? 'fpts' : ''}">${c.label}</th>${c.fpts && bcol ? `<th>${t('Bonus')}</th>` : ''}`).join('')}<th>GP</th></tr></thead><tbody>
+      ${rows.map(({ x, st }) => { const est = x.key === 'proj' && isPointsFmt() && (bcol || Object.keys(FMT_ACTIVE.weights).some(k => PROJ_FROM_SEASON.includes(k)));
+        const ag = bcol ? playerAgg(p.id, x.statId(CONFIG.SEASON)) : null;
+        return `<tr class="${x.key === state.period ? 'cur' : ''}"><th>${esc(x.label)}</th><td>${fmt1(st.MIN)}</td>${CATS.map(c => { const v = catValue(st, c); return `<td class="${c.fpts ? 'fpts' : ''}">${c.fpts && est ? `<span class="est" data-tip="${esc(t('Procena: projekcija nema bonuse, dabl-dablove ni retke stavke (tehničke, flagrantne...). Za njih uzimamo prosek po utakmici iz ove sezone.'))}">≈</span>` : ''}${v == null ? '-' : fmtCat(c, v)}</td>${c.fpts && bcol ? `<td>${ag ? fmt1(ag.B) : '-'}</td>` : ''}`; }).join('')}<td>${Math.round(st.GP)}</td></tr>`; }).join('')}
     </tbody></table></div></section>` : `<p class="pnote">${t('Nema statistike za ovu sezonu.')}</p>`;
   // utakmice
   const games = state.gameLogs.get(p.id);
   const sched = state.schedule?.[p.tid] || [];
-  const upcoming = sched.filter(g => g.date > Date.now()).slice(0, PM.NEXT);
   let log;
   if (games === undefined) log = `<p class="pnote"><span class="spinner"></span> ${t('Učitavam utakmice…')}</p>`;
   else if (games === null) log = `<p class="pnote">${t('Utakmice trenutno nisu dostupne.')}</p>`;
   else {
-    const list = [...games].reverse(), shown = pmState.all ? list : list.slice(0, PM.GAMES);
-    const gid = g => sched.find(x => x.date === g.date)?.id;
-    log = `<div class="tscroll"><table class="pm-tbl pm-log"><thead><tr><th>${t('Datum')}</th><th>${t('Protiv')}</th><th>MIN</th>${CATS.map(c => `<th class="${c.fpts ? 'fpts' : ''}">${c.label}</th>`).join('')}</tr></thead><tbody>
-      ${upcoming.slice().reverse().map(g => `<tr class="next"><td>${pmDate(g.date)}</td><td>${esc(gameOpp(p, g.id))}</td><td>–</td>${CATS.map(() => '<td>–</td>').join('')}</tr>`).join('')}
-      ${shown.map(g => { const b = gameBonus(g.line); return `<tr${b ? ` class="bonus" title="${esc(t('Bonus u ovoj utakmici: {n} FPts', { n: fmtNum(b) }))}"` : ''}><td>${pmDate(g.date)}</td><td>${esc(gameOpp(p, gid(g)))}</td><td>${Math.round(g.line.MIN)}</td>${CATS.map(c => gameCell(c, g.line)).join('')}</tr>`; }).join('')}
+    const srt = pmState.sort;
+    const recent = [...games].reverse();
+    let list = pmState.all ? recent : recent.slice(0, PM.GAMES);
+    const colOf = key => CATS.find(c => c.key === key);
+    if (srt) {
+      const v = g => (srt.col === 'date' ? g.date : srt.col === 'MIN' ? g.line.MIN : srt.col === 'BONUS' ? gameBonus(g.line) : gameVal(colOf(srt.col), g.line));
+      const sign = srt.dir === 'asc' ? 1 : -1;
+      list = list.map((g, i) => ({ g, i, v: v(g) })).sort((a, b) => (a.v == null) - (b.v == null) || (a.v != null && b.v != null ? (a.v - b.v) * sign : 0) || a.i - b.i).map(x => x.g);
+    }
+    const upcoming = !srt || (srt.col === 'date' && srt.dir === 'desc') ? sched.filter(g => g.date > Date.now()).slice(0, PM.NEXT).reverse() : [];
+    const sth = (key, label, cls = '') => { const on = srt?.col === key; return `<th class="sortth ${cls}${on ? ' sorted' : ''}" data-pm-sort="${key}" aria-sort="${on ? (srt.dir === 'asc' ? 'ascending' : 'descending') : 'none'}" title="${esc(t('Sortiraj po {c}', { c: label }))}">${label}${on ? `<span class="sarr">${srt.dir === 'asc' ? '▲' : '▼'}</span>` : ''}</th>`; };
+    const ncol = CATS.length + 3 + (bcol ? 1 : 0);
+    log = `<div class="tscroll"><table class="pm-tbl pm-log"><thead><tr>${sth('date', t('Datum'), 'dt')}<th class="op">${t('Protiv')}</th>${sth('MIN', 'MIN')}${CATS.map(c => sth(c.key, c.label, c.fpts ? 'fpts' : '') + (c.fpts && bcol ? sth('BONUS', t('Bonus')) : '')).join('')}</tr></thead><tbody>
+      ${upcoming.map(g => `<tr class="next"><td class="dt">${pmDate(g.date)}</td><td class="op">${esc(gameOpp(p, g.id))}</td><td colspan="${ncol - 2}" class="nx">${t('sledeća utakmica')}</td></tr>`).join('')}
+      ${list.map(g => { const b = gameBonus(g.line); return `<tr${b ? ` class="bonus" title="${esc(t('Bonus u ovoj utakmici: {n} FPts', { n: fmtNum(b) }))}"` : ''}><td class="dt">${pmDate(g.date)}</td><td class="op">${esc(gameOpp(p, g.gid || sched.find(x => x.date === g.date)?.id))}</td><td>${Math.round(g.line.MIN)}</td>${CATS.map(c => gameCell(c, g.line) + (c.fpts && bcol ? `<td>${b ? `+${fmtNum(b)}` : '0'}</td>` : '')).join('')}</tr>`; }).join('')}
     </tbody></table></div>
-    ${!list.length ? `<p class="pnote">${t('Još nije igrao ove sezone.')}</p>` : list.length > PM.GAMES ? `<button type="button" class="linkbtn pm-more" data-pm-more="games">${pmState.all ? t('Prikaži manje') : t('Prikaži sve ({n})', { n: list.length })}</button>` : ''}
-    ${isPointsFmt() && FMT_ACTIVE.bonus.length ? `<p class="pnote">${t('FPts po utakmici uključuju bonuse lige ({list}). Utakmice sa bonusom su označene.', { list: FMT_ACTIVE.bonus.map(bonusTxt).join(', ') })}</p>` : ''}`;
+    ${!recent.length ? `<p class="pnote">${t('Još nije igrao ove sezone.')}</p>` : recent.length > PM.GAMES ? `<button type="button" class="linkbtn pm-more" data-pm-more="games">${pmState.all ? t('Prikaži manje') : t('Prikaži sve ({n})', { n: recent.length })}</button>` : ''}
+    ${bcol ? `<p class="pnote">${t('FPts po utakmici uključuju bonuse lige ({list}). Utakmice sa bonusom su označene.', { list: FMT_ACTIVE.bonus.map(bonusTxt).join(', ') })}</p>` : ''}`;
   }
   // vesti
   const news = newsOf(p.id), nShown = pmState.newsAll ? news : news.slice(0, PM.NEWS);
@@ -6294,19 +6560,28 @@ function playerModalHTML(p) {
     ? news.length ? `${nShown.map(n => `<article class="pm-news"><time>${n.published ? esc(fmtDateTime(Date.parse(n.published))) : ''}</time><b>${esc(n.headline || '')}</b>${n.story ? `<p>${esc(stripTags(n.story))}</p>` : ''}</article>`).join('')}
         ${news.length > PM.NEWS ? `<button type="button" class="linkbtn pm-more" data-pm-more="news">${pmState.newsAll ? t('Prikaži manje') : t('Prikaži još ({n})', { n: news.length - PM.NEWS })}</button>` : ''}` : `<p class="pnote">${t('Nema skorijih vesti.')}</p>`
     : `<p class="pnote"><span class="spinner"></span> ${t('Učitavam vesti…')}</p>`;
-  return `<div class="pm-navrow">${nav(prev, 'prev')}${nav(next, 'next')}</div>${head}${avg}
+  return `${head}${avg}
     <section class="pm-sec"><h4>${t('Utakmice')}</h4>${log}</section>
     <section class="pm-sec"><h4>${t('Vesti')}</h4>${newsHTML}</section>
     ${p.outlook ? `<section class="pm-sec"><h4>${t('Pregled sezone (ESPN)')}</h4><p class="pm-outlook">${esc(p.outlook)}</p></section>` : ''}`;
 }
-function refreshPlayerModal() {
+/** Strelice za prethodnog i sledećeg igrača: van modala (desktop), u traci na dnu (telefon) */
+function pmNavHTML() {
+  const i = pmState.list.indexOf(pmState.id);
+  const prev = i > 0 ? state.byId.get(pmState.list[i - 1]) : null, next = i >= 0 && i < pmState.list.length - 1 ? state.byId.get(pmState.list[i + 1]) : null;
+  const nav = (x, dir) => (x ? `<button type="button" class="pm-nav ${dir}" data-pm-go="${x.id}" aria-label="${esc(dir === 'prev' ? t('Prethodni igrač: {n}', { n: x.name }) : t('Sledeći igrač: {n}', { n: x.name }))}">
+      <span class="pm-arr" aria-hidden="true">${dir === 'prev' ? '‹' : '›'}</span>${avatarHTML(x)}<small>${esc(x.name)}</small></button>` : '');
+  return nav(prev, 'prev') + nav(next, 'next');
+}
+function refreshPlayerModal(top = false) {
   const m = document.getElementById('modal');
   if (!pmState || !m?.querySelector('.pm-box')) return;
   const p = state.byId.get(pmState.id);
   if (!p) return;
   m.querySelector('#modal-t').textContent = p.name;
-  const box = m.querySelector('.modal-box'), y = box.scrollTop; // modal-box je element koji se skroluje
+  const box = m.querySelector('.modal-box'), y = top ? 0 : box.scrollTop; // modal-box je element koji se skroluje
   m.querySelector('.modal-body').innerHTML = playerModalHTML(p);
+  m.querySelector('.pm-navs').innerHTML = pmNavHTML();
   box.scrollTop = y;
 }
 /** Otvori profil igrača; list = igrači iz iste tabele (za strelice) */
@@ -6314,32 +6589,55 @@ async function openPlayerModal(id, list = []) {
   const p = state.byId.get(id);
   if (!p) return;
   const same = pmState && document.getElementById('modal')?.querySelector('.pm-box');
-  pmState = { id, list: list.length ? list : same ? pmState.list : [id], all: false, newsAll: false };
-  if (same) { refreshPlayerModal(); document.querySelector('#modal .modal-box').scrollTop = 0; }
+  pmState = { id, list: list.length ? list : same ? pmState.list : [id], all: false, newsAll: false, sort: null };
+  if (same) refreshPlayerModal(true);
   else {
     const m = showModal({ title: esc(p.name), body: playerModalHTML(p), cancel: t('Zatvori'), wide: true, cls: 'pm-box' });
+    m.classList.add('pm-modal');
     m.querySelector('.modal-box').insertAdjacentHTML('afterbegin', `<button type="button" class="pm-x" data-modal-close aria-label="${esc(t('Zatvori'))}">✕</button>`);
+    m.insertAdjacentHTML('beforeend', `<div class="pm-navs">${pmNavHTML()}</div>`);
+    // fokus na X bez skrolovanja (fokus na Zatvori je spuštao profil na dno)
+    m.querySelector('.pm-x').focus({ preventScroll: true }); m.querySelector('.modal-box').scrollTop = 0;
+    // dugme Nazad (telefon, browser) zatvara profil umesto da napusti stranicu
+    try { history.pushState({ ...(history.state || {}), pm: 1 }, ''); pmHist = true; } catch { pmHist = false; }
   }
   const jobs = [];
   if (!state.schedule) jobs.push(loadSchedule().catch(() => null));
-  if (!state.gameLogs.has(id)) jobs.push(fetchGameLogsQuiet([id]));
+  if (!state.gameLogs.has(id) || state.gameLogs.get(id) === null) jobs.push(ensureLogs([id]));
   if (!state.news.has(id)) jobs.push(fetchNews(id).catch(() => null));
   if (!jobs.length) return;
   await Promise.all(jobs);
   if (pmState?.id === id) refreshPlayerModal();
 }
+window.addEventListener('popstate', () => {
+  if (!pmHist) return;
+  pmHist = false; // Nazad je već skinuo state
+  if (document.getElementById('modal')?.querySelector('.pm-box')) closeModal();
+});
 document.addEventListener('click', e => {
   const go = e.target.closest('[data-pm-go]');
   if (go) { openPlayerModal(+go.dataset.pmGo); return; }
+  const add = e.target.closest('[data-pm-add]');
+  if (add) { pmAddToTrade(+add.dataset.id, +add.dataset.pmAdd); return; }
   const more = e.target.closest('[data-pm-more]');
   if (more && pmState) { if (more.dataset.pmMore === 'games') pmState.all = !pmState.all; else pmState.newsAll = !pmState.newsAll; refreshPlayerModal(); return; }
+  const so = e.target.closest('[data-pm-sort]');
+  if (so && pmState) {
+    const col = so.dataset.pmSort, cur = pmState.sort;
+    const first = col === 'date' ? 'desc' : CATS.find(c => c.key === col)?.lowerIsBetter ? 'asc' : 'desc';
+    pmState.sort = cur?.col === col ? { col, dir: cur.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: first };
+    if (pmState.sort.col === 'date' && pmState.sort.dir === 'desc') pmState.sort = null; // podrazumevano: najnovija gore
+    refreshPlayerModal();
+    return;
+  }
   const el = e.target.closest('[data-pm]');
-  if (!el || el.closest('#modal')) return;
-  e.preventDefault();
-  const scope = el.closest('tbody, table, .card, section') || document;
+  if (!el || el.closest('.pm-box')) return;
+  e.preventDefault(); e.stopPropagation();
+  const scope = el.closest('tbody, .alerts, .hist-item, .card, section, [role="listbox"]') || document;
   const list = [...new Set([...scope.querySelectorAll('[data-pm]')].map(x => +x.dataset.pm))];
+  closePopMenu?.();
   openPlayerModal(+el.dataset.pm, list);
-});
+}, true);
 document.addEventListener('keydown', e => {
   if (!pmState || !document.getElementById('modal')?.querySelector('.pm-box') || e.target.matches?.('input, textarea, select')) return;
   const i = pmState.list.indexOf(pmState.id), to = e.key === 'ArrowLeft' ? pmState.list[i - 1] : e.key === 'ArrowRight' ? pmState.list[i + 1] : null;
@@ -6396,32 +6694,8 @@ function ensureReportData() {
   ]).finally(() => { reportDataBusy = false; render(); });
 }
 /** Statistika po utakmici bez statusa i bez greške na ekranu (za propuštene utakmice) */
-async function fetchGameLogsQuiet(ids) {
-  try {
-    if (!state.schedule) await loadSchedule();
-    if (!state.schedule) return;
-    const gameDate = new Map(Object.values(state.schedule).flat().map(g => [String(g.id), g.date]));
-    const res = await fetch(CONFIG.API_URL, { headers: { 'X-Fantasy-Filter': JSON.stringify(CONFIG.GAMELOG_FILTER(ids)) } });
-    if (!res.ok) throw new Error(res.status);
-    const data = await res.json();
-    for (const raw of data.players || []) {
-      const p = raw.player, games = [];
-      for (const st of p.stats || []) {
-        if (st.statSplitTypeId !== 5 || st.seasonId !== CONFIG.SEASON || !st.stats) continue;
-        const date = gameDate.get(String(st.externalId));
-        if (date == null) continue;
-        const line = {};
-        for (const [k, sid] of Object.entries(STAT)) line[k] = +st.stats[sid] || 0;
-        if (line.GP > 0 && line.MIN > 0) games.push({ date, line });
-      }
-      state.gameLogs.set(p.id, games.sort((a, b) => a.date - b.date));
-    }
-    for (const id of ids) if (!state.gameLogs.has(id)) state.gameLogs.set(id, []);
-  } catch (e) {
-    console.warn('Utakmice nisu učitane:', e.message);
-    for (const id of ids) if (!state.gameLogs.has(id)) state.gameLogs.set(id, null); // ne pokušavaj u krug
-  }
-}
+/** Utakmice bez prikaza statusa (tekst za AI, profil igrača): isti keš i ista pravila kao ostalo */
+const fetchGameLogsQuiet = ids => ensureLogs(ids);
 
 /** Prosek igrača samo za utakmice POSLE datuma trejda (utakmice tog dana se ne računaju). */
 function sinceLine(p, sinceMs) {
@@ -6447,7 +6721,7 @@ function renderHistory() {
   };
   const list = state.history.map(h => {
     const sideName = (tm, i) => (SIDES[i] && (!tm.name || tm.name === SIDES[i].srName) ? SIDES[i].name : tm.name || '');
-    const sides = h.teams.map((tm, i) => `<b>${esc(sideName(tm, i))}</b>: ${tm.ids.map(id => esc(h.names?.[id] || state.byId.get(id)?.name || id)).join(', ') || '–'}`).join(' ⇄ ');
+    const sides = h.teams.map((tm, i) => `<b>${esc(sideName(tm, i))}</b>: ${tm.ids.map(id => (state.byId.has(id) ? pmLink(id, state.byId.get(id).name) : esc(h.names?.[id] || id))).join(', ') || '–'}`).join(' ⇄ ');
     const per = PERIODS.find(x => x.key === h.period)?.label || h.period;
     const answer = synced && histStatus(h) === 'sent'
       ? `<span class="hist-answer"><button type="button" class="btn ok small" data-action="offer-accept" data-id="${h.id}">✔ ${t('Prihvaćeno')}</button><button type="button" class="btn danger small" data-action="offer-reject" data-id="${h.id}">✕ ${t('Odbijeno')}</button></span>` : '';
@@ -6555,6 +6829,7 @@ function updateDropdown(key) {
   dd.innerHTML = results.length
     ? results.map((p, k) => `<li role="option" data-pick="${p.id}" data-key="${key}" aria-selected="${k === ui.sel}">
         ${avatarHTML(p)}<div class="dd-main"><div>${esc(p.name)} ${pref?.set.has(p.id) ? `<span class="slot-tag tag-mine">${esc(pref.label)}</span>` : ''}</div><div class="meta">${p.team} · ${posTxt(p)} ${injHTML(p)}</div></div>
+        <button type="button" class="dd-prof" data-pm="${p.id}" title="${esc(t('Profil igrača: {n}', { n: p.name }))}" aria-label="${esc(t('Profil igrača: {n}', { n: p.name }))}">ⓘ</button>
         ${showAddMy && !myIds.has(p.id) ? `<button type="button" class="dd-addmy ${myRoom ? '' : 'is-disabled'}" data-addmy="${p.id}" ${myRoom ? `title="${esc(t('Dodaj u moj tim'))}"` : `aria-disabled="true" title="${esc(fullTip())}"`}>＋ ${t('Moj tim')}</button>` : ''}</li>`).join('')
     : `<li class="empty">${t('Nema igrača za „{q}“', { q: esc(ui.query) })}</li>`;
   dd.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
@@ -6819,7 +7094,7 @@ function rosterAlerts({ all = false } = {}) {
   return all ? out : out.slice(0, 5);
 }
 const alertIcon = a => (a.kind === 'news' ? '📰' : a.kind === 'min' ? '⏬' : '⚕');
-const alertsListHTML = list => `<ul class="alerts">${list.map(a => `<li class="al-${a.kind}" ${a.tip ? `data-tip-html="${esc(a.tip)}"` : ''}><span>${alertIcon(a)} ${a.txt}</span>
+const alertsListHTML = list => `<ul class="alerts">${list.map(a => `<li class="al-${a.kind}" ${a.tip ? `data-tip-html="${esc(a.tip)}"` : ''}><span>${alertIcon(a)} ${a.p ? a.txt.replace(esc(a.p.name), pmLink(a.p.id, a.p.name)) : a.txt}</span>
     ${a.kind === 'ir' ? linkHTML('ov-ir', { attrs: `data-player="${a.p.id}"` }) : ''}</li>`).join('')}</ul>`;
 /** Svi alerti igrača sa mog rostera, najnoviji gore */
 function showAllAlerts() {
@@ -7429,10 +7704,16 @@ function endColDrag(e) {
 }
 /** Kratka poruka dole na ekranu (nestaje sama) */
 let toastTimer = 0;
-function toast(msg, ms = 4500) {
+function toast(msg, ms = 4500, action = null) {
   let el = document.getElementById('toast');
   if (!el) { el = Object.assign(document.createElement('div'), { id: 'toast', role: 'status' }); document.body.appendChild(el); }
-  el.textContent = msg; el.classList.add('on');
+  el.textContent = msg;
+  if (action) {
+    const b = Object.assign(document.createElement('button'), { type: 'button', className: 'toast-act', textContent: action.label });
+    b.addEventListener('click', () => { el.classList.remove('on'); action.on(); });
+    el.append(' ', b);
+  }
+  el.classList.add('on');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('on'), ms);
 }
 document.addEventListener('pointerup', endColDrag);
