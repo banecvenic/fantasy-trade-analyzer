@@ -1275,6 +1275,19 @@ const EN = {
   "Ukloni bonus": "Remove bonus",
   "Dodaj bonus": "Add bonus",
   "{n} bod.": "{n} pts",
+  "{n} je zdrav, a još je na IR. Vrati ga u postavu.": "{n} is healthy but still on IR. Move him back to your lineup.",
+  "{n} je {s}, više nije OUT, a još je na IR.": "{n} is {s}, no longer OUT, but still on IR.",
+  "{n} je OUT već {m} utakmica.": "{n} has been OUT for {m} games.",
+  "{n} je OUT već {d}.": "{n} has been OUT for {d}.",
+  "{n} je OUT na duže.": "{n} is OUT long term.",
+  "Prebaci ga na IR.": "Move him to IR.",
+  "Razmisli o zameni, IR mesta su popunjena.": "Consider a replacement, your IR spots are full.",
+  "{n} se vratio, ponovo je zdrav.": "{n} is back and healthy again.",
+  "{n}: novi status, suspendovan.": "{n}: new status, suspended.",
+  "{n}: novi status {s}.": "{n}: new status {s}.",
+  "{n}: minutaža naglo pada, {a} → {b} min poslednjih 15 dana.": "{n}: minutes dropping sharply, {a} → {b} min in the last 15 days.",
+  "Ponuda {o} čeka odgovor već {d}.": "Offer {o} has been waiting for an answer for {d}.",
+  "Otvori trejd": "Open trade",
   'Novo: javi nam ako nešto nije uvezeno kako treba.': 'New: let us know if something was not imported correctly.',
   // Uvezena liga: podešavanja i kontekst cele lige
   'na {n}. mestu ({r})': 'in place {n} ({r})',
@@ -2009,7 +2022,27 @@ function setPlayers(players, ts) {
     // red statistike zna čiji je i koji period (za bonuse po utakmici); ne upisuje se u keš
     for (const [sid, line] of Object.entries(p.stats || {})) if (line && line._pid == null) Object.defineProperties(line, { _pid: { value: p.id }, _sid: { value: sid } });
   }
+  trackStatuses(players);
 }
+
+/* ---------- Istorija statusa igrača (za alert "nov status u poslednjih 72 h") ----------
+   localStorage: { [playerId]: [grupa, kadaJePromenaViđena (ms, 0 = nepoznato), prethodnaGrupa] }. Samo ID i status, bez imena. */
+const STATUS_KEY = 'fbaTrade.statusSeen.v1';
+const injGroup = s => (!INJURY[s] ? 'OK' : IR_STATUSES.includes(s) ? 'OUT' : s === 'SUSPENSION' ? 'SSPD' : 'DTD');
+let statusMem = null;
+function trackStatuses(players) {
+  const saved = lsGet(STATUS_KEY), mem = saved || {}, now = Date.now();
+  let changed = !saved;
+  for (const p of players) {
+    const g = injGroup(p.inj), cur = mem[p.id];
+    if (!cur) { mem[p.id] = [g, 0, null]; changed = true; } // prvi put viđen: bez istorije, nema alerta
+    else if (cur[0] !== g) { mem[p.id] = [g, now, cur[0]]; changed = true; }
+  }
+  if (changed) lsSet(STATUS_KEY, mem);
+  statusMem = mem;
+}
+/** Od kada igrač ima trenutni status (ms) i koji je bio pre; since 0 = ne znamo */
+const statusSince = p => { const s = statusMem?.[p.id]; return s && s[0] === injGroup(p.inj) ? { since: s[1] || 0, prev: s[2] } : { since: 0, prev: null }; };
 
 /** Strana trejda: ids = igrači na toj strani. drops/waivers postoje samo u starim sačuvanim trejdovima (istorija). */
 const newTeam = () => ({ ids: [], drops: [], waivers: [] });
@@ -6949,6 +6982,7 @@ const tradePages = () => APP_PAGES.filter(p => p.group === 'trades' && p.ready);
 const LINKS = [
   { id: 'ov-open-trade', from: 'overview', sr: 'Otvori u analizi', to: 'trade', ctx: ['tab'], row: true, on: true },
   { id: 'ov-ir', from: 'overview', sr: 'Prebaci na IR', to: 'team', ctx: ['player'], row: true, on: true },
+  { id: 'ov-ir-back', from: 'overview', sr: 'Vrati sa IR', to: 'team', ctx: ['player'], row: true, on: true },
   { id: 'ov-few-teams', from: 'overview', sr: 'Unesi još timova da vidiš gde si jak a gde slab', to: 'league', ctx: [], on: true },
   { id: 'ov-empty', from: 'overview', sr: 'Unesi svoj roster', to: 'team', ctx: [], on: true },
   { id: 'team-trade', from: 'team', sr: 'Trejduj ga', to: 'trade', ctx: ['player'], row: true, on: true },
@@ -7038,7 +7072,7 @@ function followLink(id, ds) {
   const pid = ds.player ? +ds.player : null;
   switch (id) {
     case 'ov-open-trade': setBack('trade'); activateTab(ds.tab); state.histView = null; searchUI.clear(); persistTrades(); goPage('trade'); return;
-    case 'ov-ir': state.ui.highlight = pid; setBack('team'); goPage('team'); return;
+    case 'ov-ir': case 'ov-ir-back': closeModal(); state.ui.highlight = pid; setBack('team'); goPage('team'); return;
     case 'ov-few-teams': case 'ov-empty': setBack(l.to); goPage(l.to); return;
     case 'team-trade': setBack('trade'); openInAnalysis([[pid], []]); goPage('trade'); return;
     case 'league-trade-with': setBack('trade'); openInAnalysis([[], []], { opp: ds.opp }); goPage('trade'); return;
@@ -7100,31 +7134,70 @@ function ensureRosterNews() {
   Promise.all(need.map(fetchNews)).finally(() => { rosterNewsBusy = false; if (state.page === 'overview') render(); });
 }
 
-/** Upozorenja o mojim igračima: OUT van IR dok je IR slobodan, pad minutaže, rizične vesti.
-    Poređana po datumu, najnovije gore (stanje rostera i minutaža važe danas). all: sve vesti svih igrača sa rostera, i sa IR. */
+/** Upozorenja: promene statusa, IR, minutaža, vesti, rok za trejdove, ponude bez odgovora.
+    Poređana po datumu, najnovije gore (stanje rostera, rok i ponude važe danas). all: sve vesti svih igrača sa rostera, i sa IR. */
+const ALERT = { STATUS_HOURS: 72, LONG_OUT_DAYS: 7, LONG_OUT_GAMES: 4, NEWS_HOURS: 24, OFFER_DAYS: 2, MAX: 5 };
+const LONG_OUT_FLAGS = ['out for the season', 'out indefinitely', 'surgery news'];
+/** Vest o statusu igrača (povreda, povratak, ograničenje), ne izveštaj sa utakmice */
+const STATUS_NEWS = /\b(questionable|doubtful|probable|out|available|injur\w*|return\w*|sidelined|miss\w*|ruled|game-time|status|upgraded|downgraded|surgery|mri|x-rays?|restriction|suspend\w*|cleared|illness|sore\w*|sprain\w*|strain\w*)\b|\([a-z ]+\)/i;
 function rosterAlerts({ all = false } = {}) {
-  const r = state.rosters.my;
+  const r = state.rosters.my, lg = currentLeague();
   if (!r?.players.length || !state.players.length) return [];
   const out = [], now = Date.now();
   const irFree = irCount(r) < ROSTER.IR;
   for (const x of r.players) {
     const p = state.byId.get(x.id); if (!p) continue;
-    if (!x.ir && irFree && canIR(p)) out.push({ p, ts: now, kind: 'ir', txt: t('{n} je {s}, a IR mesto je slobodno.', { n: esc(p.name), s: esc(statusLabel(p)) }) });
-  }
-  for (const x of r.players) {
-    const p = state.byId.get(x.id); if (!p || (x.ir && !all)) continue;
+    const n = esc(p.name), g = injGroup(p.inj), { since, prev } = statusSince(p);
     const f = playerFacts(p);
-    if (!x.ir && f.minS != null && f.minR != null && f.minR <= f.minS - MINUTES.ALERT) out.push({ p, ts: now, kind: 'min', txt: t('{n}: minutaža pada, {a} → {b} min poslednjih 15 dana.', { n: esc(p.name), a: Math.round(f.minS), b: Math.round(f.minR) }) });
-    for (const fl of all ? f.flags : f.flags.slice(0, 1)) {
-      out.push({ p, ts: Date.parse(fl.n.published) || 0, kind: 'news', txt: `${esc(p.name)}: ${esc(LANG === 'en' ? fl.f.en : fl.f.sr)} (${esc(shortDate(fl.n.published))})`, tip: newsTipHTML(fl.n) });
+    if (x.ir) {
+      // igrač na IR koji više nije OUT: vrati ga u postavu
+      if (g !== 'OUT') out.push({ p, ts: now, kind: 'irback', txt: g === 'OK' ? t('{n} je zdrav, a još je na IR. Vrati ga u postavu.', { n }) : t('{n} je {s}, više nije OUT, a još je na IR.', { n, s: esc(statusLabel(p)) }),
+        btn: linkHTML('ov-ir-back', { attrs: `data-player="${p.id}"` }) });
+    } else {
+      let irAlert = false;
+      if (g === 'OUT') {
+        const days = since ? Math.floor((now - since) / 864e5) : null, missed = f.missed;
+        const long = (days != null && days >= ALERT.LONG_OUT_DAYS) || (missed != null && missed >= ALERT.LONG_OUT_GAMES) || f.flags.some(fl => LONG_OUT_FLAGS.includes(fl.f.en));
+        const btn = irFree && canIR(p) ? linkHTML('ov-ir', { attrs: `data-player="${p.id}"` }) : '';
+        if (long) {
+          const howLong = missed >= ALERT.LONG_OUT_GAMES ? t('{n} je OUT već {m} utakmica.', { n, m: missed }) : days >= ALERT.LONG_OUT_DAYS ? t('{n} je OUT već {d}.', { n, d: daysTxt(days) }) : t('{n} je OUT na duže.', { n });
+          out.push({ p, ts: now, kind: 'ir', txt: `${howLong} ${btn ? t('Prebaci ga na IR.') : t('Razmisli o zameni, IR mesta su popunjena.')}`, btn });
+          irAlert = true;
+        } else if (btn) { out.push({ p, ts: now, kind: 'ir', txt: t('{n} je {s}, a IR mesto je slobodno.', { n, s: esc(statusLabel(p)) }), btn }); irAlert = true; }
+      }
+      // nov status u poslednjih 72 h (OUT, DTD, suspendovan, vratio se)
+      if (since && prev && now - since <= ALERT.STATUS_HOURS * 36e5 && !irAlert) {
+        const txt = g === 'OK' ? t('{n} se vratio, ponovo je zdrav.', { n }) : g === 'SSPD' ? t('{n}: novi status, suspendovan.', { n }) : t('{n}: novi status {s}.', { n, s: esc(statusLabel(p)) });
+        out.push({ p, ts: since, kind: g === 'OK' ? 'back' : 'inj', txt: `${txt} <span class="al-ago">${timeAgo(since)}</span>` });
+      }
+      // nagli pad minuta (↓↓): poslednjih 15 dana vs sezona
+      if (f.minS != null && f.minR != null && f.minR <= f.minS - MINUTES.STRONG) out.push({ p, ts: now, kind: 'min', txt: t('{n}: minutaža naglo pada, {a} → {b} min poslednjih 15 dana.', { n, a: Math.round(f.minS), b: Math.round(f.minR) }) });
     }
+    if (x.ir && !all) continue;
+    // rizične vesti (7 dana) i vest o statusu iz poslednjih 24 h (bez izveštaja sa utakmica)
+    const flags = all ? f.flags : f.flags.slice(0, 1);
+    for (const fl of flags) out.push({ p, ts: Date.parse(fl.n.published) || 0, kind: 'news', txt: `${n}: ${esc(LANG === 'en' ? fl.f.en : fl.f.sr)} (${esc(shortDate(fl.n.published))})`, tip: newsTipHTML(fl.n) });
+    const fresh = newsOf(p.id).filter(it => isRecent(it.published, ALERT.NEWS_HOURS / 24) && STATUS_NEWS.test(it.headline || '') && !f.flags.some(fl => fl.n === it));
+    for (const it of all ? fresh : fresh.slice(0, 1)) out.push({ p, ts: Date.parse(it.published) || 0, kind: 'news', txt: `${n}: ${esc(it.headline)}`, tip: newsTipHTML(it) });
+  }
+  // rok za trejdove za 7 dana ili manje
+  const dl = lg?.import?.deadline;
+  if (dl && dl > now && dl - now <= IMPORT.DEADLINE_WARN_DAYS * 864e5) {
+    const ms = dl - now, left = ms < 864e5 ? t('{n} h', { n: Math.max(1, Math.round(ms / 36e5)) }) : daysTxt(Math.ceil(ms / 864e5));
+    out.push({ ts: now, kind: 'dl', txt: t('Rok za trejdove: {d} (još {n}).', { d: esc(fmtDateTime(dl)), n: left }), btn: `<a class="linkbtn" href="${pageHash('trade')}" data-goto="trade">${t('Analiza trejda')}</a>` });
+  }
+  // poslata ponuda bez odgovora duže od 2 dana
+  for (const h of sentOffers(lg)) {
+    const at = new Date(h.date).getTime();
+    if (!(at > 0) || now - at <= ALERT.OFFER_DAYS * 864e5) continue;
+    out.push({ ts: now, kind: 'offer', txt: t('Ponuda {o} čeka odgovor već {d}.', { o: `<b>${esc(offerTitle(h))}</b>`, d: daysTxt(Math.floor((now - at) / 864e5)) }),
+      btn: `<button type="button" class="linkbtn" data-action="ov-hist" data-id="${h.id}">${t('Otvori trejd')}</button>` });
   }
   out.sort((a, b) => b.ts - a.ts);
-  return all ? out : out.slice(0, 5);
+  return all ? out : out.slice(0, ALERT.MAX);
 }
-const alertIcon = a => (a.kind === 'news' ? '📰' : a.kind === 'min' ? '⏬' : '⚕');
-const alertsListHTML = list => `<ul class="alerts">${list.map(a => `<li class="al-${a.kind}" ${a.tip ? `data-tip-html="${esc(a.tip)}"` : ''}><span>${alertIcon(a)} ${a.p ? a.txt.replace(esc(a.p.name), pmLink(a.p.id, a.p.name)) : a.txt}</span>
-    ${a.kind === 'ir' ? linkHTML('ov-ir', { attrs: `data-player="${a.p.id}"` }) : ''}</li>`).join('')}</ul>`;
+const ALERT_ICON = { news: '📰', min: '⏬', ir: '⚕', irback: '⚕', inj: '🩹', back: '✅', dl: '⏱', offer: '📨' };
+const alertsListHTML = list => `<ul class="alerts">${list.map(a => `<li class="al-${a.kind}" ${a.tip ? `data-tip-html="${esc(a.tip)}"` : ''}><span>${ALERT_ICON[a.kind] || '•'} ${a.p ? a.txt.replace(esc(a.p.name), pmLink(a.p.id, a.p.name)) : a.txt}</span>${a.btn || ''}</li>`).join('')}</ul>`;
 /** Svi alerti igrača sa mog rostera, najnoviji gore */
 function showAllAlerts() {
   const list = rosterAlerts({ all: true });
@@ -7421,7 +7494,7 @@ document.addEventListener('click', e => {
   const pm = e.target.closest('[data-pmenu]');
   if (pm) { const [k, id] = pm.dataset.pmenu.split(':'); if (document.getElementById('popmenu')) closePopMenu(); else playerMenu(pm, k, +id); return; }
   const pg = e.target.closest('[data-goto]');
-  if (pg) { e.preventDefault(); clearBack(); goPage(pg.dataset.goto); return; } // stavka navigacije: novi početak, bez "Nazad"
+  if (pg) { e.preventDefault(); closeModal(); clearBack(); goPage(pg.dataset.goto); return; } // stavka navigacije: novi početak, bez "Nazad"
   const nav = e.target.closest('[data-nav]');
   if (nav) { e.preventDefault(); navigate(nav.dataset.nav); return; }
   const ol = e.target.closest('[data-open-league]');
@@ -7451,7 +7524,7 @@ document.addEventListener('click', e => {
     case 'trades-menu': if (document.getElementById('popmenu')) closePopMenu(); else openPopMenu(el, tradePages().map(p => { const n = p.id === 'history' ? sentOffers().length : 0; return `<a role="menuitem" class="pm-item" href="${pageHash(p.id)}" data-goto="${p.id}"><span>${t(p.sr)}</span>${n ? `<span class="cnt">${n}</span>` : ''}</a>`; }).join('')); break;
     case 'all-alerts': showAllAlerts(); break;
     case 'open-in-league': location.href = shareURL() + '&mv=1'; break; // isti izbor lige kao za deljeni link, bez okretanja strana
-    case 'ov-hist': { const id = +el.dataset.id; setBack('trade'); openTrade(id); goPage('trade'); break; }
+    case 'ov-hist': { const id = +el.dataset.id; closeModal(); setBack('trade'); openTrade(id); goPage('trade'); break; }
     case 'lt-open': state.leagueTeam = state.leagueTeam === el.dataset.id ? null : el.dataset.id; state.ui.ltEdit = null; render();
       if (state.leagueTeam) document.getElementById('lt-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); break;
     case 'lt-close': state.leagueTeam = null; state.ui.ltEdit = null; render(); break;
