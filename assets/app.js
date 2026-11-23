@@ -1365,7 +1365,7 @@ const EN = {
   "U zoni plejofa (top {n}).": "In the playoff zone (top {n}).",
   "{n} mesta do zone plejofa (top {m}).": "{n} spots from the playoff zone (top {m}).",
   "Unesi mesto i skor u podešavanjima lige da vidiš gde stojiš.": "Enter your place and record in the league settings to see where you stand.",
-  "Tabela oko tebe": "Standings around you",
+  "Trka za plejof": "Playoff race",
   "Forma rostera": "Roster health",
   "zdravih": "healthy",
   'Novo: javi nam ako nešto nije uvezeno kako treba.': 'New: let us know if something was not imported correctly.',
@@ -7445,7 +7445,7 @@ function teamGlanceHTML(lg, r) {
     const rows = shown.map((tm, k) => {
       const isMe = tm === me, seed = tm.seed || i0 + k + 1;
       const line = poTeams && seed === poTeams && k < shown.length - 1 ? `<li class="tg-cut" aria-hidden="true"><span>${t('linija plejofa')}</span></li>` : '';
-      return `<li class="tg-row${isMe ? ' me' : ''}"><span class="tg-seed">${seed}</span><span class="tg-name">${esc(tm.name)}</span><span class="tg-rec">${standTxt(tm, pts)}</span>${isMe ? '<span></span>' : rel(tm, k < shown.indexOf(me))}</li>${line}`;
+      return `<li class="tg-row${isMe ? ' me' : ''}"><span class="tg-seed">${seed}</span><span class="tg-name">${esc(tm.name)}</span>${isMe ? '<span></span>' : rel(tm, k < shown.indexOf(me))}<span class="tg-rec">${standTxt(tm, pts)}</span></li>${line}`;
     }).join('');
     const mySeed = me.seed || mi + 1;
     const po = poTeams ? `<p class="tg-po">${mySeed <= poTeams ? t('U zoni plejofa (top {n}).', { n: poTeams }) : t('{n} mesta do zone plejofa (top {m}).', { n: mySeed - poTeams, m: poTeams })}</p>` : '';
@@ -7462,7 +7462,7 @@ function teamGlanceHTML(lg, r) {
   for (const x of r.players) { const p = state.byId.get(x.id); if (!p) continue; const g = leagueStatus(lg, x, p).g; (g === 'OK' ? groups.OK : g === 'DTD' ? groups.DTD : groups.OUT).push(p.name); }
   const tile = (k, label, cls) => `<div class="tg-tile ${cls}" ${groups[k].length && k !== 'OK' ? `data-tip="${esc(groups[k].join(', '))}"` : ''}><b>${groups[k].length}</b><span>${label}</span></div>`;
   return `<section class="pcard ov-glance">${head}
-    <div class="tg-lbl">${t('Tabela oko tebe')}</div>${ladder}
+    <div class="tg-lbl">${t('Trka za plejof')}</div>${ladder}
     <div class="tg-lbl">${t('Forma rostera')}</div>
     <div class="tg-form">${tile('OK', t('zdravih'), 'ok')}${tile('DTD', 'DTD', 'dtd')}${tile('OUT', 'OUT', 'out')}</div>
     <div class="tg-foot">${t('{a}/{b} aktivnih · {c}/{d} IR', { a: activeCount(r), b: ROSTER.ACTIVE, c: irCount(r), d: ROSTER.IR })} · ${t('Ažurirano: {d}', { d: fmtShortDate(r.updated) })}</div></section>`;

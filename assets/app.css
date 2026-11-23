@@ -671,8 +671,8 @@ body:not([data-view="league"]) .shell > main.wrap{margin:0 auto}
 .tg-row.me{background:var(--lose-bg);border-color:rgba(var(--lose-rgb),.45);font-weight:600}
 .tg-seed{color:var(--dim);font-variant-numeric:tabular-nums}.tg-row.me .tg-seed{color:var(--text)}
 .tg-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tg-rec{font-variant-numeric:tabular-nums;color:var(--muted)}.tg-row.me .tg-rec{color:var(--text)}
-.tg-gap{font-size:12px;color:var(--dim);white-space:nowrap;min-width:84px;text-align:right}.tg-gap.up{color:var(--lose-text)}.tg-gap.dn{color:var(--win-text)}
+.tg-rec{font-variant-numeric:tabular-nums;color:var(--muted);text-align:right;min-width:52px}.tg-row.me .tg-rec{color:var(--text)}
+.tg-gap{font-size:12px;color:var(--dim);white-space:nowrap;text-align:right}.tg-gap.up{color:var(--lose-text)}.tg-gap.dn{color:var(--win-text)}
 .tg-cut{border-top:1px dashed var(--info);margin:5px 0;position:relative;height:0}
 .tg-cut span{position:absolute;right:4px;top:-8px;font-size:10px;line-height:14px;padding:0 5px;background:var(--card);color:var(--info)}
 .tg-po{font-size:12px;color:var(--muted);margin:0 0 8px}
