@@ -183,7 +183,7 @@
 .pub main > section.feature{padding:20px}
 .feature-league{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;align-items:center;margin-top:36px}
 .feature .lead{margin-bottom:14px}
-.feature-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.feature-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}
 .feature-grid .feature{margin-top:20px}
 .soon{display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border-radius:999px;background:var(--info-bg);color:var(--info);font-size:13px;font-weight:700}
 .ba{background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:12px}

@@ -37,6 +37,7 @@ PAGES = {
 TOOLS = {
     'finder':  {'ready': False, 'href': None},   # Find the player your team needs
     'builder': {'ready': False, 'href': None},   # Build a trade between two teams
+    'fa':      {'ready': False, 'href': None},   # Free agent pickups
 }
 
 # ---------------------------------------------------------------------------
@@ -72,6 +73,8 @@ HOME = {
         'finder_p': 'Pick the categories you want to improve and see players on other teams who bring them.',
         'builder_h': 'Build a trade between two teams',
         'builder_p': 'Pick your team and one more, and get trade ideas: 1 for 1, 2 for 1 and 2 for 2.',
+        'fa_h': 'Free agent pickups',
+        'fa_p': 'Uses your imported league to find free agents who fit your team, including players whose minutes are growing.',
         'soon': 'Coming soon', 'open_tool': 'Open',
         'my_league': 'My league', 'continue_bar': 'Continue where you left off',
         'continue_btn': 'Continue: {name}',
@@ -104,6 +107,8 @@ HOME = {
         'finder_p': 'Izaberi kategorije koje hoćeš da popraviš i vidi igrače iz drugih ekipa koji ih donose.',
         'builder_h': 'Napravi trejd između dva tima',
         'builder_p': 'Izaberi svoj i još jedan tim i dobij predloge trejdova 1 za 1, 2 za 1 i 2 za 2.',
+        'fa_h': 'Pojačanja sa FA',
+        'fa_p': 'Iz tvoje uvezene lige pronalazi slobodne igrače koji odgovaraju tvom timu, uključujući one kojima minutaža raste.',
         'soon': 'Uskoro', 'open_tool': 'Otvori',
         'my_league': 'Moja liga', 'continue_bar': 'Nastavi gde si stao',
         'continue_btn': 'Nastavi: {name}',
@@ -872,7 +877,8 @@ var b=document.getElementById('continue-btn');b.textContent={json.dumps(h['conti
     {before_after_html(lang)}
   </section>
 
-  <div class="feature-grid">{tool_card(lang, 'finder').replace('{root}', r)}{tool_card(lang, 'builder').replace('{root}', r)}</div>
+  {tool_card(lang, 'builder').replace('{root}', r)}
+  <div class="feature-grid">{tool_card(lang, 'finder').replace('{root}', r)}{tool_card(lang, 'fa').replace('{root}', r)}</div>
 
   <section aria-labelledby="faq-h">
     <h2 id="faq-h">{escape(t['faq_h'])}</h2>

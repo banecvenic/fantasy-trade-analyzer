@@ -412,7 +412,7 @@ const leagueFormatOf = lg => (lg ? normalizeFormat(lg.leagueFormat || legacyForm
 /* ---------- Modul formata: zajednički interfejs za sve prikaze ----------
    columns(): kolone za prikaz igrača (CATS)            compareSides(totals): rezultat poređenja
    summary(res): tekst i brojke za rezultat na vrhu       teamTotals(ids): zbir tima
-   playerValue(p): vrednost igrača (FPts kod poena; z-score kod kategorija dolazi u fazi 4)
+   playerValue(p): vrednost igrača (z-score kod kategorija, FPts iznad zamene kod poena; modul vrednosti)
    Kategorije i poeni su dve implementacije (FMT_CAT, FMT_PTS); FMT() vraća onu za aktivni format. */
 function catFromStat(id, w = null) {
   const x = STAT_BY_ID.get(id);
@@ -561,6 +561,90 @@ const availFactor = (gp, teamGames, out) => (out ? 0 : teamGames > 0 ? Math.max(
 /** Sleeper rok za trejdove (nedelja lige) -> približan datum: početak te nedelje. monday = ponedeljak tekuće nedelje (ms), leg = tekuća nedelja */
 const sleeperDeadline = (week, leg, monday) => (week > 0 && week < 40 && leg > 0 && monday > 0 ? monday + (week - leg) * 7 * 864e5 : null);
 /* ==== kraj: Alerti, čiste funkcije ==== */
+
+/* =====================================================================
+   Vrednost igrača: čiste funkcije (bez DOM-a i stanja aplikacije; testovi u tools/test_value.js)
+   Kategorije: z-score po utakmici u odnosu na bazen igrača sa rostera (broj timova × aktivna mesta).
+   Poeni: FPts po utakmici iznad nivoa zamene.
+   ===================================================================== */
+/** Podesive konstante vrednosti (sve na jednom mestu) */
+const VALUE = {
+  DEFAULT_TEAMS: 12, DEFAULT_ACTIVE: 13,  // bazen bez lige: 12 × 13
+  SMALL_SAMPLE_GP: 5,                    // manje utakmica u periodu = "mali uzorak"
+  // vrednost za moj tim: težina kategorije po mom mestu u ligi (punt je uvek 0)
+  NEED_WEIGHT: { bottom: 1.5, middle: 1, top: 0.6 },
+};
+/** Doprinos igrača u jednoj kategoriji po utakmici. Procenti (i odnosi): uticaj = pogoci − procenat bazena × pokušaji
+    (isto što i (procenat igrača − procenat bazena) × pokušaji). cat: { key, pct, made, att, low } */
+function catContribution(line, c, base) {
+  if (!line) return 0;
+  if (c.pct) { const att = +line[c.att] || 0, made = +line[c.made] || 0; return att > 0 ? made - (base ?? 0) * att : 0; }
+  return +line[c.key] || 0;
+}
+/** Statistika bazena po kategoriji: { [key]: { base (ponderisani procenat), mean, sd } } */
+function poolStats(lines, cats) {
+  const out = {};
+  for (const c of cats) {
+    let base = null;
+    if (c.pct) { let m = 0, a = 0; for (const l of lines) { m += +l[c.made] || 0; a += +l[c.att] || 0; } base = a > 0 ? m / a : 0; }
+    const xs = lines.map(l => catContribution(l, c, base));
+    const mean = xs.length ? xs.reduce((x, y) => x + y, 0) / xs.length : 0;
+    const sd = xs.length ? Math.sqrt(xs.reduce((x, y) => x + (y - mean) ** 2, 0) / xs.length) : 0;
+    out[c.key] = { base, mean, sd };
+  }
+  return out;
+}
+/** Z-score po kategorijama za jednog igrača: { total, by: { [key]: z } }. Manje je bolje (TO): obrnut znak. */
+function zScores(line, cats, stats) {
+  const by = {}; let total = 0;
+  for (const c of cats) {
+    const st = stats[c.key];
+    const z = st.sd > 0 ? (catContribution(line, c, st.base) - st.mean) / st.sd : 0;
+    by[c.key] = c.low ? -z : z; total += by[c.key];
+  }
+  return { total, by };
+}
+/** Kategorijska vrednost za sve igrače u 2 prolaza: prvi rangira sve, drugi računa prosek i SD samo na najboljih poolN.
+    rows: [{ id, line }]. -> { stats, values: Map(id -> { total, by }) } */
+function categoryValues(rows, cats, poolN) {
+  const valid = rows.filter(r => r.line);
+  const first = poolStats(valid.map(r => r.line), cats);
+  const ranked = valid.map(r => ({ r, v: zScores(r.line, cats, first).total })).sort((a, b) => b.v - a.v);
+  const pool = ranked.slice(0, Math.max(1, poolN)).map(x => x.r.line);
+  const stats = poolStats(pool, cats);
+  const values = new Map(valid.map(r => [r.id, zScores(r.line, cats, stats)]));
+  return { stats, values };
+}
+/** Poenska vrednost: FPts po utakmici minus nivo zamene (prosek igrača rangiranih od poolN+1 do poolN+teams).
+    rows: [{ id, fpts }] -> { repl, values: Map(id -> { total, fpts }) } */
+function pointsValues(rows, poolN, teams) {
+  const valid = rows.filter(r => r.fpts != null).sort((a, b) => b.fpts - a.fpts);
+  const band = valid.slice(poolN, poolN + Math.max(1, teams));
+  const repl = band.length ? band.reduce((x, r) => x + r.fpts, 0) / band.length : valid.length ? valid[valid.length - 1].fpts : 0;
+  return { repl, values: new Map(valid.map(r => [r.id, { total: r.fpts - repl, fpts: r.fpts }])) };
+}
+/** Rang po vrednosti (1 = najbolji) za Map(id -> { total }) */
+function valueRanks(values) {
+  const order = [...values.entries()].sort((a, b) => b[1].total - a[1].total);
+  return new Map(order.map(([id], i) => [id, i + 1]));
+}
+/** Vrednost za ostatak sezone: po utakmici × preostale utakmice × koeficijent dostupnosti (OUT = 0) */
+const restOfSeasonValue = (perGame, gamesLeft, avail) => (perGame == null || gamesLeft == null ? null : perGame * gamesLeft * avail);
+/** Težine kategorija za moj tim: punt = 0; donja trećina lige veća težina, gornja manja. ranks: { [key]: { rank, of } } ili null */
+function needWeights(cats, ranks, punt, W = VALUE.NEED_WEIGHT) {
+  const out = {};
+  for (const c of cats) {
+    if (punt?.has?.(c.key)) { out[c.key] = 0; continue; }
+    const r = ranks?.[c.key];
+    if (!r || !(r.of > 2)) { out[c.key] = 1; continue; }
+    const third = r.of / 3;
+    out[c.key] = r.rank > r.of - third ? W.bottom : r.rank <= third ? W.top : W.middle;
+  }
+  return out;
+}
+/** Vrednost uz težine: zbir z × težina */
+const weightedValue = (by, weights) => Object.entries(by).reduce((s, [k, z]) => s + z * (weights[k] ?? 1), 0);
+/* ==== kraj: Vrednost, čiste funkcije ==== */
 
 /** Fantasy poeni po utakmici za jedan red statistike (null statistike, npr. DD u projekciji, ne donose poene).
  *  Liga na poene sa bonusima ili QD: kad imamo utakmice igrača, DD/TD/QD i bonus se računaju iz utakmica za isti period. */
@@ -1399,6 +1483,21 @@ const EN = {
   "Puna tabela lige i stvarni plasman u sezoni": "Full league standings and actual season standing",
   "Prepoznavanje prihvaćenog trejda i datum obrade": "Detecting accepted trades and the processing date",
   "Osvežavanje rostera i statusa sa platforme": "Refreshing rosters and statuses from the platform",
+  "Za ostatak sezone: daješ {a}, dobijaš {b}": "Rest of season: you give {a}, you get {b}",
+  "Ukupna vrednost: daješ {a}, dobijaš {b}": "Total value: you give {a}, you get {b}",
+  "(iznad zamene, po utakmici)": "(above replacement, per game)",
+  "Informativno. Zbir ne uzima u obzir da strana koja dobija više igrača mora nekoga da otpusti.": "For information only. The sum does not account for the side getting more players having to drop someone.",
+  "{v} FPts iznad zamene": "{v} FPts above replacement",
+  "Koliko fantasy poena po utakmici igrač donosi više od igrača koga bi lako našao na waiveru. 0 je nivo zamene.": "How many more fantasy points per game the player brings than one you could easily find on waivers. 0 is replacement level.",
+  "Koliko igrač doprinosi u kategorijama tvoje lige u odnosu na igrače koji su na rosterima. 0 je prosečan igrač sa rostera.": "How much the player contributes in your league categories compared to rostered players. 0 is an average rostered player.",
+  "Vrednost ({p})": "Value ({p})",
+  "Manje od {n} utakmica u ovom periodu.": "Fewer than {n} games in this period.",
+  "mali uzorak": "small sample",
+  "Alati": "Tools",
+  "Pojačanja sa FA": "Free agent pickups",
+  "Za igrača kog želiš ili kategoriju koja ti fali, predlaže trejdove sa timovima iz tvoje lige koji imaju smisla za obe strane.": "For a player you want or a category you need, suggests trades with teams in your league that make sense for both sides.",
+  "Pokazuje igrače iz drugih timova u tvojoj ligi koji najviše pomažu tvom timu, i kojim timovima bi trejd takođe odgovarao.": "Shows players on other teams in your league who help your team the most, and which teams a trade could also suit.",
+  "Iz tvoje uvezene lige pronalazi slobodne igrače koji odgovaraju tvom timu, uključujući one kojima minutaža raste.": "Uses your imported league to find free agents who fit your team, including players whose minutes are growing.",
   'Novo: javi nam ako nešto nije uvezeno kako treba.': 'New: let us know if something was not imported correctly.',
   // Uvezena liga: podešavanja i kontekst cele lige
   'na {n}. mestu ({r})': 'in place {n} ({r})',
@@ -2536,12 +2635,12 @@ const FMT_CAT = {
   compareSides: totals => compare(totals),
   summary: res => ({ kind: 'cat', get: res.score[GET], give: res.score[GIVE], ties: res.ties }),
   teamTotals: ids => sumPlayers(ids),
-  playerValue: () => null, // z-score igrača: faza 4
+  playerValue: p => playerValue(p)?.total ?? null, // z-score igrača (modul vrednosti)
 };
 const FMT_PTS = {
   ...FMT_CAT,
   summary: res => (res.points ? { kind: 'pts', diff: res.points.diff, give: res.points.give, get: res.points.get } : null),
-  playerValue: p => { const l = playerLine(p); return l ? fptsOf(l) : null; },
+  playerValue: p => playerValue(p)?.total ?? null, // FPts iznad zamene (modul vrednosti)
 };
 const FMT = () => (isPointsFmt() ? FMT_PTS : FMT_CAT);
 /** Napomena ispod rezultata po tipu lige */
@@ -3584,6 +3683,66 @@ function rankProjection(lg = currentLeague()) {
   return rotoProjection(teams.map(x => ({ id: x.tid, vals: full(x.vals) })), lg.import.myTid, delta, cats)
     .filter(x => x.before != null).map(x => ({ ...x, c: cats.find(y => y.key === x.key) }));
 }
+
+/* ---------- Vrednost igrača: po ligi i periodu (čita samo zajednički model lige), keš dok se liga ili baza igrača ne osveže ----------
+   Budući alati (Pronađi trejd, Mete, Pojačanja sa FA) traže vrednost za bilo koji period: leagueValues(lg, period). */
+const valueCache = new Map();
+/** Bazen: broj timova × aktivna roster mesta (bez IR); bez lige 12 × 13 */
+const valuePool = lg => {
+  const teams = (lg && lg.teams) || VALUE.DEFAULT_TEAMS, active = (lg && lg.slots?.active) || VALUE.DEFAULT_ACTIVE;
+  return { teams, active, n: teams * active };
+};
+const valueCats = f => f.categories.map(id => { const c = catFromStat(id); return { key: id, label: c.label, pct: c.type === 'pct', made: c.made, att: c.att, low: c.lowerIsBetter, noProj: c.noProj }; });
+/** Red statistike igrača za period; u projekciji statistike koje projekcija nema (npr. DD) uzimaju se iz proseka sezone */
+function valueLine(p, per, cats) {
+  const line = statOf(p, per);
+  if (!line || per !== 'proj' || !cats?.some(c => c.noProj)) return line;
+  const season = statOf(p, 'season'), out = { ...line };
+  for (const c of cats) if (c.noProj) for (const k of c.pct ? [c.made, c.att] : [c.key]) out[k] = season?.[k] ?? 0;
+  return out;
+}
+/** Vrednosti svih igrača iz baze: { pts, per, pool, cats, values: Map(id -> { total, by?, fpts?, rank, gp, small }), ms } */
+function leagueValues(lg = currentLeague(), per = state.period) {
+  const f = leagueFormatOf(lg), pool = valuePool(lg), pts = isPointsType(f.scoringType);
+  const key = [lg?.id || 'quick', per, encodeFormat(f), pool.teams, pool.active, state.loadedAt, state.players.length, lg?.import?.syncedAt || ''].join('|');
+  const hit = valueCache.get(key);
+  if (hit) return hit;
+  const t0 = performance.now();
+  let values, cats = [], repl = null;
+  if (pts) {
+    // bodovanje aktivne lige ide kroz fptsOf (bonusi i dodaci kao u koloni FPts); druga liga: samo težine
+    const w = sameFormat(f, FMT_ACTIVE) ? FMT_ACTIVE.weights : f.weights;
+    const r = pointsValues(state.players.map(p => { const l = statOf(p, per); return { id: p.id, fpts: l ? fptsOf(l, w) : null }; }), pool.n, pool.teams);
+    values = r.values; repl = r.repl;
+  } else {
+    cats = valueCats(f);
+    values = categoryValues(state.players.map(p => ({ id: p.id, line: valueLine(p, per, cats) })), cats, pool.n).values;
+  }
+  const ranks = valueRanks(values);
+  for (const [id, v] of values) { const gp = statOf(state.byId.get(id), per)?.GP || 0; Object.assign(v, { rank: ranks.get(id), gp, small: per !== 'proj' && gp < VALUE.SMALL_SAMPLE_GP }); }
+  const res = { pts, per, pool, cats, repl, values, ms: performance.now() - t0 };
+  if (valueCache.size > 30) valueCache.clear();
+  valueCache.set(key, res);
+  return res;
+}
+/** Vrednost jednog igrača ili null (nema podataka za period) */
+const playerValue = (p, lg = currentLeague(), per = state.period) => (p ? leagueValues(lg, per).values.get(p.id) || null : null);
+/** Vrednost za ostatak sezone: po utakmici × preostale utakmice × koeficijent dostupnosti */
+function playerRestValue(p, lg = currentLeague(), per = state.period) {
+  const v = playerValue(p, lg, per);
+  return v ? restOfSeasonValue(v.total, gamesLeft(p.tid), playerAvail(p, lg)) : null;
+}
+/** Vrednost za moj tim (računa se, ne prikazuje se još): težine po potrebi mog tima, punt = 0. Poeni: isto kao opšta. */
+function myTeamValue(p, lg = currentLeague(), per = state.period) {
+  const v = playerValue(p, lg, per);
+  if (!v || !v.by) return v ? v.total : null;
+  const cur = lg && lg === currentLeague();
+  const ranks = cur ? Object.fromEntries((catRanks('my') || []).map(x => [x.c.key, { rank: x.rank, of: x.of }])) : null;
+  return weightedValue(v.by, needWeights(leagueValues(lg, per).cats, ranks, cur ? state.punt : new Set(lg?.punt || [])));
+}
+/** +8.4 / −1.1 (pravi minus) */
+const fmtVal = v => (v == null ? '-' : `${v < -0.05 ? '−' : '+'}${Math.abs(v).toFixed(1)}`);
+const fmtValRest = v => (v == null ? '-' : `${v < -0.5 ? '−' : '+'}${Math.abs(Math.round(v))}`);
 
 /* ---------- Kontekst cele lige za izveštaj i tekst za AI (samo uvezene lige) ---------- */
 /** { me, opp, teams (po tabeli), ranks { tid: { kat: mesto } }, cats, leaders, pts, pfRank, val } ili null */
@@ -5449,6 +5608,20 @@ function reportListHTML(cls, title, items) {
     `<li${it.tip ? ` class="has-tip" data-tip="${esc(rt('newsTip'))}" data-tip-html="${esc(it.tip)}"` : ''}>${it.text}${it.tip ? ' <span class="rp-i">ⓘ</span>' : ''}</li>`).join('')}</ul></div>`;
 }
 
+/** Zbir vrednosti strana trejda (informativno; presuda ostaje po kategorijama ili FPts): { give, get, giveRest, getRest } */
+function tradeValueSums() {
+  const sum = (ids, fn) => { const xs = ids.map(id => fn(state.byId.get(id))).filter(v => v != null); return xs.length ? xs.reduce((a, b) => a + b, 0) : null; };
+  return { give: sum(giveIds(), p => playerValue(p)?.total ?? null), get: sum(getIds(), p => playerValue(p)?.total ?? null),
+    giveRest: sum(giveIds(), p => playerRestValue(p)), getRest: sum(getIds(), p => playerRestValue(p)) };
+}
+const valUnit = v => (isPointsFmt() ? `${fmtVal(v)} FPts` : fmtVal(v));
+function reportValueHTML() {
+  const V = tradeValueSums();
+  if (V.give == null && V.get == null) return '';
+  const rest = V.giveRest != null || V.getRest != null ? `<div>${t('Za ostatak sezone: daješ {a}, dobijaš {b}', { a: isPointsFmt() ? `${fmtValRest(V.giveRest)} FPts` : fmtValRest(V.giveRest), b: isPointsFmt() ? `${fmtValRest(V.getRest)} FPts` : fmtValRest(V.getRest) })}</div>` : '';
+  return `<div class="rp-value"><div>${t('Ukupna vrednost: daješ {a}, dobijaš {b}', { a: valUnit(V.give), b: valUnit(V.get) })}${isPointsFmt() ? ` <span class="hint">${t('(iznad zamene, po utakmici)')}</span>` : ''}</div>${rest}
+    <p class="rp-vnote">${t('Informativno. Zbir ne uzima u obzir da strana koja dobija više igrača mora nekoga da otpusti.')}</p></div>`;
+}
 function renderReport(totals, cmp) {
   const el = $('#report');
   const r = buildReport(totals, cmp);
@@ -5463,6 +5636,7 @@ function renderReport(totals, cmp) {
       ${r.real ? `<div class="rp-real">${r.real}</div>` : ''}
       ${r.posLine ? `<div class="rp-real">${r.posLine}</div>` : ''}
       ${r.candidate ? `<div class="rp-cand"><span>${r.candidate.text}</span> <button type="button" class="btn small" data-action="pick-drop" data-id="${r.candidate.id}">${rt('pickHim')}</button></div>` : ''}
+      ${reportValueHTML()}
       ${reportListHTML('plus', rt('plus'), r.pluses)}
       ${reportListHTML('risk', rt('risk'), r.risks)}
       ${!r.pluses.length && !r.risks.length ? `<p class="hint">${rt('noData')}</p>` : ''}
@@ -5544,6 +5718,8 @@ const statOf = (p, key) => { const s = p.stats[PERIODS.find(x => x.key === key).
 function aiPlayerBlock(p, tag = '') {
   const f = playerFacts(p);
   const lines = [`- ${p.name}${tag ? ` [${tag}]` : ''} (${p.team}, ${posTxt(p)})`];
+  const pv = playerValue(p), pr0 = playerRestValue(p);
+  if (pv) lines.push(`  ${L('Vrednost', 'Value')} (${PERIODS.find(x => x.key === state.period).label.toLowerCase()}): ${isPointsFmt() ? L(`${fmtVal(pv.total)} FPts iznad zamene po utakmici`, `${fmtVal(pv.total)} FPts above replacement per game`) : L(`${fmtVal(pv.total)} (zbir z-score po kategorijama lige, 0 = prosečan igrač sa rostera)`, `${fmtVal(pv.total)} (sum of z-scores across league categories, 0 = average rostered player)`)}, #${pv.rank}${pv.small ? L(' (mali uzorak)', ' (small sample)') : ''}${pr0 != null ? L(` · za ostatak sezone ${fmtValRest(pr0)}`, ` · rest of season ${fmtValRest(pr0)}`) : ''}${pv.by ? ` · ${Object.entries(pv.by).sort((a, b) => b[1] - a[1]).map(([k, z]) => `${leagueValues().cats.find(c => c.key === k)?.label || k} ${fmtVal(z)}`).join(', ')}` : ''}`);
   lines.push(`  ${L('Pozicije', 'Positions')}: ${posList(p).join(', ')}${posList(p).length > 1 ? L(' (može na više mesta u postavi)', ' (fits several lineup spots)') : ''} · ${L('Status', 'Status')}: ${statusTxt(p)}`);
   const gp = [];
   if (f.dur) gp.push(L(`ova sezona ${f.dur.gp}/${f.dur.n} (${Math.round(f.dur.pct * 100)}%)`, `this season ${f.dur.gp}/${f.dur.n} (${Math.round(f.dur.pct * 100)}%)`));
@@ -5739,6 +5915,9 @@ function buildAIText(shortRosterNews = false) {
   block(L('IZBACUJEŠ (sa mog rostera)', 'I DROP (from my roster)'), sp.drops);
   block(L('PROTIVNIK IZBACUJE (sa svog rostera, jer dobija više igrača; računa se u trejd)', 'OPPONENT DROPS (from their roster, because they get more players; counts in the trade)'), slotPlan('opp').drops);
   block(L('MOJ WAIVER DODATAK (menja moj tim, ne računa se u trejd)', 'MY WAIVER ADD (changes my team, not counted in the trade)'), sp.waivers);
+  const VS = tradeValueSums();
+  if (VS.give != null || VS.get != null) tr.push(L(`UKUPNA VREDNOST (informativno, presuda je po ${isPointsFmt() ? 'FPts' : 'kategorijama'}): dajem ${valUnit(VS.give)}, dobijam ${valUnit(VS.get)}${VS.giveRest != null || VS.getRest != null ? `; za ostatak sezone: dajem ${fmtValRest(VS.giveRest)}, dobijam ${fmtValRest(VS.getRest)}` : ''}. Zbir ne uzima u obzir da strana koja dobija više igrača mora nekoga da otpusti.`,
+    `TOTAL VALUE (informational, the verdict is by ${isPointsFmt() ? 'FPts' : 'categories'}): I give ${valUnit(VS.give)}, I get ${valUnit(VS.get)}${VS.giveRest != null || VS.getRest != null ? `; rest of season: I give ${fmtValRest(VS.giveRest)}, I get ${fmtValRest(VS.getRest)}` : ''}. The sum does not account for the side getting more players having to drop someone.`));
   const rep = state.lastReport;
   if (uneven) {
     if (rep?.real) tr.push(stripTags(rep.real));
@@ -6734,13 +6913,6 @@ function playerOwner(id) {
   for (const [oid, o] of Object.entries(r.opps || {})) if (o.players.some(x => x.id === id)) return { kind: 'opp', name: o.name, opp: oid };
   return { kind: 'fa', name: t('Slobodan igrač') };
 }
-/** Rang igrača po vrednosti u aktivnom formatu (FPts ili zbir kategorija) među svim igračima, za izabrani period */
-function playerRank(p) {
-  const val = x => FMT().playerValue(x);
-  const v = val(p);
-  if (v == null) return null;
-  return { n: state.players.filter(x => (val(x) ?? -Infinity) > v).length + 1, of: state.players.length };
-}
 const gameBonus = line => (isPointsFmt() ? gameBonusPts(line, FMT_ACTIVE.bonus) : 0);
 /** FPts jedne utakmice: DD/TD/QD iz statistike utakmice + bonus za prag */
 const gameFpts = line => fptsCalc(line, FMT_ACTIVE.weights, { ...derivedOf(line), B: gameBonus(line) });
@@ -6802,8 +6974,25 @@ function pmAddToTrade(id, side) {
   if (!inTrade) { setBack('trade'); goPage('trade'); } else render();
   toast(t('Dodato u trejd'));
 }
+/** Profil: vrednost igrača u zaglavlju ("Vrednost +8.4 · #23" ili "+6.2 FPts iznad zamene · #31"), za izabrani period */
+function pmValueFact(p, per) {
+  const v = playerValue(p);
+  if (!v) return '';
+  const val = isPointsFmt() ? t('{v} FPts iznad zamene', { v: fmtVal(v.total) }) : fmtVal(v.total);
+  const tip = isPointsFmt() ? t('Koliko fantasy poena po utakmici igrač donosi više od igrača koga bi lako našao na waiveru. 0 je nivo zamene.')
+    : t('Koliko igrač doprinosi u kategorijama tvoje lige u odnosu na igrače koji su na rosterima. 0 je prosečan igrač sa rostera.');
+  return `<span class="pm-val"><small>${t('Vrednost ({p})', { p: per.label.toLowerCase() })} <span class="i q" data-tip="${esc(tip)}">?</span></small><b class="${v.total >= 0 ? 'up' : 'down'}">${val} · #${v.rank}</b>${v.small ? ` <em class="small-tag" data-tip="${esc(t('Manje od {n} utakmica u ovom periodu.', { n: VALUE.SMALL_SAMPLE_GP }))}">${t('mali uzorak')}</em>` : ''}</span>`;
+}
+/** Profil: raspodela vrednosti po kategorijama, od najveće do najmanje; punt kategorije sive */
+function pmValueBreak(p) {
+  const v = playerValue(p);
+  if (!v?.by) return '';
+  const lv = leagueValues(), lbl = k => lv.cats.find(c => c.key === k)?.label || k;
+  const items = Object.entries(v.by).sort((a, b) => b[1] - a[1]);
+  return `<div class="pm-vbreak">${items.map(([k, z]) => `<span class="${isPunt({ key: k }) ? 'punt' : z >= 0.05 ? 'up' : z <= -0.05 ? 'down' : ''}">${esc(lbl(k))} ${fmtVal(z)}</span>`).join('<i>·</i>')}</div>`;
+}
 function playerModalHTML(p) {
-  const own = playerOwner(p.id), rk = playerRank(p), ps = playerStatus(p), inj = INJURY[ps.inj];
+  const own = playerOwner(p.id), ps = playerStatus(p), inj = INJURY[ps.inj];
   const per = PERIODS.find(x => x.key === state.period);
   const chg = p.own ? Math.round(p.own.chg * 10) / 10 : 0;
   const act = pmActHTML(p, own);
@@ -6814,8 +7003,8 @@ function playerModalHTML(p) {
           <span><small>${t('Status')}</small><b class="${inj ? `inj ${inj.cls}` : 'ok'}">${inj ? esc(ps.lb || ps.inj.replace(/_/g, ' ').toLowerCase().replace(/^./, x => x.toUpperCase())) : t('Zdrav')}${inj && ps.espn ? ` <span class="src-mark" data-tip="${esc(t('Platforma lige ne daje status igrača, pa je prikazan status sa ESPN-a.'))}">(ESPN)</span>` : ''}</b></span>
           ${own ? `<span><small>${t('Vlasnik')}</small><b>${esc(own.name)}</b></span>` : ''}
           ${p.own ? `<span><small>${t('U ligama')}</small><b>${p.own.pct.toFixed(1)}% <em class="${chg > 0 ? 'up' : chg < 0 ? 'down' : ''}">(${chg > 0 ? '+' : ''}${chg.toFixed(1)})</em></b></span>` : ''}
-          ${rk ? `<span><small>${t('Rang ({p})', { p: per.label.toLowerCase() })}</small><b>#${rk.n}</b></span>` : ''}
-        </div>${act ? `<div class="pm-act">${act}</div>` : ''}</div></div>`;
+          ${pmValueFact(p, per)}
+        </div>${pmValueBreak(p)}${act ? `<div class="pm-act">${act}</div>` : ''}</div></div>`;
   // proseci po periodima
   const bcol = hasBonusCol();
   const rows = PERIODS.map(x => ({ x, st: statOf(p, x.key) })).filter(r => r.st);
@@ -7209,20 +7398,32 @@ const NAV_ICON = {
   team: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
   league: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>',
   history: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>',
+  finder: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M8 11h6M11 8v6"/></svg>',
+  targets: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>',
+  fa: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M2 21c1.2-3.5 3.8-5.5 7-5.5s5.8 2 7 5.5M19 8v6M16 11h6"/></svg>',
   trades: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8h14l-4-4M20 16H6l4 4"/></svg>',
 };
 const APP_PAGES = [
   { id: 'overview', sr: 'Pregled', ready: true },
   { id: 'team', sr: 'Moj tim', ready: true },
   { id: 'league', sr: 'Liga', ready: true },
+  // grupa ALATI: redosled u meniju; zaključani alati (ready: false) otvaraju kratak opis, Istorija je uvek poslednja
   { id: 'trade', sr: 'Analiza trejda', group: 'trades', ready: true },
+  { id: 'finder', sr: 'Pronađi trejd', group: 'trades', ready: false, soon: 'Za igrača kog želiš ili kategoriju koja ti fali, predlaže trejdove sa timovima iz tvoje lige koji imaju smisla za obe strane.' },
+  { id: 'targets', sr: 'Mete za trejd', group: 'trades', ready: false, soon: 'Pokazuje igrače iz drugih timova u tvojoj ligi koji najviše pomažu tvom timu, i kojim timovima bi trejd takođe odgovarao.' },
+  { id: 'fa', sr: 'Pojačanja sa FA', group: 'trades', ready: false, soon: 'Iz tvoje uvezene lige pronalazi slobodne igrače koji odgovaraju tvom timu, uključujući one kojima minutaža raste.' },
   { id: 'history', sr: 'Istorija trejdova', group: 'trades', ready: true },
-  { id: 'targets', sr: 'Mete za trejd', group: 'trades', ready: false },  // rezervisano
-  { id: 'finder', sr: 'Pronađi trejd', group: 'trades', ready: false },   // rezervisano
 ];
 const pageReady = id => !!APP_PAGES.find(p => p.id === id && p.ready);
 const pageLabel = id => t(APP_PAGES.find(p => p.id === id)?.sr || 'Pregled');
 const tradePages = () => APP_PAGES.filter(p => p.group === 'trades' && p.ready);
+const toolPages = () => APP_PAGES.filter(p => p.group === 'trades');
+/** Zaključan alat: mali modal sa opisom, bez forme */
+function openToolSoon(id) {
+  const pg = APP_PAGES.find(p => p.id === id);
+  if (!pg?.soon) return;
+  showModal({ title: `${esc(t(pg.sr))} <span class="soon-tag">${t('Uskoro')}</span>`, body: `<p>${esc(t(pg.soon))}</p>`, cancel: null, confirm: t('U redu'), onConfirm: () => {} });
+}
 
 /**
  * Registar veza između stranica: izvor, uslov (proverava ga mesto prikaza), tekst, cilj, kontekst koji se prenosi.
@@ -7761,17 +7962,16 @@ function renderNav() {
   const histBadge = ns ? `<span class="nbadge sent" title="${esc(t('Poslate ponude koje čekaju odgovor'))}">${ns}</span>` : '';
   // title: tooltip kad je bočni meni skupljen u ikonice (ispod 1024 px)
   const item = (id, icon, label, extra = '') => `<a href="${pageHash(id)}" class="nitem ${state.page === id ? 'on' : ''}" data-goto="${id}" title="${esc(label)}" ${state.page === id ? 'aria-current="page"' : ''}>${icon}<span class="nlabel">${label}</span>${extra}</a>`;
-  const tp = tradePages();
+  const tp = toolPages();
+  const soonItem = p => `<button type="button" class="nitem soon" data-action="tool-soon" data-tool="${p.id}" title="${esc(`${t(p.sr)} · ${t('Uskoro')}`)}">${NAV_ICON[p.id] || NAV_ICON.trades}<span class="nlabel">${t(p.sr)}<small class="soon-sub">${t('Uskoro')}</small></span></button>`;
   side.innerHTML = `<nav class="snav" aria-label="${t('Stranice lige')}">
     ${item('overview', NAV_ICON.overview, t('Pregled'))}${item('team', NAV_ICON.team, t('Moj tim'))}${item('league', NAV_ICON.league, t('Liga'))}
-    <div class="ngroup">${t('Trejdovi')}</div>
-    ${tp.map(p => item(p.id, NAV_ICON[p.id] || NAV_ICON.trades, t(p.sr), p.id === 'trade' ? badge : p.id === 'history' ? histBadge : '')).join('')}</nav>`;
-  const tradesOn = tp.some(p => p.id === state.page);
+    <div class="ngroup">${t('Alati')}</div>
+    ${tp.map(p => (p.ready ? item(p.id, NAV_ICON[p.id] || NAV_ICON.trades, t(p.sr), p.id === 'trade' ? badge : p.id === 'history' ? histBadge : '') : soonItem(p))).join('')}</nav>`;
+  const tradesOn = tp.some(p => p.ready && p.id === state.page);
   bottom.innerHTML = `<nav class="bnav" aria-label="${t('Stranice lige')}">
     ${item('overview', NAV_ICON.overview, t('Pregled'))}${item('team', NAV_ICON.team, t('Moj tim'))}${item('league', NAV_ICON.league, t('Liga'))}
-    ${tp.length === 1
-      ? `<a href="${pageHash(tp[0].id)}" class="nitem ${tradesOn ? 'on' : ''}" data-goto="${tp[0].id}">${NAV_ICON.trades}<span>${t('Trejdovi')}</span>${badge}</a>`
-      : `<button type="button" class="nitem ${tradesOn ? 'on' : ''}" data-action="trades-menu">${NAV_ICON.trades}<span>${t('Trejdovi')}</span>${badge}</button>`}</nav>`;
+    <button type="button" class="nitem ${tradesOn ? 'on' : ''}" data-action="trades-menu">${NAV_ICON.trades}<span>${t('Alati')}</span>${badge}</button></nav>`;
 }
 
 /* ---------- Izbirač lige u zaglavlju ---------- */
@@ -7895,7 +8095,8 @@ document.addEventListener('click', e => {
     case 'refresh': loadPlayers(true); loadSchedule(true); break;
     case 'go-back': { const b = state.back; clearBack(); if (b) location.hash = b.hash; break; }
     case 'league-menu': if (document.getElementById('popmenu')) closePopMenu(); else leagueMenu(el); break;
-    case 'trades-menu': if (document.getElementById('popmenu')) closePopMenu(); else openPopMenu(el, tradePages().map(p => { const n = p.id === 'history' ? sentOffers().length : 0; return `<a role="menuitem" class="pm-item" href="${pageHash(p.id)}" data-goto="${p.id}"><span>${t(p.sr)}</span>${n ? `<span class="cnt">${n}</span>` : ''}</a>`; }).join('')); break;
+    case 'trades-menu': if (document.getElementById('popmenu')) closePopMenu(); else openPopMenu(el, toolPages().map(p => { if (!p.ready) return `<button type="button" role="menuitem" class="pm-item soon" data-action="tool-soon" data-tool="${p.id}"><span>${t(p.sr)}</span><span class="soon-tag">${t('Uskoro')}</span></button>`; const n = p.id === 'history' ? sentOffers().length : p.id === 'trade' ? openTrades(state.scope) : 0; return `<a role="menuitem" class="pm-item" href="${pageHash(p.id)}" data-goto="${p.id}"><span>${t(p.sr)}</span>${n ? `<span class="cnt${p.id === 'history' ? ' sent' : ''}">${n}</span>` : ''}</a>`; }).join('')); break;
+    case 'tool-soon': closePopMenu(); openToolSoon(el.dataset.tool); break;
     case 'all-alerts': showAllAlerts(); break;
     case 'al-hide': hideAlert(el.dataset.key); break;
     case 'open-in-league': location.href = shareURL() + '&mv=1'; break; // isti izbor lige kao za deljeni link, bez okretanja strana
