@@ -1483,13 +1483,12 @@ const EN = {
   "Puna tabela lige i stvarni plasman u sezoni": "Full league standings and actual season standing",
   "Prepoznavanje prihvaćenog trejda i datum obrade": "Detecting accepted trades and the processing date",
   "Osvežavanje rostera i statusa sa platforme": "Refreshing rosters and statuses from the platform",
-  "Za ostatak sezone: daješ {a}, dobijaš {b}": "Rest of season: you give {a}, you get {b}",
   "Ukupna vrednost: daješ {a}, dobijaš {b}": "Total value: you give {a}, you get {b}",
   "(iznad zamene, po utakmici)": "(above replacement, per game)",
   "Informativno. Zbir ne uzima u obzir da strana koja dobija više igrača mora nekoga da otpusti.": "For information only. The sum does not account for the side getting more players having to drop someone.",
   "{v} FPts iznad zamene": "{v} FPts above replacement",
   "Koliko fantasy poena po utakmici igrač donosi više od igrača koga bi lako našao na waiveru. 0 je nivo zamene.": "How many more fantasy points per game the player brings than one you could easily find on waivers. 0 is replacement level.",
-  "Koliko igrač doprinosi u kategorijama tvoje lige u odnosu na igrače koji su na rosterima. 0 je prosečan igrač sa rostera.": "How much the player contributes in your league categories compared to rostered players. 0 is an average rostered player.",
+  "Koliko igrač doprinosi u kategorijama tvoje lige u odnosu na igrače koji su na rosterima. 0 je prosečan igrač sa rostera. Ispod je doprinos po kategoriji: plus je iznad proseka, minus ispod. Oko +1 je jasno iznad proseka, +2 i više među najboljima. Vrednost je zbir svih kategorija.": "How much the player contributes in your league categories compared to rostered players. 0 is an average rostered player. Below is the contribution per category: plus is above average, minus below. Around +1 is clearly above average, +2 or more is among the best. The value is the sum of all categories.",
   "Vrednost ({p})": "Value ({p})",
   "Manje od {n} utakmica u ovom periodu.": "Fewer than {n} games in this period.",
   "mali uzorak": "small sample",
@@ -1498,6 +1497,7 @@ const EN = {
   "Za igrača kog želiš ili kategoriju koja ti fali, predlaže trejdove sa timovima iz tvoje lige koji imaju smisla za obe strane.": "For a player you want or a category you need, suggests trades with teams in your league that make sense for both sides.",
   "Pokazuje igrače iz drugih timova u tvojoj ligi koji najviše pomažu tvom timu, i kojim timovima bi trejd takođe odgovarao.": "Shows players on other teams in your league who help your team the most, and which teams a trade could also suit.",
   "Iz tvoje uvezene lige pronalazi slobodne igrače koji odgovaraju tvom timu, uključujući one kojima minutaža raste.": "Uses your imported league to find free agents who fit your team, including players whose minutes are growing.",
+  "Po kategorijama, u odnosu na prosečnog igrača sa rostera:": "By category, compared to an average rostered player:",
   'Novo: javi nam ako nešto nije uvezeno kako treba.': 'New: let us know if something was not imported correctly.',
   // Uvezena liga: podešavanja i kontekst cele lige
   'na {n}. mestu ({r})': 'in place {n} ({r})',
@@ -3742,7 +3742,6 @@ function myTeamValue(p, lg = currentLeague(), per = state.period) {
 }
 /** +8.4 / −1.1 (pravi minus) */
 const fmtVal = v => (v == null ? '-' : `${v < -0.05 ? '−' : '+'}${Math.abs(v).toFixed(1)}`);
-const fmtValRest = v => (v == null ? '-' : `${v < -0.5 ? '−' : '+'}${Math.abs(Math.round(v))}`);
 
 /* ---------- Kontekst cele lige za izveštaj i tekst za AI (samo uvezene lige) ---------- */
 /** { me, opp, teams (po tabeli), ranks { tid: { kat: mesto } }, cats, leaders, pts, pfRank, val } ili null */
@@ -5608,18 +5607,17 @@ function reportListHTML(cls, title, items) {
     `<li${it.tip ? ` class="has-tip" data-tip="${esc(rt('newsTip'))}" data-tip-html="${esc(it.tip)}"` : ''}>${it.text}${it.tip ? ' <span class="rp-i">ⓘ</span>' : ''}</li>`).join('')}</ul></div>`;
 }
 
-/** Zbir vrednosti strana trejda (informativno; presuda ostaje po kategorijama ili FPts): { give, get, giveRest, getRest } */
+/** Zbir vrednosti strana trejda po utakmici (informativno; presuda ostaje po kategorijama ili FPts): { give, get }.
+    Vrednost za ostatak sezone (playerRestValue) se ne prikazuje, koriste je budući alati. */
 function tradeValueSums() {
   const sum = (ids, fn) => { const xs = ids.map(id => fn(state.byId.get(id))).filter(v => v != null); return xs.length ? xs.reduce((a, b) => a + b, 0) : null; };
-  return { give: sum(giveIds(), p => playerValue(p)?.total ?? null), get: sum(getIds(), p => playerValue(p)?.total ?? null),
-    giveRest: sum(giveIds(), p => playerRestValue(p)), getRest: sum(getIds(), p => playerRestValue(p)) };
+  return { give: sum(giveIds(), p => playerValue(p)?.total ?? null), get: sum(getIds(), p => playerValue(p)?.total ?? null) };
 }
 const valUnit = v => (isPointsFmt() ? `${fmtVal(v)} FPts` : fmtVal(v));
 function reportValueHTML() {
   const V = tradeValueSums();
   if (V.give == null && V.get == null) return '';
-  const rest = V.giveRest != null || V.getRest != null ? `<div>${t('Za ostatak sezone: daješ {a}, dobijaš {b}', { a: isPointsFmt() ? `${fmtValRest(V.giveRest)} FPts` : fmtValRest(V.giveRest), b: isPointsFmt() ? `${fmtValRest(V.getRest)} FPts` : fmtValRest(V.getRest) })}</div>` : '';
-  return `<div class="rp-value"><div>${t('Ukupna vrednost: daješ {a}, dobijaš {b}', { a: valUnit(V.give), b: valUnit(V.get) })}${isPointsFmt() ? ` <span class="hint">${t('(iznad zamene, po utakmici)')}</span>` : ''}</div>${rest}
+  return `<div class="rp-value"><div>${t('Ukupna vrednost: daješ {a}, dobijaš {b}', { a: valUnit(V.give), b: valUnit(V.get) })}${isPointsFmt() ? ` <span class="hint">${t('(iznad zamene, po utakmici)')}</span>` : ''}</div>
     <p class="rp-vnote">${t('Informativno. Zbir ne uzima u obzir da strana koja dobija više igrača mora nekoga da otpusti.')}</p></div>`;
 }
 function renderReport(totals, cmp) {
@@ -5718,8 +5716,8 @@ const statOf = (p, key) => { const s = p.stats[PERIODS.find(x => x.key === key).
 function aiPlayerBlock(p, tag = '') {
   const f = playerFacts(p);
   const lines = [`- ${p.name}${tag ? ` [${tag}]` : ''} (${p.team}, ${posTxt(p)})`];
-  const pv = playerValue(p), pr0 = playerRestValue(p);
-  if (pv) lines.push(`  ${L('Vrednost', 'Value')} (${PERIODS.find(x => x.key === state.period).label.toLowerCase()}): ${isPointsFmt() ? L(`${fmtVal(pv.total)} FPts iznad zamene po utakmici`, `${fmtVal(pv.total)} FPts above replacement per game`) : L(`${fmtVal(pv.total)} (zbir z-score po kategorijama lige, 0 = prosečan igrač sa rostera)`, `${fmtVal(pv.total)} (sum of z-scores across league categories, 0 = average rostered player)`)}, #${pv.rank}${pv.small ? L(' (mali uzorak)', ' (small sample)') : ''}${pr0 != null ? L(` · za ostatak sezone ${fmtValRest(pr0)}`, ` · rest of season ${fmtValRest(pr0)}`) : ''}${pv.by ? ` · ${Object.entries(pv.by).sort((a, b) => b[1] - a[1]).map(([k, z]) => `${leagueValues().cats.find(c => c.key === k)?.label || k} ${fmtVal(z)}`).join(', ')}` : ''}`);
+  const pv = playerValue(p);
+  if (pv) lines.push(`  ${L('Vrednost', 'Value')} (${PERIODS.find(x => x.key === state.period).label.toLowerCase()}): ${isPointsFmt() ? L(`${fmtVal(pv.total)} FPts iznad zamene po utakmici`, `${fmtVal(pv.total)} FPts above replacement per game`) : L(`${fmtVal(pv.total)} (zbir z-score po kategorijama lige, 0 = prosečan igrač sa rostera)`, `${fmtVal(pv.total)} (sum of z-scores across league categories, 0 = average rostered player)`)}, #${pv.rank}${pv.small ? L(' (mali uzorak)', ' (small sample)') : ''}${pv.by ? ` · ${Object.entries(pv.by).sort((a, b) => b[1] - a[1]).map(([k, z]) => `${leagueValues().cats.find(c => c.key === k)?.label || k} ${fmtVal(z)}`).join(', ')}` : ''}`);
   lines.push(`  ${L('Pozicije', 'Positions')}: ${posList(p).join(', ')}${posList(p).length > 1 ? L(' (može na više mesta u postavi)', ' (fits several lineup spots)') : ''} · ${L('Status', 'Status')}: ${statusTxt(p)}`);
   const gp = [];
   if (f.dur) gp.push(L(`ova sezona ${f.dur.gp}/${f.dur.n} (${Math.round(f.dur.pct * 100)}%)`, `this season ${f.dur.gp}/${f.dur.n} (${Math.round(f.dur.pct * 100)}%)`));
@@ -5916,8 +5914,8 @@ function buildAIText(shortRosterNews = false) {
   block(L('PROTIVNIK IZBACUJE (sa svog rostera, jer dobija više igrača; računa se u trejd)', 'OPPONENT DROPS (from their roster, because they get more players; counts in the trade)'), slotPlan('opp').drops);
   block(L('MOJ WAIVER DODATAK (menja moj tim, ne računa se u trejd)', 'MY WAIVER ADD (changes my team, not counted in the trade)'), sp.waivers);
   const VS = tradeValueSums();
-  if (VS.give != null || VS.get != null) tr.push(L(`UKUPNA VREDNOST (informativno, presuda je po ${isPointsFmt() ? 'FPts' : 'kategorijama'}): dajem ${valUnit(VS.give)}, dobijam ${valUnit(VS.get)}${VS.giveRest != null || VS.getRest != null ? `; za ostatak sezone: dajem ${fmtValRest(VS.giveRest)}, dobijam ${fmtValRest(VS.getRest)}` : ''}. Zbir ne uzima u obzir da strana koja dobija više igrača mora nekoga da otpusti.`,
-    `TOTAL VALUE (informational, the verdict is by ${isPointsFmt() ? 'FPts' : 'categories'}): I give ${valUnit(VS.give)}, I get ${valUnit(VS.get)}${VS.giveRest != null || VS.getRest != null ? `; rest of season: I give ${fmtValRest(VS.giveRest)}, I get ${fmtValRest(VS.getRest)}` : ''}. The sum does not account for the side getting more players having to drop someone.`));
+  if (VS.give != null || VS.get != null) tr.push(L(`UKUPNA VREDNOST (informativno, presuda je po ${isPointsFmt() ? 'FPts' : 'kategorijama'}): dajem ${valUnit(VS.give)}, dobijam ${valUnit(VS.get)}. Zbir ne uzima u obzir da strana koja dobija više igrača mora nekoga da otpusti.`,
+    `TOTAL VALUE (informational, the verdict is by ${isPointsFmt() ? 'FPts' : 'categories'}): I give ${valUnit(VS.give)}, I get ${valUnit(VS.get)}. The sum does not account for the side getting more players having to drop someone.`));
   const rep = state.lastReport;
   if (uneven) {
     if (rep?.real) tr.push(stripTags(rep.real));
@@ -6980,7 +6978,7 @@ function pmValueFact(p, per) {
   if (!v) return '';
   const val = isPointsFmt() ? t('{v} FPts iznad zamene', { v: fmtVal(v.total) }) : fmtVal(v.total);
   const tip = isPointsFmt() ? t('Koliko fantasy poena po utakmici igrač donosi više od igrača koga bi lako našao na waiveru. 0 je nivo zamene.')
-    : t('Koliko igrač doprinosi u kategorijama tvoje lige u odnosu na igrače koji su na rosterima. 0 je prosečan igrač sa rostera.');
+    : t('Koliko igrač doprinosi u kategorijama tvoje lige u odnosu na igrače koji su na rosterima. 0 je prosečan igrač sa rostera. Ispod je doprinos po kategoriji: plus je iznad proseka, minus ispod. Oko +1 je jasno iznad proseka, +2 i više među najboljima. Vrednost je zbir svih kategorija.');
   return `<span class="pm-val"><small>${t('Vrednost ({p})', { p: per.label.toLowerCase() })} <span class="i q" data-tip="${esc(tip)}">?</span></small><b class="${v.total >= 0 ? 'up' : 'down'}">${val} · #${v.rank}</b>${v.small ? ` <em class="small-tag" data-tip="${esc(t('Manje od {n} utakmica u ovom periodu.', { n: VALUE.SMALL_SAMPLE_GP }))}">${t('mali uzorak')}</em>` : ''}</span>`;
 }
 /** Profil: raspodela vrednosti po kategorijama, od najveće do najmanje; punt kategorije sive */
@@ -6989,7 +6987,7 @@ function pmValueBreak(p) {
   if (!v?.by) return '';
   const lv = leagueValues(), lbl = k => lv.cats.find(c => c.key === k)?.label || k;
   const items = Object.entries(v.by).sort((a, b) => b[1] - a[1]);
-  return `<div class="pm-vbreak">${items.map(([k, z]) => `<span class="${isPunt({ key: k }) ? 'punt' : z >= 0.05 ? 'up' : z <= -0.05 ? 'down' : ''}">${esc(lbl(k))} ${fmtVal(z)}</span>`).join('<i>·</i>')}</div>`;
+  return `<div class="pm-vbreak"><span class="vb-l">${t('Po kategorijama, u odnosu na prosečnog igrača sa rostera:')}</span>${items.map(([k, z]) => `<span class="${isPunt({ key: k }) ? 'punt' : z >= 0.05 ? 'up' : z <= -0.05 ? 'down' : ''}">${esc(lbl(k))} ${fmtVal(z)}</span>`).join('<i>·</i>')}</div>`;
 }
 function playerModalHTML(p) {
   const own = playerOwner(p.id), ps = playerStatus(p), inj = INJURY[ps.inj];
