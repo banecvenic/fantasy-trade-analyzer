@@ -550,6 +550,9 @@ function fptsOf(line, weights = FMT_ACTIVE.weights) {
   if (weights !== FMT_ACTIVE.weights || line._pid == null) return fptsCalc(line, weights);
   return fptsCalc(line, weights, needsGames() ? playerAgg(line._pid, line._sid) : null) + platformAdj(line._pid, weights);
 }
+/** Sleeper liga: TF i FF po utakmici su sa ESPN-a, a prosek lige koristi Sleeperov zbir (oznaka uz kolonu u utakmicama profila) */
+const srcMarkHTML = c => (['TF', 'FF'].includes(c.key) && currentLeague()?.import?.source === 'sleeper' && currentLeague().import.adj
+  ? ` <span class="src-mark" data-tip="${esc(t('Broj po utakmici je sa ESPN-a. Prosek lige koristi Sleeperov zbir za sezonu.'))}">(ESPN)</span>` : '');
 /** Sleeper liga: tehničke i flagrantne po Sleeperovoj statistici. Sleeper daje samo zbir sezone, pa se razlika
     u odnosu na ESPN (po utakmici) dodaje na prosek svakog perioda. Ostale lige: 0. */
 function platformAdj(pid, weights) {
@@ -1351,6 +1354,8 @@ const EN = {
   "Sakrij": "Dismiss",
   "Otvoreni tabovi analize": "Open trade analysis tabs",
   "(IR: procena, Fantrax ne daje broj mesta)": "(IR: estimate, Fantrax does not provide the number of spots)",
+  "{n} je na IR mestu, a više nema oznaku OUT ili IR. Dok je tamo, ne možeš da dodaješ nove igrače.": "{n} is in an IR spot but no longer has an OUT or IR designation. While he is there, you cannot add new players.",
+  "Broj po utakmici je sa ESPN-a. Prosek lige koristi Sleeperov zbir za sezonu.": "Per-game numbers are from ESPN. The league average uses Sleeper's season total.",
   'Novo: javi nam ako nešto nije uvezeno kako treba.': 'New: let us know if something was not imported correctly.',
   // Uvezena liga: podešavanja i kontekst cele lige
   'na {n}. mestu ({r})': 'in place {n} ({r})',
@@ -3188,7 +3193,9 @@ function parseEspnLeague(data, extId, season) {
     const players = [];
     for (const e of tm.roster?.entries || []) {
       if (!e?.playerId) continue;
-      players.push({ id: e.playerId, ir: e.lineupSlotId === IR_SLOT });
+      // status iz same lige (svežiji od keša igrača); ACTIVE / NORMAL se ne čuva
+      const inj = e.playerPoolEntry?.player?.injuryStatus;
+      players.push(inj && INJURY[inj] ? { id: e.playerId, ir: e.lineupSlotId === IR_SLOT, st: inj } : { id: e.playerId, ir: e.lineupSlotId === IR_SLOT });
       if (e.playerPoolEntry?.player) raw.set(e.playerId, e.playerPoolEntry);
     }
     return {
@@ -3203,6 +3210,7 @@ function parseEspnLeague(data, extId, season) {
     format: fmt.format, fmtError: fmt.error, slots: { active: Math.max(1, active) || ROSTER_DEFAULT.ACTIVE, ir },
     deadline: dl > 0 ? dl : null, playoffTeams: +s.scheduleSettings?.playoffTeamCount || null, teams, raw, scoringType: s.scoringSettings?.scoringType || null,
     // period obrade trejda (sati) i broj glasova za obaranje; Fantrax i ručne lige ovo nemaju
+    stLive: true, // statusi igrača dolaze iz lige
     reviewHours: Number.isFinite(+s.tradeSettings?.revisionHours) && s.tradeSettings?.revisionHours != null ? +s.tradeSettings.revisionHours : null, vetoVotes: +s.tradeSettings?.vetoVotesRequired || null,
     // nedelja plejofa = posle poslednje nedelje regularnog dela; tekuća nedelja iz statusa lige
     playoffWeek: +s.scheduleSettings?.matchupPeriodCount ? +s.scheduleSettings.matchupPeriodCount + 1 : null, week: +data.status?.currentMatchupPeriod || null,
@@ -3272,7 +3280,7 @@ function applyImport(lg, parsed, myTid) {
   lg.import = {
     source: parsed.source, extId: parsed.extId, season: parsed.season, syncedAt: now, error: null, myTid: me ? me.tid : null,
     deadline: parsed.deadline, playoffTeams: parsed.playoffTeams, playoffWeek: parsed.playoffWeek || null, week: parsed.week || null,
-    reviewHours: parsed.reviewHours ?? null, vetoVotes: parsed.vetoVotes ?? null, reviewDays: parsed.reviewDays ?? null, irAllow: parsed.irAllow || null, deadlineWeek: parsed.deadlineWeek || null, adj: parsed.adj || null,
+    reviewHours: parsed.reviewHours ?? null, vetoVotes: parsed.vetoVotes ?? null, reviewDays: parsed.reviewDays ?? null, irAllow: parsed.irAllow || null, stLive: !!parsed.stLive, deadlineWeek: parsed.deadlineWeek || null, adj: parsed.adj || null,
     teams: parsed.teams.map(({ players, ...x }) => x),
   };
   lg.teamState = null; // stanje tima se računa iz plasmana u ligi
@@ -6737,9 +6745,9 @@ function playerModalHTML(p) {
       list = list.map((g, i) => ({ g, i, v: v(g) })).sort((a, b) => (a.v == null) - (b.v == null) || (a.v != null && b.v != null ? (a.v - b.v) * sign : 0) || a.i - b.i).map(x => x.g);
     }
     const upcoming = !srt || (srt.col === 'date' && srt.dir === 'desc') ? sched.filter(g => g.date > Date.now()).slice(0, PM.NEXT).reverse() : [];
-    const sth = (key, label, cls = '') => { const on = srt?.col === key; return `<th class="sortth ${cls}${on ? ' sorted' : ''}" data-pm-sort="${key}" aria-sort="${on ? (srt.dir === 'asc' ? 'ascending' : 'descending') : 'none'}" title="${esc(t('Sortiraj po {c}', { c: label }))}">${label}${on ? `<span class="sarr">${srt.dir === 'asc' ? '▲' : '▼'}</span>` : ''}</th>`; };
+    const sth = (key, label, cls = '', extra = '') => { const on = srt?.col === key; return `<th class="sortth ${cls}${on ? ' sorted' : ''}" data-pm-sort="${key}" aria-sort="${on ? (srt.dir === 'asc' ? 'ascending' : 'descending') : 'none'}" title="${esc(t('Sortiraj po {c}', { c: label }))}">${label}${extra}${on ? `<span class="sarr">${srt.dir === 'asc' ? '▲' : '▼'}</span>` : ''}</th>`; };
     const ncol = CATS.length + 3 + (bcol ? 1 : 0);
-    log = `<div class="tscroll"><table class="pm-tbl pm-log"><thead><tr>${sth('date', t('Datum'), 'dt')}<th class="op">${t('Protiv')}</th>${sth('MIN', 'MIN')}${CATS.map(c => sth(c.key, c.type === 'pct' && !c.ratio ? c.label.replace('%', '') : c.label, c.fpts ? 'fpts' : '') + (c.fpts && bcol ? sth('BONUS', t('Bonus')) : '')).join('')}</tr></thead><tbody>
+    log = `<div class="tscroll"><table class="pm-tbl pm-log"><thead><tr>${sth('date', t('Datum'), 'dt')}<th class="op">${t('Protiv')}</th>${sth('MIN', 'MIN')}${CATS.map(c => sth(c.key, c.type === 'pct' && !c.ratio ? c.label.replace('%', '') : c.label, c.fpts ? 'fpts' : '', srcMarkHTML(c)) + (c.fpts && bcol ? sth('BONUS', t('Bonus')) : '')).join('')}</tr></thead><tbody>
       ${upcoming.map(g => `<tr class="next"><td class="dt">${pmDate(g.date)}</td><td class="op">${esc(gameOpp(p, g.id))}</td><td colspan="${ncol - 2}" class="nx">${t('sledeća utakmica')}</td></tr>`).join('')}
       ${list.map(g => { const b = gameBonus(g.line); return `<tr${b ? ` class="bonus" title="${esc(t('Bonus u ovoj utakmici: {n} FPts', { n: fmtNum(b) }))}"` : ''}><td class="dt">${pmDate(g.date)}</td><td class="op">${esc(gameOpp(p, g.gid || sched.find(x => x.date === g.date)?.id))}</td><td>${Math.round(g.line.MIN)}</td>${CATS.map(c => gameCell(c, g.line) + (c.fpts && bcol ? `<td>${b ? `+${fmtNum(b)}` : '0'}</td>` : '')).join('')}</tr>`; }).join('')}
     </tbody></table></div>
@@ -7295,7 +7303,7 @@ function leagueRules(lg = currentLeague()) {
   return {
     src,
     irSlots: src === 'fantrax' ? null : lg?.slots?.ir ?? null,           // Fantrax ne vraća broj IR mesta (procenjuje se)
-    irRule: src === 'espn' ? ['OUT'] : src === 'sleeper' ? imp.irAllow || null : null, // ESPN: na IR samo OUT (pravilo ESPN-a, nije u API-ju)
+    irRule: src === 'espn' ? ['OUT', 'IR'] : src === 'sleeper' ? imp.irAllow || null : null, // ESPN: na IR/IL samo oznake O (OUT) i IR (pravilo ESPN-a, nije u API-ju)
     reviewHours: src === 'espn' ? imp.reviewHours ?? null : src === 'sleeper' && imp.reviewDays != null ? imp.reviewDays * 24 : null,
     deadline: src === 'espn' || src === 'sleeper' ? imp.deadline || null : src ? null : lg?.deadline || null,
     deadlineApprox: src === 'sleeper', deadlineWeek: src === 'sleeper' ? imp.deadlineWeek || null : null,
@@ -7305,8 +7313,10 @@ const irRuleText = (R) => (R.src === 'sleeper' ? R.irRule.map(k => SLEEPER_IR_LA
 /** Status igrača u ligi: Sleeper liga koristi Sleeper status sa rostera, ostale ESPN. { g: OK | DTD | OUT | SSPD, label, key (za IR pravilo) } */
 function leagueStatus(lg, x, p) {
   if (isSynced(lg) && lg.import.source === 'sleeper') { const st = x.st || ''; return { g: sleeperGroup(st), label: st, key: st ? SLEEPER_IR_KEY[st] || 'other' : 'healthy' }; }
-  const g = injGroup(p.inj);
-  return { g, label: g === 'OK' ? '' : statusLabel(p) + (isSynced(lg) && lg.import.source === 'fantrax' ? ' (ESPN)' : ''), key: g === 'OK' ? 'healthy' : g };
+  // ESPN liga: status sa rostera lige; ostale (i starije ESPN lige pre osvežavanja): ESPN keš igrača
+  const inj = isSynced(lg) && lg.import.source === 'espn' && lg.import.stLive ? x.st || 'ACTIVE' : p.inj;
+  const g = injGroup(inj);
+  return { g, label: g === 'OK' ? '' : statusLabel({ inj }) + (isSynced(lg) && lg.import.source === 'fantrax' ? ' (ESPN)' : ''), key: g === 'OK' ? 'healthy' : inj === 'INJURY_RESERVE' ? 'IR' : g };
 }
 function leagueStatusMem(lg, rows) {
   const all = lsGet(STATUS_SEEN_KEY) || {};
@@ -7327,7 +7337,8 @@ function rosterAlerts() {
     if (x.ir) {
       // igrač na IR mestu sa statusom koji liga tamo ne dozvoljava
       const v = irVerdict(R.irRule, s.key);
-      const txt = v === 'bad' ? (s.g === 'OK' ? t('{n} je zdrav, a još je na IR. Vrati ga u postavu.', { n }) : t('{n} je {s}, a ova liga na IR dozvoljava samo: {l}.', { n, s: lbl, l: esc(irRuleText(R)) }))
+      const txt = v === 'bad' && R.src === 'espn' ? t('{n} je na IR mestu, a više nema oznaku OUT ili IR. Dok je tamo, ne možeš da dodaješ nove igrače.', { n })
+        : v === 'bad' ? (s.g === 'OK' ? t('{n} je zdrav, a još je na IR. Vrati ga u postavu.', { n }) : t('{n} je {s}, a ova liga na IR dozvoljava samo: {l}.', { n, s: lbl, l: esc(irRuleText(R)) }))
         : v === 'unknown' && s.g !== 'OUT' ? t('{n} na IR-u više nije OUT, proveri da li možeš da ga zadržiš tamo.', { n }) : '';
       if (txt) out.push({ key: `irback:${x.id}:${since}:${s.label}`, p, ts: since || now, kind: 'irback', txt, btn: manual ? linkHTML('ov-ir-back', { attrs: `data-player="${p.id}"` }) : '' });
       continue;

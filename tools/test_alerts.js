@@ -74,9 +74,11 @@ test('redosled važnosti: rok, IR, nove povrede, minutaža, vesti, ponude; u gru
   assert.deepStrictEqual(A.sortAlerts(list).map(a => `${a.kind}${a.ts}`), ['dl0', 'irback1', 'back3', 'inj2', 'min1', 'news8', 'news5', 'offer9']);
 });
 
-test('IR pravilo: liga koja dozvoljava samo OUT (ESPN)', () => {
-  const rule = ['OUT'];
-  assert.strictEqual(A.irVerdict(rule, 'OUT'), 'ok');
+test('IR pravilo: ESPN dozvoljava samo oznake OUT i IR', () => {
+  const rule = ['OUT', 'IR'];
+  assert.strictEqual(A.irVerdict(rule, 'OUT'), 'ok');   // npr. Morant OUT na IR mestu: legalno, bez alerta
+  assert.strictEqual(A.irVerdict(rule, 'IR'), 'ok');
+  assert.strictEqual(A.irVerdict(rule, 'SSPD'), 'bad');
   assert.strictEqual(A.irVerdict(rule, 'DTD'), 'bad');   // npr. Avdija DTD na IR-u
   assert.strictEqual(A.irVerdict(rule, 'healthy'), 'bad');
 });
