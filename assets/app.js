@@ -2336,7 +2336,7 @@ function renderHome() {
 /** Izbor formata lige: ključan podatak, od njega kasnije zavisi šta se računa i prikazuje
  *  (kategorije vs poeni, broj kategorija). Neaktivni formati su vidljivi sa oznakom "uskoro". */
 /** Broj mesta u rosteru (aktivni + IR), po pravilima lige */
-const SLOT_RANGE = { active: [8, 20], ir: [0, 6] };
+const SLOT_RANGE = { active: [8, 30], ir: [0, 10] }; // velike dynasty lige (Sleeper 22 + taxi, Fantrax bez limita za IR)
 function slotsFieldHTML(prefix, slots = {}) {
   const opts = (k, cur) => { const [a, b] = SLOT_RANGE[k]; let h = ''; for (let n = a; n <= b; n++) h += `<option value="${n}" ${n === cur ? 'selected' : ''}>${n}</option>`; return h; };
   return `<div class="form-row">
@@ -2700,6 +2700,13 @@ const IMPORT = {
 const importFlag = k => { try { return !!(JSON.parse(localStorage.getItem(IMPORT.FLAGS_KEY) || '{}') || {})[k]; } catch { return false; } };
 const SYNC_SOURCES = ['espn', 'sleeper', 'fantrax'];
 const SOURCE_LABEL = { espn: 'ESPN', sleeper: 'Sleeper', fantrax: 'Fantrax' };
+/** Sezona za prikaz: ESPN broji po godini kraja (2027 = 2026-27), Sleeper i Fantrax po godini početka (2026 = 2026-27) */
+const seasonLabel = (src, season) => {
+  const y = String(season ?? '');
+  if (!/^\d{4}$/.test(y)) return y;
+  const a = src === 'espn' ? +y - 1 : +y;
+  return `${a}-${String(a + 1).slice(2)}`;
+};
 const isSynced = (lg = currentLeague()) => !!lg?.import && SYNC_SOURCES.includes(lg.import.source);
 const isPasted = (lg = currentLeague()) => lg?.import?.source === 'paste';
 const rosterLocked = () => isSynced(currentLeague());
@@ -3105,7 +3112,7 @@ function openSyncedSettings(lg) {
   const imp = lg.import, f = leagueFormatOf(lg), st = lg.standings || {}, src = SOURCE_LABEL[imp.source];
   const fromLeague = f.source === `import:${imp.source}`; // Sleeper / Fantrax: format je izabran ručno pri uvozu
   const sit = teamSituation(lg);
-  const season = /^\d{4}$/.test(String(imp.season)) && imp.source === 'espn' ? `${imp.season - 1}-${String(imp.season).slice(2)}` : String(imp.season || '');
+  const season = seasonLabel(imp.source, imp.season);
   const row = (k, v) => (v == null || v === '' ? '' : `<div class="ro-row"><span>${k}</span><b>${v}</b></div>`);
   showModal({
     title: t('Podešavanja lige'), wide: true,
@@ -3186,8 +3193,8 @@ function openAddLeague(intoId = null) {
       ${soon ? '</div>' : '</button>'}${how ? `<span class="imp-how">${howtoLink(how)}</span>` : ''}</div>`;
   const cards = [
     card({ id: 'espn', icon: 'ESPN', title: t('ESPN javna liga'), desc: t('Uvozimo timove, rostere, bodovanje i tabelu preko ID-ja lige.'), how: 'espn' }),
-    card({ id: 'sleeper', icon: 'SLP', title: t('Sleeper liga'), desc: t('Unesi korisničko ime ili ID lige.'), how: 'sleeper', beta: true }),
-    card({ id: 'fantrax', icon: 'FTX', title: t('Fantrax javna liga'), desc: t('Unesi ID lige ili link ka ligi.'), how: 'fantrax', beta: true }),
+    card({ id: 'sleeper', icon: 'SLP', title: t('Sleeper liga'), desc: t('Unesi korisničko ime ili ID lige.'), how: 'sleeper' }),
+    card({ id: 'fantrax', icon: 'FTX', title: t('Fantrax javna liga'), desc: t('Unesi ID lige ili link ka ligi.'), how: 'fantrax' }),
     card({ id: 'paste', icon: '📋', title: t('Yahoo, CBS ili druga platforma: Nalepi roster'), desc: t('Kopiraj stranicu tima i nalepi tekst. Igrače prepoznajemo sami.'), how: 'paste' }),
     !into && card({ id: 'manual', icon: '✎', title: t('Ručni unos'), desc: t('Napravi ligu i sam unesi igrače.'), how: 'paste' }),
     card({ id: 'espn-private', icon: '🔒', title: t('ESPN privatna liga'), desc: `${t('Za sada uvozimo samo javne lige.')} ${howtoLink('espn', t('Pogledaj kako da ligu označiš kao javnu.'))}`, soon: true }),
@@ -3278,7 +3285,7 @@ function openTeamPicker(parsed) {
   const f = parsed.format;
   const unsup = f?.unsupported?.length ? `<div class="banner warn"><span>⚠ ${t('Neke stavke bodovanja ne podržavamo, rezultat je približan')}: ${esc(f.unsupported.join(', '))}.</span></div>` : '';
   const teams = [...parsed.teams].sort((a, b) => (a.seed || 99) - (b.seed || 99));
-  const ended = parsed.ended ? `<div class="banner warn"><span>⚠ ${t('Ova liga je iz sezone koja je završena ({s}). Rosteri su sa kraja te sezone. Za tekuću sezonu uvezi novi ID lige: {p} pravi novu ligu svake sezone.', { s: esc(/^\d{4}$/.test(parsed.season) ? `${parsed.season}-${String(+parsed.season + 1).slice(2)}` : parsed.season), p: SOURCE_LABEL[parsed.source] })}</span></div>` : '';
+  const ended = parsed.ended ? `<div class="banner warn"><span>⚠ ${t('Ova liga je iz sezone koja je završena ({s}). Rosteri su sa kraja te sezone. Za tekuću sezonu uvezi novi ID lige: {p} pravi novu ligu svake sezone.', { s: esc(seasonLabel(parsed.source, parsed.season)), p: SOURCE_LABEL[parsed.source] })}</span></div>` : '';
   const missing = parsed.unmatched?.length ? `<p class="hint">${t('Nismo prepoznali {n} igrača sa rostera: {list}.', { n: parsed.unmatched.length, list: esc(parsed.unmatched.slice(0, 8).join(', ')) })}</p>` : '';
   showModal({
     title: t('Koji je tvoj tim?'), wide: true,
@@ -3345,7 +3352,8 @@ async function fetchSleeperLeague(q) {
   const teamName = r => { const u = (users || []).find(x => x.user_id === r.owner_id); return cleanName(u?.metadata?.team_name || u?.display_name) || `Team ${r.roster_id}`; };
   const unmatched = [], ids = [];
   const teams = (Array.isArray(rosters) ? rosters : []).map(r => {
-    const ir = new Set(r.reserve || []), players = [];
+    // taxi (dynasty) se ne računa u roster mesta, kao IR: brojimo ga u rezervna mesta
+    const ir = new Set([...(r.reserve || []), ...(r.taxi || [])]), players = [];
     for (const pid of r.players || []) {
       const hit = names[pid] ? matchName(names[pid], index) : null;
       if (hit?.id) { players.push({ id: hit.id, ir: ir.has(pid) }); ids.push(hit.id); } else unmatched.push(names[pid] || pid);
@@ -3359,7 +3367,7 @@ async function fetchSleeperLeague(q) {
   const st = info.settings || {};
   return {
     source: 'sleeper', extId: String(leagueId), season: String(info.season || ''), name: cleanName(info.name) || 'Sleeper', size: +info.total_rosters || teams.length,
-    format: fmt.format, fmtError: null, slots: { active: pos.length || ROSTER_DEFAULT.ACTIVE, ir: +st.reserve_slots || 0 },
+    format: fmt.format, fmtError: null, slots: { active: pos.length || ROSTER_DEFAULT.ACTIVE, ir: (+st.reserve_slots || 0) + (+st.taxi_slots || 0) },
     deadline: null, playoffTeams: +st.playoff_teams || null, teams, raw: poolRawMap(pool, ids), unmatched,
     playoffWeek: +st.playoff_week_start || null, week: +st.leg || null, ended: info.status === 'complete',
   };
@@ -3550,7 +3558,7 @@ function pasteSave(more) {
 function importSettingsHTML(lg) {
   if (isSynced(lg)) {
     const imp = lg.import;
-    const season = /^\d{4}$/.test(String(imp.season)) && imp.source === 'espn' ? `${imp.season - 1}-${String(imp.season).slice(2)}` : String(imp.season || '');
+    const season = seasonLabel(imp.source, imp.season);
     return `<fieldset class="fmt"><legend>${t('Uvoz: {p}', { p: SOURCE_LABEL[imp.source] })}</legend>
       <label>${t('Moj tim')}<select id="ls-myteam">${imp.myTid == null ? '<option value="">–</option>' : ''}${[...imp.teams].sort((a, b) => a.name.localeCompare(b.name)).map(x => `<option value="${esc(String(x.tid))}" ${x.tid === imp.myTid ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
       <p class="hint">${t('Liga {id}, sezona {s}.', { id: esc(imp.extId), s: esc(season) })}${imp.syncedAt ? ` ${t('Osveženo {ago}', { ago: timeAgo(Date.parse(imp.syncedAt)) })}.` : ''} ${t('Roster, tabela i broj mesta dolaze sa platforme.')}</p>
