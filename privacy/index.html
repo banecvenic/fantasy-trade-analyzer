@@ -33,7 +33,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'">
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"></noscript>
-<link rel="stylesheet" href="../assets/app.css?v=ad57d216">
+<link rel="stylesheet" href="../assets/app.css?v=d6273487">
 <link rel="stylesheet" href="../assets/site.css?v=d8a7d6ad">
 </head>
 <body class="pub" data-pubpage="privacy">
@@ -67,16 +67,16 @@
 <main class="wrap">
   <article class="doc">
     <h1>Privacy Policy</h1>
-    <p class="upd">Last updated: November 17, 2026</p>
+    <p class="upd">Last updated: November 23, 2026</p>
 <p>RosterSwing is a free set of fantasy basketball tools. It has no accounts, no sign-up and no server of its own that receives your data.</p>
 <h2>What is stored and where</h2>
-<p>Everything you enter is saved <strong>only in your browser</strong> (local storage) on the device you use:</p>
+<p>Everything you enter is saved <strong>only in your browser</strong> (localStorage and IndexedDB) on the device you use:</p>
 <ul>
 <li>leagues and league settings (name, platform, roster size, standings you type in),</li>
 <li>your roster and the opponent rosters you add,</li>
 <li>open trades, trade history and saved trade ideas,</li>
 <li>your profile name, if you enter one, and your language choice,</li>
-<li>a temporary copy of player stats, so the page loads faster.</li>
+<li>a temporary copy of player stats and per game stats (box scores), so the page loads faster and makes fewer requests.</li>
 </ul>
 <p>We do not receive, see or keep any of this. If you clear your browser data for this site, it is deleted. You can make a backup and delete everything from the settings in the app.</p>
 <h2>What is loaded from other services</h2>
@@ -84,12 +84,16 @@
 <ul>
 <li><strong>ESPN</strong> fantasy data: player stats, projections, team schedules and player news,</li>
 <li><strong>ESPN</strong> image server: player photos,</li>
+<li><strong>ESPN, Sleeper and Fantrax</strong> public league data, only when you import a league: teams, rosters, scoring and standings,</li>
 <li><strong>Google Fonts</strong>: the Inter font,</li>
 <li><strong>GitHub Pages</strong>: hosts this website.</li>
 </ul>
 <p>RosterSwing does not use analytics, advertising or tracking cookies.</p>
+<h2>Importing leagues</h2>
+<p>We import only <strong>public</strong> leagues, from data that ESPN, Sleeper and Fantrax show to anyone. We never ask for your password, cookies (such as ESPN espn_s2 or SWID) or login tokens.</p>
+<p>From an imported league we keep only what the tools need: team names and abbreviations, rosters, scoring settings and standings. We do not keep the real names of league members or their account IDs.</p>
 <h2>Shared links and AI text</h2>
-<p>A shared trade link contains only player IDs, the stats period and the language. Your rosters and history are not in the link.</p>
+<p>A shared trade link contains only player IDs, the stats period, the scoring format and the language. Your rosters and history are not in the link.</p>
 <p>"Copy for AI analysis" puts the text on your clipboard. Nothing is sent anywhere unless you paste it yourself.</p>
 <h2>Contact</h2>
 <p>Questions about privacy: <a href="https://github.com/banecvenic/fantasy-trade-analyzer/issues" rel="noopener">github.com/banecvenic/fantasy-trade-analyzer/issues</a>.</p>

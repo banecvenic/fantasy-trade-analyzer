@@ -494,12 +494,20 @@ tr.drop-after td{box-shadow:inset 0 -2px 0 var(--accent)}
 .score-actions{display:flex;justify-content:center;gap:8px;margin-top:8px;flex-wrap:wrap}
 .hist-list{list-style:none;margin:0;padding:6px 8px}
 .hist-list li{display:flex;align-items:center;gap:6px;border-radius:8px}
+.hist-list li + li{border-top:1px solid var(--line);border-radius:0}
 .hist-list li.active{background:rgba(var(--accent-rgb),.12)}
-.hist-open{flex:1;min-width:0;text-align:left;background:none;border:0;padding:8px 6px;cursor:pointer;display:flex;flex-direction:column;gap:2px}
-.hist-open:hover .hist-sides{color:var(--text)}
-.hist-date{font-size:11px;color:var(--muted);font-weight:600}
-.hist-sides{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.hist-sides b{color:var(--text);font-weight:600}
+.hist-open{flex:1;min-width:0;text-align:left;padding:10px 6px;cursor:pointer;display:flex;flex-direction:column;gap:6px}
+.hist-date{font-size:11px;color:var(--muted);font-weight:600;background:none;border:0;padding:0;text-align:left;cursor:pointer;font-family:inherit}
+/* Daješ ⇄ Dobijaš u dve kolone; na uskom ekranu jedna ispod druge */
+.hist-sides{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:4px 12px;align-items:start;font-size:13px}
+.hs{display:flex;flex-direction:column;gap:2px;min-width:0}
+.hs-l{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.hs.give .hs-l{color:var(--give, #f87171)}
+.hs.get .hs-l{color:var(--get, #4ade80)}
+.hs-p{color:var(--text);line-height:1.45}
+.hs-arrow{color:var(--dim);align-self:center;font-size:14px}
+.hist-open:hover .hs-p{color:var(--text)}
+@media (max-width:640px){.hist-sides{grid-template-columns:minmax(0,1fr)}.hs-arrow{display:none}}
 .hist-detail{border-top:1px solid var(--line);margin-top:4px;padding-top:8px}
 .hist-dh{display:flex;justify-content:space-between;align-items:center;padding:4px 12px;font-weight:700}
 .hist-team{margin-bottom:10px}

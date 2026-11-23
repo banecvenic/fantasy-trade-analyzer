@@ -376,7 +376,7 @@ function mapSleeperFormat(sc) {
 /* ---------- Fantrax: getLeagueInfo.scoringSystem -> leagueFormat ----------
    Provereno na pravim ligama (H2H poeni): type 'HEAD_TO_HEAD_POINTS_BASED', stavke u scoringCategorySettings[].configs[] sa scoringCategory.code/shortName i points.
    Kategorije provereno (nov. 2026): 'ROTISSERIE' i 'HEAD_TO_HEAD_ROTI_MULTI_WIN' (H2H svaka kategorija). Nepoznat tip vraća grešku pa korisnik bira ručno. */
-const FANTRAX_STAT = { PTS: 'PTS', REB: 'REB', OREB: 'OREB', DREB: 'DREB', AST: 'AST', ST: 'STL', STL: 'STL', BLK: 'BLK', TO: 'TO', '3PTM': 'TPM', '3PM': 'TPM', '3PTA': 'TPA', '3PA': 'TPA', '3PT%': 'TPP', '3P%': 'TPP', FGM: 'FGM', FGA: 'FGA', 'FG%': 'FGP', FTM: 'FTM', FTA: 'FTA', 'FT%': 'FTP', 'A/TO': 'ATO', 'AST/TO': 'ATO', PF: 'PF', DD: 'DD', '2D': 'DD', TD: 'TD', '3D': 'TD', '4D': 'QD', QD: 'QD', TF: 'TF', TECH: 'TF', FF: 'FF', EJ: 'EJ', GS: 'GS', MIN: 'MIN' };
+const FANTRAX_STAT = { PTS: 'PTS', REB: 'REB', OREB: 'OREB', DREB: 'DREB', AST: 'AST', ST: 'STL', STL: 'STL', BLK: 'BLK', TO: 'TO', '3PTM': 'TPM', '3PM': 'TPM', '3PTA': 'TPA', '3PA': 'TPA', '3PT%': 'TPP', '3P%': 'TPP', FGM: 'FGM', FGA: 'FGA', 'FG%': 'FGP', FTM: 'FTM', FTA: 'FTA', 'FT%': 'FTP', 'A/TO': 'ATO', 'AST/TO': 'ATO', PF: 'PF', DD: 'DD', '2D': 'DD', TD: 'TD', '3D': 'TD', '4D': 'QD', QD: 'QD', TF: 'TF', TECH: 'TF', FF: 'FF', EJ: 'EJ', DQ: 'DQ', GS: 'GS', MIN: 'MIN' }; // TF, FF, EJ, DQ: nazivi nisu provereni na pravoj Fantrax ligi
 const FANTRAX_CODE = { INDIVIDUAL_POINTS: 'PTS', INDIVIDUAL_REBOUNDS: 'REB', INDIVIDUAL_ASSISTS: 'AST', INDIVIDUAL_STEALS: 'STL', INDIVIDUAL_BLOCKS: 'BLK', INDIVIDUAL_TURNOVERS: 'TO' };
 function fantraxScoringType(type) {
   const x = String(type || '').toUpperCase();
@@ -627,7 +627,7 @@ async function fetchLogsCall(ids, games, gameDate) {
         if (date == null) continue; // utakmica nije u rasporedu -> ne možemo pouzdano da je datiramo
         const line = {};
         for (const [k, sid] of Object.entries(STAT)) line[k] = +st.stats[sid] || 0;
-        if (line.GP > 0 && line.MIN > 0) list.push({ date, gid: String(st.externalId), line }); // računaju se samo utakmice sa minutima
+        if (line.GP > 0) list.push({ date, gid: String(st.externalId), line }); // i nastup od par sekundi (0 min): ESPN ga broji u GP, pa i mi (inače broj ne odgovara i povlači se ponovo)
       }
       out.set(p.id, list.sort((a, b) => a.date - b.date));
     }
@@ -6734,26 +6734,29 @@ function sinceLine(p, sinceMs) {
   return avg;
 }
 
+/** Status zapisa iz istorije (isti na Pregledu i u Istoriji trejdova) */
+function histTagHTML(h, withOpp = true) {
+  const lg = currentLeague(), P = isSynced(lg) ? SOURCE_LABEL[lg.import.source] : '';
+  const st = histStatus(h), w = withOpp && h.opp ? ` ${t('sa {n}', { n: esc(h.opp) })}` : '';
+  if (st === 'sent') return `<span class="sent-tag">${t('ponuda poslata')}${w}</span>`;
+  if (st === 'accepted') return `<span class="done-tag">${t('prihvaćen')}${w}</span>${h.confirmed ? '' : ` · <span class="sent-tag">${t('čeka {p}', { p: P })}</span>`}`;
+  if (st === 'rejected') return `<span class="rej-tag">${t('odbijen')}${w}</span>`;
+  if (st === 'done') return `<span class="done-tag">${withOpp && h.opp ? t('obavljen sa {n}', { n: esc(h.opp) }) : t('obavljen')}</span>`;
+  return `<span class="idea-tag">${t('ideja')}</span>`;
+}
 function renderHistory() {
   const synced = isSynced(currentLeague());
-  const P = synced ? SOURCE_LABEL[currentLeague().import.source] : '';
-  const tag = h => {
-    const st = histStatus(h), w = h.opp ? ` ${t('sa {n}', { n: esc(h.opp) })}` : '';
-    if (st === 'sent') return `<span class="sent-tag">${t('ponuda poslata')}${w}</span>`;
-    if (st === 'accepted') return `<span class="done-tag">${t('prihvaćen')}${w}</span>${h.confirmed ? '' : ` · <span class="sent-tag">${t('čeka {p}', { p: P })}</span>`}`;
-    if (st === 'rejected') return `<span class="rej-tag">${t('odbijen')}${w}</span>`;
-    if (st === 'done') return `<span class="done-tag">${h.opp ? t('obavljen sa {n}', { n: esc(h.opp) }) : t('obavljen')}</span>`;
-    return `<span class="idea-tag">${t('ideja')}</span>`;
-  };
+  const tag = h => histTagHTML(h);
   const list = state.history.map(h => {
     const sideName = (tm, i) => (SIDES[i] && (!tm.name || tm.name === SIDES[i].srName) ? SIDES[i].name : tm.name || '');
-    const sides = h.teams.map((tm, i) => `<b>${esc(sideName(tm, i))}</b>: ${tm.ids.map(id => (state.byId.has(id) ? pmLink(id, state.byId.get(id).name) : esc(h.names?.[id] || id))).join(', ') || '–'}`).join(' ⇄ ');
+    // imena su dugmad za profil, pa red nije jedno dugme (dugme u dugmetu browser razbija); klik van imena otvara trejd
+    const sides = h.teams.map((tm, i) => `<div class="hs ${i === GIVE ? 'give' : i === GET ? 'get' : ''}"><span class="hs-l">${esc(sideName(tm, i))}</span><span class="hs-p">${tm.ids.map(id => (state.byId.has(id) ? pmLink(id, state.byId.get(id).name) : esc(h.names?.[id] || id))).join(', ') || '–'}</span></div>`).join('<span class="hs-arrow" aria-hidden="true">⇄</span>');
     const per = PERIODS.find(x => x.key === h.period)?.label || h.period;
     const answer = synced && histStatus(h) === 'sent'
       ? `<span class="hist-answer"><button type="button" class="btn ok small" data-action="offer-accept" data-id="${h.id}">✔ ${t('Prihvaćeno')}</button><button type="button" class="btn danger small" data-action="offer-reject" data-id="${h.id}">✕ ${t('Odbijeno')}</button></span>` : '';
     return `<li class="${state.histView === h.id ? 'active' : ''}">
-      <button type="button" class="hist-open" data-action="hist-open" data-id="${h.id}" title="${esc(t('Otvori u analizi trejda'))}">
-        <span class="hist-date">${fmtDate(h.date)} · ${per} · ${tag(h)}</span><span class="hist-sides">${sides}</span></button>
+      <div class="hist-open" data-action="hist-open" data-id="${h.id}" title="${esc(t('Otvori u analizi trejda'))}">
+        <button type="button" class="hist-date" data-action="hist-open" data-id="${h.id}">${fmtDate(h.date)} · ${per} · ${tag(h)}</button><div class="hist-sides">${sides}</div></div>
       ${answer}
       <button type="button" class="iconbtn" data-action="hist-stats" data-id="${h.id}" aria-pressed="${state.histView === h.id}" aria-label="${t('Statistika od trejda')}" title="${t('Statistika od trejda')}">📊</button>
       <button type="button" class="iconbtn" data-action="hist-del" data-id="${h.id}" aria-label="${t('Obriši trejd')}">🗑</button></li>`;
@@ -7187,7 +7190,7 @@ function renderOverview() {
 
   const hist = state.history.slice(0, 3);
   const histCard = hist.length ? `<section class="pcard"><h3>${t('Poslednji trejdovi')}</h3><ul class="olist">${hist.map(h => `<li><button type="button" class="orow" data-action="ov-hist" data-id="${h.id}">
-      <span class="os"><span class="hist-date">${fmtDate(h.date)} · ${h.done ? t('obavljen') : t('ideja')}</span><br>${(h.teams[GIVE]?.ids || []).map(id => esc(h.names?.[id] || state.byId.get(id)?.name || id)).join(', ') || '–'} → ${(h.teams[GET]?.ids || []).map(id => esc(h.names?.[id] || state.byId.get(id)?.name || id)).join(', ') || '–'}</span></button></li>`).join('')}</ul></section>` : '';
+      <span class="os"><span class="hist-date">${fmtDate(h.date)} · ${histTagHTML(h, false)}</span><br>${(h.teams[GIVE]?.ids || []).map(id => esc(h.names?.[id] || state.byId.get(id)?.name || id)).join(', ') || '–'} → ${(h.teams[GET]?.ids || []).map(id => esc(h.names?.[id] || state.byId.get(id)?.name || id)).join(', ') || '–'}</span></button></li>`).join('')}</ul></section>` : '';
 
   return `${H}<div class="pgrid">${summary}${alertsCard}</div>${cats}${importRanksHTML(lg)}<div class="pgrid">${tradesCard}${histCard}</div>`;
 }

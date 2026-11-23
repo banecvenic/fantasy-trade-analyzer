@@ -262,17 +262,17 @@ PRIVACY = {
         'title': 'Privacy Policy | RosterSwing',
         'desc': 'How RosterSwing handles your data: no accounts, no server, everything you enter stays in your browser.',
         'h1': 'Privacy Policy',
-        'upd': 'Last updated: November 17, 2026',
+        'upd': 'Last updated: November 23, 2026',
         'body': f'''
 <p>RosterSwing is a free set of fantasy basketball tools. It has no accounts, no sign-up and no server of its own that receives your data.</p>
 <h2>What is stored and where</h2>
-<p>Everything you enter is saved <strong>only in your browser</strong> (local storage) on the device you use:</p>
+<p>Everything you enter is saved <strong>only in your browser</strong> (localStorage and IndexedDB) on the device you use:</p>
 <ul>
 <li>leagues and league settings (name, platform, roster size, standings you type in),</li>
 <li>your roster and the opponent rosters you add,</li>
 <li>open trades, trade history and saved trade ideas,</li>
 <li>your profile name, if you enter one, and your language choice,</li>
-<li>a temporary copy of player stats, so the page loads faster.</li>
+<li>a temporary copy of player stats and per game stats (box scores), so the page loads faster and makes fewer requests.</li>
 </ul>
 <p>We do not receive, see or keep any of this. If you clear your browser data for this site, it is deleted. You can make a backup and delete everything from the settings in the app.</p>
 <h2>What is loaded from other services</h2>
@@ -280,12 +280,16 @@ PRIVACY = {
 <ul>
 <li><strong>ESPN</strong> fantasy data: player stats, projections, team schedules and player news,</li>
 <li><strong>ESPN</strong> image server: player photos,</li>
+<li><strong>ESPN, Sleeper and Fantrax</strong> public league data, only when you import a league: teams, rosters, scoring and standings,</li>
 <li><strong>Google Fonts</strong>: the Inter font,</li>
 <li><strong>GitHub Pages</strong>: hosts this website.</li>
 </ul>
 <p>RosterSwing does not use analytics, advertising or tracking cookies.</p>
+<h2>Importing leagues</h2>
+<p>We import only <strong>public</strong> leagues, from data that ESPN, Sleeper and Fantrax show to anyone. We never ask for your password, cookies (such as ESPN espn_s2 or SWID) or login tokens.</p>
+<p>From an imported league we keep only what the tools need: team names and abbreviations, rosters, scoring settings and standings. We do not keep the real names of league members or their account IDs.</p>
 <h2>Shared links and AI text</h2>
-<p>A shared trade link contains only player IDs, the stats period and the language. Your rosters and history are not in the link.</p>
+<p>A shared trade link contains only player IDs, the stats period, the scoring format and the language. Your rosters and history are not in the link.</p>
 <p>"Copy for AI analysis" puts the text on your clipboard. Nothing is sent anywhere unless you paste it yourself.</p>
 <h2>Contact</h2>
 <p>Questions about privacy: <a href="{CONTACT_URL}" rel="noopener">{CONTACT_URL.replace('https://', '')}</a>.</p>
@@ -295,17 +299,17 @@ PRIVACY = {
         'title': 'Politika privatnosti | RosterSwing',
         'desc': 'Kako RosterSwing postupa sa tvojim podacima: bez naloga, bez servera, sve što uneseš ostaje u tvom browseru.',
         'h1': 'Politika privatnosti',
-        'upd': 'Poslednja izmena: 17. novembar 2026.',
+        'upd': 'Poslednja izmena: 23. novembar 2026.',
         'body': f'''
 <p>RosterSwing je besplatan skup alata za fantasy košarku. Nema naloga, nema registracije i nema sopstveni server koji prima tvoje podatke.</p>
 <h2>Šta se čuva i gde</h2>
-<p>Sve što uneseš čuva se <strong>samo u tvom browseru</strong> (lokalna memorija) na uređaju koji koristiš:</p>
+<p>Sve što uneseš čuva se <strong>samo u tvom browseru</strong> (localStorage i IndexedDB) na uređaju koji koristiš:</p>
 <ul>
 <li>lige i podešavanja lige (naziv, platforma, veličina rostera, tabela koju uneseš),</li>
 <li>tvoj roster i rosteri protivnika koje dodaš,</li>
 <li>otvoreni trejdovi, istorija trejdova i sačuvane ideje,</li>
 <li>ime profila, ako ga uneseš, i izabrani jezik,</li>
-<li>privremena kopija statistike igrača, da se stranica brže učita.</li>
+<li>privremena kopija statistike igrača i statistike po utakmici, da se stranica brže učita i šalje manje zahteva.</li>
 </ul>
 <p>Mi ništa od ovoga ne primamo, ne vidimo i ne čuvamo. Ako obrišeš podatke browsera za ovaj sajt, sve se briše. U podešavanjima aplikacije možeš da napraviš rezervnu kopiju i da obrišeš sve.</p>
 <h2>Šta se učitava sa drugih servisa</h2>
@@ -313,12 +317,16 @@ PRIVACY = {
 <ul>
 <li><strong>ESPN</strong> fantasy podaci: statistika, projekcije, raspored utakmica i vesti o igračima,</li>
 <li><strong>ESPN</strong> server za slike: fotografije igrača,</li>
+<li><strong>ESPN, Sleeper i Fantrax</strong> javni podaci lige, samo kad uvoziš ligu: timovi, rosteri, bodovanje i tabela,</li>
 <li><strong>Google Fonts</strong>: font Inter,</li>
 <li><strong>GitHub Pages</strong>: hostuje ovaj sajt.</li>
 </ul>
 <p>RosterSwing ne koristi analitiku, reklame ni kolačiće za praćenje.</p>
+<h2>Uvoz liga</h2>
+<p>Uvozimo samo <strong>javne</strong> lige, iz podataka koje ESPN, Sleeper i Fantrax prikazuju svima. Nikad ne tražimo lozinku, kolačiće (kao ESPN espn_s2 ili SWID) ni tokene za prijavu.</p>
+<p>Iz uvezene lige čuvamo samo ono što alatima treba: imena i skraćenice timova, rostere, bodovanje i tabelu. Ne čuvamo prava imena članova lige ni ID-jeve njihovih naloga.</p>
 <h2>Deljeni linkovi i tekst za AI</h2>
-<p>Deljeni link trejda sadrži samo ID igrača, period statistike i jezik. Tvoji rosteri i istorija nisu u linku.</p>
+<p>Deljeni link trejda sadrži samo ID igrača, period statistike, format bodovanja i jezik. Tvoji rosteri i istorija nisu u linku.</p>
 <p>„Kopiraj za AI analizu“ stavlja tekst u tvoj clipboard. Ništa se nikud ne šalje dok ga sam ne nalepiš.</p>
 <h2>Kontakt</h2>
 <p>Pitanja o privatnosti: <a href="{CONTACT_URL}" rel="noopener">{CONTACT_URL.replace('https://', '')}</a>.</p>

@@ -33,7 +33,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'">
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"></noscript>
-<link rel="stylesheet" href="../../assets/app.css?v=ad57d216">
+<link rel="stylesheet" href="../../assets/app.css?v=d6273487">
 <link rel="stylesheet" href="../../assets/site.css?v=d8a7d6ad">
 </head>
 <body class="pub" data-pubpage="privacy">
@@ -67,16 +67,16 @@
 <main class="wrap">
   <article class="doc">
     <h1>Politika privatnosti</h1>
-    <p class="upd">Poslednja izmena: 17. novembar 2026.</p>
+    <p class="upd">Poslednja izmena: 23. novembar 2026.</p>
 <p>RosterSwing je besplatan skup alata za fantasy košarku. Nema naloga, nema registracije i nema sopstveni server koji prima tvoje podatke.</p>
 <h2>Šta se čuva i gde</h2>
-<p>Sve što uneseš čuva se <strong>samo u tvom browseru</strong> (lokalna memorija) na uređaju koji koristiš:</p>
+<p>Sve što uneseš čuva se <strong>samo u tvom browseru</strong> (localStorage i IndexedDB) na uređaju koji koristiš:</p>
 <ul>
 <li>lige i podešavanja lige (naziv, platforma, veličina rostera, tabela koju uneseš),</li>
 <li>tvoj roster i rosteri protivnika koje dodaš,</li>
 <li>otvoreni trejdovi, istorija trejdova i sačuvane ideje,</li>
 <li>ime profila, ako ga uneseš, i izabrani jezik,</li>
-<li>privremena kopija statistike igrača, da se stranica brže učita.</li>
+<li>privremena kopija statistike igrača i statistike po utakmici, da se stranica brže učita i šalje manje zahteva.</li>
 </ul>
 <p>Mi ništa od ovoga ne primamo, ne vidimo i ne čuvamo. Ako obrišeš podatke browsera za ovaj sajt, sve se briše. U podešavanjima aplikacije možeš da napraviš rezervnu kopiju i da obrišeš sve.</p>
 <h2>Šta se učitava sa drugih servisa</h2>
@@ -84,12 +84,16 @@
 <ul>
 <li><strong>ESPN</strong> fantasy podaci: statistika, projekcije, raspored utakmica i vesti o igračima,</li>
 <li><strong>ESPN</strong> server za slike: fotografije igrača,</li>
+<li><strong>ESPN, Sleeper i Fantrax</strong> javni podaci lige, samo kad uvoziš ligu: timovi, rosteri, bodovanje i tabela,</li>
 <li><strong>Google Fonts</strong>: font Inter,</li>
 <li><strong>GitHub Pages</strong>: hostuje ovaj sajt.</li>
 </ul>
 <p>RosterSwing ne koristi analitiku, reklame ni kolačiće za praćenje.</p>
+<h2>Uvoz liga</h2>
+<p>Uvozimo samo <strong>javne</strong> lige, iz podataka koje ESPN, Sleeper i Fantrax prikazuju svima. Nikad ne tražimo lozinku, kolačiće (kao ESPN espn_s2 ili SWID) ni tokene za prijavu.</p>
+<p>Iz uvezene lige čuvamo samo ono što alatima treba: imena i skraćenice timova, rostere, bodovanje i tabelu. Ne čuvamo prava imena članova lige ni ID-jeve njihovih naloga.</p>
 <h2>Deljeni linkovi i tekst za AI</h2>
-<p>Deljeni link trejda sadrži samo ID igrača, period statistike i jezik. Tvoji rosteri i istorija nisu u linku.</p>
+<p>Deljeni link trejda sadrži samo ID igrača, period statistike, format bodovanja i jezik. Tvoji rosteri i istorija nisu u linku.</p>
 <p>„Kopiraj za AI analizu“ stavlja tekst u tvoj clipboard. Ništa se nikud ne šalje dok ga sam ne nalepiš.</p>
 <h2>Kontakt</h2>
 <p>Pitanja o privatnosti: <a href="https://github.com/banecvenic/fantasy-trade-analyzer/issues" rel="noopener">github.com/banecvenic/fantasy-trade-analyzer/issues</a>.</p>
