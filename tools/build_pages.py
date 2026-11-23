@@ -660,6 +660,7 @@ def gnav_html(lang, root, page=None, app_page=False):
           <a role="menuitem" class="pm-item" href="{app}#home&amp;addleague=1&amp;lang={lang}" data-href="add">{NAV_ICON['add']}<span data-t="add">{n['add']}</span></a>
         </div></div>
     </nav>
+    {'<button type="button" class="pchip gnav-pchip" data-action="profile" aria-label="Profil"></button>' if app_page else ''}
     <label class="langsel" title="Jezik / Language">{GLOBE}{langsel}</label>
   </div>
 </header>

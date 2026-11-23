@@ -91,8 +91,12 @@ body[data-view="quick"] #myteam,body[data-view="quick"] #oppteam,body[data-view=
 .share-pick{display:flex;flex-direction:column;gap:6px;margin-top:10px}
 .share-pick .indep{border-style:dashed}
 .share-pick .hint{color:var(--muted);font-weight:400;font-size:12px}
-.wsh{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px}
-.wsh-t{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;min-width:0}
+/* naslov levo (podaci lige prelaze ispod imena kad nema mesta), periodi, profil i podešavanja uvek desno */
+/* red 1: ime lige, platforma, osvežavanje (levo) i periodi, podešavanja (desno); red 2 ispod imena: format i moj tim */
+.wsh{display:flex;align-items:flex-start;justify-content:space-between;gap:10px 16px;flex-wrap:nowrap;margin-top:12px}
+.wsh-t{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1 1 0}
+.wsh-l1{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;min-width:0}
+.wsh-meta{display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap;min-width:0}
 .wsh h1{font-size:28px;font-weight:800;margin:0;letter-spacing:-.02em}
 .wsh-team{color:var(--muted);font-size:13px}
 .wsh-note{color:var(--dim);font-size:12px}
@@ -744,8 +748,10 @@ body[data-view="league"] header.gnav .gnav-row{max-width:1500px}
 .pm-league.on{color:var(--rs-red-text)}
 .pm-league.on .pm-dot{background:var(--rs-red)}
 header.gnav .langsel{margin-left:auto;flex:none}
+header.gnav .gnav-pchip{margin-left:auto}
+header.gnav .gnav-pchip + .langsel{margin-left:0}
 /* drugi red u aplikaciji: liga · period · profil · podešavanja */
-.wsh-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.wsh-r{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;flex:none;margin-left:auto}
 .wsh-r .seg{margin-left:0}
 .hello-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 @media (max-width:640px){
@@ -757,18 +763,16 @@ header.gnav .langsel{margin-left:auto;flex:none}
   header.gnav .langsel{padding:0 2px 0 8px}
   header.gnav .langsel select{max-width:72px;font-size:12px}
   .gmenu{position:fixed;left:8px;right:8px;top:62px;max-width:none}
-  .wsh{gap:8px}
-  .wsh-r{width:100%}
+  .wsh{gap:8px;flex-wrap:wrap}
+  .wsh-r{width:100%;flex-wrap:wrap}
   .wsh-r .seg{order:3;width:100%;justify-content:space-between}
-  .wsh-r .pchip{margin-left:auto}
 }
 @media (max-width:640px){
-  /* telefon: ime lige, profil i podešavanja u jednom redu, period ispod */
-  #wshead .wsh{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;column-gap:6px;row-gap:8px}
+  /* telefon: ime lige i podešavanja u jednom redu, period ispod */
+  #wshead .wsh{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;column-gap:6px;row-gap:8px}
   #wshead .wsh-r{display:contents}
   #wshead .wsh-t{min-width:0;flex-wrap:wrap;row-gap:2px}
   #wshead .wsh-r .seg{grid-column:1 / -1;grid-row:2;width:100%}
-  #wshead .wsh-r .pchip{margin-left:0}
 }
 .gmenu{min-width:300px}
 .gmenu .pm-item .soon{white-space:nowrap}

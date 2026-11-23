@@ -2470,7 +2470,7 @@ function renderHeader() {
   const hl = $('#hleague');
   if (hl) hl.innerHTML = EMBED || state.view === 'home' ? '' : leaguePickerHTML(); // liga je kontekst, bira se u zaglavlju
   const nm = profile?.name?.trim();
-  // čip profila postoji i na Sve lige i u redu lige: popuni svaki (posle promene prikaza stari ostaje u skrivenom delu)
+  // čip profila je u gornjoj navigaciji (levo od jezika)
   document.querySelectorAll('button.pchip[data-action="profile"]').forEach(el => {
     el.innerHTML = `<span class="pav">${nm ? esc(initialsOf(nm)) : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>'}</span><span class="pname">${nm ? esc(nm) : t('Profil')}</span>`;
     el.setAttribute('aria-label', t('Profil'));
@@ -2522,14 +2522,16 @@ function renderWsHead() {
   if (EMBED) { const fb = $('#fmtbar'); if (fb && !EMBED.mini) fb.innerHTML = quickFormatChipHTML(); return; } // na /trade-analyzer/ period i format su u samom alatu
   const el = $('#wshead');
   const lg = currentLeague();
+  // profil je u gornjoj navigaciji (levo od jezika); ovde periodi i podešavanja lige, u istom redu kao ime lige
   const right = `<div class="wsh-r"><div class="seg" id="periods" role="group" aria-label="Period"></div>
-    <button type="button" class="pchip" data-action="profile" id="pchip"></button>
     ${state.view === 'league' && lg ? `<button type="button" class="gear" data-action="league-settings" title="${esc(t('Podešavanja lige'))}" aria-label="${esc(t('Podešavanja lige'))}">⚙</button>` : ''}</div>`;
   if (state.view === 'league' && lg) {
-    el.innerHTML = `<div class="wsh"><div class="wsh-t"><h1>${esc(lgName(lg))}</h1>
-      <span class="pbadge${isSynced(lg) ? ' synced' : ''}">${esc(platformLabel(lg.platform))}</span>${syncChipHTML(lg)}<button type="button" class="fchip" data-action="league-settings" title="${esc(formatSummary(leagueFormatOf(lg)))}">${esc(formatShort(leagueFormatOf(lg)))}</button>${lg.teamName ? `<span class="wsh-team">${esc(lg.teamName)}</span>` : ''}</div>${right}</div>${importBarsHTML(lg)}`;
+    // red 1: ime, platforma, osvežavanje; red 2 (ispod imena): format i moj tim
+    el.innerHTML = `<div class="wsh"><div class="wsh-t"><div class="wsh-l1"><h1>${esc(lgName(lg))}</h1>
+      <span class="pbadge${isSynced(lg) ? ' synced' : ''}">${esc(platformLabel(lg.platform))}</span>${syncChipHTML(lg)}</div>
+      <div class="wsh-meta"><button type="button" class="fchip" data-action="league-settings" title="${esc(formatSummary(leagueFormatOf(lg)))}">${esc(formatShort(leagueFormatOf(lg)))}</button>${lg.teamName ? `<span class="wsh-team">${esc(lg.teamName)}</span>` : ''}</div></div>${right}</div>${importBarsHTML(lg)}`;
   } else {
-    el.innerHTML = `<div class="wsh"><div class="wsh-t"><h1>${t('Brzo poređenje')}</h1>${quickFormatChipHTML()}</div>${right}</div>`;
+    el.innerHTML = `<div class="wsh"><div class="wsh-t"><div class="wsh-l1"><h1>${t('Brzo poređenje')}</h1></div><div class="wsh-meta">${quickFormatChipHTML()}</div></div>${right}</div>`;
   }
 }
 
@@ -2609,7 +2611,7 @@ function renderHome() {
   const el = $('#home');
   const nm = profile?.name?.trim();
   const leagues = profile?.leagues || [];
-  const hello = `<div class="hello-row"><h1 class="hello">${nm ? t('Zdravo, {n}', { n: esc(nm) }) : t('Zdravo')}</h1><button type="button" class="pchip" data-action="profile"></button></div>`;
+  const hello = `<div class="hello-row"><h1 class="hello">${nm ? t('Zdravo, {n}', { n: esc(nm) }) : t('Zdravo')}</h1></div>`;
   if (!leagues.length) {
     el.innerHTML = `${hello}<div class="empty-home">
       <p>${t('Sačuvaj svoju ligu i tim da vidiš kako trejd utiče na tvoj roster, ili samo brzo uporedi dva paketa igrača.')}</p>
