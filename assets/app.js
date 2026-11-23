@@ -6488,15 +6488,19 @@ function pmActHTML(p, own) {
   if (own.kind === 'opp') return b(GET, t('Trejduj'));
   return '';
 }
-/** Dodaj u trejd: u aktivni tab; protivnikov igrač ide u aktivni tab samo ako protivnik nije izabran ili je isti, inače nova analiza sa njegovim timom */
+/** Trejduj iz profila: sa stranice Analiza trejda (i bez lige) ide u aktivni trejd; protivnikov igrač tamo ide u aktivni trejd
+ *  samo ako protivnik nije izabran ili je isti, inače nova analiza. Sa svih ostalih stranica (Moj tim, Liga, Istorija...) uvek nova analiza. */
 function pmAddToTrade(id, side) {
   const own = playerOwner(id);
+  const opp = own?.kind === 'opp' ? own.opp : null;
+  const inTrade = state.view !== 'league' || state.page === 'trade';
   activateTab(scopeTabs().active);
-  if (own?.kind === 'opp' && side === GET) {
+  if (!inTrade) openInAnalysis(side === GIVE ? [[id], []] : [[], [id]], { opp });
+  else if (opp && side === GET) {
     const cur = state.rosters.oppSel;
-    if (cur && cur !== own.opp) openInAnalysis([[], [id]], { opp: own.opp });
+    if (cur && cur !== opp) openInAnalysis([[], [id]], { opp });
     else {
-      if (!cur) { state.rosters.oppSel = own.opp; saveRosters(); }
+      if (!cur) { state.rosters.oppSel = opp; saveRosters(); }
       if (!takenIds().has(id)) state.teams[GET].ids.push(id);
     }
   } else if (!takenIds().has(id)) state.teams[side].ids.push(id);
@@ -6504,8 +6508,7 @@ function pmAddToTrade(id, side) {
   state.histView = null; state.sharedOpen = false; searchUI.clear();
   saveState(); persistTrades();
   closeModal();
-  // u ligi odmah otvori Analizu trejda; bez lige je analiza već na stranici
-  if (state.view === 'league' && state.page !== 'trade') { setBack('trade'); goPage('trade'); } else render();
+  if (!inTrade) { setBack('trade'); goPage('trade'); } else render();
   toast(t('Dodato u trejd'));
 }
 function playerModalHTML(p) {
