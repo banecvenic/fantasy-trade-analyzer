@@ -6496,7 +6496,11 @@ function pmAddToTrade(id, side) {
   const opp = own?.kind === 'opp' ? own.opp : null;
   const inTrade = state.view !== 'league' || state.page === 'trade';
   activateTab(scopeTabs().active);
-  if (!inTrade) openInAnalysis(side === GIVE ? [[id], []] : [[], [id]], { opp });
+  if (!inTrade) {
+    openInAnalysis(side === GIVE ? [[id], []] : [[], [id]], { opp });
+    // moj igrač u novoj analizi: protivnik prazan (korisnik ga bira)
+    if (!opp) { state.rosters.oppSel = null; saveRosters(); if (state.balance) state.balance.opp = { drops: [], waivers: [] }; persistTrades(); }
+  }
   else if (opp && side === GET) {
     const cur = state.rosters.oppSel;
     if (cur && cur !== opp) openInAnalysis([[], [id]], { opp });
