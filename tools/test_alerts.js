@@ -11,7 +11,7 @@ const start = src.indexOf('   Alerti i dostupnost: čiste funkcije');
 const end = src.indexOf('/* ==== kraj: Alerti, čiste funkcije ==== */');
 if (start < 0 || end < 0) throw new Error('Nije nađen modul alerta u app.js');
 const code = src.slice(src.lastIndexOf('/*', start), end);
-const A = new Function(`${code}\nreturn { sleeperGroup, trackStatus, statusEvent, irVerdict, sortAlerts, keepHidden, availFactor, sleeperDeadline, SLEEPER_IR_KEY };`)();
+const A = new Function(`${code}\nreturn { sleeperGroup, trackStatus, statusEvent, irVerdict, sortAlerts, keepHidden, availFactor, sleeperDeadline, SLEEPER_IR_KEY, sleeperStatus, stGroup, resolveStatus, orJoin };`)();
 
 let n = 0;
 const test = (name, fn) => { fn(); n++; console.log(`ok  ${name}`); };
@@ -115,6 +115,43 @@ test('Sleeper rok (nedelja lige) -> približan datum početka te nedelje', () =>
   assert.strictEqual(A.sleeperDeadline(18, 6, mon), mon + 12 * 7 * DAY);
   assert.strictEqual(A.sleeperDeadline(0, 6, mon), null);
   assert.strictEqual(A.sleeperDeadline(99, 6, mon), null);
+});
+
+test('zajednički status: uvezena liga koristi status iz lige (ESPN liga ACTIVE pobeđuje DTD iz ESPN baze)', () => {
+  // ESPN liga: igrač na rosteru bez st = ACTIVE, iako ESPN baza kaže DAY_TO_DAY
+  const s = A.resolveStatus({ id: 1 }, 'DAY_TO_DAY', true, false);
+  assert.strictEqual(s.inj, 'ACTIVE'); assert.strictEqual(s.g, 'OK'); assert.strictEqual(s.espn, false);
+  // ručna liga: ESPN baza, bez oznake
+  const m = A.resolveStatus(null, 'DAY_TO_DAY', false, false);
+  assert.strictEqual(m.inj, 'DAY_TO_DAY'); assert.strictEqual(m.g, 'DTD'); assert.strictEqual(m.espn, false);
+});
+
+test('zajednički status: platforma ne daje status (Fantrax) -> ESPN uz oznaku; igrač van rostera Sleeper lige -> ESPN uz oznaku', () => {
+  const f = A.resolveStatus({ id: 1, st: 'OUT' }, 'OUT', false, true);
+  assert.strictEqual(f.inj, 'OUT'); assert.strictEqual(f.espn, true);
+  const fa = A.resolveStatus(null, 'QUESTIONABLE', true, true);
+  assert.strictEqual(fa.inj, 'QUESTIONABLE'); assert.strictEqual(fa.espn, true);
+});
+
+test('Sleeper status -> zajednički model: grupa, oznaka platforme i ključ za IR pravilo', () => {
+  assert.deepStrictEqual(A.sleeperStatus('Questionable'), { st: 'QUESTIONABLE', lb: 'Questionable', k: 'dtd' });
+  assert.deepStrictEqual(A.sleeperStatus('DNR'), { st: 'OUT', lb: 'DNR', k: 'dnr' });
+  assert.strictEqual(A.sleeperStatus(''), null);
+  const e = { id: 1, ...A.sleeperStatus('Sus') };
+  const s = A.resolveStatus(e, 'ACTIVE', true, true);
+  assert.strictEqual(s.g, 'SSPD'); assert.strictEqual(s.lb, 'Sus'); assert.strictEqual(s.key, 'sus'); assert.strictEqual(s.espn, false);
+  // grupe se poklapaju sa starim Sleeper grupisanjem
+  for (const [lbl, g] of [['Out', 'OUT'], ['IR', 'OUT'], ['GTD', 'DTD'], ['Doubtful', 'DTD'], ['NA', 'OUT'], ['COV', 'OUT'], ['Sus', 'SSPD'], ['Nešto novo', 'DTD'], ['', 'OK']]) assert.strictEqual(A.sleeperGroup(lbl), g, lbl);
+});
+
+test('ESPN ključevi za IR pravilo iz zajedničkog statusa: OUT i IR dozvoljeni, DTD i zdrav nisu', () => {
+  const rule = ['OUT', 'IR'];
+  assert.strictEqual(A.irVerdict(rule, A.resolveStatus({ st: 'OUT' }, null, true).key), 'ok');
+  assert.strictEqual(A.irVerdict(rule, A.resolveStatus({ st: 'INJURY_RESERVE' }, null, true).key), 'ok');
+  assert.strictEqual(A.irVerdict(rule, A.resolveStatus({ st: 'DAY_TO_DAY' }, null, true).key), 'bad');
+  assert.strictEqual(A.irVerdict(rule, A.resolveStatus({}, null, true).key), 'bad');
+  assert.strictEqual(A.orJoin(['OUT', 'IR'], 'ili'), 'OUT ili IR');
+  assert.strictEqual(A.orJoin(['Out', 'Sus', 'DNR'], 'or'), 'Out, Sus or DNR');
 });
 
 console.log(`\n${n} testova prošlo`);
