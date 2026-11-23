@@ -1356,6 +1356,18 @@ const EN = {
   "(IR: procena, Fantrax ne daje broj mesta)": "(IR: estimate, Fantrax does not provide the number of spots)",
   "{n} je na IR mestu, a više nema oznaku OUT ili IR. Dok je tamo, ne možeš da dodaješ nove igrače.": "{n} is in an IR spot but no longer has an OUT or IR designation. While he is there, you cannot add new players.",
   "Broj po utakmici je sa ESPN-a. Prosek lige koristi Sleeperov zbir za sezonu.": "Per-game numbers are from ESPN. The league average uses Sleeper's season total.",
+  "izjednačeno": "level",
+  "{n} pob. ispred": "{n} W ahead",
+  "{n} pob. iza": "{n} W behind",
+  "{n} poena ispred": "{n} pts ahead",
+  "{n} poena iza": "{n} pts behind",
+  "linija plejofa": "playoff line",
+  "U zoni plejofa (top {n}).": "In the playoff zone (top {n}).",
+  "{n} mesta do zone plejofa (top {m}).": "{n} spots from the playoff zone (top {m}).",
+  "Unesi mesto i skor u podešavanjima lige da vidiš gde stojiš.": "Enter your place and record in the league settings to see where you stand.",
+  "Tabela oko tebe": "Standings around you",
+  "Forma rostera": "Roster health",
+  "zdravih": "healthy",
   'Novo: javi nam ako nešto nije uvezeno kako treba.': 'New: let us know if something was not imported correctly.',
   // Uvezena liga: podešavanja i kontekst cele lige
   'na {n}. mestu ({r})': 'in place {n} ({r})',
@@ -7395,8 +7407,14 @@ function hideAlert(key) {
   render();
 }
 const ALERT_ICON = { news: '📰', min: '⏬', ir: '⚕', irback: '⚕', inj: '🩹', back: '✅', dl: '⏱', offer: '📨' };
-const alertsListHTML = list => `<ul class="alerts">${list.map(a => `<li class="al-${a.kind}" ${a.tip ? `data-tip-html="${esc(a.tip)}"` : ''}><span>${ALERT_ICON[a.kind] || '•'} ${a.p ? a.txt.replace(esc(a.p.name), pmLink(a.p.id, a.p.name)) : a.txt}</span>
-  <span class="al-act">${a.btn || ''}<button type="button" class="linkbtn al-x" data-action="al-hide" data-key="${esc(a.key)}">${t('Sakrij')}</button></span></li>`).join('')}</ul>`;
+/** Lista alerta. Kartica na Pregledu: X u gornjem desnom uglu (tooltip Sakrij), dugme akcije u istom redu. Modal: dugme Sakrij. */
+const alertsListHTML = (list, { compact = false } = {}) => `<ul class="alerts${compact ? ' compact' : ''}">${list.map(a => {
+  const txt = `${ALERT_ICON[a.kind] || '•'} ${a.p ? a.txt.replace(esc(a.p.name), pmLink(a.p.id, a.p.name)) : a.txt}`;
+  const hide = `data-action="al-hide" data-key="${esc(a.key)}"`;
+  return `<li class="al-${a.kind}" ${a.tip ? `data-tip-html="${esc(a.tip)}"` : ''}>${compact
+    ? `<span class="al-txt">${txt}${a.btn ? ` ${a.btn}` : ''}</span><button type="button" class="al-xbtn" ${hide} title="${esc(t('Sakrij'))}" aria-label="${esc(t('Sakrij'))}">✕</button>`
+    : `<span>${txt}</span><span class="al-act">${a.btn || ''}<button type="button" class="linkbtn al-x" ${hide}>${t('Sakrij')}</button></span>`}</li>`;
+}).join('')}</ul>`;
 /** Svi aktivni alerti, isti izgled kao kartica */
 function showAllAlerts() {
   const list = rosterAlerts();
@@ -7405,6 +7423,64 @@ function showAllAlerts() {
 }
 
 /* ---------- Stranica: Pregled ---------- */
+/** Kartica Moj tim ukratko: lestvica (3 tima oko mene, linija plejofa) i forma rostera. Fiksne visine, kao kartica Upozorenja. */
+function teamGlanceHTML(lg, r) {
+  const st = lg.standings || {}, n = lg.teams || '?';
+  const head = `<h3 class="tg-h"><span>${esc(lg.teamName || t('Moj tim'))}</span>${st.rank ? `<span class="tg-tag">${t('{n}. od {m}', { n: st.rank, m: n })}</span>` : ''}</h3>`;
+  // lestvica: uvezena liga ima celu tabelu
+  const teams = isSynced(lg) ? [...lg.import.teams].sort((a, b) => (a.seed || 99) - (b.seed || 99)) : [];
+  const mi = teams.findIndex(x => x.tid === lg.import?.myTid);
+  const pts = isPointsFmt(), poTeams = st.playoffTeams || lg.import?.playoffTeams || null;
+  let ladder;
+  if (mi >= 0 && teams.length >= 2) {
+    const me = teams[mi], hasRec = tm => tm.record && tm.record.w + tm.record.l + tm.record.t > 0;
+    const gap = tm => {
+      if (hasRec(tm) && hasRec(me)) { const g = Math.abs((tm.record.w - tm.record.l) - (me.record.w - me.record.l)) / 2; return g ? { g: fmtNum(g), unit: 'W' } : null; }
+      const d = Math.abs((tm.pf || 0) - (me.pf || 0)); return d ? { g: fmtNum(Math.round(d * 10) / 10), unit: 'P' } : null;
+    };
+    const rel = (tm, above) => { const x = gap(tm); if (!x) return `<span class="tg-gap">${t('izjednačeno')}</span>`;
+      return `<span class="tg-gap ${above ? 'up' : 'dn'}">${x.unit === 'W' ? t(above ? '{n} pob. ispred' : '{n} pob. iza', { n: x.g }) : t(above ? '{n} poena ispred' : '{n} poena iza', { n: x.g })}</span>`; };
+    const i0 = Math.max(0, Math.min(mi - 1, teams.length - 3));
+    const shown = teams.slice(i0, i0 + 3);
+    const rows = shown.map((tm, k) => {
+      const isMe = tm === me, seed = tm.seed || i0 + k + 1;
+      const line = poTeams && seed === poTeams && k < shown.length - 1 ? `<li class="tg-cut" aria-hidden="true"><span>${t('linija plejofa')}</span></li>` : '';
+      return `<li class="tg-row${isMe ? ' me' : ''}"><span class="tg-seed">${seed}</span><span class="tg-name">${esc(tm.name)}</span><span class="tg-rec">${standTxt(tm, pts)}</span>${isMe ? '<span></span>' : rel(tm, k < shown.indexOf(me))}</li>${line}`;
+    }).join('');
+    const mySeed = me.seed || mi + 1;
+    const po = poTeams ? `<p class="tg-po">${mySeed <= poTeams ? t('U zoni plejofa (top {n}).', { n: poTeams }) : t('{n} mesta do zone plejofa (top {m}).', { n: mySeed - poTeams, m: poTeams })}</p>` : '';
+    ladder = `<ol class="tg-ladder">${rows}</ol>${po}`;
+  } else {
+    // ručna i nalepljena liga: mesto i skor iz podešavanja
+    const po = st.rank && poTeams ? `<p class="tg-po">${st.rank <= poTeams ? t('U zoni plejofa (top {n}).', { n: poTeams }) : t('{n} mesta do zone plejofa (top {m}).', { n: st.rank - poTeams, m: poTeams })}</p>` : '';
+    ladder = st.rank || st.record
+      ? `${st.record ? `<div class="tg-manual"><b>${esc(st.record)}</b><span>${t('Skor')}</span></div>` : ''}${po}`
+      : `<p class="tg-po">${t('Unesi mesto i skor u podešavanjima lige da vidiš gde stojiš.')}</p>`;
+  }
+  // forma rostera: status iz platforme lige (Sleeper, ESPN liga) ili ESPN
+  const groups = { OK: [], DTD: [], OUT: [] };
+  for (const x of r.players) { const p = state.byId.get(x.id); if (!p) continue; const g = leagueStatus(lg, x, p).g; (g === 'OK' ? groups.OK : g === 'DTD' ? groups.DTD : groups.OUT).push(p.name); }
+  const tile = (k, label, cls) => `<div class="tg-tile ${cls}" ${groups[k].length && k !== 'OK' ? `data-tip="${esc(groups[k].join(', '))}"` : ''}><b>${groups[k].length}</b><span>${label}</span></div>`;
+  return `<section class="pcard ov-glance">${head}
+    <div class="tg-lbl">${t('Tabela oko tebe')}</div>${ladder}
+    <div class="tg-lbl">${t('Forma rostera')}</div>
+    <div class="tg-form">${tile('OK', t('zdravih'), 'ok')}${tile('DTD', 'DTD', 'dtd')}${tile('OUT', 'OUT', 'out')}</div>
+    <div class="tg-foot">${t('{a}/{b} aktivnih · {c}/{d} IR', { a: activeCount(r), b: ROSTER.ACTIVE, c: irCount(r), d: ROSTER.IR })} · ${t('Ažurirano: {d}', { d: fmtShortDate(r.updated) })}</div></section>`;
+}
+/** Kartice na vrhu Pregleda imaju istu visinu: alerti koji ne staju se kriju, ostaju u Prikaži sve */
+function fitAlerts(root) {
+  const card = root.querySelector('.ov-alerts'), ul = card?.querySelector('.alerts');
+  if (!ul) return;
+  const lis = [...ul.children];
+  lis.forEach(li => { li.hidden = false; });
+  const bottom = ul.getBoundingClientRect().bottom;
+  let shown = 0;
+  lis.forEach((li, i) => { if (i > 0 && li.getBoundingClientRect().bottom > bottom + 1) li.hidden = true; else shown++; });
+  const btn = card.querySelector('.al-all');
+  if (btn) btn.hidden = +card.dataset.total <= shown;
+}
+window.addEventListener('resize', () => { if (state.page === 'overview' && state.view === 'league') fitAlerts($('#page')); });
+
 function renderOverview() {
   const lg = currentLeague(), r = state.rosters.my;
   const H = `<h2 class="page-t">${t('Pregled')}</h2>`;
@@ -7419,13 +7495,7 @@ function renderOverview() {
       ${linkHTML('ov-empty', { cls: 'btn', card: 'empty' })}</div>`;
   }
   ensureRosterNews();
-  const st = lg.standings || {};
-  const place = st.rank ? t('{n}. od {m}', { n: st.rank, m: lg.teams || '?' }) : '';
-  const summary = `<section class="pcard"><h3>${t('Moj tim ukratko')}</h3>
-    <div class="ov-team"><b>${esc(lg.teamName || t('Moj tim'))}</b>
-      <span>${t('{a}/{b} aktivnih · {c}/{d} IR', { a: activeCount(r), b: ROSTER.ACTIVE, c: irCount(r), d: ROSTER.IR })}</span>
-      ${place ? `<span>${t('Mesto')}: ${place}</span>` : ''}${st.record ? `<span>${t('Skor')}: ${esc(st.record)}</span>` : ''}</div>
-    <div class="r-meta">${t('Ažurirano: {d}', { d: fmtShortDate(r.updated) })}</div></section>`;
+  const summary = teamGlanceHTML(lg, r);
 
   const teams = enteredTeams();
   const me = teams.find(x => x.id === 'my');
@@ -7447,8 +7517,8 @@ function renderOverview() {
       : `<p class="pnote">${t('Zbir aktivnih igrača. Uneto {a} od {b} timova.', { a: teams.length, b: lg.teams || '?' })}</p>${linkHTML('ov-few-teams', { card: 'cats' })}`}${notCountedHTML()}</section>`;
 
   const alerts = rosterAlerts();
-  const alertsCard = `<section class="pcard"><h3>${t('Upozorenja')}</h3>${alerts.length
-    ? `${alertsListHTML(alerts.slice(0, ALERT.MAX))}${alerts.length > ALERT.MAX ? `<button type="button" class="linkbtn al-all" data-action="all-alerts">${t('Prikaži sve ({n})', { n: alerts.length })} →</button>` : ''}`
+  const alertsCard = `<section class="pcard ov-alerts" data-total="${alerts.length}"><h3>${t('Upozorenja')}${alerts.length ? ` <span class="ov-cnt">${alerts.length}</span>` : ''}</h3>${alerts.length
+    ? `${alertsListHTML(alerts.slice(0, ALERT.MAX), { compact: true })}<button type="button" class="linkbtn al-all" data-action="all-alerts" ${alerts.length > ALERT.MAX ? '' : 'hidden'}>${t('Prikaži sve ({n})', { n: alerts.length })} →</button>`
     : `<p class="pnote">${t('Nema upozorenja za tvoje igrače.')}</p>`}</section>`;
 
   const tabs = scopeTabs().tabs.filter(tabHasPlayers);
@@ -7463,7 +7533,7 @@ function renderOverview() {
   const histCard = hist.length ? `<section class="pcard"><h3>${t('Poslednji trejdovi')}</h3><ul class="olist">${hist.map(h => `<li><button type="button" class="orow" data-action="ov-hist" data-id="${h.id}">
       <span class="os"><span class="hist-date">${fmtDate(h.date)} · ${histTagHTML(h, false)}</span><br>${(h.teams[GIVE]?.ids || []).map(id => esc(h.names?.[id] || state.byId.get(id)?.name || id)).join(', ') || '–'} → ${(h.teams[GET]?.ids || []).map(id => esc(h.names?.[id] || state.byId.get(id)?.name || id)).join(', ') || '–'}</span></button></li>`).join('')}</ul></section>` : '';
 
-  return `${H}<div class="pgrid">${summary}${alertsCard}</div>${cats}${importRanksHTML(lg)}<div class="pgrid">${tradesCard}${histCard}</div>`;
+  return `${H}<div class="pgrid ov-top">${summary}${alertsCard}</div>${cats}${importRanksHTML(lg)}<div class="pgrid">${tradesCard}${histCard}</div>`;
 }
 
 /* ---------- Uređivanje sačuvanog rostera (Moj tim i timovi u Ligi) ---------- */
@@ -7566,6 +7636,7 @@ function renderPage() {
   const el = $('#page');
   const html = state.page === 'team' ? renderTeamPage() : state.page === 'league' ? renderLeaguePage() : state.page === 'history' ? renderHistory() : renderOverview();
   el.innerHTML = html;
+  if (state.page === 'overview') fitAlerts(el);
   const hl = state.ui.highlight;
   if (hl && state.page === 'team') {
     const row = el.querySelector('tr.hl');
