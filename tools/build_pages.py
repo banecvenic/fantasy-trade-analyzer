@@ -422,11 +422,11 @@ HOWTO = {
 <p>Automatic Yahoo import is coming soon. Until then, use <a href="#paste">Paste roster</a>: it takes about a minute per team.</p>
 <p>When the Yahoo import arrives, the league will need to be publicly viewable. The commissioner turns this on with the <strong>Make League Publicly Viewable</strong> option in the league settings. This is not the same as <strong>Publish League</strong>, which is a different setting.</p>''',
         'fantrax': '''<h2 id="fantrax">Fantrax</h2>
-<p>In RosterSwing choose <strong>Fantrax public league</strong> (marked Beta) and enter the league ID or link. We import teams, rosters and standings. You pick the scoring format yourself. To make the league public, the commissioner goes to <strong>Commissioner</strong> &gt; <strong>League Setup</strong> &gt; <strong>Misc</strong> and turns on <strong>Allow public to view league</strong>.</p>
+<p>In RosterSwing choose <strong>Fantrax public league</strong> and enter the league ID or link. We import teams, rosters, scoring and standings. To make the league public, the commissioner goes to <strong>Commissioner</strong> &gt; <strong>League Setup</strong> &gt; <strong>Misc</strong> and turns on <strong>Allow public to view league</strong>.</p>
 {shot:fantrax-public.png}
 <p>The league ID is the part of the league address after <code>/league/</code>, for example <code class="wrap">fantrax.com/fantasy/league/<strong>abc123xyz</strong>/home</code>.</p>''',
         'sleeper': '''<h2 id="sleeper">Sleeper</h2>
-<p>In RosterSwing choose <strong>Sleeper league</strong> (marked Beta). We import teams, rosters, standings and the points scoring. Sleeper leagues need no settings change. The league ID is the long number in the league address, for example <code class="wrap">sleeper.com/leagues/<strong>1180226123456789012</strong></code>, or you can enter your Sleeper username.</p>
+<p>In RosterSwing choose <strong>Sleeper league</strong>. We import teams, rosters, standings and the points scoring. Sleeper leagues need no settings change. The league ID is the long number in the league address, for example <code class="wrap">sleeper.com/leagues/<strong>1180226123456789012</strong></code>, or you can enter your Sleeper username.</p>
 {shot:sleeper-league-url.png}''',
         'paste': '''<h2 id="paste">Paste roster (CBS, Yahoo and other platforms)</h2>
 <p>Works with any platform that shows a roster page. You paste one team at a time.</p>
@@ -475,11 +475,11 @@ HOWTO = {
 <p>Automatski uvoz sa Yahoo stiže uskoro. Do tada koristi <a href="#paste">Nalepi roster</a>: treba oko minut po timu.</p>
 <p>Za Yahoo uvoz liga će morati da bude javno vidljiva. Komesar to uključuje opcijom <strong>Make League Publicly Viewable</strong> u podešavanjima lige. To nije isto što i <strong>Publish League</strong>, to je drugo podešavanje.</p>''',
         'fantrax': '''<h2 id="fantrax">Fantrax</h2>
-<p>U RosterSwingu izaberi <strong>Fantrax javna liga</strong> (oznaka Beta) i unesi ID ili link lige. Uvozimo timove, rostere i tabelu, a format bodovanja biraš sam. Da bi liga bila javna, komesar ide na <strong>Commissioner</strong> &gt; <strong>League Setup</strong> &gt; <strong>Misc</strong> i uključuje <strong>Allow public to view league</strong>.</p>
+<p>U RosterSwingu izaberi <strong>Fantrax javna liga</strong> i unesi ID ili link lige. Uvozimo timove, rostere, bodovanje i tabelu. Da bi liga bila javna, komesar ide na <strong>Commissioner</strong> &gt; <strong>League Setup</strong> &gt; <strong>Misc</strong> i uključuje <strong>Allow public to view league</strong>.</p>
 {shot:fantrax-public.png}
 <p>ID lige je deo adrese lige posle <code>/league/</code>, na primer <code class="wrap">fantrax.com/fantasy/league/<strong>abc123xyz</strong>/home</code>.</p>''',
         'sleeper': '''<h2 id="sleeper">Sleeper</h2>
-<p>U RosterSwingu izaberi <strong>Sleeper liga</strong> (oznaka Beta). Uvozimo timove, rostere, tabelu i bodovanje na poene. Za Sleeper ligu ne treba menjati podešavanja. ID lige je dugačak broj u adresi lige, na primer <code class="wrap">sleeper.com/leagues/<strong>1180226123456789012</strong></code>, a možeš da uneseš i svoje Sleeper korisničko ime.</p>
+<p>U RosterSwingu izaberi <strong>Sleeper liga</strong>. Uvozimo timove, rostere, tabelu i bodovanje na poene. Za Sleeper ligu ne treba menjati podešavanja. ID lige je dugačak broj u adresi lige, na primer <code class="wrap">sleeper.com/leagues/<strong>1180226123456789012</strong></code>, a možeš da uneseš i svoje Sleeper korisničko ime.</p>
 {shot:sleeper-league-url.png}''',
         'paste': '''<h2 id="paste">Nalepi roster (CBS, Yahoo i druge platforme)</h2>
 <p>Radi sa svakom platformom koja ima stranicu rostera. Nalepljuješ jedan po jedan tim.</p>
