@@ -2938,6 +2938,7 @@ function deleteLeague() {
       if (profile.lastLeagueId === lg.id) profile.lastLeagueId = profile.leagues[0]?.id || null;
       saveProfile();
       delete tradeStoreGet().scopes[lg.id]; persistTrades();
+      const cs = lsGet(COLS_KEY); if (cs?.[lg.id]) { delete cs[lg.id]; lsSet(COLS_KEY, cs); } // i redosled kolona te lige
       bindScope('quick');
       location.hash = 'home';
     },
