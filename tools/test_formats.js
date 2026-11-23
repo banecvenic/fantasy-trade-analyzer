@@ -41,7 +41,7 @@ test('prazno i neispravno -> 9-cat H2H', () => {
 
 test('stara liga (bez leagueFormat) -> 9-cat H2H, ručni unos', () => {
   const f = leagueFormatOf({ format: 'h2h-cat' });
-  assert.deepStrictEqual(f, { scoringType: 'h2h_each', categories: NINE, weights: {}, preset: '9cat', source: 'manual', unsupported: [] });
+  assert.deepStrictEqual(f, { scoringType: 'h2h_each', categories: NINE, weights: {}, preset: '9cat', source: 'manual', unsupported: [], bonus: [] });
 });
 
 test('8cat postavka', () => {
@@ -188,14 +188,26 @@ test('ESPN: format bez trejdova / jedna utakmica i prazna podešavanja', () => {
   assert.strictEqual(mapEspnFormat({}).error, 'empty');
 });
 
-test('ESPN: prava liga 411647/2019 (H2H poeni sa promašajima, DD/TD i statistikama koje nemamo)', () => {
+test('ESPN: prava liga 411647/2019 (H2H poeni sa promašajima, DD/TD i retkim statistikama)', () => {
   // scoringItems iz stvarnog odgovora (statId, points)
   const items = [[6, 1], [7, -1], [23, -0.5], [24, -0.5], [1, 1.5], [2, 1.5], [11, -1], [12, -1], [13, 1], [15, 1], [37, 2.5], [39, 10], [10, -0.5], [0, 1], [38, 5], [3, 1]];
   const { format } = mapEspnFormat({ scoringSettings: { scoringType: 'H2H_POINTS', scoringItems: items.map(([id, w]) => espnItem(id, w)) } });
   assert.strictEqual(format.scoringType, 'h2h_points');
   // FGM: +1 (pogodak) + 0.5 (promašaj = FGA − FGM sa −0.5); FGA: −0.5
-  assert.deepStrictEqual(format.weights, { REB: 1, FGA: -0.5, FGM: 1.5, FTA: -0.5, FTM: 1.5, BLK: 1.5, STL: 1.5, TO: -1, DD: 2.5, PTS: 1, TD: 5, AST: 1 });
-  assert.deepStrictEqual(format.unsupported, ['Ejections', 'Disqualifications', 'Quadruple-doubles', 'Technical fouls']);
+  // izbacivanja (7), isključenja (12), četvorostruki dabl-dablovi (39) i tehničke (10) su sada statistike iz ESPN podataka
+  assert.deepStrictEqual(format.weights, { REB: 1, EJ: -1, FGA: -0.5, FGM: 1.5, FTA: -0.5, FTM: 1.5, BLK: 1.5, STL: 1.5, TO: -1, DQ: -1, DD: 2.5, QD: 10, TF: -0.5, PTS: 1, TD: 5, AST: 1 });
+  assert.deepStrictEqual(format.unsupported, []);
+});
+
+test('bonusi po utakmici: normalizacija, link, preset postaje custom', () => {
+  const f = normalizeFormat({ scoringType: 'h2h_points', preset: 'espn_points', weights: { PTS: 1, TF: -2 }, bonus: [{ s: 'PTS', n: 40, w: 2 }, { s: 'PTS', n: 40, w: 9 }, { s: 'XX', n: 5, w: 1 }, { s: 'REB', n: 0, w: 1 }, { s: 'AST', n: 15, w: 5 }] });
+  assert.deepStrictEqual(f.bonus, [{ s: 'PTS', n: 40, w: 2 }, { s: 'AST', n: 15, w: 5 }]);
+  assert.strictEqual(f.preset, 'custom');
+  assert.strictEqual(f.weights.TF, -2);
+  const back = decodeFormat(encodeFormat(f));
+  assert.deepStrictEqual(back.bonus, f.bonus);
+  assert.deepStrictEqual(back.weights, f.weights);
+  assert.deepStrictEqual(normalizeFormat({ scoringType: 'h2h_each', bonus: [{ s: 'PTS', n: 40, w: 2 }] }).bonus, []);
 });
 
 console.log(`\n${n} testova prošlo`);

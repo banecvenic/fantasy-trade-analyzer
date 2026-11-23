@@ -191,7 +191,10 @@ test('Sleeper bodovanje: težine, zbirne stavke, promašaji, nepodržano, prazno
   assert.strictEqual(w.PTS, 1.1); assert.strictEqual(w.REB, 1.3); assert.strictEqual(w.AST, 1.6);
   assert.strictEqual(w.FGA, -0.5); assert.strictEqual(w.FGM, 0.5); assert.strictEqual(w.TPM, 0.5); assert.strictEqual(w.TO, -1);
   assert.ok(!('DD' in w));
-  assert.deepStrictEqual(r.format.unsupported, ['Technical fouls', '40+ points bonus']);
+  assert.strictEqual(w.TF, -2); // tehničke greške su sada statistika (ESPN stat 10)
+  assert.deepStrictEqual(r.format.bonus, [{ s: 'PTS', n: 40, w: 2 }]);
+  assert.deepStrictEqual(r.format.unsupported, []);
+  assert.deepStrictEqual(slp.mapSleeperFormat({ pts: 1, xyz: 3 }).format.unsupported, ['Sleeper: xyz']);
   assert.deepStrictEqual(slp.mapSleeperFormat({}), { format: null, error: 'empty' });
   assert.deepStrictEqual(slp.mapSleeperFormat(null), { format: null, error: 'empty' });
 });
