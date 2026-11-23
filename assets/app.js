@@ -1420,6 +1420,13 @@ function plural(n, sr, en) {
   return n % 10 === 1 && n % 100 !== 11 ? sr[0] : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? sr[1] : sr[2];
 }
 const LOCALE = () => (LANG === 'en' ? 'en-US' : 'sr-Latn');
+/** Srpski: evropski datum bez razmaka (23.11.2026.), engleski ostaje po en-US. utc = čitaj dan po UTC (datumi bez vremena) */
+const pad2 = n => String(n).padStart(2, '0');
+function euDate(v, { year = false, time = false, utc = false } = {}) {
+  const d = new Date(v);
+  const D = utc ? d.getUTCDate() : d.getDate(), M = (utc ? d.getUTCMonth() : d.getMonth()) + 1, Y = utc ? d.getUTCFullYear() : d.getFullYear();
+  return `${D}.${M}.${year ? `${Y}.` : ''}${time ? ` ${pad2(d.getHours())}:${pad2(d.getMinutes())}` : ''}`;
+}
 function setLang(l) {
   LANG = l;
   document.documentElement.lang = l;
@@ -1969,7 +1976,7 @@ function weekGamesHTML(p) {
   const w = weekGames(p.tid);
   if (!w) return '';
   const [mon, , , , , , sun] = currentWeekDates();
-  const d = iso => new Date(`${iso}T12:00:00Z`).toLocaleDateString(LOCALE(), { day: 'numeric', month: 'numeric', timeZone: 'UTC' });
+  const d = iso => (LANG === 'en' ? new Date(`${iso}T12:00:00Z`).toLocaleDateString(LOCALE(), { day: 'numeric', month: 'numeric', timeZone: 'UTC' }) : euDate(`${iso}T12:00:00Z`, { utc: true }));
   const tip = t('{n} ut. ove nedelje ({a}–{b}, pon–ned) · preostalo: {left}', { n: w.total, a: d(mon), b: d(sun), left: w.left });
   // Roto i poeni za celu sezonu: nedeljni raspored manje znači, pa oznaka nije istaknuta
   const quiet = ['roto', 'season_points'].includes(FMT_ACTIVE.scoringType);
@@ -3259,7 +3266,7 @@ function syncChipHTML(lg) {
     <button type="button" class="linkbtn" data-action="league-sync" ${busy ? 'disabled' : ''} title="${esc(syncBtnText(lg.import.source))}">↻ <span class="sc-l">${esc(syncBtnText(lg.import.source))}</span></button></span>`;
 }
 const daysTxt = n => `${n} ${plural(n, ['dan', 'dana', 'dana'], ['day', 'days'])}`;
-const fmtDateTime = ms => new Date(ms).toLocaleString(LOCALE(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const fmtDateTime = ms => (LANG === 'en' ? new Date(ms).toLocaleString(LOCALE(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : euDate(ms, { time: true }));
 function deadlineBarHTML(lg) {
   const dl = lg?.import?.deadline;
   if (!dl) return '';
@@ -4831,7 +4838,7 @@ function rt(key, vars = {}, seed = 0) {
   return s;
 }
 const joinList = arr => (arr.length <= 1 ? arr.join('') : `${arr.slice(0, -1).join(', ')} ${LANG === 'en' ? 'and' : 'i'} ${arr[arr.length - 1]}`);
-const shortDate = iso => { const d = new Date(iso); return LANG === 'en' ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : `${d.getDate()}.${d.getMonth() + 1}`; };
+const shortDate = iso => (LANG === 'en' ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : euDate(iso));
 const minTxt = v => String(Math.round(v));
 const n1r = v => (+v || 0).toFixed(1);
 
@@ -5208,7 +5215,7 @@ const n1m = v => (v == null ? '-' : `${v < -0.05 ? '−' : ''}${Math.abs(v).toFi
 const pct3 = v => (v == null ? '-' : fmtPct(v));
 /** Prve rečenice teksta (kraj rečenice = . ! ? pa razmak i veliko slovo; "averaging 23.5" se ne seče) */
 const firstSentences = (s, n) => String(s || '').trim().split(/(?<=[.!?])\s+(?=[A-Z"“(])/).slice(0, n).join(' ').trim();
-const aiDate = iso => { const d = new Date(iso); return d.toLocaleDateString(LANG === 'en' ? 'en-US' : 'sr-Latn', { day: 'numeric', month: LANG === 'en' ? 'short' : 'numeric', year: 'numeric' }); };
+const aiDate = iso => (LANG === 'en' ? new Date(iso).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : euDate(iso, { year: true }));
 
 /** Kategorije jednog reda statistike, npr. "PTS 23.9, REB 6.1, ... FG% .500 (7.8/15.5), FT% .720 (6.4/8.9)" */
 function catLineTxt(st, proj = false) {
@@ -5444,7 +5451,7 @@ function buildAIText(shortRosterNews = false) {
   } else {
     ctx.push(L(`Brzo poređenje, bez lige. Format: ${formatSummary(FMT_ACTIVE)}`, `Quick compare, no league. Format: ${formatSummary(FMT_ACTIVE)}`));
   }
-  if (state.loadedAt) ctx.push(`${L('Podaci od', 'Data as of')}: ${new Date(state.loadedAt).toLocaleString(LANG === 'en' ? 'en-US' : 'sr-Latn', { dateStyle: 'medium', timeStyle: 'short' })}`);
+  if (state.loadedAt) ctx.push(`${L('Podaci od', 'Data as of')}: ${LANG === 'en' ? new Date(state.loadedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : euDate(state.loadedAt, { year: true, time: true })}`);
   ctx.push(`${L('Izabrani period za poređenje', 'Selected comparison period')}: ${per}`);
   ctx.push(`${L('Vesti', 'News')}: Rotowire (${L('preko ESPN-a, na engleskom', 'via ESPN')})`);
   sec(L('LIGA I KONTEKST', 'LEAGUE AND CONTEXT'), ctx.join('\n'));
@@ -5660,7 +5667,7 @@ function rosterPlan(kind) {
     missingDrops: Math.max(0, requiredDrops - drops.length) };
 }
 
-const fmtShortDate = iso => (iso ? new Date(iso).toLocaleDateString(LOCALE(), LANG === 'en' ? { day: 'numeric', month: 'short', year: 'numeric' } : { day: 'numeric', month: 'numeric', year: 'numeric' }) : '–');
+const fmtShortDate = iso => (!iso ? '–' : LANG === 'en' ? new Date(iso).toLocaleDateString(LOCALE(), { day: 'numeric', month: 'short', year: 'numeric' }) : euDate(iso, { year: true }));
 const isStale = iso => iso && Date.now() - new Date(iso).getTime() > ROSTER.STALE_DAYS * 864e5;
 
 /** Red rostera u istom stilu kao gornje tabele, sa oznakama i akcijama */
@@ -6467,7 +6474,7 @@ function gameOpp(p, gameId) {
   const home = g.h === p.tid;
   return `${home ? '' : '@'}${PRO_TEAMS[home ? g.a : g.h] ?? '?'}`;
 }
-const pmDate = ms => new Date(ms).toLocaleDateString(LOCALE(), { day: 'numeric', month: 'numeric' });
+const pmDate = ms => (LANG === 'en' ? new Date(ms).toLocaleDateString(LOCALE(), { day: 'numeric', month: 'numeric' }) : euDate(ms));
 const hasBonusCol = () => isPointsFmt() && FMT_ACTIVE.bonus?.length > 0;
 /** Vrednost kolone za jednu utakmicu (za prikaz i sortiranje) */
 function gameVal(c, line) {
