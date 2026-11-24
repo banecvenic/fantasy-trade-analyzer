@@ -149,7 +149,7 @@ test('Dajem ako mora: ulazi u top 5 samo kad je korist jasno veća', () => {
   assert.ok(bestWithout);
   // trejd sa njim gubi kaznu u rangu
   const withSoft = marked.find(x => x.soft);
-  assert.ok(Math.abs(withSoft.s - (withSoft.gain - TF.SOFT_PENALTY)) < 1e-9);
+  assert.ok(Math.abs(withSoft.s - (withSoft.gain - TF.SOFT_PENALTY - TF.SIZE_PEN * Math.max(0, withSoft.n - 2))) < 1e-9);
   // ako je kazna ogromna, nijedan trejd sa njim nije ispred trejda bez njega
   const huge = { ...inp, TF: { ...TF, SOFT_PENALTY: 99 } };
   const top = E.search(huge).list.slice(0, 5);
@@ -218,6 +218,38 @@ test('broj igrača: razlika najviše 1, a u Konsolidaciji i Dubini do 2', () => 
   assert.ok(cons.length && cons.every(x => x.g.length > x.r.length && x.g.length - x.r.length <= 2));
   assert.ok(depth.length && depth.every(x => x.r.length > x.g.length && x.r.length - x.g.length <= 2));
   assert.ok([...cons, ...depth].some(x => Math.abs(x.g.length - x.r.length) === 2), 'nema nijednog trejda sa razlikom 2');
+});
+
+test('kazna za veličinu: kod iste koristi manji trejd ima prednost', () => {
+  const inp = base({ mine: bigTeam(1, 10, 1).map(x => ({ ...x, drop: true })), theirs: bigTeam(100, 10, 6).map(x => ({ ...x, drop: true })), limits: TF.SLIDERS.map(k => TF.LIMITS[k]) });
+  const list = E.search(inp).list;
+  assert.ok(list.length > 0);
+  for (const x of list) assert.ok(Math.abs(x.gain - x.s - TF.SIZE_PEN * Math.max(0, x.g.length + x.r.length - 2)) < 1e-9);
+  const small = { s: 0.5 - TF.SIZE_PEN * 0, ob: 0, n: 2 }, big = { s: 0.5 - TF.SIZE_PEN * 6, ob: 0, n: 8 };
+  assert.deepStrictEqual([big, small].sort(E.cmpRank)[0], small);
+  // Konsolidacija gleda veću stranu: 2:1 bez kazne, 3:2 manje od 4:3
+  const cons = E.search({ ...inp, strategy: 'cons' }).list;
+  for (const x of cons) assert.ok(Math.abs(x.gain - x.s - TF.SIZE_PEN * 3 * Math.max(0, Math.max(x.g.length, x.r.length) - 2)) < 1e-9);
+});
+
+test('Najbolje za mene ne prikazuje predlog sa rezultatom 4:5, Popravi kategorije može', () => {
+  // liga: korist = očekivane pobede; rezultat kartice = moj tim pre i posle
+  const opps = [vec({ PTS: 60, REB: 30, AST: 14, TO: 8, FGM: 24, FGA: 52 }), vec({ PTS: 70, REB: 22, AST: 18, TO: 9, FGM: 27, FGA: 58 })];
+  const mk = st => base({ mine: bigTeam(1, 9, 1).map(x => ({ ...x, drop: true })), theirs: bigTeam(100, 9, 3).map(x => ({ ...x, drop: true })), opps,
+    limits: TF.SLIDERS.map(k => TF.LIMITS[k]), strategy: st, focus: [], w: st === 'cats' ? [1, 6, 1, 1, 1] : null });
+  const result = (inp, x) => {
+    const byId = id => [...inp.mine, ...inp.theirs].find(y => y.id === id);
+    const before = new Float64Array(KEYS.length); inp.mine.forEach(y => y.vec.forEach((v, i) => { before[i] += v; }));
+    const after = Float64Array.from(before);
+    x.g.forEach(id => byId(id).vec.forEach((v, i) => { after[i] -= v; })); x.r.forEach(id => byId(id).vec.forEach((v, i) => { after[i] += v; }));
+    x.md.forEach(id => byId(id).vec.forEach((v, i) => { after[i] -= v; })); inp.fa.slice(0, x.mf).forEach(f => f.vec.forEach((v, i) => { after[i] += v; }));
+    return E.sideResult(before, after, cats, inp.myIdx, TF.TIE);
+  };
+  const bi = mk('best'), best = E.search(bi).list;
+  assert.ok(best.length > 0);
+  for (const x of best) { const r = result(bi, x); assert.ok(r.win >= r.lose, `${r.win}:${r.lose}`); }
+  const ci = mk('cats'), cl = E.search(ci).list;
+  assert.ok(cl.some(x => { const r = result(ci, x); return r.win < r.lose; }), 'Popravi kategorije nema nijedan predlog sa gorim rezultatom');
 });
 
 test('savet za veto lige: samo kad postoji igrač na granici rostera', () => {

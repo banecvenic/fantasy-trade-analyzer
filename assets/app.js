@@ -878,7 +878,7 @@ const TF = {
   SOFT_PENALTY_PTS: 2.5,  // isto, poeni (FPts po utakmici)
   FORM_GAP: 1.0,          // Prodaj skupo / Kupi jeftino: forma (15 i 7 dana) bar ovoliko iznad / ispod projekcije (vrednost po utakmici, z)
   FORM_GAP_PTS: 4,        // isto, poeni (FPts po utakmici)
-  FORM_BONUS: 0.15,       // prednost po takvom igraču u trejdu (očekivane pobede), poeni: × 10
+  FORM_BONUS: 0.15,       // prednost trejdu sa bar jednim takvim igračem (očekivane pobede), poeni: × 10; ne raste sa brojem igrača da ne gura velike trejdove
   FOCUS_W: 2,             // Popravi kategorije: težina izabranih kategorija
   KEEP_DROP: 0.12,        // Popravi kategorije: ostale kategorije ne smeju da padnu više od ovoliko (očekivane pobede)
   MIN_GAIN: 0.01, MIN_GAIN_PTS: 0.2, // trejd mora bar malo da pomogne mom timu
@@ -893,6 +893,8 @@ const TF = {
   MAX_DIFF_WIDE: 2,       // Konsolidacija i Dubina
   TOP_TOL: 0.20,          // moj najbolji igrač u trejdu sme biti najviše 20% vredniji od najboljeg kog dobijam
   TOP_TOL_OPP: 0.30,      // obrnuto za protivnika (ocena prihvatanja)
+  SIZE_PEN: 0.07,         // blaga kazna u rangu po igraču iznad 2 u trejdu (očekivane pobede): 2:2 −0,14, 3:3 −0,28, 4:4 −0,42
+  SIZE_PEN_PTS: 0.7,      // isto, poeni (FPts po utakmici)
   WINDOW_MARGIN: 0.06,    // odsecanje: gruba provera vrednosti sa ovolikom rezervom, pa tek onda tačan račun
   TIE: { count: 0.05, pct: 0.001, ratio: 0.01 },
 };
@@ -995,6 +997,9 @@ function tfEngine() {
     const thRoster = theirs.map((x, i) => ({ i, id: x.id, v: x.v, t: x.t, vec: x.vec })).filter(x => dropOk(theirs[x.i])).sort(wk);
     const maxDiff = strat === 'cons' || strat === 'depth' ? T.MAX_DIFF_WIDE : T.MAX_DIFF;
     const myTopRule = ['best', 'cats', 'buy', 'cons'].includes(strat);
+    // kazna za veličinu: ukupno igrača iznad 2; Konsolidacija i Dubina gledaju veću stranu (iznad 2, dvostruko), pa 2:1, 3:1 i 3:2 i dalje izlaze
+    const sizeStep = pts ? T.SIZE_PEN_PTS : T.SIZE_PEN;
+    const sizePen = (kG, kR) => sizeStep * (strat === 'cons' || strat === 'depth' ? 3 * Math.max(0, Math.max(kG, kR) - 2) : Math.max(0, kG + kR - 2));
     const myBase = pts ? null : expWins(myTot, inp.opps, cats, inp.myIdx, inp.sd, inp.w);
     const fa = inp.fa, faV = k => fa.slice(0, k).reduce((s, x) => s + x.v, 0);
     const lim = inp.limits; // [[bez, sa], ...] po stepenu
@@ -1098,10 +1103,13 @@ function tfEngine() {
             gain += 0.05 * fine / (inp.myIdx.length || 1); // bez lige: rezultat po kategorijama, a za iste rezultate veća razlika u kategorijama
           }
           if (!(gain > minGain)) continue;
+          // rezultat na kartici (moj tim pre i posle) bar nerešen; Popravi kategorije sme gore (namerno žrtvuje kategorije)
+          if (!pts && strat !== 'cats') { const mr = sideResult(myTot, myAfter, cats, inp.myIdx, T.TIE); if (mr.win < mr.lose) continue; }
+          if (pts && myAfter[inp.fIdx] - myTot[inp.fIdx] < 0) continue;
           stats.gain++;
-          let s = gain;
-          if (strat === 'sell') { const k = g.filter(i => sell.has(mine[i].id)).length; if (!k) continue; s += formBonus * k; }
-          if (strat === 'buy') { const k = r.filter(i => buy.has(theirs[i].id)).length; if (!k) continue; s += formBonus * k; }
+          let s = gain - sizePen(kG, kR);
+          if (strat === 'sell') { const k = g.filter(i => sell.has(mine[i].id)).length; if (!k) continue; s += formBonus; }
+          if (strat === 'buy') { const k = r.filter(i => buy.has(theirs[i].id)).length; if (!k) continue; s += formBonus; }
           if (gSoft) s -= softPen;
           stats.strat++;
           tiers[tier].push({ g: g.map(i => mine[i].id), r: r.map(i => theirs[i].id), md: myDrop.map(x => x.id), od: thDrop.map(x => x.id),
