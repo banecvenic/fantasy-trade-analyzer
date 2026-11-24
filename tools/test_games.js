@@ -11,7 +11,7 @@ const start = src.indexOf('   Utakmice: čiste funkcije');
 const end = src.indexOf('/* ==== kraj: Utakmice, čiste funkcije ==== */');
 if (start < 0 || end < 0) throw new Error('Nije nađen modul utakmica u app.js');
 const code = src.slice(src.lastIndexOf('/*', start), end);
-const { multiCount, derivedOf, gameBonusPts, periodAgg, fptsCalc, logsStale } = new Function(`${code}\nreturn { multiCount, derivedOf, gameBonusPts, periodAgg, fptsCalc, logsStale };`)();
+const { multiCount, derivedOf, gameBonusPts, periodAgg, fptsCalc, logsStale, gameLogRows } = new Function(`${code}\nreturn { multiCount, derivedOf, gameBonusPts, periodAgg, fptsCalc, logsStale, gameLogRows };`)();
 
 // formatski modul (normalizeFormat, kategorije)
 const fStart = src.indexOf('   Formati lige: katalog statistika');
@@ -90,6 +90,24 @@ test('kategorije: QD (samo iz utakmica) ne može u kategorije, tehničke i flagr
   assert.deepStrictEqual(r.format.unsupported, ['Quadruple-doubles']);
   // na poene QD ostaje (računa se iz utakmica)
   assert.strictEqual(F.normalizeFormat({ scoringType: 'h2h_points', weights: { PTS: 1, QD: 20 } }).weights.QD, 20);
+});
+
+test('game log: utakmica u toku je "next game", utakmice koje nije igrao imaju crtice i ne ulaze u proseke', () => {
+  const H = 3600e3, now = 100 * DAY, done = now - 3.5 * H;
+  const sched = [{ id: 1, date: now - 4 * DAY }, { id: 2, date: now - 3 * DAY }, { id: 3, date: now - 2 * DAY }, { id: 4, date: now - H }, { id: 5, date: now + DAY }];
+  // odigrao 1 i 3; 2 nije igrao; 4 je u toku (ESPN već ima delimičnu liniju); 5 je sledeća
+  const games = [{ date: now - 4 * DAY, gid: '1', line: { GP: 1, PTS: 10 } }, { date: now - 2 * DAY, gid: '3', line: { GP: 1, PTS: 20 } }, { date: now - H, gid: '4', line: { GP: 1, PTS: 4 } }];
+  const r = gameLogRows(games, sched, now, done);
+  assert.deepStrictEqual(r.played.map(g => g.gid), ['1', '2', '3']);
+  assert.strictEqual(r.played[1].dnp, true);
+  assert.ok(!r.played[1].line); // nema linije: ne ulazi u proseke ni GP
+  assert.deepStrictEqual(r.next.map(g => [g.id, g.live]), [[4, true], [5, false]]);
+  const played = r.played.filter(g => !g.dnp);
+  assert.strictEqual(played.length, 2);
+  assert.strictEqual(played.reduce((a, g) => a + g.line.PTS, 0) / played.length, 15);
+  // prelazak u drugi tim: utakmice novog tima pre prve utakmice za njega se ne prikazuju kao "nije igrao"
+  const traded = [{ date: now - 3 * DAY, gid: '99', line: { GP: 1 } }];
+  assert.deepStrictEqual(gameLogRows(traded, sched, now, done).played.map(g => [g.gid, !!g.dnp]), [['99', false], ['3', true]]);
 });
 
 console.log(`\n${n} testova prošlo`);

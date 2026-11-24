@@ -506,6 +506,22 @@ function fptsCalc(line, weights, agg = null) {
 }
 /** Da li se igrač u međuvremenu igrao: utakmica njegovog tima je završena (početak + 3 h) posle poslednjeg povlačenja */
 const logsStale = (entry, teamGames, now = Date.now(), dayMs = 864e5) => !entry || now - entry.ts > dayMs || (teamGames || []).some(g => g.date + 3 * 36e5 > entry.ts && g.date + 3 * 36e5 < now);
+/** Redovi game loga u profilu (kao ESPN). games: [{ date, gid, line }] (odigrane), sched: utakmice NBA tima [{ id, date }],
+    done: vreme posle kog se utakmica smatra završenom (now − trajanje).
+    -> { played: [{ date, gid, line } | { date, gid, dnp: true }] od najstarije, next: [{ id, date, live }] od najbliže }
+    Utakmica u toku ostaje u "next" (live) dok se ne završi. Utakmice tima koje igrač nije odigrao su { dnp: true }
+    (ne računaju se u proseke ni GP); posle prelaska u drugi tim samo od poslednje utakmice za stari tim. */
+function gameLogRows(games, sched, now, done) {
+  const ids = new Set((sched || []).map(g => String(g.id)));
+  const fin = (games || []).filter(g => g.date <= done);
+  const mine = new Set(fin.map(g => String(g.gid)));
+  const other = fin.filter(g => g.gid != null && !ids.has(String(g.gid)));
+  const from = other.length ? other[other.length - 1].date : -Infinity;
+  const dnp = (sched || []).filter(g => g.date <= done && g.date > from && !mine.has(String(g.id))).map(g => ({ date: g.date, gid: String(g.id), dnp: true }));
+  const played = [...fin, ...dnp].sort((a, b) => a.date - b.date);
+  const next = (sched || []).filter(g => g.date > done).map(g => ({ ...g, live: g.date <= now }));
+  return { played, next };
+}
 /* ==== kraj: Utakmice, čiste funkcije ==== */
 
 /* =====================================================================
@@ -655,16 +671,18 @@ const weightedValue = (by, weights) => Object.entries(by).reduce((s, [k, z]) => 
 const FA = {
   BLEND: { proj: 0.5, l15: 0.3, l7: 0.2 },  // mešavina perioda za vrednost FA igrača
   BLEND_FULL_GP: { l15: 6, l7: 3 },         // ispod ovoliko utakmica period dobija srazmerno manju težinu
-  MIN_GAIN: 0.5,        // kategorije: najmanja neto dobit (zbir z za moj tim) da bi se predlog prikazao
+  MIN_GAIN: 0.05,       // kategorije: najmanje koliko kategorija više u proseku protiv ostalih timova da bi se predlog prikazao
   MIN_GAIN_PTS: 1.5,    // poeni: najmanja razlika FPts po utakmici
-  TOP: 10,              // kartica u glavnoj listi
+  TOP: 9,               // kartica u glavnoj listi (3 reda po 3)
+  DROP_MAX_OWN: 50,     // automatski predlog za otpuštanje: samo igrači sa ESPN vlasništvom ispod ovog procenta
+  TRADE_CAND: 3,        // najviše igrača sa oznakom "Trejd kandidat"
+  PAGE: 25,             // redova po stranici u tabeli svih FA igrača
   WATCH: 5,             // igrača u listi "Prati"
   RISING: 8,            // igrača u listi "U usponu"
   STASH: 5,             // igrača u sekciji IR stash
   // signali "uskače u rotaciju": blago podižu rang (bonus po signalu, u jedinicama neto dobiti)
-  SIG: { MIN_UP: 5, MIN_GP: 3, OWN_UP: 1, MATE_MIN: 20, BONUS: 0.15, BONUS_PTS: 0.5 },
-  OUT_LOSS: 1,          // kategorija u kojoj OUT igrači mog tima nose bar ovoliko z postaje potreba
-  MANUAL_OFF: 0.5,      // ručni izbor kategorija: težina kategorija koje nisu izabrane
+  SIG: { MIN_UP: 5, MIN_GP: 3, OWN_UP: 1, MATE_MIN: 20, BONUS: 0.015, BONUS_PTS: 0.5 },
+  MANUAL_OFF: 0.5,      // ručni izbor kategorija: težina kategorija koje nisu izabrane (u očekivanim pobedama)
   PUBLIC_MAX_OWN: 60,   // javna lista "u usponu": samo igrači sa vlasništvom ispod ovog procenta
 };
 /** FA igrači = svi iz baze minus igrači na rosterima lige (uključujući IR). rosters: [[id...], ...] */
@@ -699,22 +717,6 @@ function blendValue(vals, w) {
   }
   return out;
 }
-/** Šta mom timu treba: težine kategorija. auto: iz plasmana (needWeights) + kategorije koje gubim zbog OUT igrača;
-    ručno: izabrane kategorije punu potrebu, ostale manju. Punt je uvek 0. outBy: zbir z OUT igrača po kategoriji. */
-function faNeedWeights(cats, { ranks = null, punt = new Set(), manual = null, outBy = {} } = {}, W = VALUE.NEED_WEIGHT) {
-  if (manual && manual.size) {
-    const out = {};
-    for (const c of cats) out[c.key] = punt.has(c.key) ? 0 : manual.has(c.key) ? W.bottom : FA.MANUAL_OFF;
-    return out;
-  }
-  const out = needWeights(cats, ranks, punt, W);
-  for (const c of cats) if (out[c.key] > 0 && (outBy[c.key] || 0) >= FA.OUT_LOSS) out[c.key] = Math.max(out[c.key], W.bottom);
-  return out;
-}
-/** Kandidati za otpuštanje: aktivni igrači mog tima od najslabijeg, bez zaključanih. mine: [{ id, value }] (IR igrači se ne šalju) */
-function dropCandidates(mine, locked = new Set()) {
-  return mine.filter(x => !locked.has(x.id) && x.value != null).sort((a, b) => a.value - b.value);
-}
 /** Signali rotacije -> [{ kind, ... }]. d: { minSeason, minRecent, recentGp, ownChg, matesOut: [ime] } */
 function rotationSignals(d, S = FA.SIG) {
   const out = [];
@@ -723,25 +725,122 @@ function rotationSignals(d, S = FA.SIG) {
   if ((d.ownChg || 0) >= S.OWN_UP) out.push({ kind: 'own', chg: d.ownChg });
   return out;
 }
-/** Predlozi: fa [{ id, value, signals }], drops [{ id, value }] (najslabiji prvi).
-    Jedan igrač odlazi: svaki FA protiv njega, neto dobit > praga, sortirano po dobiti uz blagi bonus signala, prvih top.
-    Više igrača odlazi: isto toliko pojačanja, pohlepno (najbolji FA ide na mesto najslabijeg igrača). -> [{ id, drop, gain, score }] */
-function pickups(fa, drops, { min = FA.MIN_GAIN, bonus = FA.SIG.BONUS, top = FA.TOP } = {}) {
-  if (!drops.length) return [];
-  const score = x => x.value + bonus * Math.min(2, (x.signals || []).length);
-  const ranked = fa.filter(x => x.value != null).map(x => ({ ...x, s: score(x) })).sort((a, b) => b.s - a.s);
-  if (drops.length === 1) {
-    const d = drops[0];
-    return ranked.map(x => ({ id: x.id, drop: d.id, gain: x.value - d.value, score: x.s - d.value })).filter(x => x.gain > min).slice(0, top);
-  }
-  const out = [], used = new Set();
-  for (const d of [...drops].sort((a, b) => a.value - b.value)) {
-    const x = ranked.find(y => !used.has(y.id) && y.value - d.value > min);
-    if (!x) continue;
-    used.add(x.id);
-    out.push({ id: x.id, drop: d.id, gain: x.value - d.value, score: x.s - d.value });
-  }
+/* ---------- Par (dolazi, odlazi) kao trejd 1 za 1: zbirovi mog tima pre i posle, pa poređenje sa ostalim timovima ----------
+   cats: [{ key, pct, made, att, low }] (bez punt kategorija). Linije su po utakmici; tim = zbir linija aktivnih igrača. */
+/** Mešavina linija po periodima: lines { proj, l15, l7 }, w iz blendWeights -> jedna linija po utakmici (ili null) */
+function blendLine(lines, w) {
+  const keys = Object.keys(w).filter(k => lines[k]);
+  if (!keys.length) return null;
+  const sum = keys.reduce((a, k) => a + w[k], 0), out = {};
+  for (const k of keys) for (const [s, v] of Object.entries(lines[k])) if (typeof v === 'number' && Number.isFinite(v)) out[s] = (out[s] || 0) + v * (w[k] / sum);
   return out;
+}
+/** Zbir linija (tim) */
+function sumLines(lines) {
+  const out = {};
+  for (const l of lines) if (l) for (const [k, v] of Object.entries(l)) if (typeof v === 'number') out[k] = (out[k] || 0) + v;
+  return out;
+}
+/** Tim posle izmene: zbir − odlazi + dolazi */
+function swapTotals(tot, inLine, outLine) {
+  const out = { ...tot };
+  for (const [k, v] of Object.entries(outLine || {})) if (typeof v === 'number') out[k] = (out[k] || 0) - v;
+  for (const [k, v] of Object.entries(inLine || {})) if (typeof v === 'number') out[k] = (out[k] || 0) + v;
+  return out;
+}
+/** Vrednost kategorije iz zbira: procenti ponderisano (made/att), ostalo zbir */
+const totCat = (tot, c) => (c.pct ? (tot[c.att] > 0 ? (tot[c.made] || 0) / tot[c.att] : null) : tot[c.key] ?? 0);
+/** Normalna raspodela (Abramowitz-Stegun) */
+function normCdf(z) {
+  const t = 1 / (1 + 0.2316419 * Math.abs(z)), d = 0.3989423 * Math.exp(-z * z / 2);
+  const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+  return z > 0 ? 1 - p : p;
+}
+/** Kontekst lige: rasipanje timova po kategoriji (SD zbirova svih timova). teams: [zbir] (moj tim uključen) */
+function leagueSpread(teams, cats) {
+  const sd = {};
+  for (const c of cats) {
+    const xs = teams.map(t => totCat(t, c)).filter(v => v != null);
+    const m = xs.reduce((a, b) => a + b, 0) / (xs.length || 1);
+    const v = Math.sqrt(xs.reduce((a, b) => a + (b - m) ** 2, 0) / (xs.length || 1));
+    sd[c.key] = v > 1e-9 ? v : (c.pct ? 0.01 : Math.max(0.5, Math.abs(m) * 0.05));
+  }
+  return sd;
+}
+/** Očekivane pobede u kategorijama protiv ostalih timova (prosek po protivniku): { total, by } (H2H: kategorije po meču; roto: isto, zbir po timovima je plasman) */
+function expWins(tot, opps, cats, sd, weights = null) {
+  const by = {}; let total = 0;
+  if (!opps.length) return { total, by };
+  for (const c of cats) {
+    const w = weights ? weights[c.key] ?? 1 : 1, v = totCat(tot, c);
+    if (!w || v == null) { by[c.key] = 0; continue; }
+    let e = 0;
+    for (const o of opps) { const ov = totCat(o, c); if (ov == null) { e += 0.5; continue; } const z = (v - ov) / sd[c.key]; e += normCdf(c.low ? -z : z); }
+    by[c.key] = e / opps.length; total += by[c.key] * w;
+  }
+  return { total, by };
+}
+/** Ocena para: koliko kategorija više u proseku dobijam protiv ostalih timova posle izmene (poeni: razlika FPts).
+    ctx { pts, cats, tot (moj tim), opps, sd, weights, base (expWins pre) } -> { gain, by (promena po kategoriji) } */
+function pairGain(ctx, inLine, outLine) {
+  if (ctx.pts) return { gain: (inLine?.FPTS || 0) - (outLine?.FPTS || 0), by: {} };
+  const after = expWins(swapTotals(ctx.tot, inLine, outLine), ctx.opps, ctx.cats, ctx.sd, ctx.weights);
+  const by = {};
+  for (const c of ctx.cats) by[c.key] = (after.by[c.key] || 0) - (ctx.base.by[c.key] || 0);
+  return { gain: after.total - ctx.base.total, by };
+}
+/** Rezultat kao u analizi trejda (1 za 1): po kategoriji poredi se igrač koji dolazi sa igračem koji odlazi;
+    procenti: promena procenta mog tima, ispod tie (.001) je nerešeno. -> { win, lose, res: { [key]: 1 | -1 | 0 }, d: { [key]: { before, after, diff } } } */
+function pairScore(cats, tot, inLine, outLine, tie = 0.001) {
+  const after = swapTotals(tot, inLine, outLine), res = {}, d = {};
+  let win = 0, lose = 0;
+  for (const c of cats) {
+    const b = totCat(tot, c), a = totCat(after, c);
+    d[c.key] = { before: b, after: a, diff: a != null && b != null ? a - b : null };
+    const diff = d[c.key].diff;
+    let r = 0;
+    if (diff != null && Math.abs(diff) >= (c.ratio ? 0.01 : c.pct ? tie : 0.05)) r = (c.low ? diff < 0 : diff > 0) ? 1 : -1;
+    res[c.key] = r; if (r > 0) win++; else if (r < 0) lose++;
+  }
+  return { win, lose, res, d };
+}
+/** Sme li igrač automatski da bude predložen za otpuštanje za FA igrača x:
+    opšta vrednost manja od opšte vrednosti igrača koji dolazi, vlasništvo ispod praga, nije zaključan (IR igrači se ne šalju). */
+const canDrop = (m, x, locks = new Set(), maxOwn = FA.DROP_MAX_OWN) =>
+  !locks.has(m.id) && (m.own == null || m.own < maxOwn) && (m.general ?? -Infinity) < (x.general ?? -Infinity);
+/** Predlozi: za svakog FA igrača njemu najbolji par za otpuštanje.
+    fa [{ id, general, signals }], mine [{ id, general, own }], gain(fa, m) -> broj.
+    picks (ručni izbor) važe za sve kartice, i bez praga, i krše pravila uz upozorenje; skipBy { [faId]: n } = "Predloži drugog".
+    -> { list: [{ id, drop, gain, score, warn, alts }], eligible (da li iko sme da ode) } */
+function faSuggest(fa, mine, gain, { picks = [], locks = new Set(), skipBy = {}, min = FA.MIN_GAIN, bonus = FA.SIG.BONUS, top = FA.TOP, maxOwn = FA.DROP_MAX_OWN } = {}) {
+  const out = [];
+  let eligible = false;
+  for (const x of fa) {
+    const cands = picks.length ? picks : mine.filter(m => canDrop(m, x, locks, maxOwn));
+    if (!cands.length) continue;
+    if (!picks.length) eligible = true;
+    const ranked = cands.map(m => ({ m, g: gain(x, m) })).filter(y => y.g != null).sort((a, b) => b.g - a.g);
+    if (!ranked.length) continue;
+    const pick = ranked[(skipBy[x.id] || 0) % ranked.length];
+    if (!picks.length && !(pick.g > min)) continue; // ručni izbor: prikaži najbolje i kad ne prelaze prag (kartica pokazuje šta gubiš)
+    out.push({ id: x.id, drop: pick.m.id, gain: pick.g, score: pick.g + bonus * Math.min(2, (x.signals || []).length), warn: (pick.m.general ?? -Infinity) >= (x.general ?? -Infinity), alts: ranked.length });
+  }
+  out.sort((a, b) => b.score - a.score);
+  return { list: out.slice(0, top), eligible: picks.length ? true : eligible };
+}
+/** Trejd kandidati: moji igrači koje bi FA igrač popravio (gain > min), ali ne smeju automatski da odu
+    jer imaju vlasništvo od praga naviše ili opštu vrednost veću od najboljeg FA igrača. Najslabiji za moj tim prvi. */
+function tradeCandidates(mine, fa, gain, { locks = new Set(), min = FA.MIN_GAIN, maxOwn = FA.DROP_MAX_OWN, n = FA.TRADE_CAND } = {}) {
+  if (!fa.length) return [];
+  const bestFa = Math.max(...fa.map(x => x.general ?? -Infinity));
+  return mine.filter(m => !locks.has(m.id) && ((m.own ?? 0) >= maxOwn || (m.general ?? -Infinity) > bestFa))
+    .map(m => ({ m, g: Math.max(...fa.map(x => gain(x, m) ?? -Infinity)) }))
+    .filter(y => y.g > min).sort((a, b) => b.g - a.g).slice(0, n).map(y => ({ id: y.m.id, gain: y.g }));
+}
+/** Stranice: [stavke], stranica (1..), po stranici -> { rows, page, pages } */
+function pageOf(items, page, per = FA.PAGE) {
+  const pages = Math.max(1, Math.ceil(items.length / per)), p = Math.min(Math.max(1, page | 0), pages);
+  return { rows: items.slice((p - 1) * per, p * per), page: p, pages };
 }
 /** Lista "Prati": igrači sa signalom koji ne prelaze prag, po vrednosti */
 function watchList(fa, shownIds, n = FA.WATCH) {
@@ -1526,6 +1625,8 @@ const EN = {
   "Dodato u trejd": "Added to the trade",
   "Bonus": "Bonus",
   "sledeća utakmica": "next game",
+  "u toku": "in progress",
+  "Nije igrao": "Did not play",
   "Prethodni igrač: {n}": "Previous player: {n}",
   "Sledeći igrač: {n}": "Next player: {n}",
   "Procena: projekcija nema bonuse, dabl-dablove ni retke stavke (tehničke, flagrantne...). Za njih uzimamo prosek po utakmici iz ove sezone.": "Estimate: the projection has no bonuses, double-doubles or rare items (technical, flagrant...). For those we use the per-game average from this season.",
@@ -1685,6 +1786,35 @@ const EN = {
   "Bolja vrednost za tvoj tim od igrača koji odlazi.": "Better value for your team than the player who goes.",
   "Streaming": "Streaming",
   "Poslednja vest": "Latest news",
+  "{d} FPts po utakmici": "{d} FPts per game",
+  "Dobijaš {w} {k}, gubiš {l}": "You win {w} {k}, lose {l}",
+  "Najviše ti popravlja {c}": "Helps you most in {c}",
+  "{n} vredi više od igrača koji dolazi.": "{n} is worth more than the incoming player.",
+  "Trejd kandidat": "Trade candidate",
+  "{n} ti slabo odgovara, ali ima vrednost za trejd.": "{n} is a poor fit for your team, but has trade value.",
+  "Automatski": "Automatic",
+  "ili izaberi igrača": "or pick a player",
+  "dodaj igrača": "add a player",
+  "Za svakog slobodnog igrača biramo njemu najbolji par: tvoj igrač sa manjom opštom vrednošću, ESPN vlasništvom ispod {n}%, koji nije zaključan ni na IR-u.": "For each free agent we pick the best match to drop: a player with lower overall value, ESPN ownership under {n}%, not locked and not on IR.",
+  "Izbor važi za sve kartice. Ako izabereš više igrača, za svaku karticu biramo onog koji najviše odgovara.": "Your choice applies to all cards. If you pick several players, each card uses the one that fits best.",
+  "Tvoj roster": "Your roster",
+  "nikad ne predlaži za otpuštanje": "never suggest dropping",
+  "Dobijaš u proseku {p}% mečeva u ovoj kategoriji": "You win {p}% of matchups in this category on average",
+  "Istaknute su kategorije u kojima tvoj tim, sa trenutnim rosterom, gubi više od pola mečeva protiv ostalih timova lige. Punt kategorije se ne računaju.": "Highlighted are the categories where your current roster loses more than half of its matchups against the other teams in the league. Punted categories are not counted.",
+  "Napomene": "Notes",
+  "Stranice": "Pages",
+  "Prethodna": "Previous",
+  "Sledeća": "Next",
+  "Tvoj roster je jači od onoga što je trenutno na waiveru": "Your roster is stronger than what's on waivers right now",
+  "Nijedan tvoj igrač nema manju opštu vrednost od slobodnih igrača uz vlasništvo ispod {n}%. Ako ipak želiš nekog da otpustiš, izaberi ga gore.": "None of your players has lower overall value than the free agents together with ownership under {n}%. If you still want to drop someone, pick them above.",
+  "Nijedna izmena ne popravlja tvoj tim dovoljno u odnosu na ostale timove lige. Ne spuštamo kriterijum da bi lista bila puna.": "No move improves your team enough against the other teams in the league. We don't lower the bar just to fill the list.",
+  "Svaka izmena se računa kao trejd 1 za 1: FPts tvog tima po utakmici pre i posle (mešavina projekcije, poslednjih 15 i 7 dana).": "Each move is calculated as a 1 for 1 trade: your team's FPts per game before and after (a blend of projection, last 15 and last 7 days).",
+  "Svaka izmena se računa kao trejd 1 za 1: zbirovi tvog tima pre i posle, pa koliko kategorija više dobijaš protiv ostalih timova lige (mešavina projekcije, poslednjih 15 i 7 dana).": "Each move is calculated as a 1 for 1 trade: your team totals before and after, then how many more categories you win against the other teams in the league (a blend of projection, last 15 and last 7 days).",
+  "Do kraja nedelje meča: {a} ut. za {n1}, {b} za {n2}.": "Until the end of the matchup week: {a} games for {n1}, {b} for {n2}.",
+  "Period": "Period",
+  "Dolazi i odlazi": "In and out",
+  "po utakmici": "per game",
+  "Izmena popravlja tvoj tim u odnosu na ostale timove lige.": "The move improves your team against the other teams in the league.",
   'Novo: javi nam ako nešto nije uvezeno kako treba.': 'New: let us know if something was not imported correctly.',
   // Uvezena liga: podešavanja i kontekst cele lige
   'na {n}. mestu ({r})': 'in place {n} ({r})',
@@ -7261,22 +7391,24 @@ function playerModalHTML(p) {
   else if (games === null) log = `<p class="pnote">${t('Utakmice trenutno nisu dostupne.')}</p>`;
   else {
     const srt = pmState.sort;
-    const recent = [...games].reverse();
+    const now = Date.now(), rowsG = gameLogRows(games, sched, now, now - CONFIG.GAME_DONE_AFTER_MS);
+    const recent = [...rowsG.played].reverse();
     let list = pmState.all ? recent : recent.slice(0, PM.GAMES);
     const colOf = key => CATS.find(c => c.key === key);
     if (srt) {
-      const v = g => (srt.col === 'date' ? g.date : srt.col === 'MIN' ? g.line.MIN : srt.col === 'BONUS' ? gameBonus(g.line) : gameVal(colOf(srt.col), g.line));
+      const v = g => (srt.col === 'date' ? g.date : g.dnp ? null : srt.col === 'MIN' ? g.line.MIN : srt.col === 'BONUS' ? gameBonus(g.line) : gameVal(colOf(srt.col), g.line));
       const sign = srt.dir === 'asc' ? 1 : -1;
       list = list.map((g, i) => ({ g, i, v: v(g) })).sort((a, b) => (a.v == null) - (b.v == null) || (a.v != null && b.v != null ? (a.v - b.v) * sign : 0) || a.i - b.i).map(x => x.g);
     }
-    const upcoming = !srt || (srt.col === 'date' && srt.dir === 'desc') ? sched.filter(g => g.date > Date.now()).slice(0, PM.NEXT).reverse() : [];
+    // sledeće utakmice: najdalja gore, najbliža odmah iznad poslednje odigrane; utakmica u toku ostaje ovde dok se ne završi
+    const upcoming = !srt || (srt.col === 'date' && srt.dir === 'desc') ? rowsG.next.slice(0, PM.NEXT).reverse() : [];
     const sth = (key, label, cls = '', extra = '') => { const on = srt?.col === key; return `<th class="sortth ${cls}${on ? ' sorted' : ''}" data-pm-sort="${key}" aria-sort="${on ? (srt.dir === 'asc' ? 'ascending' : 'descending') : 'none'}" title="${esc(t('Sortiraj po {c}', { c: label }))}">${label}${extra}${on ? `<span class="sarr">${srt.dir === 'asc' ? '▲' : '▼'}</span>` : ''}</th>`; };
     const ncol = CATS.length + 3 + (bcol ? 1 : 0);
     log = `<div class="tscroll"><table class="pm-tbl pm-log"><thead><tr>${sth('date', t('Datum'), 'dt')}<th class="op">${t('Protiv')}</th>${sth('MIN', 'MIN')}${CATS.map(c => sth(c.key, c.type === 'pct' && !c.ratio ? c.label.replace('%', '') : c.label, c.fpts ? 'fpts' : '', srcMarkHTML(c)) + (c.fpts && bcol ? sth('BONUS', t('Bonus')) : '')).join('')}</tr></thead><tbody>
-      ${upcoming.map(g => `<tr class="next"><td class="dt">${pmDate(g.date)}</td><td class="op">${esc(gameOpp(p, g.id))}</td><td colspan="${ncol - 2}" class="nx">${t('sledeća utakmica')}</td></tr>`).join('')}
-      ${list.map(g => { const b = gameBonus(g.line); return `<tr${b ? ` class="bonus" title="${esc(t('Bonus u ovoj utakmici: {n} FPts', { n: fmtNum(b) }))}"` : ''}><td class="dt">${pmDate(g.date)}</td><td class="op">${esc(gameOpp(p, g.gid || sched.find(x => x.date === g.date)?.id))}</td><td>${Math.round(g.line.MIN)}</td>${CATS.map(c => gameCell(c, g.line) + (c.fpts && bcol ? `<td>${b ? `+${fmtNum(b)}` : '0'}</td>` : '')).join('')}</tr>`; }).join('')}
+      ${upcoming.map(g => `<tr class="next${g.live ? ' live' : ''}"><td class="dt">${pmDate(g.date)}</td><td class="op">${esc(gameOpp(p, g.id))}</td><td colspan="${ncol - 2}" class="nx">${g.live ? t('u toku') : t('sledeća utakmica')}</td></tr>`).join('')}
+      ${list.map(g => { if (g.dnp) return `<tr class="dnp" title="${esc(t('Nije igrao'))}"><td class="dt">${pmDate(g.date)}</td><td class="op">${esc(gameOpp(p, g.gid))}</td><td>-</td>${CATS.map(c => '<td>-</td>' + (c.fpts && bcol ? '<td>-</td>' : '')).join('')}</tr>`; const b = gameBonus(g.line); return `<tr${b ? ` class="bonus" title="${esc(t('Bonus u ovoj utakmici: {n} FPts', { n: fmtNum(b) }))}"` : ''}><td class="dt">${pmDate(g.date)}</td><td class="op">${esc(gameOpp(p, g.gid || sched.find(x => x.date === g.date)?.id))}</td><td>${Math.round(g.line.MIN)}</td>${CATS.map(c => gameCell(c, g.line) + (c.fpts && bcol ? `<td>${b ? `+${fmtNum(b)}` : '0'}</td>` : '')).join('')}</tr>`; }).join('')}
     </tbody></table></div>
-    ${!recent.length ? `<p class="pnote">${t('Još nije igrao ove sezone.')}</p>` : recent.length > PM.GAMES ? `<button type="button" class="linkbtn pm-more" data-pm-more="games">${pmState.all ? t('Prikaži manje') : t('Prikaži sve ({n})', { n: recent.length })}</button>` : ''}
+    ${!rowsG.played.some(g => !g.dnp) ? `<p class="pnote">${t('Još nije igrao ove sezone.')}</p>` : ''}${!recent.length ? '' : recent.length > PM.GAMES ? `<button type="button" class="linkbtn pm-more" data-pm-more="games">${pmState.all ? t('Prikaži manje') : t('Prikaži sve ({n})', { n: recent.length })}</button>` : ''}
     ${bcol ? `<p class="pnote">${t('FPts po utakmici uključuju bonuse lige ({list}). Utakmice sa bonusom su označene.', { list: FMT_ACTIVE.bonus.map(bonusTxt).join(', ') })}</p>` : ''}`;
   }
   // vesti
@@ -8123,8 +8255,8 @@ const rosterBtns = (kind, p, x) => (rosterLocked() ? '' : rosterIrBtn(kind, p.id
    Stranica: Pojačanja sa FA (#league-{id}/free-agents). Radi samo u uvezenim ligama (svi rosteri su poznati);
    čita samo zajednički model lige. Ručna liga: stranica je zamagljena, uz poruku i link za uvoz.
    ===================================================================== */
-state.fa = {}; // po ligi: { need: 'auto' | 'manual', cats: [], picks: [], skip: 0, rows: 50 }
-const faUi = (lg = currentLeague()) => state.fa[lg.id] || (state.fa[lg.id] = { need: 'auto', cats: [], picks: [], skip: 0, rows: 50 });
+state.fa = {}; // po ligi: { need: 'auto' | 'manual', cats: [], picks: [], skipBy: { [faId]: n }, page: 1 }
+const faUi = (lg = currentLeague()) => state.fa[lg.id] || (state.fa[lg.id] = { need: 'auto', cats: [], picks: [], skipBy: {}, page: 1, sig: '' });
 const FA_LOCK_KEY = 'fbaTrade.faLocks.v1'; // { [leagueId]: [id] } igrači koje nikad ne otpuštam (lični izbor, samo u ovom browseru)
 const faLocks = lg => new Set((lsGet(FA_LOCK_KEY) || {})[lg.id] || []);
 function toggleFaLock(lg, id) {
@@ -8172,17 +8304,6 @@ function faNext7(tid) {
 }
 
 /* ---------- Model stranice ---------- */
-/** Šta mom timu treba: plasman lige po kategorijama + snaga trenutnog rostera (prosek mesta) */
-function faRanks(lg) {
-  const a = importRanks(lg) || [], b = catRanks('my') || [], out = {};
-  for (const x of [...a, ...b]) {
-    const o = out[x.c.key] || (out[x.c.key] = { sum: 0, n: 0, of: x.of });
-    o.sum += x.rank / x.of; o.n++;
-  }
-  const res = {};
-  for (const [k, o] of Object.entries(out)) res[k] = { rank: Math.max(1, Math.round((o.sum / o.n) * 12)), of: 12 };
-  return Object.keys(res).length ? res : null;
-}
 /** Ključ statusa FA igrača u jeziku IR pravila lige (igrač nije na rosteru, pa ima samo ESPN status: OUT -> out, SUSPENSION -> sus) */
 const FA_IR_ALIAS = { suspension: 'sus', injury_reserve: 'ir', sspd: 'sus' };
 function faIrKey(st, rule) {
@@ -8194,27 +8315,35 @@ function faIrKey(st, rule) {
   }
   return st.key;
 }
-/** Sve što stranica prikazuje: FA igrači sa vrednošću za moj tim, predlozi, ko odlazi, IR stash, u usponu */
+/** Sve što stranica prikazuje. Par (dolazi, odlazi) se računa kao trejd 1 za 1: zbirovi mog tima pre i posle
+    (mešavina projekcije, 15 i 7 dana), pa poređenje sa ostalim timovima lige po kategorijama (poeni: FPts po utakmici). */
 function faModel(lg = currentLeague()) {
   const pts = isPointsFmt(), ui = faUi(lg);
   const LV = { proj: leagueValues(lg, 'proj'), l15: leagueValues(lg, 'l15'), l7: leagueValues(lg, 'l7'), season: leagueValues(lg, 'season') };
-  const cats = pts ? [] : LV.proj.cats;
-  const my = lg.roster?.players || [];
-  // kategorije koje gubim zbog OUT igrača (aktivni, projekcija)
-  const outBy = {};
-  if (!pts) for (const x of my) {
-    const p = state.byId.get(x.id);
-    if (x.ir || !p || playerStatus(p, lg).g !== 'OUT') continue;
-    for (const [k, z] of Object.entries(LV.proj.values.get(x.id)?.by || {})) if (z > 0) outBy[k] = (outBy[k] || 0) + z;
-  }
-  const ranks = pts ? null : faRanks(lg);
-  const weights = pts ? null : faNeedWeights(cats, { ranks, punt: state.punt, manual: ui.need === 'manual' ? new Set(ui.cats) : null, outBy });
-  const blendOf = p => {
-    const gp = { proj: statOf(p, 'proj') ? 1 : 0, l15: statOf(p, 'l15')?.GP || 0, l7: statOf(p, 'l7')?.GP || 0 };
-    return blendValue({ proj: LV.proj.values.get(p.id), l15: LV.l15.values.get(p.id), l7: LV.l7.values.get(p.id) }, blendWeights(gp));
+  const allCats = pts ? [] : LV.proj.cats.map(c => ({ ...c, ratio: !!CATS.find(k => k.key === c.key)?.ratio }));
+  const cats = allCats.filter(c => !isPunt({ key: c.key }));
+  const weights = !pts && ui.need === 'manual' && ui.cats.length ? Object.fromEntries(cats.map(c => [c.key, ui.cats.includes(c.key) ? 1 : FA.MANUAL_OFF])) : null;
+  const gpOf = p => ({ proj: statOf(p, 'proj') ? 1 : 0, l15: statOf(p, 'l15')?.GP || 0, l7: statOf(p, 'l7')?.GP || 0 });
+  // linija po utakmici (mešavina perioda) i opšta vrednost (vrednost u ligi, bez potreba mog tima)
+  const lines = new Map();
+  const lineOf = p => {
+    if (lines.has(p.id)) return lines.get(p.id);
+    const w = blendWeights(gpOf(p)), per = { proj: valueLine(p, 'proj', allCats), l15: statOf(p, 'l15'), l7: statOf(p, 'l7') };
+    const l = blendLine(per, w);
+    if (l && pts) { const keys = Object.keys(w).filter(k => per[k]), sum = keys.reduce((a, k) => a + w[k], 0); l.FPTS = keys.reduce((a, k) => a + fptsOf(per[k]) * w[k] / sum, 0); }
+    lines.set(p.id, l);
+    return l;
   };
-  const valueOf = b => (!b ? null : pts ? b.total : weightedValue(b.by, weights));
-  // saigrači koji su OUT, po NBA timu (za signal "uskače u rotaciju")
+  const generalOf = p => blendValue({ proj: LV.proj.values.get(p.id), l15: LV.l15.values.get(p.id), l7: LV.l7.values.get(p.id) }, blendWeights(gpOf(p)))?.total ?? null;
+  // timovi: aktivni igrači bez IR-a; OUT igrači sada ne donose ništa (zato se vidi i šta gubim zbog njih)
+  const teamLines = r => (r?.players || []).filter(x => !x.ir).map(x => state.byId.get(x.id)).filter(p => p && playerStatus(p, lg).g !== 'OUT').map(lineOf);
+  const my = lg.roster?.players || [];
+  const tot = sumLines(teamLines(lg.roster));
+  const opps = Object.values(lg.opps || {}).filter(r => r?.players?.length).map(r => sumLines(teamLines(r)));
+  const sd = pts ? {} : leagueSpread([tot, ...opps], cats);
+  const ctx = { pts, cats, tot, opps, sd, weights };
+  ctx.base = pts ? { total: 0, by: {} } : expWins(tot, opps, cats, sd, weights);
+  // saigrači koji su OUT, po NBA timu (signal "uskače u rotaciju")
   const outMates = new Map();
   for (const q of state.players) {
     if (!q.tid || (statOf(q, 'season')?.MIN || 0) < FA.SIG.MATE_MIN || playerStatus(q, lg).g !== 'OUT') continue;
@@ -8227,102 +8356,129 @@ function faModel(lg = currentLeague()) {
   for (const id of faIds) {
     const p = state.byId.get(id);
     if (!p) continue;
-    const st = playerStatus(p, lg), b = blendOf(p);
-    const pos = new Set(posList(p));
+    const st = playerStatus(p, lg), pos = new Set(posList(p));
     const mates = (outMates.get(p.tid) || []).filter(q => q.id !== p.id && posList(q).some(x => pos.has(x))).slice(0, 2).map(q => q.name);
     const l7 = statOf(p, 'l7'), season = statOf(p, 'season');
     const signals = rotationSignals({ minSeason: season?.MIN ?? null, minRecent: l7?.MIN ?? null, recentGp: l7?.GP || 0, ownChg: p.own?.chg || 0, matesOut: mates });
     const recent = (statOf(p, 'l15')?.GP || 0) + (l7?.GP || 0) > 0;
-    // vrednost kad je zdrav (IR stash): veća od sezone i projekcije
     const healthy = Math.max(LV.season.values.get(id)?.total ?? -Infinity, LV.proj.values.get(id)?.total ?? -Infinity);
-    fa.push({ id, p, st, b, value: valueOf(b), signals, recent, out: st.g === 'OUT', k: faIrKey(st, irRule), healthy: Number.isFinite(healthy) ? healthy : null, waiver: wv.map?.has(id) ? wv.map.get(id) || true : false });
+    const general = generalOf(p);
+    fa.push({ id, p, st, line: lineOf(p), general, value: general, signals, recent, out: st.g === 'OUT', k: faIrKey(st, irRule), healthy: Number.isFinite(healthy) ? healthy : null, waiver: wv.map?.has(id) ? wv.map.get(id) || true : false });
   }
-  // ko odlazi: najslabiji aktivni po vrednosti za moj tim, bez zaključanih; ručni izbor ima prednost
   const locks = faLocks(lg);
-  const mine = my.filter(x => !x.ir).map(x => { const p = state.byId.get(x.id); const b = p ? blendOf(p) : null; return p ? { id: x.id, p, b, value: valueOf(b) } : null; }).filter(Boolean);
-  const cands = dropCandidates(mine, locks);
-  const picks = ui.picks.map(id => mine.find(m => m.id === id)).filter(Boolean).map(m => ({ ...m, value: m.value ?? 0 }));
-  const drops = picks.length ? picks : cands.length ? [cands[ui.skip % cands.length]] : [];
+  const mine = my.filter(x => !x.ir).map(x => { const p = state.byId.get(x.id); if (!p) return null; const out = playerStatus(p, lg).g === 'OUT'; return { id: x.id, p, out, line: out ? null : lineOf(p), general: generalOf(p), own: p.own?.pct ?? null }; }).filter(Boolean);
+  const gains = new Map();
+  const pairOf = (x, m) => { const k = `${x.id}|${m.id}`; if (!gains.has(k)) gains.set(k, pairGain(ctx, x.line, m.line)); return gains.get(k); };
+  const gain = (x, m) => pairOf(x, m).gain;
   // u glavnu listu: zdravi FA koji su igrali u poslednjih 15 dana (OUT igrači idu u IR stash)
-  const pool = fa.filter(x => x.value != null && x.recent && !x.out);
-  const sugg = pickups(pool, drops, { min: pts ? FA.MIN_GAIN_PTS : FA.MIN_GAIN, bonus: pts ? FA.SIG.BONUS_PTS : FA.SIG.BONUS, top: drops.length > 1 ? drops.length : FA.TOP });
+  const pool = fa.filter(x => x.line && x.general != null && x.recent && !x.out);
+  const picks = ui.picks.map(id => mine.find(m => m.id === id)).filter(Boolean);
+  const min = pts ? FA.MIN_GAIN_PTS : FA.MIN_GAIN;
+  const S = faSuggest(pool, mine, gain, { picks, locks, skipBy: ui.skipBy, min, bonus: pts ? FA.SIG.BONUS_PTS : FA.SIG.BONUS });
+  const sugg = S.list.map(s => ({ ...s, by: pairOf(pool.find(x => x.id === s.id), mine.find(m => m.id === s.drop)).by }));
+  const tc = tradeCandidates(mine, pool, gain, { locks, min });
   const watch = sugg.length ? [] : watchList(pool, [], FA.WATCH);
   const R = leagueRules(lg);
   const freeIr = Math.max(0, (lg.slots?.ir || 0) - (my.filter(x => x.ir).length));
   const stash = irStash(fa, { irRule: R.irRule, freeIr, n: FA.STASH + 4 }); // višak: prikaz izbacuje igrače koji su van do kraja sezone (iz vesti)
-  const rising = fa.filter(x => x.signals.some(s => s.kind !== 'mate') && x.value != null && !x.out).sort((a, b) => b.value - a.value).slice(0, FA.RISING);
+  const rising = fa.filter(x => x.signals.some(s => s.kind !== 'mate') && x.general != null && !x.out).sort((a, b) => b.general - a.general).slice(0, FA.RISING);
   const byId = new Map(fa.map(x => [x.id, x]));
-  return { pts, ui, cats, weights, fa, byId, mine, cands, drops, picks, sugg, watch, stash, freeIr, R, rising, locks, wv, LV };
+  return { pts, ui, cats, allCats, weights, ctx, fa, byId, mine, picks, sugg, eligible: S.eligible, tc, watch, stash, freeIr, R, rising, locks, wv, LV, lineOf };
 }
 
 /* ---------- Prikaz ---------- */
 const faTag = x => (x.waiver ? `<span class="slot-tag tag-waiver" ${x.waiver !== true ? `data-tip="${esc(t('Na waiveru do {d}', { d: fmtShortDate(new Date(x.waiver).toISOString()) }))}"` : ''}>${t('Waiver')}</span>` : `<span class="slot-tag tag-fa">${t('Slobodan')}</span>`);
+const faTagObj = x => ({ text: x.waiver ? 'Waiver' : 'Slobodan', cls: x.waiver ? 'tag-waiver' : 'tag-fa' });
 /** Razlog (signali) jednom rečenicom po signalu */
 function faReasons(x) {
   return x.signals.map(s => (s.kind === 'min' ? t('Minuti {a} → {b} u poslednjih 7 dana', { a: Math.round(s.from), b: Math.round(s.to) })
     : s.kind === 'mate' ? t('{n} je OUT', { n: esc(s.name) })
     : t('Vlasništvo raste: +{n}%', { n: s.chg.toFixed(1) })));
 }
-const faGainTxt = (g, pts) => (pts ? `${g >= 0 ? '+' : '−'}${Math.abs(g).toFixed(1)} FPts` : fmtVal(g));
-/** Čipovi kategorija ✓/✗: razlika u vrednosti za moj tim između igrača koji dolazi i koji odlazi */
-function faChips(M, inX, outX) {
+/** "Dobijaš 5 kategorija, gubiš 3" (kao rezultat u analizi trejda) */
+const faWL = (w, l) => t('Dobijaš {w} {k}, gubiš {l}', { w, l, k: plural(w, ['kategoriju', 'kategorije', 'kategorija'], ['category', 'categories']) });
+/** Labela kategorije po ključu */
+const faCatLabel = k => CATS.find(c => c.key === k)?.label || k;
+/** Rezultat para kao u analizi trejda + najveće promene za moj tim (po utakmici) */
+function faPairView(M, x, d) {
   if (M.pts) {
-    const a = inX.b?.fpts, b = outX?.b?.fpts;
-    return a != null && b != null ? `<span class="fa-chip ${a >= b ? 'up' : 'down'}">${t('{a} → {b} FPts po utakmici', { a: fmt1(b), b: fmt1(a) })}</span>` : '';
+    const diff = (x.line?.FPTS || 0) - (d?.line?.FPTS || 0);
+    const ch = CATS.filter(c => !c.fpts && c.w).map(c => ({ c, v: ((x.line?.[c.key] || 0) - (d?.line?.[c.key] || 0)) })).filter(y => Math.abs(y.v * y.c.w) >= 0.3)
+      .sort((a, b) => Math.abs(b.v * b.c.w) - Math.abs(a.v * a.c.w)).slice(0, 3);
+    return { head: t('{d} FPts po utakmici', { d: `${diff >= 0 ? '+' : '−'}${Math.abs(diff).toFixed(1)}` }), up: diff >= 0,
+      changes: ch.map(y => `<span class="${(y.c.w > 0) === (y.v > 0) ? 'up' : 'down'}">${y.c.label} ${y.v > 0 ? '+' : '−'}${Math.abs(y.v).toFixed(1)}</span>`).join(' · '), chips: '' };
   }
-  return M.cats.filter(c => M.weights[c.key] > 0).map(c => {
-    const d = (inX.b?.by?.[c.key] || 0) - (outX?.b?.by?.[c.key] || 0);
-    if (Math.abs(d) < 0.15) return '';
-    return `<span class="fa-chip ${d > 0 ? 'up' : 'down'}">${d > 0 ? '✓' : '✗'} ${esc(c.label)}</span>`;
-  }).join('');
+  const sc = pairScore(M.cats, M.ctx.tot, x.line, d?.line);
+  const big = M.cats.filter(c => sc.res[c.key] && sc.d[c.key].diff != null).sort((a, b) => Math.abs(sc.d[b.key].diff) / M.ctx.sd[b.key] - Math.abs(sc.d[a.key].diff) / M.ctx.sd[a.key]).slice(0, 3);
+  const chg = c => { const v = sc.d[c.key]; return c.pct ? `${c.label} ${fmtCat({ ratio: c.ratio, type: 'pct' }, v.before)} → ${fmtCat({ ratio: c.ratio, type: 'pct' }, v.after)}` : `${c.label} ${v.diff > 0 ? '+' : '−'}${Math.abs(v.diff).toFixed(1)}`; };
+  return {
+    head: faWL(sc.win, sc.lose), up: sc.win >= sc.lose,
+    changes: big.map(c => `<span class="${sc.res[c.key] > 0 ? 'up' : 'down'}">${chg(c)}</span>`).join(' · '),
+    chips: M.cats.map(c => { const r = sc.res[c.key]; return `<span class="fa-chip ${r > 0 ? 'up' : r < 0 ? 'down' : 'tie'}">${r > 0 ? '✓' : r < 0 ? '✗' : '='} ${esc(c.label)}</span>`; }).join(''),
+    sc,
+  };
 }
+/** Kad nema signala: kategorije koje par najviše popravlja (po promeni očekivanih pobeda) */
+function faWhyCats(M, s) {
+  if (M.pts || !s.by) return [];
+  const top = Object.entries(s.by).filter(([, v]) => v > 0.02).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k]) => faCatLabel(k));
+  return top.length ? [t('Najviše ti popravlja {c}', { c: top.join(', ') })] : [];
+}
+const faWarnTxt = (d) => t('{n} vredi više od igrača koji dolazi.', { n: esc(d.p.name) });
 function faCardHTML(M, s, i) {
   const x = M.byId.get(s.id), d = M.mine.find(m => m.id === s.drop);
   if (!x) return '';
-  const p = x.p, g7 = faNext7(p.tid), why = faReasons(x);
+  const p = x.p, g7 = faNext7(p.tid), why = [...faReasons(x), ...faWhyCats(M, s)], v = faPairView(M, x, d);
+  const auto = !M.picks.length;
   return `<article class="fa-card">
     <div class="fa-rank">${i + 1}</div>
     <div class="fa-main">
       <div class="fa-in"><span class="pm-open" data-pm="${p.id}">${avatarHTML(p)}</span><div class="fa-id">
         <button type="button" class="nm pm-open" data-pm="${p.id}">${esc(p.name)}</button>
-        <span class="meta">${p.team} · ${posTxt(p)} ${faTag(x)} ${injHTML(p)}</span></div>
-        <div class="fa-gain ${s.gain >= 0 ? 'up' : 'down'}" data-tip="${esc(M.pts ? t('Razlika FPts po utakmici: igrač koji dolazi minus igrač koji odlazi (projekcija, 15 i 7 dana).') : t('Neto dobit za tvoj tim: vrednost igrača koji dolazi minus vrednost igrača koji odlazi, po potrebama tvog tima (projekcija, 15 i 7 dana).'))}"><small>${t('Neto')}</small>${faGainTxt(s.gain, M.pts)}</div></div>
-      <div class="fa-out"><span class="slot-tag tag-out">${t('Odlazi')}</span> ${d ? `<button type="button" class="nm pm-open" data-pm="${d.id}">${esc(d.p.name)}</button> <span class="meta">${d.p.team} · ${posTxt(d.p)}</span>` : '–'}</div>
-      <div class="fa-chips">${faChips(M, x, d)}</div>
+        <span class="meta">${p.team} · ${posTxt(p)} ${faTag(x)} ${injHTML(p)}</span></div></div>
+      <div class="fa-out"><span class="slot-tag tag-out">${t('Odlazi')}</span> ${d ? `<button type="button" class="nm pm-open" data-pm="${d.id}">${esc(d.p.name)}</button> <span class="meta">${d.p.team} · ${posTxt(d.p)}</span>` : '–'}
+        ${auto && s.alts > 1 ? `<button type="button" class="linkbtn fa-next" data-action="fa-next-drop" data-id="${p.id}" title="${esc(t('Predloži drugog'))}">↻ ${t('Predloži drugog')}</button>` : ''}</div>
+      ${s.warn && d ? `<p class="pnote warn fa-warn">⚠ ${faWarnTxt(d)}</p>` : ''}
+      <div class="fa-score ${v.up ? 'up' : 'down'}"><b>${v.head}</b>${v.changes ? `<span class="fa-changes">${v.changes}</span>` : ''}</div>
+      ${v.chips ? `<div class="fa-chips">${v.chips}</div>` : ''}
       ${why.length ? `<div class="fa-why">${why.map(w => `<span>${w}</span>`).join('')}</div>` : ''}
       <div class="fa-foot"><span class="meta">${g7 == null ? '' : t('{n} ut. u narednih 7 dana', { n: g7 })}</span>
         <span class="fa-btns"><button type="button" class="linkbtn pm-open" data-pm="${p.id}">${t('Profil')}</button><button type="button" class="btn small" data-action="fa-report" data-in="${p.id}" data-out="${d?.id || ''}">${t('Izveštaj')}</button></span></div>
     </div></article>`;
 }
-/** Ko odlazi: predlog platforme, Predloži drugog, Izaberi sam (više igrača), katanci na mom rosteru */
-function faDropHTML(M, lg) {
-  const auto = !M.picks.length, cur = M.drops[0];
-  const nm = m => `<button type="button" class="nm pm-open" data-pm="${m.id}">${esc(m.p.name)}</button>`;
-  const head = auto
-    ? `<div class="fa-drop-now">${cur ? `${t('Predlog za otpuštanje')}: ${nm(cur)} <span class="meta">${t('najslabiji aktivni igrač za tvoj tim')}</span>` : `<span class="meta">${t('Svi aktivni igrači su zaključani.')}</span>`}
-        ${M.cands.length > 1 ? `<button type="button" class="linkbtn" data-action="fa-next-drop">↻ ${t('Predloži drugog')}</button>` : ''}</div>`
-    : `<div class="fa-drop-now">${t('Otpuštaš')}: ${M.picks.map(m => `<span class="chip">${esc(m.p.name)}<button type="button" data-action="fa-unpick" data-id="${m.id}" aria-label="${esc(t('Ukloni'))}">✕</button></span>`).join('')}
-        <button type="button" class="linkbtn" data-action="fa-auto-drop">${t('Neka platforma predloži')}</button></div>`;
+/** Odlazi: Automatski ili ručni izbor (važi za sve kartice); moj roster sa katancima i oznakom Trejd kandidat */
+function faDropHTML(M) {
+  const auto = !M.picks.length;
   const opts = M.mine.filter(m => !M.picks.some(x => x.id === m.id)).map(m => `<option value="${esc(m.p.name)}"></option>`).join('');
-  const locks = M.mine.map(m => { const on = M.locks.has(m.id); return `<button type="button" class="fa-lock ${on ? 'on' : ''}" data-action="fa-lock" data-id="${m.id}" aria-pressed="${on}" title="${esc(on ? t('Zaključan: nikad se ne predlaže za otpuštanje') : t('Zaključaj: nikad ne predlaži za otpuštanje'))}">${on ? '🔒' : '🔓'} ${esc(m.p.name)}</button>`; }).join('');
-  return `<section class="pcard fa-drop"><h3>${t('Ko odlazi')}</h3>${head}
-    <label class="fa-pick">${t('Izaberi sam')}<input type="text" data-fa-pick list="fa-pick-list" placeholder="${esc(t('Ime igrača sa tvog rostera'))}" autocomplete="off"></label><datalist id="fa-pick-list">${opts}</datalist>
-    ${M.picks.length > 1 ? `<p class="pnote">${t('Izabrao si {n} igrača, pa tražimo isto toliko pojačanja.', { n: M.picks.length })}</p>` : ''}
-    <details class="fa-locks"><summary>${t('Katanci: igrači koje nikad ne otpuštam')} <span class="cnt">${M.locks.size}</span></summary><div class="fa-lock-list">${locks}</div></details></section>`;
+  const tcIds = new Set(M.tc.map(x => x.id));
+  const roster = M.mine.map(m => {
+    const on = M.locks.has(m.id);
+    return `<span class="fa-rost ${on ? 'on' : ''}"><button type="button" class="fa-lock ${on ? 'on' : ''}" data-action="fa-lock" data-id="${m.id}" aria-pressed="${on}" title="${esc(on ? t('Zaključan: nikad se ne predlaže za otpuštanje') : t('Zaključaj: nikad ne predlaži za otpuštanje'))}">${on ? '🔒' : '🔓'}</button><button type="button" class="nm pm-open" data-pm="${m.id}">${esc(m.p.name)}</button>${tcIds.has(m.id) ? `<span class="slot-tag tag-tc">${t('Trejd kandidat')}</span>` : ''}</span>`;
+  }).join('');
+  const tcNotes = M.tc.map(x => { const m = M.mine.find(y => y.id === x.id); return `<li>${t('{n} ti slabo odgovara, ali ima vrednost za trejd.', { n: esc(m.p.name) })} <button type="button" class="linkbtn" data-action="tool-soon" data-tool="finder">${t('Pronađi trejd')}</button></li>`; }).join('');
+  return `<section class="pcard fa-drop">
+    <div class="fa-drop-row"><b>${t('Odlazi')}:</b>
+      <button type="button" class="fa-opt ${auto ? 'on' : ''}" data-action="fa-auto-drop" aria-pressed="${auto}">${t('Automatski')}</button>
+      ${M.picks.map(m => `<span class="chip on">${esc(m.p.name)}<button type="button" data-action="fa-unpick" data-id="${m.id}" aria-label="${esc(t('Ukloni'))}">✕</button></span>`).join('')}
+      <span class="fa-pick"><input type="text" data-fa-pick list="fa-pick-list" placeholder="${esc(auto ? t('ili izaberi igrača') : t('dodaj igrača'))}" aria-label="${esc(t('Ime igrača sa tvog rostera'))}" autocomplete="off"></span><datalist id="fa-pick-list">${opts}</datalist></div>
+    <p class="pnote">${auto ? t('Za svakog slobodnog igrača biramo njemu najbolji par: tvoj igrač sa manjom opštom vrednošću, ESPN vlasništvom ispod {n}%, koji nije zaključan ni na IR-u.', { n: FA.DROP_MAX_OWN }) : t('Izbor važi za sve kartice. Ako izabereš više igrača, za svaku karticu biramo onog koji najviše odgovara.')}</p>
+    <div class="fa-roster"><span class="hint">${t('Tvoj roster')} · 🔒 ${t('nikad ne predlaži za otpuštanje')}</span><div class="fa-lock-list">${roster}</div></div>
+    ${tcNotes ? `<ul class="fa-tc">${tcNotes}</ul>` : ''}</section>`;
 }
-/** Šta mom timu treba: Proceni sam (auto) ili ručni izbor kategorija; punt se uvek poštuje */
+/** Šta mom timu treba: Proceni sam (auto) ili ručni izbor kategorija; punt se ne računa */
 function faNeedHTML(M) {
   if (M.pts) return '';
   const manual = M.ui.need === 'manual';
-  const chips = M.cats.map(c => {
-    const punt = isPunt({ key: c.key }), w = M.weights[c.key];
+  const chips = M.allCats.map(c => {
+    const punt = isPunt({ key: c.key });
     if (manual) return `<button type="button" class="fa-need ${punt ? 'punt' : M.ui.cats.includes(c.key) ? 'on' : ''}" data-action="fa-cat" data-k="${c.key}" ${punt ? 'disabled' : ''} aria-pressed="${M.ui.cats.includes(c.key)}">${esc(c.label)}</button>`;
-    return `<span class="fa-need ${punt ? 'punt' : w >= VALUE.NEED_WEIGHT.bottom ? 'on' : ''}">${esc(c.label)}</span>`;
+    const e = M.ctx.base.by[c.key];
+    return `<span class="fa-need ${punt ? 'punt' : e != null && e < 0.5 ? 'on' : ''}" ${!punt && e != null ? `title="${esc(t('Dobijaš u proseku {p}% mečeva u ovoj kategoriji', { p: Math.round(e * 100) }))}"` : ''}>${esc(c.label)}</span>`;
   }).join('');
   return `<div class="fa-needbar"><div class="seg small" role="group" aria-label="${esc(t('Šta tvom timu treba'))}">
       <button type="button" data-action="fa-need" data-v="auto" aria-pressed="${!manual}">${t('Proceni sam')}</button><button type="button" data-action="fa-need" data-v="manual" aria-pressed="${manual}">${t('Biram kategorije')}</button></div>
     <div class="fa-needs">${chips}</div>
-    <span class="i" data-tip="${esc(manual ? t('Izaberi kategorije koje ti trebaju. Punt kategorije se ne računaju.') : t('Istaknute su kategorije koje tvom timu najviše trebaju: slabe po plasmanu u ligi i po trenutnom rosteru, i one koje gubiš zbog OUT igrača. Punt kategorije se ne računaju.'))}">ⓘ</span></div>`;
+    <span class="i" data-tip="${esc(manual ? t('Izaberi kategorije koje ti trebaju. Punt kategorije se ne računaju.') : t('Istaknute su kategorije u kojima tvoj tim, sa trenutnim rosterom, gubi više od pola mečeva protiv ostalih timova lige. Punt kategorije se ne računaju.'))}">ⓘ</span></div>`;
 }
 const FA_GONE = /\b(out for the (?:season|year|remainder)|season-ending|stepping away from basketball|retire[sd]?|retirement)\b/i;
 const FA_BACK = /\b(?:(?:could|should|expected to|likely to|hopes? to|aiming to)\s+)?(?:return|be back)\b[^.]{0,70}|\bout (?:at least |another |for )?(?:\w+[- ]){0,2}(?:weeks?|months?)\b[^.]{0,30}|\bre-?evaluated in [^.]{0,40}/i;
@@ -8341,33 +8497,53 @@ function faStashHTML(M) {
   return `<section class="pcard fa-stash"><h3>${t('Uzmi i stavi na IR')} <span class="hint">${t('slobodnih IR mesta: {n}', { n: M.freeIr })}</span></h3>
     ${note ? `<p class="pnote warn">⚠ ${note}</p>` : ''}${rows ? `<ul class="fa-list">${rows}</ul>` : `<p class="pnote">${t('Trenutno nema povređenih slobodnih igrača sa visokom vrednošću koji smeju na IR.')}</p>`}</section>`;
 }
+/** U usponu: tabela kao Moj tim (izabrani period, trend strelice) + Napomene; telefon: napomene ispod reda */
 function faRisingHTML(M) {
   if (!M.rising.length) return '';
-  return `<section class="pcard fa-rising"><h3>${t('U usponu')}</h3><ul class="fa-list">${M.rising.map(x => `<li class="fa-stash-row"><span class="pm-open" data-pm="${x.id}">${avatarHTML(x.p)}</span><div class="fa-id">
-    <button type="button" class="nm pm-open" data-pm="${x.id}">${esc(x.p.name)}</button><span class="meta">${x.p.team} · ${posTxt(x.p)} ${faTag(x)} ${injHTML(x.p)}</span>
-    <span class="fa-why">${faReasons(x).map(w => `<span>${w}</span>`).join('')}</span></div></li>`).join('')}</ul></section>`;
+  const ids = sortIds('rise', M.rising.map(x => x.id));
+  const cols = CATS.length + 3;
+  const rows = ids.map(id => {
+    const x = M.byId.get(id), notes = faReasons(x).map(w => `<span>${w}</span>`).join('');
+    return playerRowHTML(x.p, { tags: [faTagObj(x)], punt: false }).replace(/<\/tr>\s*$/, `<td class="fa-notes">${notes}</td></tr>`)
+      + `<tr class="fa-note-row"><td colspan="${cols + 1}"><div class="fa-notes">${notes}</div></td></tr>`;
+  }).join('');
+  const head = rosterHeaderRow('rise').replace(/<\/tr>$/, `<th class="fa-notes-th">${t('Napomene')}</th></tr>`);
+  return `<section class="card fa-rising"><div class="card-h"><div class="side-title"><b>${t('U usponu')}</b><small>${PERIODS.find(x => x.key === state.period).label}</small></div></div>
+    <div class="tscroll fa-scroll"><table class="rtable fa-table fa-rise-t"><thead>${head}</thead><tbody>${rows}</tbody></table></div></section>`;
 }
-/** Tabela svih FA igrača: kolone kao Moj tim + utakmice ove nedelje i vlasništvo; podrazumevano po vrednosti (koja se ne prikazuje) */
+/** Brojevi stranica: 1 … 4 5 6 … 20 */
+function faPagerHTML(page, pages) {
+  if (pages <= 1) return '';
+  const nums = [...new Set([1, page - 1, page, page + 1, pages].filter(n => n >= 1 && n <= pages))].sort((a, b) => a - b);
+  let prev = 0, html = '';
+  for (const n of nums) { if (n - prev > 1) html += '<span class="pg-gap">…</span>'; html += `<button type="button" class="pg ${n === page ? 'on' : ''}" data-action="fa-page" data-p="${n}" ${n === page ? 'aria-current="page"' : ''}>${n}</button>`; prev = n; }
+  return `<nav class="fa-pager" aria-label="${esc(t('Stranice'))}"><button type="button" class="pg" data-action="fa-page" data-p="${page - 1}" ${page <= 1 ? 'disabled' : ''} aria-label="${esc(t('Prethodna'))}">‹</button>${html}<button type="button" class="pg" data-action="fa-page" data-p="${page + 1}" ${page >= pages ? 'disabled' : ''} aria-label="${esc(t('Sledeća'))}">›</button></nav>`;
+}
+/** Tabela svih FA igrača: kolone kao Moj tim + utakmice ove nedelje i vlasništvo; 25 po stranici, sortiranje preko celog spiska */
 function faTableHTML(M, lg) {
-  // podrazumevano: po vrednosti za moj tim; igrači bez utakmica u izabranom periodu na dnu
+  // podrazumevano: po opštoj vrednosti; igrači bez utakmica u izabranom periodu na dnu
   const ids = sortIds('fa', M.fa.filter(x => x.p.stats && Object.keys(x.p.stats).length)
-    .sort((a, b) => !playerLine(a.p) - !playerLine(b.p) || (b.value ?? -99) - (a.value ?? -99)).map(x => x.id));
-  const shown = ids.slice(0, M.ui.rows);
+    .sort((a, b) => !playerLine(a.p) - !playerLine(b.p) || (b.general ?? -99) - (a.general ?? -99)).map(x => x.id));
+  // promena sortiranja ili perioda vraća na stranicu 1
+  const sig = `${JSON.stringify(sortOf('fa'))}|${state.period}`;
+  if (M.ui.sig !== sig) { M.ui.sig = sig; M.ui.page = 1; }
+  const pg = pageOf(ids, M.ui.page);
+  M.ui.page = pg.page;
   const s = sortOf('fa');
   const th = (key, label, tip) => `<th class="sortth${s?.col === key ? ' sorted' : ''}" data-sort="${key}" data-skind="fa" title="${esc(tip)}">${label}${s?.col === key ? `<span class="sarr">${s.dir === 'asc' ? '▲' : '▼'}</span>` : ''}</th>`;
   const head = rosterHeaderRow('fa').replace(/<\/tr>$/, `${th('WK', t('Ned.'), t('Utakmice ove nedelje meča (preostale)'))}${th('OWN', t('Vlasn.'), t('Vlasništvo u ESPN ligama i promena'))}</tr>`);
-  const rows = shown.map(id => {
+  const rows = pg.rows.map(id => {
     const x = M.byId.get(id), p = x.p, wk = faWeekLeft(p.tid, lg), own = p.own;
     const extra = `<td>${wk ?? '–'}</td><td class="fa-own">${own ? `${own.pct.toFixed(0)}%${own.chg ? ` <em class="${own.chg > 0 ? 'up' : 'down'}">${own.chg > 0 ? '+' : '−'}${Math.abs(own.chg).toFixed(1)}</em>` : ''}` : '–'}</td>`;
-    return playerRowHTML(p, { tags: [{ text: x.waiver ? 'Waiver' : 'Slobodan', cls: x.waiver ? 'tag-waiver' : 'tag-fa' }], punt: false }).replace(/<\/tr>\s*$/, `${extra}</tr>`);
+    return playerRowHTML(p, { tags: [faTagObj(x)], punt: false }).replace(/<\/tr>\s*$/, `${extra}</tr>`);
   }).join('');
-  return `<section class="card fa-all"><div class="card-h"><div class="side-title"><b>${t('Svi slobodni igrači')}</b><small>${t('{n} igrača · {p}', { n: ids.length, p: PERIODS.find(x => x.key === state.period).label })}</small></div></div>
+  return `<section class="card fa-all" id="fa-all"><div class="card-h"><div class="side-title"><b>${t('Svi slobodni igrači')}</b><small>${t('{n} igrača · {p}', { n: ids.length, p: PERIODS.find(x => x.key === state.period).label })}</small></div></div>
     <div class="tscroll fa-scroll"><table class="rtable fa-table"><thead>${head}</thead><tbody>${rows}</tbody></table></div>
-    ${ids.length > shown.length ? `<div class="fa-more"><button type="button" class="btn ghost" data-action="fa-more">${t('Prikaži još')} (${ids.length - shown.length})</button></div>` : ''}</section>`;
+    ${faPagerHTML(pg.page, pg.pages)}</section>`;
 }
 /** Ručna liga: zamagljena stranica sa porukom preko nje */
 function faLockedHTML() {
-  const fake = Array.from({ length: 3 }, (_, i) => `<article class="fa-card"><div class="fa-rank">${i + 1}</div><div class="fa-main"><div class="fa-in"><span class="av"></span><div class="fa-id"><b>██████ ████</b><span class="meta">███ · ██</span></div><div class="fa-gain up">+1.${4 - i}</div></div><div class="fa-chips"><span class="fa-chip up">✓ ███</span><span class="fa-chip up">✓ ███</span></div></div></article>`).join('');
+  const fake = Array.from({ length: 3 }, (_, i) => `<article class="fa-card"><div class="fa-rank">${i + 1}</div><div class="fa-main"><div class="fa-in"><span class="av"></span><div class="fa-id"><b>██████ ████</b><span class="meta">███ · ██</span></div></div><div class="fa-score up"><b>████████ ${5 - i}</b></div><div class="fa-chips"><span class="fa-chip up">✓ ███</span><span class="fa-chip up">✓ ███</span></div></div></article>`).join('');
   return `<div class="fa-locked"><div class="fa-blur" aria-hidden="true">${fake}</div>
     <div class="fa-lockmsg"><b>🔒 ${t('Pojačanja sa FA')}</b><p>${faLockedText()}</p><a class="btn" href="${howtoUrl()}" target="_blank" rel="noopener">${t('Kako da uvezem ligu?')}</a></div></div>`;
 }
@@ -8381,47 +8557,78 @@ function renderFaPage() {
   // vesti za IR stash (povratak): učitavaju se jednom, pa se stranica osveži
   const needNews = M.stash.map(x => x.id).filter(id => !state.news.get(id));
   if (needNews.length) Promise.all(needNews.map(fetchNews)).then(() => { if (state.page === 'fa') render(); });
+  const watch = M.watch.length ? `<h4>${t('Prati')}</h4><ul class="fa-list">${M.watch.map(x => `<li class="fa-stash-row"><span class="pm-open" data-pm="${x.id}">${avatarHTML(x.p)}</span><div class="fa-id"><button type="button" class="nm pm-open" data-pm="${x.id}">${esc(x.p.name)}</button><span class="meta">${x.p.team} · ${posTxt(x.p)} ${faTag(x)}</span><span class="fa-why">${faReasons(x).map(w => `<span>${w}</span>`).join('')}</span></div></li>`).join('')}</ul>` : '';
   const list = M.sugg.length
     ? `<div class="fa-cards">${M.sugg.map((s, i) => faCardHTML(M, s, i)).join('')}</div>`
-    : `<div class="pcard fa-none"><b>${t('Trenutno nema pojačanja koja bi ti pomogla')}</b><p class="pnote">${t('Nijedan slobodan igrač ne donosi dovoljno više od igrača koji bi otišao. Ne spuštamo kriterijum da bi lista bila puna.')}</p>
-        ${M.watch.length ? `<h4>${t('Prati')}</h4><ul class="fa-list">${M.watch.map(x => `<li class="fa-stash-row"><span class="pm-open" data-pm="${x.id}">${avatarHTML(x.p)}</span><div class="fa-id"><button type="button" class="nm pm-open" data-pm="${x.id}">${esc(x.p.name)}</button><span class="meta">${x.p.team} · ${posTxt(x.p)} ${faTag(x)}</span><span class="fa-why">${faReasons(x).map(w => `<span>${w}</span>`).join('')}</span></div></li>`).join('')}</ul>` : ''}</div>`;
+    : !M.eligible
+      ? `<div class="pcard fa-none"><b>${t('Tvoj roster je jači od onoga što je trenutno na waiveru')}</b><p class="pnote">${t('Nijedan tvoj igrač nema manju opštu vrednost od slobodnih igrača uz vlasništvo ispod {n}%. Ako ipak želiš nekog da otpustiš, izaberi ga gore.', { n: FA.DROP_MAX_OWN })}</p>${watch}</div>`
+      : `<div class="pcard fa-none"><b>${t('Trenutno nema pojačanja koja bi ti pomogla')}</b><p class="pnote">${t('Nijedna izmena ne popravlja tvoj tim dovoljno u odnosu na ostale timove lige. Ne spuštamo kriterijum da bi lista bila puna.')}</p>${watch}</div>`;
   const wnote = M.wv.loading && !M.wv.map ? `<span class="hint">${t('Proveravam waiver u ligi…')}</span>` : '';
   return `${title}
-    <p class="pnote fa-lead">${M.pts ? t('Predlozi su po FPts po utakmici (mešavina projekcije, poslednjih 15 i 7 dana), u odnosu na igrača koji odlazi.') : t('Predlozi su po vrednosti za tvoj tim (mešavina projekcije, poslednjih 15 i 7 dana), u odnosu na igrača koji odlazi.')} ${wnote}</p>
-    ${faNeedHTML(M)}${faDropHTML(M, lg)}
-    <h3 class="fa-h">${M.picks.length > 1 ? t('Najbolja kombinacija') : t('Najbolja pojačanja')}</h3>${list}
+    <p class="pnote fa-lead">${M.pts ? t('Svaka izmena se računa kao trejd 1 za 1: FPts tvog tima po utakmici pre i posle (mešavina projekcije, poslednjih 15 i 7 dana).') : t('Svaka izmena se računa kao trejd 1 za 1: zbirovi tvog tima pre i posle, pa koliko kategorija više dobijaš protiv ostalih timova lige (mešavina projekcije, poslednjih 15 i 7 dana).')} ${wnote}</p>
+    ${faNeedHTML(M)}${faDropHTML(M)}
+    <h3 class="fa-h">${t('Najbolja pojačanja')}</h3>${list}
     ${faStashHTML(M)}${faRisingHTML(M)}${faTableHTML(M, lg)}`;
 }
 
-/* ---------- Skraćeni izveštaj (sa kartice) ---------- */
-function faReport(inId, outId) {
-  const lg = currentLeague(), pIn = state.byId.get(inId), pOut = state.byId.get(outId);
+/* ---------- Izveštaj (sa kartice): kao analiza trejda 1 za 1, sa sopstvenim izborom perioda ---------- */
+/** Privremeno drugi period (sav proračun koji čita state.period), pa vraćanje */
+function withPeriod(per, fn) {
+  const old = state.period;
+  state.period = per;
+  try { return fn(); } finally { state.period = old; }
+}
+function faReport(inId, outId, per = state.period) {
+  const lg = currentLeague(), pIn = state.byId.get(inId), pOut = outId ? state.byId.get(outId) : null;
   if (!pIn) return;
   const M = faModel(lg), x = M.byId.get(inId);
-  const active = (lg.roster?.players || []).filter(y => !y.ir).map(y => y.id);
-  const after = [...active.filter(id => id !== outId), inId];
-  const B = sumPlayers(active), A = sumPlayers(after);
-  const per = PERIODS.find(y => y.key === state.period).label;
-  const cats = CATS.filter(c => !isPunt(c));
-  const table = isPointsFmt()
-    ? `<div class="fa-rep-pts"><span>${t('Pre')}: <b>${fmt1(B.vals.FPTS)}</b></span><span>${t('Posle')}: <b>${fmt1(A.vals.FPTS)}</b></span><span class="${A.vals.FPTS >= B.vals.FPTS ? 'win' : 'lose'}">${t('Razlika')}: <b>${A.vals.FPTS >= B.vals.FPTS ? '+' : '−'}${Math.abs(A.vals.FPTS - B.vals.FPTS).toFixed(1)}</b></span> <span class="meta">${t('FPts tima po utakmici')}</span></div>`
-    : `<div class="tscroll"><table class="rtable fa-rep"><thead><tr><th></th>${cats.map(c => `<th>${c.label}</th>`).join('')}</tr></thead><tbody>
-      <tr><td>${t('Pre')}</td>${cats.map(c => `<td>${fmtCat(c, B.vals[c.key])}</td>`).join('')}</tr>
-      <tr><td>${t('Posle')}</td>${cats.map(c => `<td>${fmtCat(c, A.vals[c.key])}</td>`).join('')}</tr>
-      <tr class="total"><td>${t('Razlika')}</td>${cats.map(c => { const b = B.vals[c.key], a = A.vals[c.key]; if (a == null || b == null) return '<td>-</td>'; const d = a - b, f = fmtDelta(c, d); const better = c.lowerIsBetter ? d < 0 : d > 0; return `<td class="${f.zero ? '' : better ? 'win' : 'lose'}">${f.txt}</td>`; }).join('')}</tr></tbody></table></div>`;
-  // streaming: utakmice do kraja nedelje meča i procena doprinosa ove nedelje
+  const warn = M.picks.length && pOut ? (M.mine.find(m => m.id === outId)?.general ?? -Infinity) >= (x?.general ?? -Infinity) : false;
+  const body = withPeriod(per, () => {
+    const active = (lg.roster?.players || []).filter(y => !y.ir).map(y => y.id);
+    const after = [...active.filter(id => id !== outId), inId];
+    const B = sumPlayers(active), A = sumPlayers(after);
+    const cats = CATS.filter(c => !isPunt(c) && !c.fpts);
+    const pts = isPointsFmt();
+    // rezultat kao u analizi trejda: po kategoriji poredi se moj tim pre i posle (procenti: ispod .001 nerešeno)
+    let win = 0, lose = 0;
+    const res = {};
+    for (const c of cats) {
+      const b = B.vals[c.key], a = A.vals[c.key];
+      if (a == null || b == null) { res[c.key] = 0; continue; }
+      const d = a - b, zero = c.type === 'pct' ? Math.abs(d) < teamTieOf(c) : fmtDelta(c, d).zero;
+      res[c.key] = zero ? 0 : (c.lowerIsBetter ? d < 0 : d > 0) ? 1 : -1;
+      if (res[c.key] > 0) win++; else if (res[c.key] < 0) lose++;
+    }
+    const fd = (A.vals.FPTS ?? 0) - (B.vals.FPTS ?? 0);
+    const verdict = pts
+      ? `<div class="fa-verdict ${fd >= 0 ? 'up' : 'down'}">${t('{d} FPts po utakmici', { d: `${fd >= 0 ? '+' : '−'}${Math.abs(fd).toFixed(1)}` })}</div>`
+      : `<div class="fa-verdict ${win >= lose ? 'up' : 'down'}">${faWL(win, lose)}</div>`;
+    const hdr = `<tr><th>${t('Igrač')}</th><th>MIN</th>${CATS.map(c => `<th class="${c.fpts ? 'fpts' : ''}${isPunt(c) ? ' punted' : ''}">${c.label}</th>`).join('')}<th>GP</th></tr>`;
+    const prow = (p, tag) => playerRowHTML(p, { tags: [tag], punt: true });
+    const players = `<div class="tscroll"><table class="rtable fa-rep-pl"><thead>${hdr}</thead><tbody>
+      ${prow(pIn, { text: 'Dolazi', cls: 'tag-in' })}${pOut ? prow(pOut, { text: 'Odlazi', cls: 'tag-out' }) : ''}</tbody></table></div>`;
+    const table = pts
+      ? `<div class="fa-rep-pts"><span>${t('Pre')}: <b>${fmt1(B.vals.FPTS)}</b></span><span>${t('Posle')}: <b>${fmt1(A.vals.FPTS)}</b></span><span class="${fd >= 0 ? 'win' : 'lose'}">${t('Razlika')}: <b>${fd >= 0 ? '+' : '−'}${Math.abs(fd).toFixed(1)}</b></span> <span class="meta">${t('FPts tima po utakmici')}</span></div>`
+      : `<div class="tscroll"><table class="rtable fa-rep"><thead><tr><th></th>${cats.map(c => `<th>${c.label}</th>`).join('')}</tr></thead><tbody>
+        <tr><td>${t('Pre')}</td>${cats.map(c => `<td>${fmtCat(c, B.vals[c.key])}</td>`).join('')}</tr>
+        <tr><td>${t('Posle')}</td>${cats.map(c => `<td>${fmtCat(c, A.vals[c.key])}</td>`).join('')}</tr>
+        <tr class="total"><td>${t('Razlika')}</td>${cats.map(c => { const b = B.vals[c.key], a = A.vals[c.key]; if (a == null || b == null) return '<td>-</td>'; const f = fmtDelta(c, a - b); return `<td class="${res[c.key] > 0 ? 'win' : res[c.key] < 0 ? 'lose' : ''}">${f.txt}</td>`; }).join('')}</tr></tbody></table></div>`;
+    return { verdict, players, table };
+  });
+  // streaming: utakmice do kraja nedelje meča za oba igrača i procena doprinosa ove nedelje (izabrani period)
   const gIn = faWeekLeft(pIn.tid, lg), gOut = pOut ? faWeekLeft(pOut.tid, lg) : null;
-  const lIn = playerLine(pIn), lOut = pOut ? playerLine(pOut) : null;
+  const lIn = statOf(pIn, per), lOut = pOut ? statOf(pOut, per) : null;
   let week = '';
   if (gIn != null) {
-    const w = faWeek(lg);
+    const w = faWeek(lg), cats = CATS.filter(c => !isPunt(c) && !c.fpts);
     const d = ms => (LANG === 'en' ? new Date(ms).toLocaleDateString(LOCALE(), { day: 'numeric', month: 'short' }) : euDate(new Date(ms).toISOString()));
+    week = `<p>${t('Do kraja nedelje meča: {a} ut. za {n1}, {b} za {n2}.', { a: gIn, b: gOut ?? '–', n1: esc(pIn.name), n2: pOut ? esc(pOut.name) : '–' })}</p>`;
     if (isPointsFmt()) {
       const a = lIn ? fptsOf(lIn) * gIn : 0, b = lOut && gOut ? fptsOf(lOut) * gOut : 0;
-      week = `<p>${t('Ove nedelje meča: {a} ut. za igrača koji dolazi, {b} za igrača koji odlazi.', { a: gIn, b: gOut ?? '–' })} <b class="${a >= b ? 'up' : 'down'}">${a >= b ? '+' : '−'}${Math.abs(a - b).toFixed(1)} FPts</b></p>`;
+      week += `<div class="fa-week">${t('Procena za ovu nedelju')}: <b class="${a >= b ? 'up' : 'down'}">${a >= b ? '+' : '−'}${Math.abs(a - b).toFixed(1)} FPts</b></div>`;
     } else {
       const cnt = cats.filter(c => c.type !== 'pct' && !c.ratio).map(c => { const a = (lIn?.[c.key] || 0) * gIn, b = (lOut?.[c.key] || 0) * (gOut || 0), dd = a - b; return Math.abs(dd) < 0.5 ? '' : `<span class="${(c.lowerIsBetter ? dd < 0 : dd > 0) ? 'up' : 'down'}">${dd > 0 ? '+' : '−'}${Math.abs(dd).toFixed(1)} ${c.label}</span>`; }).filter(Boolean);
-      week = `<p>${t('Ove nedelje meča: {a} ut. za igrača koji dolazi, {b} za igrača koji odlazi.', { a: gIn, b: gOut ?? '–' })}</p>${cnt.length ? `<div class="fa-week">${t('Procena za ovu nedelju')}: ${cnt.join(' · ')}</div>` : ''}`;
+      if (cnt.length) week += `<div class="fa-week">${t('Procena za ovu nedelju')}: ${cnt.join(' · ')}</div>`;
     }
     week += `<p class="pnote">${w.league ? t('Nedelja meča iz lige: od {a} do {b}', { a: d(w.a), b: d(w.b) }) : t('Nedelja meča od ponedeljka do nedelje: od {a} do {b}', { a: d(w.a), b: d(w.b) })}</p>`;
   }
@@ -8429,11 +8636,15 @@ function faReport(inId, outId) {
   const acq = L?.per === 'week' && L.used != null ? t('Preostala preuzimanja ove nedelje: {n}.', { n: Math.max(0, L.n - L.used) })
     : L?.per === 'day' ? t('Limit lige za preuzimanja: {n} dnevno.', { n: L.n }) : '';
   const acqS = S?.used != null ? t('Preostala preuzimanja ove sezone: {n}.', { n: Math.max(0, S.n - S.used) }) : '';
-  const why = x ? faReasons(x) : [];
+  const s = M.sugg.find(y => y.id === inId && y.drop === outId);
+  const why = x ? [...faReasons(x), ...(s ? faWhyCats(M, s) : [])] : [];
+  const seg = `<div class="seg small fa-rep-per" role="group" aria-label="${esc(t('Period'))}">${['season', 'l7', 'l15', 'l30', 'proj'].map(k => `<button type="button" data-action="fa-rep-per" data-per="${k}" data-in="${inId}" data-out="${outId || ''}" aria-pressed="${k === per}">${PERIODS.find(y => y.key === k).label}</button>`).join('')}</div>`;
   showModal({
     title: `${esc(pIn.name)} <span class="hint">⇄ ${pOut ? esc(pOut.name) : '–'}</span>`, cls: 'fa-rep-box', wide: true, cancel: null, confirm: t('Zatvori'), onConfirm: () => {},
-    body: `<h4>${t('Tvoj tim pre i posle')} <span class="hint">${t('po utakmici, {p}', { p: per.toLowerCase() })}</span></h4>${table}
-      <h4>${t('Zašto')}</h4>${why.length ? `<div class="fa-why">${why.map(w => `<span>${w}</span>`).join('')}</div>` : `<p class="pnote">${t('Bolja vrednost za tvoj tim od igrača koji odlazi.')}</p>`}
+    body: `${seg}${warn ? `<p class="pnote warn">⚠ ${t('{n} vredi više od igrača koji dolazi.', { n: esc(pOut.name) })}</p>` : ''}${body.verdict}
+      <h4>${t('Dolazi i odlazi')} <span class="hint">${t('po utakmici')}</span></h4>${body.players}
+      <h4>${t('Tvoj tim pre i posle')} <span class="hint">${t('po utakmici')}</span></h4>${body.table}
+      <h4>${t('Zašto')}</h4>${why.length ? `<div class="fa-why">${why.map(w => `<span>${w}</span>`).join('')}</div>` : `<p class="pnote">${t('Izmena popravlja tvoj tim u odnosu na ostale timove lige.')}</p>`}
       <div class="fa-rep-news" id="fa-rep-news"><p class="pnote">${t('Učitavam vesti…')}</p></div>
       ${week ? `<h4>${t('Streaming')}</h4>${week}` : ''}
       ${acq || acqS ? `<p class="fa-acq">${[acq, acqS].filter(Boolean).join(' ')}</p>` : ''}`,
@@ -8671,13 +8882,14 @@ document.addEventListener('click', e => {
     case 'tool-soon': closePopMenu(); openToolSoon(el.dataset.tool); break;
     // Pojačanja sa FA
     case 'fa-report': faReport(+el.dataset.in, +el.dataset.out || null); break;
-    case 'fa-next-drop': faUi().skip++; render(); break;
-    case 'fa-auto-drop': faUi().picks = []; faUi().skip = 0; render(); break;
+    case 'fa-rep-per': faReport(+el.dataset.in, +el.dataset.out || null, el.dataset.per); break;
+    case 'fa-next-drop': { const u = faUi(), id = +el.dataset.id; u.skipBy[id] = (u.skipBy[id] || 0) + 1; render(); break; }
+    case 'fa-auto-drop': faUi().picks = []; faUi().skipBy = {}; render(); break;
     case 'fa-unpick': { const u = faUi(); u.picks = u.picks.filter(id => id !== +el.dataset.id); render(); break; }
-    case 'fa-lock': toggleFaLock(currentLeague(), +el.dataset.id); faUi().skip = 0; render(); break;
+    case 'fa-lock': toggleFaLock(currentLeague(), +el.dataset.id); faUi().skipBy = {}; render(); break;
     case 'fa-need': faUi().need = el.dataset.v; render(); break;
     case 'fa-cat': { const u = faUi(), k = el.dataset.k; u.cats = u.cats.includes(k) ? u.cats.filter(x => x !== k) : [...u.cats, k]; render(); break; }
-    case 'fa-more': faUi().rows += 50; render(); break;
+    case 'fa-page': { faUi().page = +el.dataset.p; render(); document.getElementById('fa-all')?.scrollIntoView({ block: 'start' }); break; }
     case 'all-alerts': showAllAlerts(); break;
     case 'al-hide': hideAlert(el.dataset.key); break;
     case 'open-in-league': location.href = shareURL() + '&mv=1'; break; // isti izbor lige kao za deljeni link, bez okretanja strana
