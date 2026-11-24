@@ -1238,7 +1238,8 @@ td.fa-notes{display:table-cell}td.fa-notes span{display:block}
 .tf-prog{flex:1;height:6px;border-radius:99px;background:var(--card2);overflow:hidden}
 .tf-prog i{display:block;height:100%;background:var(--info);transition:width .2s}
 .tf-hint{margin-top:12px}
-.tf-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:10px}
+.tf-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:1280px){.tf-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .tf-card{display:flex;flex-direction:column;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;min-width:0}
 .tf-card:hover{border-color:var(--info)}
 .tf-sides{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
@@ -1251,11 +1252,30 @@ td.fa-notes{display:table-cell}td.fa-notes span{display:block}
 .tf-drop{margin:0;font-size:12px}
 .tf-why{margin:0;font-size:12px;color:var(--info)}
 .tf-why b{color:var(--muted);font-weight:600}
+.tf-veto{margin:0;font-size:12px}
+.tf-veto b{color:var(--text);font-weight:600}
 .tf-foot{margin-top:auto;display:flex;justify-content:flex-end}
 .tf-more{display:flex;justify-content:center;padding:12px}
 .tf-save{display:flex;justify-content:center;padding:12px 0}
-.tf-leagues{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 10px}
-.tf-leagues .chip{text-decoration:none;color:var(--text);padding:4px 10px}
+.tf-foot .btn{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;line-height:1}
+/* javna stranica /trade-finder/: lige kao kartice, pa jasno odvojen ručni unos */
+.tf-lg-sec{margin:8px 0 28px}
+.tf-lg-sec[hidden]{display:none}
+.tf-sec-h{font-size:20px;margin:0 0 12px}
+.tf-lgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+@media (min-width:1100px){.tf-lgrid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media (max-width:640px){.tf-lgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.tf-lcard{padding:10px}.tf-lcard .lc-top{flex-direction:column;gap:4px}.tf-lcard .lc-name{font-size:14px;overflow-wrap:anywhere}}
+.tf-lcard{text-decoration:none;min-height:0;gap:4px}
+.tf-lcard .lc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.tf-lcard .lc-name{font-weight:700}
+.tf-lcard .lc-team{font-size:13px;color:var(--dim)}
+.tf-lcard .lc-fmt{font-size:12px;color:var(--muted);margin-top:auto}
+.tf-manual{border-top:1px solid var(--line);padding-top:22px}
+.tf-ex .tf-card{cursor:default}
+.tf-ex .tf-card .tf-foot{margin-top:2px}
+.tf-pub .hero-fa{align-items:center}
+.tf-pub .tf-ex .tf-why,.tf-pub .tf-ex .tf-why b{font-size:12px;line-height:1.45;margin:0}
+.tf-pub .tf-ex .fa-changes{font-size:12px}
 @media (max-width:900px){.tf-mk .lb{display:none}.tf-mk{padding:5px 8px}}
 @media (max-width:640px){
   .tf-split{grid-template-columns:1fr}

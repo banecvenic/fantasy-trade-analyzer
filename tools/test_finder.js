@@ -12,7 +12,7 @@ const start = src.indexOf('   Fer trejd: čiste funkcije');
 const end = src.indexOf('/* ==== kraj: Fer trejd, čiste funkcije ==== */');
 if (start < 0 || end < 0) throw new Error('Nije nađen modul Fer trejd u app.js');
 const code = src.slice(src.lastIndexOf('/*', start), end);
-const { TF, E } = new Function(`${code}\nreturn { TF, E: tfEngine() };`)();
+const { TF, E, tfMarket, tfVetoPick } = new Function(`${code}\nreturn { TF, E: tfEngine(), tfMarket, tfVetoPick };`)();
 // i motor kao tekst (kako ga dobija Web Worker) mora da radi samostalno
 const E2 = new Function(`return (${new Function(`${code}\nreturn tfEngine;`)().toString()})();`)();
 
@@ -52,6 +52,7 @@ test('korekcija 2 za 1: ko dobija više igrača gubi najslabijeg, druga strana d
   });
   inp.mine[1].mark = null; inp.theirs[2].mark = 'lock';
   inp.mine[0].mark = 'trade';
+  inp.strategy = 'depth'; // u Najbolje za mene bi pravilo najboljeg igrača odbilo 10 za 6 + 5
   const res = E.search(inp);
   const t = res.list.find(x => x.g.join() === '1' && x.r.slice().sort().join() === '20,21');
   assert.ok(t, 'trejd 1 za 2 nije nađen');
@@ -120,9 +121,11 @@ test('zaključan igrač se ni ne otpušta; primalac ne dobija igrača kog bi odm
 });
 
 test('raznovrsnost: isto jezgro trejda samo jednom', () => {
-  const L = [{ core: 'a|b', top: 1 }, { core: 'a|b', top: 1 }, { core: 'a|c', top: 1 }, { core: 'a|d', top: 1 }, { core: 'e|b', top: 2 }];
-  const out = E.diversify(L);
-  assert.deepStrictEqual(out.map(x => x.core), ['a|b', 'a|c', 'e|b', 'a|d']);
+  const L = [{ core: 'a|b', top: 1, rtop: 5, shape: '1:1' }, { core: 'a|b', top: 1, rtop: 5, shape: '1:1' }, { core: 'a|c', top: 1, rtop: 6, shape: '2:2' },
+    { core: 'a|d', top: 1, rtop: 7, shape: '3:3' }, { core: 'a|e', top: 1, rtop: 8, shape: '2:1' }, { core: 'f|b', top: 2, rtop: 5, shape: '1:2' }];
+  const out = E.diversify(L, 8, 3);
+  // isto jezgro samo jednom; četvrti sa istim glavnim igračem (1) ide posle ostalih
+  assert.deepStrictEqual(out.map(x => x.core), ['a|b', 'a|c', 'a|d', 'f|b', 'a|e']);
 });
 
 test('IR igrač ulazi u kombinacije samo ako je obeležen U trejd', () => {
@@ -161,13 +164,67 @@ test('Konsolidacija daje samo trejdove gde dajem više igrača, Dubina obrnuto',
   assert.ok(depth.length > 0 && depth.every(x => x.r.length > x.g.length));
 });
 
-test('Generiši novih 5: sledećih 5 bez ponavljanja', () => {
-  const inp = base({ mine: bigTeam(1, 9, 1), theirs: bigTeam(100, 9, 2), limits: TF.SLIDERS.map(k => TF.LIMITS[k]) });
+test('Generiši novih 8: 8 kartica po strani, sledećih 8 bez ponavljanja', () => {
+  assert.strictEqual(TF.PER_PAGE, 8);
+  const inp = base({ mine: bigTeam(1, 10, 1), theirs: bigTeam(100, 10, 2), limits: TF.SLIDERS.map(k => TF.LIMITS[k]) });
   const list = E.search(inp).list;
-  assert.ok(list.length >= 10);
-  const a = E.pageItems(list, 0, 5), b = E.pageItems(list, 1, 5);
+  assert.ok(list.length >= 16, `samo ${list.length}`);
+  const a = E.pageItems(list, 0, TF.PER_PAGE), b = E.pageItems(list, 1, TF.PER_PAGE);
+  assert.strictEqual(a.length, 8);
   const key = x => `${x.g.join()}|${x.r.join()}`;
-  assert.strictEqual(new Set([...a, ...b].map(key)).size, 10);
+  assert.strictEqual(new Set([...a, ...b].map(key)).size, 16);
+});
+
+test('tržišna vrednost: Nembhard (31 min, 15 PTS, 7 AST, 70%) vredi znatno iznad nule iako mu je z-score nizak', () => {
+  const rows = Array.from({ length: 260 }, (_, i) => ({ id: i + 1, gen: 6 - i * 0.045, prod: 46 - i * 0.14, min: 36 - i * 0.06, own: Math.max(0.5, 100 - i * 0.42), rank: i + 1 }));
+  const nem = { id: 999, gen: -3.8, prod: 15 + 1.2 * 3.5 + 1.5 * 7, min: 31, own: 70, rank: 70 };
+  const weak = { id: 998, gen: -3.8, prod: 12, min: 18, own: 8, rank: 230 }; // isti z-score, mala uloga
+  const mk = tfMarket([...rows, nem, weak], { W: TF.MARKET, poolN: 156, teams: 12, zMin: TF.MARKET_Z_MIN });
+  const vN = mk.score.get(999) - mk.repl, vW = mk.score.get(998) - mk.repl;
+  assert.ok(vN > 0.25 * mk.S, `Nembhard ${vN.toFixed(2)}, S ${mk.S.toFixed(2)}`);
+  assert.ok(vW < 0, `slab igrač ${vW.toFixed(2)} (negativna vrednost ostaje negativna)`);
+});
+
+test('otpuštanje: vlasništvo 50% ili više se ne otpušta; neravnomeran trejd bez legitimnog otpuštanja se ne predlaže', () => {
+  const mk = drop => base({ mine: bigTeam(1, 9, 1).map(x => ({ ...x, drop })), theirs: bigTeam(100, 9, 4).map(x => ({ ...x, drop })), limits: TF.SLIDERS.map(k => TF.LIMITS[k]) });
+  const none = E.search(mk(false)).list;
+  assert.ok(none.length > 0 && none.every(x => x.g.length === x.r.length && !x.md.length && !x.od.length));
+  const inp = mk(false); inp.mine[0].drop = true; inp.theirs[0].drop = true;
+  const some = E.search({ ...inp, strategy: 'depth' }).list;
+  assert.ok(some.length > 0, 'nema neravnomernih trejdova kad postoji legitimno otpuštanje');
+  for (const x of some) { assert.ok(x.md.every(id => id === 1)); assert.ok(x.od.every(id => id === 100)); }
+});
+
+test('najbolji igrač: Najbolje za mene ne daje Flagga za tri srednja igrača, Dubina može', () => {
+  const junk = (id) => pl(id, 0.5, { PTS: 3, REB: 1, AST: 0.5, TO: 0.5, FGM: 1.2, FGA: 3 }, { drop: true });
+  const inp = base({
+    mine: [pl(1, 30, { PTS: 28, REB: 8, AST: 5, TO: 3, FGM: 10, FGA: 20 }, { mark: 'trade' }), pl(2, 6, { PTS: 10, REB: 4, AST: 2, TO: 1, FGM: 4, FGA: 9 }), junk(3), junk(4)],
+    theirs: [10, 11, 12].map(id => pl(id, 10, { PTS: 14, REB: 5, AST: 2.5, TO: 1.2, FGM: 5.5, FGA: 12 })).concat([pl(13, 6, { PTS: 10, REB: 4, AST: 2, TO: 1, FGM: 4, FGA: 9 }), junk(14), junk(15)]),
+    fa: [pl(900, 0.5, { PTS: 8, REB: 4, AST: 2, TO: 1, FGM: 3, FGA: 6.5 }), pl(901, 0.4, { PTS: 8, REB: 4, AST: 2, TO: 1, FGM: 3, FGA: 6.5 })],
+    limits: TF.SLIDERS.map(k => TF.LIMITS[k]),
+  });
+  const three = x => x.g.includes(1) && [10, 11, 12].every(id => x.r.includes(id));
+  const best = E.search(inp).list;
+  assert.ok(!best.some(three), 'Najbolje za mene predlaže Flagga za tri srednja');
+  for (const x of best) assert.ok(Math.max(...x.r.map(id => inp.theirs.find(y => y.id === id).v)) >= 30 * (1 - TF.TOP_TOL) - 1e-9);
+  const depth = E.search({ ...inp, strategy: 'depth' }).list;
+  assert.ok(depth.some(three), 'Dubina ne nalazi Flagga za tri srednja');
+});
+
+test('broj igrača: razlika najviše 1, a u Konsolidaciji i Dubini do 2', () => {
+  const mk = st => E.search(base({ mine: bigTeam(1, 10, 1).map(x => ({ ...x, drop: true })), theirs: bigTeam(100, 10, 6).map(x => ({ ...x, drop: true })), limits: TF.SLIDERS.map(k => TF.LIMITS[k]), strategy: st })).list;
+  for (const st of ['best', 'sell', 'buy']) assert.ok(mk(st).every(x => Math.abs(x.g.length - x.r.length) <= 1), st);
+  const cons = mk('cons'), depth = mk('depth');
+  assert.ok(cons.length && cons.every(x => x.g.length > x.r.length && x.g.length - x.r.length <= 2));
+  assert.ok(depth.length && depth.every(x => x.r.length > x.g.length && x.r.length - x.g.length <= 2));
+  assert.ok([...cons, ...depth].some(x => Math.abs(x.g.length - x.r.length) === 2), 'nema nijednog trejda sa razlikom 2');
+});
+
+test('savet za veto lige: samo kad postoji igrač na granici rostera', () => {
+  const side = [{ id: 1, t: 2, own: 90 }, { id: 2, t: -3, own: 30 }, { id: 3, t: -4, own: 60 }, { id: 4, t: -5, own: 20, mark: 'lock' }, { id: 5, t: -6, own: 10, ir: true }];
+  assert.strictEqual(tfVetoPick(side, new Set(), -1, 50).id, 2);
+  assert.strictEqual(tfVetoPick(side, new Set([2]), -1, 50), null);
+  assert.strictEqual(tfVetoPick(side, new Set(), -3.5, 50), null); // niko nije slabiji od najboljeg slobodnog
 });
 
 test('bliže fer prvo: veće odstupanje tek kad fer opcija nema dovoljno', () => {

@@ -1099,6 +1099,8 @@ FINDER = {
         'lead': 'Add your team and the team you want to trade with. RosterSwing checks every trade from 1 for 1 up to 4 for 4 and shows the ones that help you the most and are still fair enough for the other side to accept.',
         'footer': 'Trade finder',
         'tool_h': 'Trade finder',
+        'leagues_h': 'Your leagues',
+        'manual_h': 'Enter both teams',
         'loading': 'Loading players…',
         'ex_label': 'Example suggestion',
         'ex': {'give': [('Jalen Brunson', 'NYK · PG'), ('Rui Hachimura', 'LAC · SF/PF')], 'get': [('Pascal Siakam', 'IND · PF'), ('Jordan Poole', 'NOP · PG/SG')],
@@ -1124,6 +1126,8 @@ FINDER = {
         'lead': 'Dodaj svoj tim i tim sa kojim želiš trejd. RosterSwing proverava sve trejdove od 1 za 1 do 4 za 4 i pokazuje one koji ti najviše pomažu, a dovoljno su fer da ih druga strana prihvati.',
         'footer': 'Pronađi trejd',
         'tool_h': 'Pronađi trejd',
+        'leagues_h': 'Tvoje lige',
+        'manual_h': 'Unesi oba tima',
         'loading': 'Učitavam igrače…',
         'ex_label': 'Primer predloga',
         'ex': {'give': [('Jalen Brunson', 'NYK · PG'), ('Rui Hachimura', 'LAC · SF/PF')], 'get': [('Pascal Siakam', 'IND · PF'), ('Jordan Poole', 'NOP · PG/SG')],
@@ -1164,7 +1168,7 @@ def finder_public(lang):
           <div><span class="slot-tag tag-in">{escape(ex['get_l'])}</span><ul>{''.join(pl(n, m) for n, m in ex['get'])}</ul></div></div>
         <div class="fa-score up"><b>{escape(ex['head'])}</b><span class="fa-changes">{escape(ex['changes'])}</span></div>
         <div class="fa-chips">{chips}</div>
-        <p class="tf-why">{escape(ex['why'])}</p>
+        <p class="tf-why"><b>{escape(ex['why'].split(': ', 1)[0])}:</b> {escape(ex['why'].split(': ', 1)[1])}</p>
         <div class="tf-foot"><span class="btn small">{escape(ex['open'])}</span></div></article></div>"""
     return head(lang, 'finder', d['title'], d['desc'], depth, extra=faq_ld) + header(lang, 'finder', depth) + f"""
 <main class="wrap tf-pub">
@@ -1176,8 +1180,10 @@ def finder_public(lang):
     {card}
   </section>
 
-  <section class="tool" id="tool" aria-label="{escape(d['tool_h'])}">
-    <div class="tf-leagues" id="tf-leagues"></div>
+  <section class="tf-lg-sec" id="tf-leagues" aria-label="{escape(d['leagues_h'])}" hidden></section>
+
+  <section class="tool tf-manual" id="tool" aria-labelledby="tf-manual-h">
+    <h2 class="tf-sec-h" id="tf-manual-h">{escape(d['manual_h'])}</h2>
     <div class="tool-periods"><div class="seg" id="periods" role="group" aria-label="Period"></div><div id="fmtbar" class="fmtbar"><span class="fbar"><span class="fchip static">9-cat H2H</span></span></div></div>
     <div class="tool-app">
       <div class="status" id="status">{escape(d['loading'])}</div>
