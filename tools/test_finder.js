@@ -12,7 +12,7 @@ const start = src.indexOf('   Fer trejd: čiste funkcije');
 const end = src.indexOf('/* ==== kraj: Fer trejd, čiste funkcije ==== */');
 if (start < 0 || end < 0) throw new Error('Nije nađen modul Fer trejd u app.js');
 const code = src.slice(src.lastIndexOf('/*', start), end);
-const { TF, E, tfMarket, tfVetoPick, tfVetoShown, tfDropOk, tfTabFor, tfSlotValue, tfProd, tfRateKey, tfRateApply } = new Function(`${code}\nreturn { TF, E: tfEngine(), tfMarket, tfVetoPick, tfVetoShown, tfDropOk, tfTabFor, tfSlotValue, tfProd, tfRateKey, tfRateApply };`)();
+const { TF, E, tfMarket, tfVetoPick, tfVetoShown, tfDropOk, tfTabFor, tfSlotValue, tfProd, tfRateKey, tfRateApply, tfInjury, tfInjFrac, tfNewsWeeks, tfLate } = new Function(`${code}\nreturn { TF, E: tfEngine(), tfMarket, tfVetoPick, tfVetoShown, tfDropOk, tfTabFor, tfSlotValue, tfProd, tfRateKey, tfRateApply, tfInjury, tfInjFrac, tfNewsWeeks, tfLate };`)();
 // i motor kao tekst (kako ga dobija Web Worker) mora da radi samostalno
 const E2 = new Function(`return (${new Function(`${code}\nreturn tfEngine;`)().toString()})();`)();
 
@@ -543,15 +543,17 @@ test('Trejd kandidat se ne otpušta: trejd prolazi samo kad pređe na drugu stra
   assert.deepStrictEqual(w.map(x => x.i), [1]);
 });
 
-test('igrač koji je OUT se ne predlaže kao igrač kog dobijam, osim sa U trejd; ne prelazi ni pretvaranjem', () => {
-  const mk = (out, mark = null) => base({ limits: TF.SLIDERS.map(k => TF.LIMITS[k]),
-    mine: bigTeam(1, 6, 1).map(x => ({ ...x, drop: true })),
-    theirs: bigTeam(100, 6, 5).map((x, i) => (i === 0 ? { ...x, v: 0, rv: 0, out, mark, drop: true, tc: true } : { ...x, drop: true })) });
-  const id = 100;
-  assert.ok(E.search(mk(false)).list.some(x => x.r.includes(id)), 'zdrav: može');
+test('igrač van do kraja sezone se ne predlaže (ni moj ni njegov) bez U trejd; ne prelazi ni pretvaranjem', () => {
+  const mk = (gone, mark = null, side = 'theirs') => {
+    const T0 = bigTeam(100, 6, 5).map(x => ({ ...x, drop: true })), M0 = bigTeam(1, 6, 1).map(x => ({ ...x, drop: true }));
+    const L0 = side === 'theirs' ? T0 : M0; L0[0] = { ...L0[0], v: 0, rv: 0, out: true, gone, mark, tc: true };
+    return base({ limits: TF.SLIDERS.map(k => TF.LIMITS[k]), mine: M0, theirs: T0 });
+  };
+  assert.ok(E.search(mk(false)).list.some(x => x.r.includes(100)), 'povređen sa povratkom: može');
   const L = E.search(mk(true)).list;
-  assert.ok(L.length > 0 && !L.some(x => x.r.includes(id)), 'OUT: nikad među igračima koje dobijam');
-  assert.ok(E.search(mk(true, 'trade')).list.every(x => x.r.includes(id)), 'OUT sa U trejd: može');
+  assert.ok(L.length > 0 && !L.some(x => x.r.includes(100)), 'van sezone: nikad među igračima koje dobijam');
+  assert.ok(E.search(mk(true, 'trade')).list.every(x => x.r.includes(100)), 'van sezone sa U trejd: može');
+  assert.ok(!E.search(mk(true, null, 'mine')).list.some(x => x.g.includes(1)), 'moj van sezone: ne nudi se');
 });
 
 test('cena na tržištu: produkcija broji i ukradene lopte, blokade, trojke i izgubljene lopte', () => {
@@ -574,6 +576,75 @@ test('ocene predloga: ključ bez redosleda, zamena, brisanje istom ocenom, najvi
   assert.strictEqual(all.items.length, 500); assert.strictEqual(all.items[0].k, 'k3'); // najstarija ispada
   assert.ok(!JSON.stringify(all).match(/firstName|lastName|owner/i)); // bez imena menadžera
   assert.strictEqual(JSON.parse(JSON.stringify(all)).v, 1);
+});
+
+const DAY = 864e5, NOW = Date.UTC(2026, 10, 24);
+test('povratak: ESPN datum, van sezone, vesti, bez procene (6 nedelja); prošao datum = za 3 dana', () => {
+  const I = o => tfInjury({ g: 'OUT', now: NOW, T: TF.INJ, ...o });
+  assert.strictEqual(tfInjury({ g: 'DTD', now: NOW, T: TF.INJ }), null);
+  assert.deepStrictEqual(I({ ret: [2026, 12, 8, 0] }), { gone: false, ret: Date.UTC(2026, 11, 8), src: 'espn' });
+  assert.strictEqual(I({ ret: [2027, 1, 1, 1] }).gone, true);
+  assert.strictEqual(I({ news: 'He will miss the rest of the season.' }).gone, true);
+  assert.strictEqual(I({ ret: [2026, 11, 1, 0] }).ret, NOW + 3 * DAY);
+  assert.strictEqual(I({ news: 'Doe is expected to be out two to three weeks.' }).src, 'news');
+  assert.strictEqual(I({ news: 'Doe is expected to be out two to three weeks.' }).ret, NOW + 2.5 * 7 * DAY);
+  assert.deepStrictEqual([I({}).src, I({}).ret], ['default', NOW + 6 * 7 * DAY]);
+  assert.strictEqual(tfNewsWeeks('will be re-evaluated in 10 days'), 10 / 7);
+  assert.strictEqual(tfNewsWeeks('out at least a month'), 4.3);
+  assert.strictEqual(tfNewsWeeks('scored 30 points'), null);
+});
+
+test('povređeni sa povratkom za 2 nedelje vredi (utakmice posle povratka / preostale utakmice) pune vrednosti', () => {
+  const dates = Array.from({ length: 60 }, (_, i) => NOW + (i + 1) * 2 * DAY); // 60 utakmica, svaka 2 dana
+  const inj = tfInjury({ g: 'OUT', ret: [2026, 12, 8, 0], now: NOW, T: TF.INJ });
+  const f = tfInjFrac(inj, dates), after = dates.filter(d => d > inj.ret).length;
+  assert.strictEqual(f, after / 60); assert.strictEqual(after, 53);
+  assert.strictEqual(tfInjFrac(null, dates), 1);
+  assert.strictEqual(tfInjFrac({ gone: true }, dates), 0);
+});
+
+test('povratak posle početka plejofa smanjuje vrednost samo za tim koji se bori za plejof', () => {
+  const inj = { gone: false, ret: NOW + 100 * DAY }, start = NOW + 90 * DAY;
+  assert.strictEqual(tfLate(inj, start, true, TF.INJ), TF.INJ.PLAYOFF_LATE);
+  assert.strictEqual(tfLate(inj, start, false, TF.INJ), 1);
+  assert.strictEqual(tfLate({ gone: false, ret: NOW + 20 * DAY }, start, true, TF.INJ), 1);
+  assert.strictEqual(tfLate(inj, null, true, TF.INJ), 1);
+});
+
+// povređeni kod protivnika: 100 (jak, vraća se za 2 nedelje, sme na IR)
+const injInp = (o = {}) => {
+  const T0 = bigTeam(100, 7, 5).map(x => ({ ...x, drop: true })), M0 = bigTeam(1, 7, 1).map(x => ({ ...x, drop: true }));
+  T0[0] = { ...T0[0], out: true, gone: false, wk: o.wk ?? 2, irOk: true, drop: false };
+  return base({ limits: TF.SLIDERS.map(k => TF.LIMITS[k]), mine: M0, theirs: T0, myIrFree: 0, thIrFree: 0, sit: null, ...o });
+};
+test('slobodno IR mesto: povređeni ide na IR i primalac ne otpušta nikoga; bez IR mesta zauzima aktivno mesto', () => {
+  const withIr = E.search(injInp({ myIrFree: 1 })).list.filter(x => x.r.includes(100) && x.r.length > x.g.length);
+  assert.ok(withIr.length > 0);
+  for (const x of withIr) { assert.deepStrictEqual(x.irIn, [100]); assert.strictEqual(x.md.length, Math.max(0, x.r.length - 1 - x.g.length)); }
+  const noIr = E.search(injInp({ myIrFree: 0 })).list.filter(x => x.r.includes(100) && x.r.length > x.g.length);
+  for (const x of noIr) { assert.deepStrictEqual(x.irIn, []); assert.strictEqual(x.md.length, x.r.length - x.g.length); }
+  // 1:1 sa IR mestom: dajem jednog, povređeni na IR -> dobijam i slobodno mesto
+  const one = E.search(injInp({ myIrFree: 1 })).list.find(x => x.r.join() === '100' && x.g.length === 1);
+  if (one) assert.strictEqual(one.mf, 1);
+});
+
+test('protivnik sa više povređenih nego IR mesta: veća šansa (rang) kad daje povređenog', () => {
+  const key = x => `${x.g}|${x.r}`;
+  const a = E.search(injInp()).list.filter(x => x.r.includes(100)), b = E.search(injInp({ sit: { oppPressure: true } })).list;
+  const bm = new Map(b.map(x => [key(x), x]));
+  const pair = a.map(x => [x, bm.get(key(x))]).find(([, y]) => y);
+  assert.ok(pair, 'isti trejd u obe pretrage');
+  assert.ok(Math.abs(pair[1].s - pair[0].s - TF.INJ.B_PRESSURE) < 1e-9);
+  assert.strictEqual(pair[1].sit, 'pressure');
+});
+
+test('Kupi jeftino: kratka povreda uz moje slobodno IR mesto je predlog i ima jaču prednost; duga povreda nije', () => {
+  const short = E.search(injInp({ strategy: 'buy', myIrFree: 1, wk: 2 })).list;
+  assert.ok(short.length > 0 && short.every(x => x.r.includes(100) && x.sit === 'myir'));
+  assert.strictEqual(E.search(injInp({ strategy: 'buy', myIrFree: 1, wk: 8 })).list.length, 0);
+  assert.strictEqual(E.search(injInp({ strategy: 'buy', myIrFree: 0, wk: 2 })).list.length, 0);
+  const best = E.search(injInp({ myIrFree: 1, wk: 2 })).list.find(x => x.sit === 'myir');
+  assert.ok(best && TF.INJ.B_BUY > TF.INJ.B_MY_IR);
 });
 
 console.log(`\n${n} testova prošlo`);
