@@ -84,4 +84,18 @@
     <xhtml:link rel="alternate" hreflang="sr" href="https://banecvenic.github.io/fantasy-trade-analyzer/sr/free-agents/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://banecvenic.github.io/fantasy-trade-analyzer/free-agents/"/>
   </url>
+  <url>
+    <loc>https://banecvenic.github.io/fantasy-trade-analyzer/trade-finder/</loc>
+    <lastmod>2026-11-17</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="https://banecvenic.github.io/fantasy-trade-analyzer/trade-finder/"/>
+    <xhtml:link rel="alternate" hreflang="sr" href="https://banecvenic.github.io/fantasy-trade-analyzer/sr/trade-finder/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://banecvenic.github.io/fantasy-trade-analyzer/trade-finder/"/>
+  </url>
+  <url>
+    <loc>https://banecvenic.github.io/fantasy-trade-analyzer/sr/trade-finder/</loc>
+    <lastmod>2026-11-17</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="https://banecvenic.github.io/fantasy-trade-analyzer/trade-finder/"/>
+    <xhtml:link rel="alternate" hreflang="sr" href="https://banecvenic.github.io/fantasy-trade-analyzer/sr/trade-finder/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://banecvenic.github.io/fantasy-trade-analyzer/trade-finder/"/>
+  </url>
 </urlset>

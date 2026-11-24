@@ -19,6 +19,7 @@
   const href = {
     home: () => `${ROOT}${pre()}` || './',
     analyzer: () => `${ROOT}${pre()}trade-analyzer/`,
+    builder: () => `${ROOT}${pre()}trade-finder/`,
     app: () => `${ROOT}app/`,
   };
   const profile = () => { try { return JSON.parse(localStorage.getItem('fbaTrade.profile.v2')); } catch { return null; } };

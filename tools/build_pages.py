@@ -32,12 +32,13 @@ PAGES = {
     'about':   {'en': 'about/', 'sr': 'sr/about/'},
     'howto':   {'en': 'how-to-import/', 'sr': 'sr/how-to-import/'},
     'fa':      {'en': 'free-agents/', 'sr': 'sr/free-agents/'},
+    'finder':  {'en': 'trade-finder/', 'sr': 'sr/trade-finder/'},
 }
 
 # Alati sa početne: ready=False prikazuje "Coming soon"; kad alat postoji, ready=True i href (relativno od korena sajta)
 TOOLS = {
     'finder':  {'ready': False, 'href': None},   # Find the player your team needs
-    'builder': {'ready': False, 'href': None},   # Build a trade between two teams
+    'builder': {'ready': True, 'href': None, 'page': 'finder'},   # Build a trade between two teams: /trade-finder/ (po jeziku)
     'fa':      {'ready': True, 'href': None, 'pick': True},   # Free agent pickups: otvara "Izaberi ligu" (nav.js), radi samo za uvezene lige
 }
 
@@ -73,7 +74,7 @@ HOME = {
         'finder_h': 'Find the player your team needs',
         'finder_p': 'Pick the categories you want to improve and see players on other teams who bring them.',
         'builder_h': 'Build a trade between two teams',
-        'builder_p': 'Pick your team and one more, and get trade ideas: 1 for 1, 2 for 1 and 2 for 2.',
+        'builder_p': 'Pick your team and one more, mark who you will not trade, and get fair trade ideas from 1 for 1 up to 4 for 4.',
         'fa_h': 'Find free agents who fit your team',
         'fa_p': 'Uses your imported league to find free agents who fit your team, including players whose minutes are growing.',
         'fa_cta': 'Choose a league', 'learn_more': 'Learn more',
@@ -108,7 +109,7 @@ HOME = {
         'finder_h': 'Nađi igrača koji treba tvom timu',
         'finder_p': 'Izaberi kategorije koje hoćeš da popraviš i vidi igrače iz drugih ekipa koji ih donose.',
         'builder_h': 'Napravi trejd između dva tima',
-        'builder_p': 'Izaberi svoj i još jedan tim i dobij predloge trejdova 1 za 1, 2 za 1 i 2 za 2.',
+        'builder_p': 'Izaberi svoj i još jedan tim, označi koga ne daješ i dobij fer predloge trejdova, od 1 za 1 do 4 za 4.',
         'fa_h': 'Nađi slobodne igrače za svoj tim',
         'fa_p': 'Iz tvoje uvezene lige pronalazi slobodne igrače koji odgovaraju tvom timu, uključujući one kojima minutaža raste.',
         'fa_cta': 'Izaberi ligu', 'learn_more': 'Saznaj više',
@@ -707,6 +708,8 @@ def gnav_html(lang, root, page=None, app_page=False):
         t = TOOL_PAGES[key]
         if t.get('pick'):  # alat za uvezene lige: "Izaberi ligu" (nav.js)
             return f'<button type="button" role="menuitem" class="pm-item" data-pick-league="{key}">{NAV_ICON[key]}<span data-t="{key}">{n[key]}</span></button>'
+        if t.get('page'):  # javna stranica alata, adresa po jeziku (nav.js je menja kad se promeni jezik)
+            return f'<a role="menuitem" class="pm-item" href="{root}{PAGES[t["page"]][lang]}" data-href="{key}">{NAV_ICON[key]}<span data-t="{key}">{n[key]}</span></a>'
         if t['ready'] and t['href']:
             return f'<a role="menuitem" class="pm-item" href="{root}{t["href"]}">{NAV_ICON[key]}<span data-t="{key}">{n[key]}</span></a>'
         return f'<button type="button" role="menuitem" class="pm-item off" data-tool-soon="{APP_TOOL_ID[key]}">{NAV_ICON[key]}<span data-t="{key}">{n[key]}</span><span class="soon" data-t="soon">{n["soon"]}</span></button>'
@@ -781,6 +784,7 @@ def footer(lang, depth):
       <span class="f-brand"><img src="{r}assets/favicon.svg" width="24" height="24" alt="RosterSwing"> Fantasy Basketball Tools</span>
       <nav class="f-links" aria-label="Footer">
         <a href="{r}{pre}about/">{t['footer_about']}</a>
+        <a href="{r}{pre}trade-finder/">{FINDER[lang]['footer']}</a>
         <a href="{r}{pre}free-agents/">{t['footer_fa']}</a>
         <a href="{r}{pre}how-to-import/">{t['footer_howto']}</a>
         <a href="{r}{pre}privacy/">{t['footer_privacy']}</a>
@@ -891,7 +895,8 @@ def tool_card(lang, key):
         page = PAGES[key][lang]
         action = f'<div class="tool-acts"><button type="button" class="cta2" data-pick-league="{key}">{escape(h[key + "_cta"])}</button><a class="more-link" href="{{root}}{page}">{escape(h["learn_more"])}</a></div>'
     else:
-        action = (f'<a class="cta2" href="{{root}}{tool["href"]}">{escape(h["open_tool"])}</a>' if tool['ready'] and tool['href']
+        href = PAGES[tool['page']][lang] if tool.get('page') else tool['href']
+        action = (f'<a class="cta2" href="{{root}}{href}">{escape(h["open_tool"])}</a>' if tool['ready'] and href
                   else f'<span class="soon">{escape(h["soon"])}</span>')
     # mali naziv alata iznad naslova: isto ime kao u meniju Alati
     return f"""<section class="feature" aria-labelledby="{key}-h"><span class="tool-name">{escape(NAV_T[lang][key])}</span><h2 id="{key}-h">{escape(h[key + '_h'])}</h2><p class="lead">{escape(h[key + '_p'])}</p>{action}</section>"""
@@ -1083,6 +1088,122 @@ def fa_public(lang):
 </html>
 """
 
+# ---------------------------------------------------------------------------
+# /trade-finder/: javna stranica Pronađi trejd (alat radi i bez lige)
+# ---------------------------------------------------------------------------
+FINDER = {
+    'en': {
+        'title': 'Fantasy Basketball Trade Finder | RosterSwing',
+        'desc': 'Find fair fantasy basketball trades between two teams. Mark who you will not trade, pick a strategy and get trade ideas that help your team and still make sense for the other manager.',
+        'h1': 'Fantasy Basketball Trade Finder',
+        'lead': 'Add your team and the team you want to trade with. RosterSwing checks every trade from 1 for 1 up to 4 for 4 and shows the ones that help you the most and are still fair enough for the other side to accept.',
+        'footer': 'Trade finder',
+        'tool_h': 'Trade finder',
+        'loading': 'Loading players…',
+        'ex_label': 'Example suggestion',
+        'ex': {'give': [('Jalen Brunson', 'NYK · PG'), ('Rui Hachimura', 'LAC · SF/PF')], 'get': [('Pascal Siakam', 'IND · PF'), ('Jordan Poole', 'NOP · PG/SG')],
+               'give_l': 'You give', 'get_l': 'You get', 'head': 'You win 6 categories, lose 3', 'changes': 'REB +4.1 · BLK +0.8 · AST −2.6',
+               'chips': ['✓ FG%', '✓ FT%', '✗ 3PM', '✓ PTS', '✓ REB', '✗ AST', '✓ STL', '✓ BLK', '✗ TO'],
+               'why': 'Why they might accept: they gain AST, where they are 11th in the league.', 'open': 'Open in analyzer'},
+        'steps_h': 'How it works',
+        'steps': [('Add both teams', 'Search for players and add your roster on the left and the other team on the right. With an imported league, both rosters are already there.'),
+                  ('Mark players', 'Lock players you will not trade, mark players you would give only for a good price, and mark players who must be in the trade.'),
+                  ('Pick a strategy and search', 'Choose Best for me, Improve categories, Sell high, Buy low, Consolidate or Depth, set how fair the trade must be, and get five ideas at a time.')],
+        'faq_h': 'Frequently asked questions',
+        'faq': [('How does the trade finder decide a trade is fair?', 'It compares rest of season value on both sides, including the roster spot a team must open or can fill. It also checks that the other team does not lose too many categories, ignoring categories they punt.'),
+                ('Do I need to import my league?', 'No. You can add both teams by hand and use the default 9-cat format, or change the format. Importing an ESPN, Sleeper or Fantrax league adds real rosters, free agents and standings.'),
+                ('What does Lock, Only for a good price and Trade mean?', 'Lock keeps a player out of every trade. Only for a good price lets a player be traded only when the gain is clearly bigger. Trade means the player must be part of every suggestion.'),
+                ('Does it work for points leagues?', 'Yes. In points leagues it ranks trades by fantasy points per game and makes sure the other team does not lose too many points.'),
+                ('Can I see the trade in more detail?', 'Yes. Open any suggestion in the trade analyzer to see category totals, weekly games and the full roster before and after the trade.')],
+        'save_note': 'Like a trade setup? Save it as a league and come back to it later.',
+    },
+    'sr': {
+        'title': 'Fantasy košarka: pronađi trejd | RosterSwing',
+        'desc': 'Pronađi fer trejdove u fantasy košarci između dva tima. Označi koga ne daješ, izaberi strategiju i dobij predloge koji pomažu tvom timu, a imaju smisla i za drugog menadžera.',
+        'h1': 'Fantasy košarka: pronađi trejd',
+        'lead': 'Dodaj svoj tim i tim sa kojim želiš trejd. RosterSwing proverava sve trejdove od 1 za 1 do 4 za 4 i pokazuje one koji ti najviše pomažu, a dovoljno su fer da ih druga strana prihvati.',
+        'footer': 'Pronađi trejd',
+        'tool_h': 'Pronađi trejd',
+        'loading': 'Učitavam igrače…',
+        'ex_label': 'Primer predloga',
+        'ex': {'give': [('Jalen Brunson', 'NYK · PG'), ('Rui Hachimura', 'LAC · SF/PF')], 'get': [('Pascal Siakam', 'IND · PF'), ('Jordan Poole', 'NOP · PG/SG')],
+               'give_l': 'Daješ', 'get_l': 'Dobijaš', 'head': 'Dobijaš 6 kategorija, gubiš 3', 'changes': 'REB +4.1 · BLK +0.8 · AST −2.6',
+               'chips': ['✓ FG%', '✓ FT%', '✗ 3PM', '✓ PTS', '✓ REB', '✗ AST', '✓ STL', '✓ BLK', '✗ TO'],
+               'why': 'Zašto bi prihvatio: dobija AST, gde je 11. u ligi.', 'open': 'Otvori u analizi'},
+        'steps_h': 'Kako radi',
+        'steps': [('Dodaj oba tima', 'Pretraži igrače i dodaj svoj roster levo, a tim sa kojim praviš trejd desno. Sa uvezenom ligom oba rostera su već tu.'),
+                  ('Označi igrače', 'Zaključaj igrače koje ne daješ, označi one koje daješ samo za dobru cenu i one koji moraju biti u trejdu.'),
+                  ('Izaberi strategiju i traži', 'Izaberi Najbolje za mene, Popravi kategorije, Prodaj skupo, Kupi jeftino, Konsolidaciju ili Dubinu, podesi koliko trejd mora biti fer i dobij pet ideja odjednom.')],
+        'faq_h': 'Česta pitanja',
+        'faq': [('Kako alat odlučuje da je trejd fer?', 'Poredi vrednost obe strane do kraja sezone, uključujući mesto u rosteru koje tim mora da oslobodi ili može da popuni. Proverava i da drugi tim ne gubi previše kategorija, bez kategorija koje on puntuje.'),
+                ('Da li moram da uvezem ligu?', 'Ne. Oba tima možeš da dodaš ručno i koristiš podrazumevani 9-cat format ili da ga promeniš. Uvoz ESPN, Sleeper ili Fantrax lige dodaje prave rostere, slobodne igrače i tabelu.'),
+                ('Šta znače Zaključaj, Dajem ako mora i U trejd?', 'Zaključaj drži igrača van svakog trejda. Dajem ako mora dozvoljava trejd igrača samo kad je korist jasno veća. U trejd znači da igrač mora biti u svakom predlogu.'),
+                ('Da li radi za lige na poene?', 'Da. U ligama na poene trejdove rangira po fantasy poenima po utakmici i pazi da drugi tim ne izgubi previše poena.'),
+                ('Mogu li da vidim trejd detaljnije?', 'Da. Svaki predlog otvori u Analizi trejda i vidi zbir kategorija, utakmice po nedeljama i ceo roster pre i posle trejda.')],
+        'save_note': 'Sviđa ti se ovakva postavka? Sačuvaj je kao ligu i vrati joj se kasnije.',
+    },
+}
+
+
+def finder_public(lang):
+    d = FINDER[lang]
+    depth = 1 if lang == 'en' else 2
+    r = rel(depth)
+    app = f'{r}app/'
+    ta = page_href('analyzer', lang, depth)
+    ex = d['ex']
+    faq = ''.join(f'<details><summary><h3>{escape(q)}</h3></summary><div class="a"><p>{escape(a)}</p></div></details>' for q, a in d['faq'])
+    faq_ld = ld({'@context': 'https://schema.org', '@type': 'FAQPage', 'inLanguage': lang,
+                 'mainEntity': [{'@type': 'Question', 'name': q, 'acceptedAnswer': {'@type': 'Answer', 'text': a}} for q, a in d['faq']]})
+    steps = ''.join(f'<li><h3>{escape(a)}</h3><p>{escape(b)}</p></li>' for a, b in d['steps'])
+    pl = lambda n, m: f'<li><span class="av" data-ini="{initials(n)}"></span><span class="tf-pn"><b>{escape(n)}</b><small>{escape(m)}</small></span></li>'
+    chips = ''.join(f'<span class="fa-chip {"down" if c.startswith("✗") else "up"}">{escape(c)}</span>' for c in ex['chips'])
+    card = f"""<div class="fa-ex tf-ex" aria-label="{escape(d['ex_label'])}"><div class="fa-ex-l">{escape(d['ex_label'])}</div>
+      <article class="tf-card static">
+        <div class="tf-sides"><div><span class="slot-tag tag-out">{escape(ex['give_l'])}</span><ul>{''.join(pl(n, m) for n, m in ex['give'])}</ul></div>
+          <div><span class="slot-tag tag-in">{escape(ex['get_l'])}</span><ul>{''.join(pl(n, m) for n, m in ex['get'])}</ul></div></div>
+        <div class="fa-score up"><b>{escape(ex['head'])}</b><span class="fa-changes">{escape(ex['changes'])}</span></div>
+        <div class="fa-chips">{chips}</div>
+        <p class="tf-why">{escape(ex['why'])}</p>
+        <div class="tf-foot"><span class="btn small">{escape(ex['open'])}</span></div></article></div>"""
+    return head(lang, 'finder', d['title'], d['desc'], depth, extra=faq_ld) + header(lang, 'finder', depth) + f"""
+<main class="wrap tf-pub">
+  <section class="hero hero-fa">
+    <div class="hero-text">
+      <h1>{escape(d['h1'])}</h1>
+      <p>{escape(d['lead'])}</p>
+    </div>
+    {card}
+  </section>
+
+  <section class="tool" id="tool" aria-label="{escape(d['tool_h'])}">
+    <div class="tf-leagues" id="tf-leagues"></div>
+    <div class="tool-periods"><div class="seg" id="periods" role="group" aria-label="Period"></div><div id="fmtbar" class="fmtbar"><span class="fbar"><span class="fchip static">9-cat H2H</span></span></div></div>
+    <div class="tool-app">
+      <div class="status" id="status">{escape(d['loading'])}</div>
+      <div id="banner"></div>
+      <div id="tf-app"></div>
+      <p class="pnote tf-save-note">{escape(d['save_note'])}</p>
+    </div>
+    <div hidden><span id="hleague"></span><button type="button" id="pchip"></button><section id="home"></section><div id="leaguebar"></div><div id="wshead"></div><div id="tradetabs"></div><div id="tradewarn"></div><div id="score"></div><div id="teams"></div><div id="compare"></div><div id="nudge"></div><div id="report"></div><div id="myteam"></div><div id="oppteam"></div><div id="history"></div></div>
+  </section>
+
+  <section aria-labelledby="steps-h">
+    <h2 id="steps-h">{escape(d['steps_h'])}</h2>
+    <ol class="hsteps">{steps}</ol>
+  </section>
+
+  <section aria-labelledby="faq-h">
+    <h2 id="faq-h">{escape(d['faq_h'])}</h2>
+    <div class="faq">{faq}</div>
+  </section>
+</main>
+""" + footer(lang, depth) + f"""<script>window.RS_EMBED={{lang:'{lang}',app:'{app}',finder:true,ta:'{ta}'}};</script>
+<script src="{r}assets/app.js" defer></script>
+</body>
+</html>
+"""
+
 def write(path, content):
     full = os.path.join(ROOT, path)
     os.makedirs(os.path.dirname(full) or ROOT, exist_ok=True)
@@ -1101,6 +1222,7 @@ def main():
         write(PAGES['about'][lang] + 'index.html', doc(lang, 'about', ABOUT[lang], 1 if lang == 'en' else 2))
         write(PAGES['howto'][lang] + 'index.html', howto(lang))
         write(PAGES['fa'][lang] + 'index.html', fa_public(lang))
+        write(PAGES['finder'][lang] + 'index.html', finder_public(lang))
     # /app/ nije u mapi sajta i ima <meta name="robots" content="noindex"> (ne blokira se ovde, da bi pretraživač video noindex)
     write_app_header()
     write('robots.txt', f'User-agent: *\nAllow: /\n\nSitemap: {SITE_URL}sitemap.xml\n')
