@@ -352,6 +352,33 @@ test('"Ne otpuštam nikoga": nema predloga gde dobijam više igrača nego što d
   assert.strictEqual(E.search(mk('depth', true)).list.length, 0); // Dubina uvek dobija više igrača
 });
 
+test('Najbolje za mene: najviše 2 od 8 predloga sa više dobijenih igrača; Dubina bez ograničenja', () => {
+  const mk = strategy => base({ mine: bigTeam(1, 9, 1).map(x => ({ ...x, drop: true })), theirs: bigTeam(100, 9, 5).map(x => ({ ...x, drop: true })), limits: TF.SLIDERS.map(k => TF.LIMITS[k]), strategy });
+  const more = x => x.r.length > x.g.length;
+  for (const strategy of ['best', 'cats']) {
+    const L = E.search(mk(strategy)).list, others = L.filter(x => !more(x)).length;
+    assert.ok(L.some(more), strategy + ': ima trejdova gde dobijam više');
+    for (let p = 0; (p + 1) * 8 <= others; p++) assert.ok(E.pageItems(L, p, 8).filter(more).length <= TF.GET_MORE_MAX, `${strategy} strana ${p + 1}`);
+  }
+  const D = E.search(mk('depth')).list;
+  assert.ok(E.pageItems(D, 0, 8).filter(more).length > TF.GET_MORE_MAX); // Dubina: sve dobija više
+});
+
+test('ograničenje: rang se čuva, a kad ostalih nema dovoljno, 8 mesta se popunjava', () => {
+  const T = (id, kG, kR) => ({ id, g: Array(kG).fill(0), r: Array(kR).fill(0) });
+  // rang: 5 sa više dobijenih na vrhu, pa 4 ostala
+  const L = [T(1, 1, 2), T(2, 1, 2), T(3, 2, 3), T(4, 1, 2), T(5, 1, 2), T(6, 2, 2), T(7, 1, 1), T(8, 3, 2), T(9, 2, 2)];
+  const out = E.capGetMore(L, 8, 2), ids = out.map(x => x.id);
+  assert.deepStrictEqual(ids.slice(0, 8), [1, 2, 6, 7, 8, 9, 3, 4]); // 2 najbolja, pa svi ostali, pa popuna po rangu
+  assert.deepStrictEqual(ids.slice(8), [5]);
+  assert.strictEqual(out.length, L.length);
+  // dovoljno ostalih: tačno 2 po stranici
+  const L2 = [...Array(6)].map((_, i) => T(i, 1, 2)).concat([...Array(14)].map((_, i) => T(100 + i, 2, 2)));
+  const o2 = E.capGetMore(L2, 8, 2);
+  assert.strictEqual(o2.slice(0, 8).filter(x => x.r.length > x.g.length).length, 2);
+  assert.strictEqual(o2.slice(8, 16).filter(x => x.r.length > x.g.length).length, 2);
+});
+
 test('Sačuvaj ne duplira tab; Otvori u analizi za sačuvan trejd nalazi postojeći tab', () => {
   const tabs = [{ id: 'a', teams: [{ ids: [1] }, { ids: [9] }] }];
   const save = (g, r, saved) => { let tb = tfTabFor(tabs, g, r, saved); if (!tb) { tb = { id: `t${tabs.length}`, teams: [{ ids: g }, { ids: r }] }; tabs.push(tb); } return tb.id; };

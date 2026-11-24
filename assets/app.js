@@ -898,6 +898,8 @@ const TF = {
   SIZE_PEN: 0.07,         // blaga kazna u rangu po igraču iznad 2 u trejdu (očekivane pobede): 2:2 −0,14, 3:3 −0,28, 4:4 −0,42
   SIZE_PEN_PTS: 0.7,      // isto, poeni (FPts po utakmici)
   VETO_MAX: 3,            // savet za veto na najviše toliko kartica od 8
+  GET_MORE_MAX: 2,        // na svakih 8 predloga najviše toliko trejdova gde dobijam više igrača nego što dajem (Najbolje za mene, Popravi kategorije, Prodaj skupo, Kupi jeftino)
+  GET_MORE_STRATS: ['best', 'cats', 'sell', 'buy'],
   WINDOW_MARGIN: 0.06,    // odsecanje: gruba provera vrednosti sa ovolikom rezervom, pa tek onda tačan račun
   TIE: { count: 0.05, pct: 0.001, ratio: 0.01 },
 };
@@ -1123,7 +1125,9 @@ function tfEngine() {
       }
     }
     progress(1);
-    return { list: diversify(orderTiers(tiers, T.ENOUGH, Infinity), T.PER_PAGE).slice(0, T.KEEP), stats, hasTrade };
+    let list = diversify(orderTiers(tiers, T.ENOUGH, Infinity), T.PER_PAGE);
+    if (T.GET_MORE_STRATS.includes(strat)) list = capGetMore(list, T.PER_PAGE, T.GET_MORE_MAX);
+    return { list: list.slice(0, T.KEEP), stats, hasTrade };
   }
   /** Jezgro trejda: igrači koji nešto vrede (ili su označeni za trejd); dodaci bez vrednosti ne prave novi predlog */
   const core = (idx, side) => idx.filter(i => side[i].v > 0 || side[i].mark === 'trade').map(i => side[i].id).sort().join(',');
@@ -1140,9 +1144,24 @@ function tfEngine() {
     }
     return out.concat(rest);
   }
+  /** Na svakoj stranici od per predloga najviše cap trejdova gde dobijam više igrača (x.r > x.g); ostala mesta po rangu iz ostalih trejdova,
+      a ako njih nema dovoljno, stranica se ipak popunjava trejdovima sa više dobijenih igrača (bolje 8 predloga nego manje) */
+  function capGetMore(list, per = 8, cap = 2) {
+    const more = x => x.r.length > x.g.length, A = [], B = [], out = [];
+    list.forEach((x, i) => (more(x) ? B : A).push(i));
+    let a = 0, b = 0;
+    while (a < A.length || b < B.length) {
+      let nb = 0;
+      for (let k = 0; k < per && (a < A.length || b < B.length); k++) {
+        const takeB = b < B.length && (a >= A.length || (B[b] < A[a] && nb < cap));
+        if (takeB) { out.push(list[B[b++]]); nb++; } else out.push(list[A[a++]]);
+      }
+    }
+    return out;
+  }
   /** Stranica rezultata (8 po 8, bez ponavljanja) */
   const pageItems = (list, page, per) => list.slice(page * per, page * per + per);
-  return { star, sideResult, catFilterOk, expWins, valueGap, weakest, combos, orderTiers, cmpRank, search, pageItems, normCdf, diversify };
+  return { star, sideResult, catFilterOk, expWins, valueGap, weakest, combos, orderTiers, cmpRank, search, pageItems, normCdf, diversify, capGetMore };
 }
 /** Tržišna vrednost po utakmici: z-score-ovi u bazenu (poolN igrača sa najvećim vlasništvom), težine W { GEN, PROD, MIN, OWN, RANK }.
     rows [{ id, gen (opšta vrednost), prod (PTS + REB + AST ili FPts), min, own (% vlasništva), rank (po vlasništvu) }]
