@@ -12,7 +12,7 @@ const start = src.indexOf('   Fer trejd: čiste funkcije');
 const end = src.indexOf('/* ==== kraj: Fer trejd, čiste funkcije ==== */');
 if (start < 0 || end < 0) throw new Error('Nije nađen modul Fer trejd u app.js');
 const code = src.slice(src.lastIndexOf('/*', start), end);
-const { TF, E, tfMarket, tfVetoPick, tfVetoShown, tfDropOk, tfTabFor } = new Function(`${code}\nreturn { TF, E: tfEngine(), tfMarket, tfVetoPick, tfVetoShown, tfDropOk, tfTabFor };`)();
+const { TF, E, tfMarket, tfVetoPick, tfVetoShown, tfDropOk, tfTabFor, tfSlotValue } = new Function(`${code}\nreturn { TF, E: tfEngine(), tfMarket, tfVetoPick, tfVetoShown, tfDropOk, tfTabFor, tfSlotValue };`)();
 // i motor kao tekst (kako ga dobija Web Worker) mora da radi samostalno
 const E2 = new Function(`return (${new Function(`${code}\nreturn tfEngine;`)().toString()})();`)();
 
@@ -377,6 +377,56 @@ test('ograničenje: rang se čuva, a kad ostalih nema dovoljno, 8 mesta se popun
   const o2 = E.capGetMore(L2, 8, 2);
   assert.strictEqual(o2.slice(0, 8).filter(x => x.r.length > x.g.length).length, 2);
   assert.strictEqual(o2.slice(8, 16).filter(x => x.r.length > x.g.length).length, 2);
+});
+
+// ja dajem 1 i 2 (6 + 4), dobijam 20; protivnik mora da otpusti 21 (jedini koga sme), moje slobodno mesto vredi sv
+const convInp = (strategy, xv, rv, sv) => base({ strategy, limits: [TF.LIMITS.fair],
+  fa: [pl(900, sv, { PTS: 5, REB: 2, AST: 1, TO: 1, FGM: 2, FGA: 4.5 }), pl(901, sv, { PTS: 5, REB: 2, AST: 1, TO: 1, FGM: 2, FGA: 4.5 })],
+  mine: [pl(1, 6, { PTS: 10, REB: 2, AST: 4, TO: 2, FGM: 4, FGA: 9 }, { mark: 'trade' }), pl(2, 4, { PTS: 8, REB: 2, AST: 3, TO: 1.5, FGM: 3, FGA: 7 }, { mark: 'trade' }), pl(3, 30, { PTS: 30 }, { mark: 'lock' })],
+  theirs: [pl(20, rv, { PTS: 14, REB: 6, AST: 3, TO: 1, FGM: 6, FGA: 12 }, { drop: false, mark: 'trade' }), pl(21, xv, { PTS: 2, REB: 1, AST: 0.5, TO: 0.5, FGM: 1, FGA: 2 }, { drop: true }), pl(22, 40, { PTS: 30 }, { mark: 'lock' })] });
+
+test('otpušteni igrač vredniji od moje zamene sa waivera ulazi u trejd: 2:1 postaje 2:2, bez slobodnog mesta, prikazan jednom', () => {
+  const res = E.search(convInp('best', 1.5, 8, 1)); // 21 vredi 1.5, moja zamena 1
+  assert.strictEqual(res.list.length, 1); // originalni 2:1 i isti 2:2 iz obične pretrage se ne prikazuju dvaput
+  const x = res.list[0];
+  assert.deepStrictEqual([x.g, x.r, x.od, x.mf, x.conv], [[1, 2], [20, 21], [], 0, true]);
+  // igrač slabiji od zamene se i dalje otpušta (nema pretvaranja)
+  const low = E.search(convInp('best', 0.5, 8, 1)).list;
+  assert.ok(low.some(y => y.r.join() === '20' && y.od.join() === '21' && y.mf === 1 && !y.conv));
+});
+
+test('pretvoreni trejd koji ne prolazi pravila se ne prikazuje; ostaje originalni', () => {
+  // fer granica: 2:2 bi bio 5 + 3 za 10 (20%), originalni 2:1 prolazi (5 + 2 za 10 − 3)
+  const a = E.search(convInp('best', 3, 5, 2)).list;
+  assert.deepStrictEqual(a.map(x => [x.r.join(), x.od.join(), !!x.conv]), [['20', '21', false]]);
+  // Konsolidacija: posle pretvaranja ne bih davao više igrača -> ostaje 2:1
+  const c = E.search(convInp('cons', 1.5, 8, 1)).list;
+  assert.deepStrictEqual(c.map(x => [x.r.join(), x.od.join(), !!x.conv]), [['20', '21', false]]);
+});
+
+test('isti trejd se ne pojavljuje dvaput, ni posle pretvaranja', () => {
+  for (const strategy of ['best', 'cons', 'depth', 'cats']) {
+    const inp = base({ mine: bigTeam(1, 9, 1).map(x => ({ ...x, drop: true })), theirs: bigTeam(100, 9, 5).map(x => ({ ...x, drop: true })), limits: TF.SLIDERS.map(k => TF.LIMITS[k]), strategy });
+    const L = E.search(inp).list, keys = L.map(x => `${[...x.g].sort()}|${[...x.r].sort()}`);
+    assert.strictEqual(new Set(keys).size, keys.length, strategy);
+    for (const x of L) { // pretvoreni trejd i dalje odgovara strategiji
+      if (strategy === 'cons') assert.ok(x.g.length > x.r.length);
+      if (strategy === 'depth') assert.ok(x.r.length > x.g.length);
+    }
+  }
+});
+
+test('slobodno mesto: prosek 3. do 5. zdravog slobodnog igrača, waiver sa umanjenjem', () => {
+  const F = (id, v, waiver = false) => ({ id, v, vec: [v * 2, v], waiver });
+  const fas = [F(1, 40), F(2, 20), F(3, 10), F(4, 8, true), F(5, 6), F(6, 1)];
+  const s = tfSlotValue(fas, TF.SLOT_FROM, TF.SLOT_TO, TF.SLOT_WAIVER);
+  assert.ok(Math.abs(s.v - (10 + 8 * 0.8 + 6) / 3) < 1e-9);       // ne najbolji (40), nego 3. do 5.
+  assert.deepStrictEqual(s.picks.map(x => [x.id, x.w]), [[3, 1], [4, 0.8], [5, 1]]);
+  assert.ok(Math.abs(s.vec[0] - (20 + 16 * 0.8 + 12) / 3) < 1e-9); // i statistika sa umanjenjem
+  assert.strictEqual(tfSlotValue(fas.slice(0, 2), 3, 5, 0.8), null);  // premalo slobodnih: nivo zamene
+  assert.strictEqual(tfSlotValue(fas.slice(0, 4), 3, 5, 1).picks.length, 2);
+  assert.ok(tfSlotValue([F(1, 3), F(2, 2), F(3, -2, true)], 3, 3, 0.8).v < -2); // negativna vrednost na waiveru još manja
+  assert.deepStrictEqual([TF.SLOT_FROM, TF.SLOT_TO, TF.SLOT_WAIVER], [3, 5, 0.8]);
 });
 
 test('Sačuvaj ne duplira tab; Otvori u analizi za sačuvan trejd nalazi postojeći tab', () => {

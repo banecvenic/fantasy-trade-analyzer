@@ -898,6 +898,8 @@ const TF = {
   SIZE_PEN: 0.07,         // blaga kazna u rangu po igraču iznad 2 u trejdu (očekivane pobede): 2:2 −0,14, 3:3 −0,28, 4:4 −0,42
   SIZE_PEN_PTS: 0.7,      // isto, poeni (FPts po utakmici)
   VETO_MAX: 3,            // savet za veto na najviše toliko kartica od 8
+  SLOT_FROM: 3, SLOT_TO: 5, // slobodno mesto (uvezena liga): prosek 3. do 5. najboljeg zdravog slobodnog igrača, ne najbolji (konzervativno)
+  SLOT_WAIVER: 0.8,       // igrač na waiveru ulazi u taj prosek sa ovim umanjenjem (nije zagarantovan)
   GET_MORE_MAX: 2,        // na svakih 8 predloga najviše toliko trejdova gde dobijam više igrača nego što dajem (Najbolje za mene, Popravi kategorije, Prodaj skupo, Kupi jeftino)
   GET_MORE_STRATS: ['best', 'cats', 'sell', 'buy'],
   WINDOW_MARGIN: 0.06,    // odsecanje: gruba provera vrednosti sa ovolikom rezervom, pa tek onda tačan račun
@@ -992,7 +994,7 @@ function tfEngine() {
     const mC = mine.map((x, i) => i).filter(i => usable(mine, mine[i])), tC = theirs.map((x, i) => i).filter(i => usable(theirs, theirs[i]));
     const mReq = mC.filter(i => mine[i].mark === 'trade'), tReq = tC.filter(i => theirs[i].mark === 'trade');
     const hasTrade = mReq.length + tReq.length > 0;
-    const stats = { pairs: 0, value: 0, cats: 0, gain: 0, strat: 0, myCombos: 0, theirCombos: 0, reqTooMany: mReq.length > T.MAX_SIDE || tReq.length > T.MAX_SIDE };
+    const stats = { shapes: {}, conv: 0, pairs: 0, value: 0, cats: 0, gain: 0, strat: 0, myCombos: 0, theirCombos: 0, reqTooMany: mReq.length > T.MAX_SIDE || tReq.length > T.MAX_SIDE };
     const mCombos = combos(mC, mReq, T.MAX_SIDE), tCombos = combos(tC, tReq, T.MAX_SIDE);
     stats.myCombos = mCombos.length; stats.theirCombos = tCombos.length;
     // zbir tima: svi aktivni (bez IR); otpuštanje: samo igrači koji ispunjavaju pravila (drop: vlasništvo, slabiji od slobodnih, nije zaključan ni na IR)
@@ -1023,18 +1025,112 @@ function tfEngine() {
     const tiers = lim.map(() => []);
     const W = 1 + T.WINDOW_MARGIN;
     let done = 0;
+    /** Igrači koje dajem: zbir, najbolji, IR mesta, "Dajem ako mora" */
+    const gInfo = g => { const gTopI = g.reduce((b, i) => (b == null || mine[i].v > mine[b].v ? i : b), null);
+      return { kG: g.length, gV: g.reduce((s, i) => s + mine[i].v, 0), gSet: new Set(g), gAct: g.filter(i => !mine[i].ir).length, gSoft: g.some(i => mine[i].mark === 'soft'), gTopI, gTop: mine[gTopI].v }; };
+    /** Dozvoljen oblik trejda za strategiju (broj igrača, Konsolidacija, Dubina, "Ne otpuštam nikoga") */
+    const shapeOk = (kG, kR) => kG >= 1 && kR >= 1 && kG <= T.MAX_SIDE && kR <= T.MAX_SIDE && !(strat === 'cons' && !(kG > kR)) && !(strat === 'depth' && !(kR > kG))
+      && !(inp.noDrop && kR > kG) && Math.abs(kR - kG) <= maxDiff;
+    /** Ocena para (g, r) po svim pravilima -> { x: predlog ili null, myDrop, thDrop (ko bi bio otpušten, kad se stigne do toga) } */
+    function evalPair(g, r, P, rV, rTop, quiet = false) {
+      const { kG, gV, gSet, gAct, gSoft, gTopI, gTop } = P, kR = r.length, R = { x: null, myDrop: null, thDrop: null };
+      // najbolji igrač u trejdu: moj ne sme biti znatno bolji od najboljeg kog dobijam (Prodaj skupo: samo ako mu je forma iznad vrednosti); obrnuto za protivnika
+      if (gTop > 0 && rTop < gTop * (1 - T.TOP_TOL)) { if (myTopRule) return R; if (strat === 'sell' && !sell.has(mine[gTopI].id)) return R; }
+      if (rTop > 0 && gTop < rTop * (1 - T.TOP_TOL_OPP)) return R;
+      const d = r.filter(i => !theirs[i].ir).length - gAct; // >0: ja otpuštam d, on dobija d slobodnih mesta; <0: obrnuto
+      // tačna korekcija: najslabiji posle trejda, najbolji slobodni
+      // dolazeći igrači ulaze u izbor za otpuštanje samo ako ispunjavaju pravila; ako bi bili otpušteni, trejd se odbacuje (niko ne dobija igrača kog bi odmah otpustio)
+      const rInc = r.filter(i => !theirs[i].ir && dropOk({ ...theirs[i], mark: null })).map(i => ({ v: theirs[i].v, t: theirs[i].t, vec: theirs[i].vec, id: theirs[i].id, inc: true }));
+      const gInc = g.filter(i => !mine[i].ir && dropOk({ ...mine[i], mark: null })).map(i => ({ v: mine[i].v, t: mine[i].t, vec: mine[i].vec, id: mine[i].id, inc: true }));
+      const myDrop = d > 0 ? weakest(myRoster, gSet, rInc, d) : [];
+      const thDrop = d < 0 ? weakest(thRoster, new Set(r), gInc, -d) : [];
+      if (myDrop.length < Math.max(0, d) || thDrop.length < Math.max(0, -d)) return R; // nema koga da otpusti
+      R.myDrop = myDrop; R.thDrop = thDrop;
+      // dodatak koji bi primalac odmah otpustio nije pravi trejd
+      if (myDrop.some(x => x.inc) || thDrop.some(x => x.inc)) return R;
+      const myFa = d < 0 ? fa.slice(0, -d) : [], thFa = d > 0 ? fa.slice(0, d) : [];
+      const A = rV - myDrop.reduce((s, x) => s + x.v, 0) + myFa.reduce((s, x) => s + x.v, 0);
+      const Bx = gV - thDrop.reduce((s, x) => s + x.v, 0) + thFa.reduce((s, x) => s + x.v, 0);
+      const gap = valueGap(A, Bx);
+      let tier = -1;
+      for (let ti = 0; ti < lim.length; ti++) if (gap <= lim[ti][hasTrade ? 1 : 0] + 1e-12) { tier = ti; break; }
+      if (tier < 0) return R;
+      if (!quiet) stats.value++;
+      // timovi posle trejda (po utakmici)
+      const myAfter = new Float64Array(myTot), thAfter = new Float64Array(thTot);
+      // IR igrači nisu u zbiru tima (ni pre ni posle): i kod novog tima idu na IR
+      for (const i of g) if (!mine[i].ir) { add(myAfter, mine[i].vec, -1); add(thAfter, mine[i].vec); }
+      for (const i of r) if (!theirs[i].ir) { add(thAfter, theirs[i].vec, -1); add(myAfter, theirs[i].vec); }
+      for (const x of myDrop) add(myAfter, x.vec, -1);
+      for (const x of thDrop) add(thAfter, x.vec, -1);
+      // prazna mesta u zbiru tima: najbolji slobodan igrač (uvezena liga) ili nivo zamene (bez lige i manuelne lige), kao u analizi trejda
+      for (const x of myFa) add(myAfter, x.vec);
+      for (const x of thFa) add(thAfter, x.vec);
+      // filter iz ugla protivnika
+      let ob, ow = [];
+      if (pts) {
+        const fd = thAfter[inp.fIdx] - thTot[inp.fIdx];
+        if (fd < -T.PTS_MAX_LOSS) return R;
+        ob = fd;
+      } else {
+        const or = sideResult(thTot, thAfter, cats, inp.oppIdx, T.TIE);
+        if (!catFilterOk(or, T.CAT_MAX_DIFF)) return R;
+        ob = 0; for (const i of inp.oppIdx) { ob += or.res[i] * (inp.oppW[i] ?? 1); if (or.res[i] > 0) ow.push(i); }
+      }
+      if (!quiet) stats.cats++; if (!quiet) { const sh = `${kG}:${kR}`; stats.shapes[sh] = (stats.shapes[sh] || 0) + 1; } // dijagnostika: oblici koji prolaze fer granicu i filter kategorija
+      // korist za moj tim
+      let gain;
+      if (pts) gain = myAfter[inp.fIdx] - myTot[inp.fIdx];
+      else if (inp.opps.length) {
+        const aw = expWins(myAfter, inp.opps, cats, inp.myIdx, inp.sd, inp.w);
+        gain = aw.total - myBase.total;
+        if (strat === 'cats' && focus.size) { let bad = false; for (const i of inp.myIdx) if (!focus.has(i) && aw.by[i] - myBase.by[i] < -T.KEEP_DROP) { bad = true; break; } if (bad) return R; }
+      } else {
+        const mr = sideResult(myTot, myAfter, cats, inp.myIdx, T.TIE);
+        gain = 0; let fine = 0;
+        for (const i of inp.myIdx) {
+          gain += mr.res[i] * (inp.w ? inp.w[i] : 1);
+          const c = cats[i], bv = catVal(myTot, c), av = catVal(myAfter, c);
+          if (bv != null && av != null) fine += Math.max(-2, Math.min(2, (av - bv) / inp.sd[i] * (c.low ? -1 : 1)));
+        }
+        gain += 0.05 * fine / (inp.myIdx.length || 1); // bez lige: rezultat po kategorijama, a za iste rezultate veća razlika u kategorijama
+      }
+      if (!(gain > minGain)) return R;
+      // rezultat na kartici (moj tim pre i posle) bar nerešen; Popravi kategorije sme gore (namerno žrtvuje kategorije)
+      if (!pts && strat !== 'cats') { const mr = sideResult(myTot, myAfter, cats, inp.myIdx, T.TIE); if (mr.win < mr.lose) return R; }
+      if (pts && myAfter[inp.fIdx] - myTot[inp.fIdx] < 0) return R;
+      if (!quiet) stats.gain++;
+      let s = gain - sizePen(kG, kR);
+      if (strat === 'sell') { const k = g.filter(i => sell.has(mine[i].id)).length; if (!k) return R; s += formBonus; }
+      if (strat === 'buy') { const k = r.filter(i => buy.has(theirs[i].id)).length; if (!k) return R; s += formBonus; }
+      if (gSoft) s -= softPen;
+      if (!quiet) stats.strat++;
+      R.x = { g: g.map(i => mine[i].id), r: r.map(i => theirs[i].id), md: myDrop.map(x => x.id), od: thDrop.map(x => x.id),
+        mf: myFa.length, of: thFa.length, s, gain, ob, n: kG + kR, tier, soft: gSoft, ow,
+        core: core(g, mine) + '|' + core(r, theirs), top: gTopI, rtop: r.reduce((b, i) => (b == null || theirs[i].v > theirs[b].v ? i : b), null), shape: `${kG}:${kR}` };
+      return R;
+    }
+    /** Otpušteni igrači ulaze u trejd umesto na waiver: igrač kog bi strana otpustila, a drugoj strani vredi više od njene zamene sa waivera,
+        ide drugoj strani (bez popune slobodnog mesta). Pretvoreni trejd prolazi sva pravila ponovo; Konsolidacija i Dubina zadržavaju svoj oblik. */
+    function convert(g, r, R) {
+      const slotV = fa[0] ? fa[0].v : 0, by = (a, b) => b.v - a.v;
+      if (!R.myDrop || !R.thDrop || R.myDrop.some(x => x.inc) || R.thDrop.some(x => x.inc)) return null;
+      let addR = R.thDrop.filter(x => x.v > slotV).sort(by), addG = R.myDrop.filter(x => x.v > slotV).sort(by);
+      if (strat === 'cons') addR = addR.slice(0, Math.max(0, g.length - r.length - 1)); // i dalje dajem više igrača
+      if (strat === 'depth') addG = addG.slice(0, Math.max(0, r.length - g.length - 1)); // i dalje dobijam više igrača
+      if (!addR.length && !addG.length) return null;
+      const g2 = [...g, ...addG.map(x => x.i)], r2 = [...r, ...addR.map(x => x.i)];
+      if (!shapeOk(g2.length, r2.length)) return null;
+      const x = evalPair(g2, r2, gInfo(g2), r2.reduce((s, i) => s + theirs[i].v, 0), Math.max(...r2.map(i => theirs[i].v)), true).x;
+      if (x) { x.conv = true; stats.conv++; }
+      return x;
+    }
     for (const g of mCombos) {
       if (++done % 200 === 0) progress(done / mCombos.length);
-      const kG = g.length, gV = g.reduce((s, i) => s + mine[i].v, 0), gSet = new Set(g);
-      const gAct = g.filter(i => !mine[i].ir).length; // IR mesta se ne računaju u roster mesta
-      const gSoft = g.some(i => mine[i].mark === 'soft');
-      const gTopI = g.reduce((b, i) => (b == null || mine[i].v > mine[b].v ? i : b), null), gTop = mine[gTopI].v;
+      const P = gInfo(g), kG = P.kG, gV = P.gV;
       for (let kR = 1; kR <= T.MAX_SIDE; kR++) {
         const arr = byK[kR]; if (!arr) continue;
-        if (strat === 'cons' && !(kG > kR)) continue;
-        if (strat === 'depth' && !(kR > kG)) continue;
-        if (inp.noDrop && kR > kG) continue; // "Ne otpuštam nikoga": ne dobijam više igrača nego što dajem
-        if (Math.abs(kR - kG) > maxDiff) continue;
+        if (!shapeOk(kG, kR)) continue; // Konsolidacija, Dubina, "Ne otpuštam nikoga", razlika u broju igrača
         const d0 = kR - kG;
         const myAdjR = d0 > 0 ? -roughDrop(myRoster, d0) : d0 < 0 ? faV(-d0) : 0;
         const oppAdjR = d0 > 0 ? faV(d0) : d0 < 0 ? -roughDrop(thRoster, -d0) : 0;
@@ -1046,80 +1142,11 @@ function tfEngine() {
         for (let j = lowerBound(arr, lo); j < arr.length && arr[j].v <= hi; j++) {
           const r = arr[j].c;
           stats.pairs++;
-          // najbolji igrač u trejdu: moj ne sme biti znatno bolji od najboljeg kog dobijam (Prodaj skupo: samo ako mu je forma iznad vrednosti); obrnuto za protivnika
-          const rTop = arr[j].top;
-          if (gTop > 0 && rTop < gTop * (1 - T.TOP_TOL)) { if (myTopRule) continue; if (strat === 'sell' && !sell.has(mine[gTopI].id)) continue; }
-          if (rTop > 0 && gTop < rTop * (1 - T.TOP_TOL_OPP)) continue;
-          const d = r.filter(i => !theirs[i].ir).length - gAct; // >0: ja otpuštam d, on dobija d slobodnih mesta; <0: obrnuto
-          // tačna korekcija: najslabiji posle trejda, najbolji slobodni
-          // dolazeći igrači ulaze u izbor za otpuštanje samo ako ispunjavaju pravila; ako bi bili otpušteni, trejd se odbacuje (niko ne dobija igrača kog bi odmah otpustio)
-          const rInc = r.filter(i => !theirs[i].ir && dropOk({ ...theirs[i], mark: null })).map(i => ({ v: theirs[i].v, t: theirs[i].t, vec: theirs[i].vec, id: theirs[i].id, inc: true }));
-          const gInc = g.filter(i => !mine[i].ir && dropOk({ ...mine[i], mark: null })).map(i => ({ v: mine[i].v, t: mine[i].t, vec: mine[i].vec, id: mine[i].id, inc: true }));
-          const myDrop = d > 0 ? weakest(myRoster, gSet, rInc, d) : [];
-          const thDrop = d < 0 ? weakest(thRoster, new Set(r), gInc, -d) : [];
-          if (myDrop.length < Math.max(0, d) || thDrop.length < Math.max(0, -d)) continue; // nema koga da otpusti
-          // dodatak koji bi primalac odmah otpustio nije pravi trejd
-          if (myDrop.some(x => x.inc) || thDrop.some(x => x.inc)) continue;
-          const myFa = d < 0 ? fa.slice(0, -d) : [], thFa = d > 0 ? fa.slice(0, d) : [];
-          const A = arr[j].v - myDrop.reduce((s, x) => s + x.v, 0) + myFa.reduce((s, x) => s + x.v, 0);
-          const Bx = gV - thDrop.reduce((s, x) => s + x.v, 0) + thFa.reduce((s, x) => s + x.v, 0);
-          const gap = valueGap(A, Bx);
-          let tier = -1;
-          for (let ti = 0; ti < lim.length; ti++) if (gap <= lim[ti][hasTrade ? 1 : 0] + 1e-12) { tier = ti; break; }
-          if (tier < 0) continue;
-          stats.value++;
-          // timovi posle trejda (po utakmici)
-          const myAfter = new Float64Array(myTot), thAfter = new Float64Array(thTot);
-          // IR igrači nisu u zbiru tima (ni pre ni posle): i kod novog tima idu na IR
-          for (const i of g) if (!mine[i].ir) { add(myAfter, mine[i].vec, -1); add(thAfter, mine[i].vec); }
-          for (const i of r) if (!theirs[i].ir) { add(thAfter, theirs[i].vec, -1); add(myAfter, theirs[i].vec); }
-          for (const x of myDrop) add(myAfter, x.vec, -1);
-          for (const x of thDrop) add(thAfter, x.vec, -1);
-          // prazna mesta u zbiru tima: najbolji slobodan igrač (uvezena liga) ili nivo zamene (bez lige i manuelne lige), kao u analizi trejda
-          for (const x of myFa) add(myAfter, x.vec);
-          for (const x of thFa) add(thAfter, x.vec);
-          // filter iz ugla protivnika
-          let ob, ow = [];
-          if (pts) {
-            const fd = thAfter[inp.fIdx] - thTot[inp.fIdx];
-            if (fd < -T.PTS_MAX_LOSS) continue;
-            ob = fd;
-          } else {
-            const or = sideResult(thTot, thAfter, cats, inp.oppIdx, T.TIE);
-            if (!catFilterOk(or, T.CAT_MAX_DIFF)) continue;
-            ob = 0; for (const i of inp.oppIdx) { ob += or.res[i] * (inp.oppW[i] ?? 1); if (or.res[i] > 0) ow.push(i); }
-          }
-          stats.cats++;
-          // korist za moj tim
-          let gain;
-          if (pts) gain = myAfter[inp.fIdx] - myTot[inp.fIdx];
-          else if (inp.opps.length) {
-            const aw = expWins(myAfter, inp.opps, cats, inp.myIdx, inp.sd, inp.w);
-            gain = aw.total - myBase.total;
-            if (strat === 'cats' && focus.size) { let bad = false; for (const i of inp.myIdx) if (!focus.has(i) && aw.by[i] - myBase.by[i] < -T.KEEP_DROP) { bad = true; break; } if (bad) continue; }
-          } else {
-            const mr = sideResult(myTot, myAfter, cats, inp.myIdx, T.TIE);
-            gain = 0; let fine = 0;
-            for (const i of inp.myIdx) {
-              gain += mr.res[i] * (inp.w ? inp.w[i] : 1);
-              const c = cats[i], bv = catVal(myTot, c), av = catVal(myAfter, c);
-              if (bv != null && av != null) fine += Math.max(-2, Math.min(2, (av - bv) / inp.sd[i] * (c.low ? -1 : 1)));
-            }
-            gain += 0.05 * fine / (inp.myIdx.length || 1); // bez lige: rezultat po kategorijama, a za iste rezultate veća razlika u kategorijama
-          }
-          if (!(gain > minGain)) continue;
-          // rezultat na kartici (moj tim pre i posle) bar nerešen; Popravi kategorije sme gore (namerno žrtvuje kategorije)
-          if (!pts && strat !== 'cats') { const mr = sideResult(myTot, myAfter, cats, inp.myIdx, T.TIE); if (mr.win < mr.lose) continue; }
-          if (pts && myAfter[inp.fIdx] - myTot[inp.fIdx] < 0) continue;
-          stats.gain++;
-          let s = gain - sizePen(kG, kR);
-          if (strat === 'sell') { const k = g.filter(i => sell.has(mine[i].id)).length; if (!k) continue; s += formBonus; }
-          if (strat === 'buy') { const k = r.filter(i => buy.has(theirs[i].id)).length; if (!k) continue; s += formBonus; }
-          if (gSoft) s -= softPen;
-          stats.strat++;
-          tiers[tier].push({ g: g.map(i => mine[i].id), r: r.map(i => theirs[i].id), md: myDrop.map(x => x.id), od: thDrop.map(x => x.id),
-            mf: myFa.length, of: thFa.length, s, gain, ob, n: kG + kR, tier, soft: gSoft, ow,
-            core: core(g, mine) + '|' + core(r, theirs), top: gTopI, rtop: r.reduce((b, i) => (b == null || theirs[i].v > theirs[b].v ? i : b), null), shape: `${kG}:${kR}` });
+          const R = evalPair(g, arr[j].c, P, arr[j].v, arr[j].top);
+          const x = (R.myDrop?.length || R.thDrop?.length ? convert(g, arr[j].c, R) : null) || R.x; // pretvoreni trejd umesto originalnog, ako prolazi
+          if (!x) continue;
+          const tier = x.tier;
+          tiers[tier].push(x);
           if (tiers[tier].length > 12000) { tiers[tier].sort(cmpRank); tiers[tier].length = T.KEEP * 10; }
         }
       }
@@ -1183,6 +1210,16 @@ function tfMarket(rows, { W, poolN, teams, zMin = -2 }) {
 function tfTabFor(tabs, g, r, savedId) {
   const key = (a, b) => `${[...a].sort().join(',')}|${[...b].sort().join(',')}`, k = key(g, r);
   return tabs.find(tb => savedId != null && tb.id === savedId) || tabs.find(tb => key(tb.teams[0].ids, tb.teams[1].ids) === k) || null;
+}
+/** Vrednost slobodnog mesta: prosek from. do to. najboljeg zdravog slobodnog igrača; igrač na waiveru sa umanjenjem wMul (vrednost i statistika).
+    fas [{ id, v, vec, waiver }] zdravi slobodni, opadajuće po v -> { v, vec, picks: [{ id, w }] } ili null (premalo slobodnih) */
+function tfSlotValue(fas, from, to, wMul) {
+  const picks = fas.slice(from - 1, to);
+  if (!picks.length) return null;
+  const wOf = f => (f.waiver ? wMul : 1), n = picks.length;
+  const v = picks.reduce((s, f) => s + (f.v >= 0 ? f.v * wOf(f) : f.v / wOf(f)), 0) / n; // umanjenje: pozitivna vrednost manja, negativna još manja
+  const vec = picks[0].vec.map((_, i) => picks.reduce((s, f) => s + f.vec[i] * wOf(f), 0) / n);
+  return { v, vec, picks: picks.map(f => ({ id: f.id, w: wOf(f) })) };
 }
 /** Sme li igrač da bude otpušten (moje i protivnikovo otpuštanje u Pronađi trejd): nije na IR ni zaključan, vlasništvo ispod praga
     i tržišna vrednost v manja od tržišne vrednosti najboljeg slobodnog igrača ili nivoa zamene (bar) */
@@ -2261,6 +2298,12 @@ const EN = {
   "Ne otpuštam nikoga": "Don't drop anyone",
   "Sačuvano": "Saved",
   "Otvori": "Open",
+  "Daješ više igrača nego što dobijaš: slobodno mesto popunjavaš igračem sa waivera i to ulazi u rezultat. Uvezena liga: realna zamena (prosek 3. do 5. najboljeg zdravog slobodnog igrača), inače nivo zamene. Svog igrača sa waivera biraš u sekciji Moj tim.": "You give more players than you get: you fill the open spot from waivers, and that counts in the score. Imported league: a realistic replacement (average of the 3rd to 5th best healthy free agent), otherwise replacement level. You pick your own waiver player in the My team section.",
+  "Prosek 3. do 5. najboljeg zdravog slobodnog igrača u ligi (igrač na waiveru se računa sa umanjenjem jer nije zagarantovan). Najbolji slobodan igrač bi bio previše optimističan.": "Average of the 3rd to 5th best healthy free agent in the league (a player on waivers counts with a discount because he is not guaranteed). The best free agent would be too optimistic.",
+  'Realna zamena sa waivera': 'Realistic waiver replacement',
+  'Prosek 3. do 5. najboljeg zdravog slobodnog': 'Average of the 3rd to 5th best healthy free agent',
+  'Slobodno mesto: realna zamena sa waivera.': 'Open spot: realistic waiver replacement.',
+  'Protivnik otpušta: {list}': 'Opponent drops: {list}',
   'Novo: javi nam ako nešto nije uvezeno kako treba.': 'New: let us know if something was not imported correctly.',
   // Uvezena liga: podešavanja i kontekst cele lige
   'na {n}. mestu ({r})': 'in place {n} ({r})',
@@ -5541,8 +5584,10 @@ const sideCellCls = (mark, ti) => (mark === 'win' ? (ti === GET ? 'better-me' : 
 function replRowHTML(tail = '<td></td>') {
   const line = replLineNow();
   const cells = CATS.map(c => { const v = line ? catValue(line, c) : null; return `<td class="${c.fpts ? 'fpts' : ''}">${fmtCat(c, v)}</td>`; }).join('');
-  return `<tr class="arriving repl-row"><td><div class="pl"><div class="txt"><span class="tags"><span class="slot-tag tag-in">${t('Slobodno mesto')}</span></span><span class="nm">${t('Nivo zamene')}</span>
-    <span class="meta">${t('Prosek igrača koje lako nađeš na waiveru')}</span></div></div></td><td>${line?.MIN != null ? fmt1(line.MIN) : '-'}</td>${cells}${tail}</tr>`;
+  const real = !!tfBase().slot?.slot; // uvezena liga: realna zamena sa waivera; inače nivo zamene
+  const tip = real ? ` data-tip="${esc(t('Prosek 3. do 5. najboljeg zdravog slobodnog igrača u ligi (igrač na waiveru se računa sa umanjenjem jer nije zagarantovan). Najbolji slobodan igrač bi bio previše optimističan.'))}"` : '';
+  return `<tr class="arriving repl-row"><td><div class="pl"><div class="txt"><span class="tags"><span class="slot-tag tag-in">${t('Slobodno mesto')}</span></span><span class="nm"${tip}>${t(real ? 'Realna zamena sa waivera' : 'Nivo zamene')}</span>
+    <span class="meta">${t(real ? 'Prosek 3. do 5. najboljeg zdravog slobodnog' : 'Prosek igrača koje lako nađeš na waiveru')}</span></div></div></td><td>${line?.MIN != null ? fmt1(line.MIN) : '-'}</td>${cells}${tail}</tr>`;
 }
 function totalRow(t, cmp, ti) {
   const tt = window.t; // parametar t zaklanja funkciju prevoda
@@ -5567,7 +5612,8 @@ function renderTeams(totals, cmp) {
     // strana koja dobija više igrača izbacuje nekog sa svog rostera: Daješ = ja izbacujem, Dobijaš = protivnik izbacuje
     const kind = ti === GIVE ? 'my' : 'opp';
     const sp = slotPlan(kind);
-    const slotRows = sp.drops.map(id => state.byId.get(id)).filter(Boolean).map(p => playerRowHTML(p, {
+    // protivnikova otpuštanja nisu u tabeli Dobijaš (ne dobijam ih): napomena ispod tabele, sa profilom igrača
+    const slotRows = ti === GET ? '' : sp.drops.map(id => state.byId.get(id)).filter(Boolean).map(p => playerRowHTML(p, {
       tags: [{ text: ti === GIVE ? 'Izbacuješ' : 'Izbacuje', cls: 'tag-out' }], cls: 'slot-d',
       actions: `<button class="rm" type="button" data-action="bal-d-remove" data-kind="${kind}" data-id="${p.id}" aria-label="${t('Ukloni')}">✕</button>` })).join('');
     const slotInputs = slotInputHTML(kind, 'd');
@@ -5577,8 +5623,9 @@ function renderTeams(totals, cmp) {
       const f = freeFill('my'), chosen = slotPlan('my').waivers;
       fillRows = [...chosen.map(id => [id, 'Waiver']), ...f.auto.map(id => [id, null])].map(([id, tag]) => { const p = state.byId.get(id); return p ? playerRowHTML(p, { tags: [{ text: tag || t('Slobodno mesto · najbolji slobodan'), raw: !tag, cls: 'tag-in' }], cls: 'slot-w' }) : ''; }).join('')
         + Array.from({ length: f.repl }, () => replRowHTML()).join('');
-      if (f.n > 0) fillNote = `<div class="card-warn soft">${t('Daješ više igrača nego što dobijaš: slobodno mesto popunjavaš igračem sa waivera i to ulazi u rezultat. Uvezena liga: najbolji slobodan igrač, inače nivo zamene. Svog igrača sa waivera biraš u sekciji Moj tim.')}</div>`;
-      if (sp.drops.length) fillNote += `<div class="card-warn soft">${t('Koga protivnik izbacuje menja njegov tim, ne tvoj rezultat.')}</div>`;
+      if (f.n > 0) fillNote = `<div class="card-warn soft">${t('Daješ više igrača nego što dobijaš: slobodno mesto popunjavaš igračem sa waivera i to ulazi u rezultat. Uvezena liga: realna zamena (prosek 3. do 5. najboljeg zdravog slobodnog igrača), inače nivo zamene. Svog igrača sa waivera biraš u sekciji Moj tim.')}</div>`;
+      const od = sp.drops.map(id => state.byId.get(id)).filter(Boolean);
+      if (od.length) fillNote += `<div class="card-warn soft opp-drops">${t('Protivnik otpušta: {list}', { list: od.map(p => `${pmLink(p.id, p.name)}<button class="rm" type="button" data-action="bal-d-remove" data-kind="opp" data-id="${p.id}" aria-label="${esc(t('Ukloni'))}">✕</button>`).join(', ') })}<br><span class="meta">${t('Koga protivnik izbacuje menja njegov tim, ne tvoj rezultat.')}</span></div>`;
     }
     return `<section class="card" data-team-card="${ti}">
       <div class="card-h">
@@ -7126,7 +7173,7 @@ function balanceHTML(kind, plan) {
     ? `<div class="card-warn strong">⚠ ${t('Posle trejda tim ima {n} aktivnih (max {m}). Izaberi koga izbacuje ({k}) gore, u kartici Dobijaš, dotle Razlika nije realna.', { n: plan.pre.length, m: ROSTER.ACTIVE, k: plan.missingDrops })}</div>` : '';
   // koga protivnik izbacuje bira se gore, u kartici Dobijaš (ovde samo prikaz); njegovo slobodno mesto samo kao napomena (ne menja moj rezultat)
   const of = plan.tradeTouches ? freeFill('opp') : { n: 0 };
-  const inputs = of.n > 0 ? `<div class="balance"><span class="hint">${tfFreeSlotText([...of.auto.map(id => ({ id })), ...Array.from({ length: of.repl }, () => ({ id: null }))])}</span></div>` : '';
+  const inputs = of.n > 0 ? `<div class="balance"><span class="hint">${tfFreeSlotText([...of.auto.map(id => ({ id })), ...Array.from({ length: of.repl }, () => tfBase().slot)])}</span></div>` : '';
   return (chosen ? `<div class="chips slot-chips">${chosen}</div>` : '') + inputs + offNotes + warn;
 }
 
@@ -8812,7 +8859,7 @@ function faWaivers(lg) {
   if (!c || (!c.loading && Date.now() - c.ts > 10 * 60 * 1000)) {
     c = { ts: Date.now(), map: c?.map ?? null, loading: true };
     faWaiverCache.set(lg.id, c);
-    get(lg).then(m => { c.map = m; }).catch(e => { console.warn('Waiver lista nije učitana:', e.message); }).finally(() => { c.loading = false; if (state.page === 'fa') render(); });
+    get(lg).then(m => { c.map = m; }).catch(e => { console.warn('Waiver lista nije učitana:', e.message); }).finally(() => { c.loading = false; if (state.page === 'fa' || state.page === 'finder') render(); });
   }
   return c;
 }
@@ -9309,7 +9356,7 @@ function tfResetMarks(ctx) { const all = tfMarksAll(); if (all[ctx.scopeKey]) { 
     opšta i tržišna vrednost, granica otpuštanja, slobodni igrači i nivo zamene. Keš po ligi i podacima. */
 let tfBaseCache = null;
 function tfBase(lg = currentLeague()) {
-  const key = [lg?.id || 'quick', fmtKeyNow(), state.loadedAt, state.players.length, lg?.import?.syncedAt || '', Object.keys(state.schedule || {}).length].join('|');
+  const key = [lg?.id || 'quick', fmtKeyNow(), state.loadedAt, state.players.length, lg?.import?.syncedAt || '', Object.keys(state.schedule || {}).length, lg && isSynced(lg) ? faWaivers(lg).map?.size ?? -1 : ''].join('|');
   if (tfBaseCache?.key === key) return tfBaseCache;
   const pts = isPointsFmt();
   const LV = { proj: leagueValues(lg, 'proj'), l15: leagueValues(lg, 'l15'), l7: leagueValues(lg, 'l7') };
@@ -9357,15 +9404,22 @@ function tfBase(lg = currentLeague()) {
   const bandPs = band.map(x => state.byId.get(x[0])).filter(Boolean);
   const replVec = keys.map((k, i) => bandPs.reduce((s, p) => s + vecOf(lineOf(p))[i], 0) / (bandPs.length || 1));
   const replV = bandPs.reduce((s, p) => s + ros(p), 0) / (bandPs.length || 1);
-  let fa = synced ? faIds.map(id => state.byId.get(id)).filter(p => p && genRaw.has(p.id))
-    .map(p => ({ id: p.id, v: ros(p), vec: vecOf(lineOf(p)), p })).sort((a, b) => b.v - a.v).slice(0, TF.MAX_SIDE) : [];
-  while (fa.length < TF.MAX_SIDE) fa.push({ id: null, v: replV, vec: replVec, repl: true }); // bez lige (ili premalo slobodnih): nivo zamene iz bazena
+  const wvMap = synced ? faWaivers(lg).map : null;
+  const faAll = synced ? faIds.map(id => state.byId.get(id)).filter(p => p && genRaw.has(p.id) && playerStatus(p, lg).g !== 'OUT')
+    .map(p => ({ id: p.id, v: ros(p), vec: vecOf(lineOf(p)), p, waiver: !!wvMap?.has(p.id) })).sort((a, b) => b.v - a.v) : [];
+  // slobodno mesto: uvezena liga = prosek 3. do 5. zdravog slobodnog (waiver umanjen); manuelna liga, bez lige ili premalo slobodnih = nivo zamene iz bazena
+  const slotSV = tfSlotValue(faAll, TF.SLOT_FROM, TF.SLOT_TO, TF.SLOT_WAIVER);
+  const slot = slotSV ? { id: null, v: slotSV.v, vec: slotSV.vec, slot: true, picks: slotSV.picks } : { id: null, v: replV, vec: replVec, repl: true };
+  const fa = Array.from({ length: TF.MAX_SIDE }, () => slot); // svako slobodno mesto vredi isto
   // otpuštanje (moje, protivnikovo i dopuna za veto): tržišna vrednost manja od najboljeg slobodnog (uvezena liga) ili nivoa zamene, vlasništvo ispod praga
-  const dropBarV = synced && fa[0] && !fa[0].repl ? fa[0].v : replV;
+  const faBestV = synced ? Math.max(-Infinity, ...faIds.map(id => state.byId.get(id)).filter(p => p && genRaw.has(p.id)).map(ros)) : -Infinity;
+  const dropBarV = Number.isFinite(faBestV) ? faBestV : replV;
   const canDropP = (p, x, mark) => tfDropOk({ ir: x.ir, mark, own: ownOf(p), v: ros(p) }, dropBarV, FA.DROP_MAX_OWN);
   // nivo zamene kao red statistike (analiza trejda): prosek igrača iz pojasa zamene, FPts kao u pretrazi
-  const replLine = (lineFn = lineOf, fp = l => +l?.FPTS || 0) => { const out = {}; for (const p of bandPs) { const l = lineFn(p); if (!l) continue; for (const [k, v] of Object.entries(l)) if (typeof v === 'number' && Number.isFinite(v)) out[k] = (out[k] || 0) + v / bandPs.length; if (pts) out._fpts = (out._fpts || 0) + fp(l) / bandPs.length; } return bandPs.length ? out : null; };
-  tfBaseCache = { key, lg, pts, LV, vcats, keys, ki, cats, gpOf, lineOf, vecOf, genRaw, pool, dropBar, dropBarV, market, ros, ownOf, canDropP, bandPs, replVec, replV, fa, replLine, synced };
+  // slobodno mesto kao red statistike (analiza trejda): isti igrači i umanjenja kao u pretrazi; procenti se ne umanjuju (računaju se iz pogođenih / pokušaja)
+  const slotPs = slotSV ? slotSV.picks.map(x => ({ p: state.byId.get(x.id), w: x.w })).filter(x => x.p) : bandPs.map(p => ({ p, w: 1 }));
+  const replLine = (lineFn = lineOf, fp = l => +l?.FPTS || 0) => { const out = {}, n = slotPs.length; for (const { p, w } of slotPs) { const l = lineFn(p); if (!l) continue; for (const [k, v] of Object.entries(l)) if (typeof v === 'number' && Number.isFinite(v)) out[k] = (out[k] || 0) + v * (/%|PCT/i.test(k) ? 1 : w) / n; if (pts) out._fpts = (out._fpts || 0) + fp(l) * w / n; } return n ? out : null; };
+  tfBaseCache = { key, lg, pts, LV, vcats, keys, ki, cats, gpOf, lineOf, vecOf, genRaw, pool, dropBar, dropBarV, market, ros, ownOf, canDropP, bandPs, replVec, replV, fa, faAll, slot, replLine, synced };
   return tfBaseCache;
 }
 function tfModel(ctx) {
@@ -9435,7 +9489,7 @@ function tfInput(M) {
   };
 }
 /** Potpis ulaza: rezultat važi dok se ništa od ovoga ne promeni */
-const tfSig = (ctx) => JSON.stringify([ctx.scopeKey, ctx.oppKey, ctx.my, ctx.opp, tfMarks(ctx), state.tf.strat, state.tf.focus, state.tf.slider, tfNoDrop(ctx), fmtKeyNow(), state.loadedAt, [...(state.punt || [])]]);
+const tfSig = (ctx) => JSON.stringify([ctx.scopeKey, ctx.oppKey, ctx.my, ctx.opp, tfMarks(ctx), state.tf.strat, state.tf.focus, state.tf.slider, tfNoDrop(ctx), fmtKeyNow(), state.loadedAt, [...(state.punt || [])], +tfBase(ctx.lg).slot.v.toFixed(3)]); // slobodno mesto se menja kad stigne waiver lista
 /** "Ne otpuštam nikoga": lični izbor po ligi (trajno) */
 const TF_NODROP_KEY = 'fbaTrade.tfNoDrop.v1';
 const tfNoDrop = ctx => !!(lsGet(TF_NODROP_KEY) || {})[ctx.scopeKey];
@@ -9611,7 +9665,7 @@ function tfVetoCand(M, x) {
 }
 /** "Slobodno mesto: X (najbolji slobodan)" ili "Slobodno mesto: nivo zamene", za svako mesto */
 function tfFreeSlotText(list) {
-  return list.map(f => (f.id != null && state.byId.get(f.id) ? t('Slobodno mesto: {p} (najbolji slobodan).', { p: esc(state.byId.get(f.id).name) }) : t('Slobodno mesto: nivo zamene.'))).join(' ');
+  return list.map(f => (f.id != null && state.byId.get(f.id) ? t('Slobodno mesto: {p} (najbolji slobodan).', { p: esc(state.byId.get(f.id).name) }) : f.slot ? t('Slobodno mesto: realna zamena sa waivera.') : t('Slobodno mesto: nivo zamene.'))).join(' ');
 }
 function tfVetoHTML(x, c) {
   return c ? `<p class="pnote tf-veto">${t('Za veto lige: dodaj {p} da bude {a}:{a}.', { p: `<b>${esc(c.p.name)}</b>`, a: Math.max(x.g.length, x.r.length) })}</p>` : '';

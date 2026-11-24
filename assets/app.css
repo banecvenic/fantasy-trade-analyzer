@@ -1293,3 +1293,5 @@ td.fa-notes{display:table-cell}td.fa-notes span{display:block}
   .tf-mk{min-width:36px;min-height:36px;justify-content:center}
   .tf-ctrl-row .btn{margin-left:0;width:100%}
 }
+.opp-drops .rm{background:none;border:0;color:var(--muted);cursor:pointer;font-size:11px;padding:0 4px;margin-left:2px}
+.opp-drops .rm:hover{color:var(--loss, #e5484d)}
