@@ -1815,6 +1815,12 @@ const EN = {
   "Dolazi i odlazi": "In and out",
   "po utakmici": "per game",
   "Izmena popravlja tvoj tim u odnosu na ostale timove lige.": "The move improves your team against the other teams in the league.",
+  'Ceo tim pre i posle': 'Whole team before and after',
+  'Razlika između igrača koji dolazi i igrača koji odlazi, po utakmici, u izabranom periodu.': 'Difference between the player coming in and the player leaving, per game, in the selected period.',
+  'Zbir proseka po utakmici svih aktivnih igrača tvog tima, pre i posle izmene, u izabranom periodu.': 'Sum of per-game averages of all active players on your team, before and after the move, in the selected period.',
+  'Utakmice do kraja nedelje meča': 'Games left in the matchup week',
+  'Ukupno do kraja nedelje meča': 'Total for the rest of the matchup week',
+  'Igrač sa više utakmica ove nedelje donosi više ukupno, i kad je slabiji po utakmici.': 'A player with more games this week adds more in total, even if he is weaker per game.',
   'Novo: javi nam ako nešto nije uvezeno kako treba.': 'New: let us know if something was not imported correctly.',
   // Uvezena liga: podešavanja i kontekst cele lige
   'na {n}. mestu ({r})': 'in place {n} ({r})',
@@ -4974,15 +4980,15 @@ function minutesCell(p, line) {
 }
 
 /** Generički red igrača: slika, ime, oznake, MIN, 9 kategorija sa trendom, GP */
-function playerRowHTML(p, { tags = [], cls = '', actions = '', sign = '', drag = '', attrs = '', punt = true } = {}) {
+function playerRowHTML(p, { tags = [], cls = '', actions = '', sign = '', drag = '', attrs = '', punt = true, markOf = null, pctSub = false } = {}) {
   const line = playerLine(p);
-  const pcOf = c => (punt ? puntCls(c) : ''); // roster tabele: ugašena kategorija se ne boji
+  const pcOf = c => (punt ? puntCls(c) : '') + (markOf ? ` ${markOf(c) || ''}`.trimEnd() : ''); // roster tabele: ugašena kategorija se ne boji; markOf: boja polja (izveštaj FA)
   const cells = CATS.map(c => {
     const pc = pcOf(c) ? ` class="${pcOf(c).trim()}"` : '';
     if (!line) return `<td${pc}>-</td>`;
     const tr = trendHTML(p, c);
     const v = catValue(line, c);
-    if (c.type === 'pct' || v == null) return `<td${pc}>${tr}${fmtCat(c, v)}</td>`;
+    if (c.type === 'pct' || v == null) return `<td${pc}>${tr}${fmtCat(c, v)}${pctSub && c.type === 'pct' && line[c.att] != null ? `<span class="sub">${(line[c.made] || 0).toFixed(1)}/${line[c.att].toFixed(1)}</span>` : ''}</td>`;
     return `<td class="${c.fpts ? 'fpts' : ''}${pcOf(c)}">${tr}${sign}${fmt1(v)}</td>`;
   }).join('');
   const tagHTML = tags.map(tg => `<span class="slot-tag ${tg.cls}">${tg.raw ? tg.text : t(tg.text)}</span>`).join('');
@@ -8399,23 +8405,46 @@ function faReasons(x) {
 const faWL = (w, l) => t('Dobijaš {w} {k}, gubiš {l}', { w, l, k: plural(w, ['kategoriju', 'kategorije', 'kategorija'], ['category', 'categories']) });
 /** Labela kategorije po ključu */
 const faCatLabel = k => CATS.find(c => c.key === k)?.label || k;
-/** Rezultat para kao u analizi trejda + najveće promene za moj tim (po utakmici) */
+/** Rezultat izmene za izabrani period (isti proračun na kartici i u izveštaju): moj aktivni tim (bez IR-a) pre i posle,
+    po kategoriji kao u analizi trejda (procenti: ispod .001 nerešeno). -> { win, lose, res, B, A, fd, cats, active } */
+function faResult(lg, inId, outId, per = state.period, base = null) {
+  return withPeriod(per, () => {
+    const active = (lg.roster?.players || []).filter(y => !y.ir).map(y => y.id);
+    const B = base || sumPlayers(active), A = sumPlayers([...active.filter(id => id !== outId), inId]);
+    const cats = CATS.filter(c => !isPunt(c) && !c.fpts);
+    let win = 0, lose = 0;
+    const res = {};
+    for (const c of cats) {
+      const b = B.vals[c.key], a = A.vals[c.key];
+      if (a == null || b == null) { res[c.key] = 0; continue; }
+      const d = a - b, zero = c.type === 'pct' ? Math.abs(d) < teamTieOf(c) : fmtDelta(c, d).zero;
+      res[c.key] = zero ? 0 : (c.lowerIsBetter ? d < 0 : d > 0) ? 1 : -1;
+      if (res[c.key] > 0) win++; else if (res[c.key] < 0) lose++;
+    }
+    return { win, lose, res, B, A, fd: (A.vals.FPTS ?? 0) - (B.vals.FPTS ?? 0), cats, active };
+  });
+}
+/** Rezultat para za izabrani period u zaglavlju (kao izveštaj) + najveće promene za moj tim (po utakmici) */
 function faPairView(M, x, d) {
+  const lg = currentLeague();
+  if (!M.baseB) M.baseB = withPeriod(state.period, () => sumPlayers((lg.roster?.players || []).filter(y => !y.ir).map(y => y.id)));
+  const R = faResult(lg, x.id, d?.id ?? null, state.period, M.baseB);
   if (M.pts) {
-    const diff = (x.line?.FPTS || 0) - (d?.line?.FPTS || 0);
-    const ch = CATS.filter(c => !c.fpts && c.w).map(c => ({ c, v: ((x.line?.[c.key] || 0) - (d?.line?.[c.key] || 0)) })).filter(y => Math.abs(y.v * y.c.w) >= 0.3)
+    const diff = R.fd, li = playerLine(x.p), lo = d ? playerLine(d.p) : null;
+    const ch = CATS.filter(c => !c.fpts && c.w).map(c => ({ c, v: ((li?.[c.key] || 0) - (lo?.[c.key] || 0)) })).filter(y => Math.abs(y.v * y.c.w) >= 0.3)
       .sort((a, b) => Math.abs(b.v * b.c.w) - Math.abs(a.v * a.c.w)).slice(0, 3);
     return { head: t('{d} FPts po utakmici', { d: `${diff >= 0 ? '+' : '−'}${Math.abs(diff).toFixed(1)}` }), up: diff >= 0,
       changes: ch.map(y => `<span class="${(y.c.w > 0) === (y.v > 0) ? 'up' : 'down'}">${y.c.label} ${y.v > 0 ? '+' : '−'}${Math.abs(y.v).toFixed(1)}</span>`).join(' · '), chips: '' };
   }
-  const sc = pairScore(M.cats, M.ctx.tot, x.line, d?.line);
-  const big = M.cats.filter(c => sc.res[c.key] && sc.d[c.key].diff != null).sort((a, b) => Math.abs(sc.d[b.key].diff) / M.ctx.sd[b.key] - Math.abs(sc.d[a.key].diff) / M.ctx.sd[a.key]).slice(0, 3);
-  const chg = c => { const v = sc.d[c.key]; return c.pct ? `${c.label} ${fmtCat({ ratio: c.ratio, type: 'pct' }, v.before)} → ${fmtCat({ ratio: c.ratio, type: 'pct' }, v.after)}` : `${c.label} ${v.diff > 0 ? '+' : '−'}${Math.abs(v.diff).toFixed(1)}`; };
+  const sdOf = c => M.ctx.sd[c.key] || (c.type === 'pct' ? 0.01 : 1);
+  const dOf = c => (R.A.vals[c.key] != null && R.B.vals[c.key] != null ? R.A.vals[c.key] - R.B.vals[c.key] : 0);
+  const big = R.cats.filter(c => R.res[c.key]).sort((a, b) => Math.abs(dOf(b)) / sdOf(b) - Math.abs(dOf(a)) / sdOf(a)).slice(0, 3);
+  const chg = c => (c.type === 'pct' ? `${c.label} ${fmtCat(c, R.B.vals[c.key])} → ${fmtCat(c, R.A.vals[c.key])}` : `${c.label} ${fmtDelta(c, dOf(c)).txt}`);
   return {
-    head: faWL(sc.win, sc.lose), up: sc.win >= sc.lose,
-    changes: big.map(c => `<span class="${sc.res[c.key] > 0 ? 'up' : 'down'}">${chg(c)}</span>`).join(' · '),
-    chips: M.cats.map(c => { const r = sc.res[c.key]; return `<span class="fa-chip ${r > 0 ? 'up' : r < 0 ? 'down' : 'tie'}">${r > 0 ? '✓' : r < 0 ? '✗' : '='} ${esc(c.label)}</span>`; }).join(''),
-    sc,
+    head: faWL(R.win, R.lose), up: R.win >= R.lose,
+    changes: big.map(c => `<span class="${R.res[c.key] > 0 ? 'up' : 'down'}">${chg(c)}</span>`).join(' · '),
+    chips: R.cats.map(c => { const r = R.res[c.key]; return `<span class="fa-chip ${r > 0 ? 'up' : r < 0 ? 'down' : 'tie'}">${r > 0 ? '✓' : r < 0 ? '✗' : '='} ${esc(c.label)}</span>`; }).join(''),
+    R,
   };
 }
 /** Kad nema signala: kategorije koje par najviše popravlja (po promeni očekivanih pobeda) */
@@ -8578,59 +8607,84 @@ function withPeriod(per, fn) {
   state.period = per;
   try { return fn(); } finally { state.period = old; }
 }
+const FA_REP_VIEW_KEY = 'fbaTrade.faRepView.v1'; // donja tabela izveštaja: 'diff' (Razlika) ili 'team' (Ceo tim pre i posle), lični izbor
+const faRepView = () => (lsGet(FA_REP_VIEW_KEY) === 'team' ? 'team' : 'diff');
 function faReport(inId, outId, per = state.period) {
   const lg = currentLeague(), pIn = state.byId.get(inId), pOut = outId ? state.byId.get(outId) : null;
   if (!pIn) return;
-  const M = faModel(lg), x = M.byId.get(inId);
+  const M = faModel(lg), x = M.byId.get(inId), view = faRepView();
   const warn = M.picks.length && pOut ? (M.mine.find(m => m.id === outId)?.general ?? -Infinity) >= (x?.general ?? -Infinity) : false;
+  const R = faResult(lg, inId, outId, per);
   const body = withPeriod(per, () => {
-    const active = (lg.roster?.players || []).filter(y => !y.ir).map(y => y.id);
-    const after = [...active.filter(id => id !== outId), inId];
-    const B = sumPlayers(active), A = sumPlayers(after);
-    const cats = CATS.filter(c => !isPunt(c) && !c.fpts);
-    const pts = isPointsFmt();
-    // rezultat kao u analizi trejda: po kategoriji poredi se moj tim pre i posle (procenti: ispod .001 nerešeno)
-    let win = 0, lose = 0;
-    const res = {};
-    for (const c of cats) {
-      const b = B.vals[c.key], a = A.vals[c.key];
-      if (a == null || b == null) { res[c.key] = 0; continue; }
-      const d = a - b, zero = c.type === 'pct' ? Math.abs(d) < teamTieOf(c) : fmtDelta(c, d).zero;
-      res[c.key] = zero ? 0 : (c.lowerIsBetter ? d < 0 : d > 0) ? 1 : -1;
-      if (res[c.key] > 0) win++; else if (res[c.key] < 0) lose++;
-    }
-    const fd = (A.vals.FPTS ?? 0) - (B.vals.FPTS ?? 0);
+    const { B, A, res, win, lose, fd } = R, pts = isPointsFmt();
     const verdict = pts
       ? `<div class="fa-verdict ${fd >= 0 ? 'up' : 'down'}">${t('{d} FPts po utakmici', { d: `${fd >= 0 ? '+' : '−'}${Math.abs(fd).toFixed(1)}` })}</div>`
       : `<div class="fa-verdict ${win >= lose ? 'up' : 'down'}">${faWL(win, lose)}</div>`;
-    const hdr = `<tr><th>${t('Igrač')}</th><th>MIN</th>${CATS.map(c => `<th class="${c.fpts ? 'fpts' : ''}${isPunt(c) ? ' punted' : ''}">${c.label}</th>`).join('')}<th>GP</th></tr>`;
-    const prow = (p, tag) => playerRowHTML(p, { tags: [tag], punt: true });
-    const players = `<div class="tscroll"><table class="rtable fa-rep-pl"><thead>${hdr}</thead><tbody>
-      ${prow(pIn, { text: 'Dolazi', cls: 'tag-in' })}${pOut ? prow(pOut, { text: 'Odlazi', cls: 'tag-out' }) : ''}</tbody></table></div>`;
-    const table = pts
-      ? `<div class="fa-rep-pts"><span>${t('Pre')}: <b>${fmt1(B.vals.FPTS)}</b></span><span>${t('Posle')}: <b>${fmt1(A.vals.FPTS)}</b></span><span class="${fd >= 0 ? 'win' : 'lose'}">${t('Razlika')}: <b>${fd >= 0 ? '+' : '−'}${Math.abs(fd).toFixed(1)}</b></span> <span class="meta">${t('FPts tima po utakmici')}</span></div>`
-      : `<div class="tscroll"><table class="rtable fa-rep"><thead><tr><th></th>${cats.map(c => `<th>${c.label}</th>`).join('')}</tr></thead><tbody>
-        <tr><td>${t('Pre')}</td>${cats.map(c => `<td>${fmtCat(c, B.vals[c.key])}</td>`).join('')}</tr>
-        <tr><td>${t('Posle')}</td>${cats.map(c => `<td>${fmtCat(c, A.vals[c.key])}</td>`).join('')}</tr>
-        <tr class="total"><td>${t('Razlika')}</td>${cats.map(c => { const b = B.vals[c.key], a = A.vals[c.key]; if (a == null || b == null) return '<td>-</td>'; const f = fmtDelta(c, a - b); return `<td class="${res[c.key] > 0 ? 'win' : res[c.key] < 0 ? 'lose' : ''}">${f.txt}</td>`; }).join('')}</tr></tbody></table></div>`;
-    return { verdict, players, table };
+    const colCls = c => `${c.fpts ? 'fpts' : ''}${puntCls(c)}`;
+    const hdr = `<tr><th>${t('Igrač')}</th><th>MIN</th>${CATS.map(c => `<th class="${colCls(c)}">${c.label}</th>`).join('')}<th>GP</th></tr>`;
+    // gornja tabela: po kategoriji bolji igrač zeleno, slabiji crveno (TO i slično: manje je bolje); isto ili punt bez boje; MIN i GP bez boje
+    const lIn = playerLine(pIn), lOut = pOut ? playerLine(pOut) : null;
+    const better = c => {
+      if (!lIn || !lOut || isPunt(c)) return 0;
+      const a = cmpKey(c, catValue(lIn, c)), b = cmpKey(c, catValue(lOut, c));
+      if (a == null || b == null || a === b) return 0;
+      return (c.lowerIsBetter ? a < b : a > b) ? 1 : -1;
+    };
+    const prow = (p, tag, sgn) => playerRowHTML(p, { tags: [tag], punt: true, pctSub: true, markOf: c => { const r = better(c) * sgn; return r > 0 ? 'better-me' : r < 0 ? 'better-them' : ''; } });
+    const minW = 240 + (CATS.length + 2) * 64; // od ove širine nema skrola (inače skrol samo tada)
+    const tbl = (cls, head, rows) => `<div class="tscroll"><table class="rtable fa-rep-t ${cls}" style="min-width:${minW}px"><thead>${head}</thead><tbody>${rows}</tbody></table></div>`;
+    const players = tbl('fa-rep-pl', hdr, `${prow(pIn, { text: 'Dolazi', cls: 'tag-in' }, 1)}${pOut ? prow(pOut, { text: 'Odlazi', cls: 'tag-out' }, -1) : ''}`);
+    // donja tabela: Razlika (dolazi minus odlazi, po utakmici) ili Ceo tim pre i posle
+    const sgnCls = (c, d, zero) => (zero || isPunt(c) ? '' : (c.lowerIsBetter ? d < 0 : d > 0) ? 'win' : 'lose');
+    let bottom;
+    if (view === 'diff') {
+      const cell = c => {
+        const a = lIn ? catValue(lIn, c) : null, b = lOut ? catValue(lOut, c) : (pOut ? null : 0);
+        if (a == null || b == null) return `<td class="${colCls(c)}">-</td>`;
+        const f = fmtDelta(c, a - b);
+        return `<td class="${colCls(c)} ${sgnCls(c, a - b, f.zero)}">${f.txt}</td>`;
+      };
+      const dm = lIn && lOut && lIn.MIN != null && lOut.MIN != null ? fmtDelta({ type: 'sum' }, lIn.MIN - lOut.MIN).txt : '';
+      bottom = tbl('fa-rep', `<tr><th></th><th>MIN</th>${CATS.map(c => `<th class="${colCls(c)}">${c.label}</th>`).join('')}<th>GP</th></tr>`,
+        `<tr class="total"><td>${t('Razlika')}</td><td>${dm}</td>${CATS.map(cell).join('')}<td></td></tr>`);
+    } else {
+      const v = (vals, c) => `<td class="${colCls(c)}">${fmtCat(c, vals[c.key])}</td>`;
+      const dcell = c => {
+        const b = B.vals[c.key], a = A.vals[c.key];
+        if (a == null || b == null) return `<td class="${colCls(c)}">-</td>`;
+        const f = fmtDelta(c, a - b), r = c.fpts ? (f.zero ? 0 : a > b ? 1 : -1) : res[c.key] ?? 0;
+        return `<td class="${colCls(c)} ${r > 0 ? 'win' : r < 0 ? 'lose' : ''}">${f.txt}</td>`;
+      };
+      bottom = tbl('fa-rep', `<tr><th></th><th></th>${CATS.map(c => `<th class="${colCls(c)}">${c.label}</th>`).join('')}<th></th></tr>`,
+        `<tr><td>${t('Pre')}</td><td></td>${CATS.map(c => v(B.vals, c)).join('')}<td></td></tr>
+        <tr><td>${t('Posle')}</td><td></td>${CATS.map(c => v(A.vals, c)).join('')}<td></td></tr>
+        <tr class="total"><td>${t('Razlika')}</td><td></td>${CATS.map(dcell).join('')}<td></td></tr>`);
+    }
+    return { verdict, players, bottom };
   });
-  // streaming: utakmice do kraja nedelje meča za oba igrača i procena doprinosa ove nedelje (izabrani period)
+  const tip = view === 'diff' ? t('Razlika između igrača koji dolazi i igrača koji odlazi, po utakmici, u izabranom periodu.') : t('Zbir proseka po utakmici svih aktivnih igrača tvog tima, pre i posle izmene, u izabranom periodu.');
+  const vseg = `<div class="fa-rep-view"><div class="seg small" role="group" aria-label="${esc(t('Prikaz'))}">${[['diff', 'Razlika'], ['team', 'Ceo tim pre i posle']].map(([k, l]) => `<button type="button" data-action="fa-rep-view" data-v="${k}" data-per="${per}" data-in="${inId}" data-out="${outId || ''}" aria-pressed="${k === view}">${t(l)}</button>`).join('')}</div><span class="i" data-tip="${esc(tip)}">ⓘ</span></div>`;
+  // streaming: utakmice do kraja nedelje meča za oba igrača, pa procena ukupno (prosek po utakmici u izabranom periodu × broj utakmica)
   const gIn = faWeekLeft(pIn.tid, lg), gOut = pOut ? faWeekLeft(pOut.tid, lg) : null;
   const lIn = statOf(pIn, per), lOut = pOut ? statOf(pOut, per) : null;
   let week = '';
   if (gIn != null) {
     const w = faWeek(lg), cats = CATS.filter(c => !isPunt(c) && !c.fpts);
     const d = ms => (LANG === 'en' ? new Date(ms).toLocaleDateString(LOCALE(), { day: 'numeric', month: 'short' }) : euDate(new Date(ms).toISOString()));
-    week = `<p>${t('Do kraja nedelje meča: {a} ut. za {n1}, {b} za {n2}.', { a: gIn, b: gOut ?? '–', n1: esc(pIn.name), n2: pOut ? esc(pOut.name) : '–' })}</p>`;
+    week = `<p class="fa-games">${t('Utakmice do kraja nedelje meča')}: <b>${esc(pIn.name)} ${gIn}</b>${pOut ? `, <b>${esc(pOut.name)} ${gOut ?? '–'}</b>` : ''}</p>
+      <h5 class="fa-week-h">${t('Ukupno do kraja nedelje meča')}</h5>`;
     if (isPointsFmt()) {
       const a = lIn ? fptsOf(lIn) * gIn : 0, b = lOut && gOut ? fptsOf(lOut) * gOut : 0;
-      week += `<div class="fa-week">${t('Procena za ovu nedelju')}: <b class="${a >= b ? 'up' : 'down'}">${a >= b ? '+' : '−'}${Math.abs(a - b).toFixed(1)} FPts</b></div>`;
+      week += `<div class="fa-week"><b class="${a >= b ? 'up' : 'down'}">${a >= b ? '+' : '−'}${Math.abs(a - b).toFixed(1)} FPts</b></div>`;
     } else {
-      const cnt = cats.filter(c => c.type !== 'pct' && !c.ratio).map(c => { const a = (lIn?.[c.key] || 0) * gIn, b = (lOut?.[c.key] || 0) * (gOut || 0), dd = a - b; return Math.abs(dd) < 0.5 ? '' : `<span class="${(c.lowerIsBetter ? dd < 0 : dd > 0) ? 'up' : 'down'}">${dd > 0 ? '+' : '−'}${Math.abs(dd).toFixed(1)} ${c.label}</span>`; }).filter(Boolean);
-      if (cnt.length) week += `<div class="fa-week">${t('Procena za ovu nedelju')}: ${cnt.join(' · ')}</div>`;
+      const cnt = cats.filter(c => c.type !== 'pct' && !c.ratio).map(c => {
+        const a = (lIn?.[c.key] || 0) * gIn, b = (lOut?.[c.key] || 0) * (gOut || 0), dd = a - b, f = fmtDelta(c, dd);
+        return `<span class="${f.zero ? '' : (c.lowerIsBetter ? dd < 0 : dd > 0) ? 'up' : 'down'}">${f.txt} ${c.label}</span>`;
+      });
+      week += `<div class="fa-week">${cnt.join(' · ')}</div>`;
     }
-    week += `<p class="pnote">${w.league ? t('Nedelja meča iz lige: od {a} do {b}', { a: d(w.a), b: d(w.b) }) : t('Nedelja meča od ponedeljka do nedelje: od {a} do {b}', { a: d(w.a), b: d(w.b) })}</p>`;
+    week += `<p class="pnote fa-week-note">${t('Igrač sa više utakmica ove nedelje donosi više ukupno, i kad je slabiji po utakmici.')}</p>
+      <p class="pnote">${w.league ? t('Nedelja meča iz lige: od {a} do {b}', { a: d(w.a), b: d(w.b) }) : t('Nedelja meča od ponedeljka do nedelje: od {a} do {b}', { a: d(w.a), b: d(w.b) })}</p>`;
   }
   const L = lg.import?.acqLimit, S = lg.import?.acqSeason;
   const acq = L?.per === 'week' && L.used != null ? t('Preostala preuzimanja ove nedelje: {n}.', { n: Math.max(0, L.n - L.used) })
@@ -8643,7 +8697,7 @@ function faReport(inId, outId, per = state.period) {
     title: `${esc(pIn.name)} <span class="hint">⇄ ${pOut ? esc(pOut.name) : '–'}</span>`, cls: 'fa-rep-box', wide: true, cancel: null, confirm: t('Zatvori'), onConfirm: () => {},
     body: `${seg}${warn ? `<p class="pnote warn">⚠ ${t('{n} vredi više od igrača koji dolazi.', { n: esc(pOut.name) })}</p>` : ''}${body.verdict}
       <h4>${t('Dolazi i odlazi')} <span class="hint">${t('po utakmici')}</span></h4>${body.players}
-      <h4>${t('Tvoj tim pre i posle')} <span class="hint">${t('po utakmici')}</span></h4>${body.table}
+      ${vseg}${body.bottom}
       <h4>${t('Zašto')}</h4>${why.length ? `<div class="fa-why">${why.map(w => `<span>${w}</span>`).join('')}</div>` : `<p class="pnote">${t('Izmena popravlja tvoj tim u odnosu na ostale timove lige.')}</p>`}
       <div class="fa-rep-news" id="fa-rep-news"><p class="pnote">${t('Učitavam vesti…')}</p></div>
       ${week ? `<h4>${t('Streaming')}</h4>${week}` : ''}
@@ -8883,6 +8937,7 @@ document.addEventListener('click', e => {
     // Pojačanja sa FA
     case 'fa-report': faReport(+el.dataset.in, +el.dataset.out || null); break;
     case 'fa-rep-per': faReport(+el.dataset.in, +el.dataset.out || null, el.dataset.per); break;
+    case 'fa-rep-view': lsSet(FA_REP_VIEW_KEY, el.dataset.v); faReport(+el.dataset.in, +el.dataset.out || null, el.dataset.per); break;
     case 'fa-next-drop': { const u = faUi(), id = +el.dataset.id; u.skipBy[id] = (u.skipBy[id] || 0) + 1; render(); break; }
     case 'fa-auto-drop': faUi().picks = []; faUi().skipBy = {}; render(); break;
     case 'fa-unpick': { const u = faUi(); u.picks = u.picks.filter(id => id !== +el.dataset.id); render(); break; }

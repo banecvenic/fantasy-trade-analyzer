@@ -1182,3 +1182,18 @@ td.fa-notes{display:table-cell}td.fa-notes span{display:block}
 }
 .pm-log tr.next.live td.nx{color:var(--win-text);font-style:normal;font-weight:700}
 .pm-log tr.dnp td{color:var(--dim)}
+
+/* FA 4.2c: dugmad na dnu kartice, izveštaj (boje, prekidač, streaming), širi modal, napomene u usponu */
+.fa-foot{margin-top:auto;padding-top:4px}
+.fa-rep-view{display:flex;align-items:center;gap:8px;margin:12px 0 6px}
+.fa-rep-t th:first-child,.fa-rep-t td:first-child{width:240px;max-width:240px;min-width:0}
+.fa-rep-t th:not(:first-child),.fa-rep-t td:not(:first-child){padding-left:4px;padding-right:6px}
+.fa-games{font-size:14px;margin:4px 0 8px}
+.fa-week-h{margin:8px 0 4px;font-size:13px;color:var(--muted);font-weight:700}
+.fa-week-note{font-size:12px;margin:6px 0 0}
+@media (min-width:641px){.modal-box.fa-rep-box{max-width:min(1200px,calc(100vw - 32px))}}
+@media (max-width:640px){.fa-rep-t th:first-child,.fa-rep-t td:first-child{width:170px;max-width:170px}}
+.fa-rise-t th.fa-notes-th,.fa-rise-t td.fa-notes{width:230px}
+.fa-rise-t td.fa-notes{white-space:normal;vertical-align:top}
+.fa-rise-t td.fa-notes span{white-space:normal;overflow-wrap:anywhere}
+@media (min-width:641px){.fa-rise-t th:first-child,.fa-rise-t td:first-child{width:230px;max-width:230px}.fa-rise-t{min-width:980px}}
