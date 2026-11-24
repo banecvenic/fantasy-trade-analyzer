@@ -12,7 +12,7 @@ const start = src.indexOf('   Vrednost igrača: čiste funkcije');
 const end = src.indexOf('/* ==== kraj: FA, čiste funkcije ==== */');
 if (start < 0 || end < 0) throw new Error('Nije nađen FA modul u app.js');
 const code = src.slice(src.lastIndexOf('/*', start), end);
-const F = new Function(`${code}\nreturn { FA, VALUE, freeAgentIds, blendWeights, blendValue, blendLine, sumLines, swapTotals, expWins, leagueSpread, pairGain, pairScore, canDrop, faSuggest, tradeCandidates, pageOf, rotationSignals, watchList, irStash, publicRising };`)();
+const F = new Function(`${code}\nreturn { FA, VALUE, freeAgentIds, blendWeights, blendValue, blendLine, sumLines, swapTotals, expWins, leagueSpread, pairGain, pairScore, canDrop, dropVerdict, faSuggest, tradeCandidates, pageOf, rotationSignals, watchList, irStash, publicRising };`)();
 
 let n = 0;
 const test = (name, fn) => { fn(); n++; console.log(`ok  ${name}`); };
@@ -178,6 +178,40 @@ test('mešavina linija po periodima i zamena igrača u zbiru tima', () => {
   near(l.PTS, 15);
   const tot = F.swapTotals({ PTS: 100, FGM: 40 }, { PTS: 12, FGM: 5 }, { PTS: 8, FGM: 3 });
   assert.deepStrictEqual(tot, { PTS: 104, FGM: 42 });
+});
+
+test('otpuštanje po obe vrednosti: obe ispod realne zamene = otpust; niska stvarna, a viša cena = Trejd kandidat', () => {
+  const slot = { rv: 38.2, mv: -3.9 }; // NBA tviter: Cameron Johnson, Stirtz, Slawson
+  assert.strictEqual(F.dropVerdict({ rv: -39.4, mv: -18.2, own: 11 }, slot), 'drop');   // Murray-Boyles
+  assert.strictEqual(F.dropVerdict({ rv: -66.8, mv: -1.4, own: 30 }, slot), 'trade');   // Brooks: cena malo iznad zamene
+  assert.strictEqual(F.dropVerdict({ rv: -41.7, mv: 17.6, own: 70 }, slot), 'trade');   // Nembhard
+  assert.strictEqual(F.dropVerdict({ rv: 125, mv: 75, own: 81 }, slot), 'keep');        // obe visoke
+  assert.strictEqual(F.dropVerdict({ rv: -39, mv: -18, own: 60 }, slot), 'trade');      // vlasništvo od praga naviše
+  assert.strictEqual(F.dropVerdict({ rv: -39, mv: -18, own: 10 }, slot, { locked: true }), 'keep');
+  assert.strictEqual(F.dropVerdict({ rv: -39, mv: -18, own: 10, ir: true }, slot), 'keep');
+  assert.strictEqual(F.dropVerdict({ rv: -66.8, mv: -1.4, own: 30 }, slot, { margin: 3 }), 'drop'); // DROP_PRICE_MARGIN
+  assert.strictEqual(F.dropVerdict({ rv: null, mv: -20, own: 10 }, slot), 'keep');                  // bez stvarne vrednosti
+  assert.deepStrictEqual([F.FA.DROP_PRICE_MARGIN, F.FA.REAL_PROJ_FADE_GP, F.FA.REAL_PROJ_FLOOR], [0, 15, 0]);
+});
+
+test('FA alat uz realnu zamenu: Trejd kandidat nije otpust; bez ijednog otpusta nema predloga', () => {
+  const slot = { rv: 38, mv: -4 }, fa = [{ id: 100, general: 1, mv: 10, rv: 60, signals: [] }];
+  const mine2 = [{ id: 1, rv: -66, mv: 0.5, own: 30 }, { id: 2, rv: -41, mv: 18, own: 70 }, { id: 3, rv: 125, mv: 75, own: 81 }];
+  assert.strictEqual(F.canDrop(mine2[0], fa[0], new Set(), 50, slot), false);
+  const r = F.faSuggest(fa, mine2, () => 1, { min: 0.05, slot });
+  assert.deepStrictEqual([r.list.length, r.eligible], [0, false]); // poruka "Tvoj roster je jači..."
+  assert.deepStrictEqual(F.tradeCandidates(mine2, fa, (x, m) => (m.id === 1 ? 2 : 1), { min: 0.05, slot }).map(x => x.id), [1, 2]);
+  const r2 = F.faSuggest(fa, [...mine2, { id: 4, rv: -40, mv: -20, own: 10 }], () => 1, { min: 0.05, slot });
+  assert.strictEqual(r2.list[0].drop, 4);
+});
+
+test('stvarna vrednost: projekcija nestaje do 15 utakmica, bez donje granice; cena zadržava 25 i 0,25', () => {
+  const gp = { proj: 1, season: 15, l15: 6, l7: 3 };
+  const real = F.blendWeights(gp, F.FA.BLEND, F.FA.BLEND_FULL_GP, F.FA.REAL_PROJ_FLOOR, F.FA.REAL_PROJ_FADE_GP);
+  assert.strictEqual(real.proj, undefined);
+  const half = F.blendWeights({ ...gp, season: 7.5 }, F.FA.BLEND, F.FA.BLEND_FULL_GP, 0, 15), full = F.blendWeights({ ...gp, season: 7.5 }, F.FA.BLEND, F.FA.BLEND_FULL_GP, 0, 1e9);
+  assert.ok(half.proj > 0 && half.proj < full.proj);
+  assert.ok(F.blendWeights(gp).proj > 0); // cena (podrazumevano): projekcija i dalje ima težinu
 });
 
 console.log(`\n${n} testova prošlo`);

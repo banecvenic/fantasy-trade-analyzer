@@ -1263,6 +1263,17 @@ td.fa-notes{display:table-cell}td.fa-notes span{display:block}
 .tf-veto b{color:var(--text);font-weight:600}
 .tf-foot{margin-top:auto;display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap}
 .tf-foot .tf-saved{margin-right:auto}
+.rate-btns{display:inline-flex;gap:4px;margin-right:auto}
+.tf-foot .rate-btns + .tf-saved{margin-right:0}
+.fa-btns .rate-btns{margin-right:0}
+.rate-btn{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:30px;padding:0 8px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--text);font-size:14px;line-height:1;cursor:pointer;opacity:.7;filter:grayscale(.6)}
+.rate-btn:hover{opacity:1;filter:none}
+.rate-btn.on{opacity:1;filter:none}
+.rate-btn.up.on{background:var(--win-bg);border-color:var(--win-text)}
+.rate-btn.down.on{background:var(--lose-bg);border-color:var(--lose-text)}
+.rate-btn:focus-visible{outline:2px solid var(--info);outline-offset:2px}
+.rate-set{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.rate-set .btn:disabled{opacity:.45;cursor:default;filter:grayscale(.5)}
 .tf-card.saved{border-color:var(--win)}
 .tf-more{display:flex;justify-content:center;padding:12px}
 .tf-save{display:flex;justify-content:center;padding:12px 0}

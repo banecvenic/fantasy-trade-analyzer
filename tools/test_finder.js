@@ -12,7 +12,7 @@ const start = src.indexOf('   Fer trejd: čiste funkcije');
 const end = src.indexOf('/* ==== kraj: Fer trejd, čiste funkcije ==== */');
 if (start < 0 || end < 0) throw new Error('Nije nađen modul Fer trejd u app.js');
 const code = src.slice(src.lastIndexOf('/*', start), end);
-const { TF, E, tfMarket, tfVetoPick, tfVetoShown, tfDropOk, tfTabFor, tfSlotValue } = new Function(`${code}\nreturn { TF, E: tfEngine(), tfMarket, tfVetoPick, tfVetoShown, tfDropOk, tfTabFor, tfSlotValue };`)();
+const { TF, E, tfMarket, tfVetoPick, tfVetoShown, tfDropOk, tfTabFor, tfSlotValue, tfProd, tfRateKey, tfRateApply } = new Function(`${code}\nreturn { TF, E: tfEngine(), tfMarket, tfVetoPick, tfVetoShown, tfDropOk, tfTabFor, tfSlotValue, tfProd, tfRateKey, tfRateApply };`)();
 // i motor kao tekst (kako ga dobija Web Worker) mora da radi samostalno
 const E2 = new Function(`return (${new Function(`${code}\nreturn tfEngine;`)().toString()})();`)();
 
@@ -503,6 +503,66 @@ test('brzina: 13 na 13 igrača bez oznaka', () => {
   const t0 = Date.now(); const r = E.search(inp); const ms = Date.now() - t0;
   console.log(`    13 na 13: ${ms} ms, parova posle odsecanja ${r.stats.pairs}, prošlo vrednost ${r.stats.value}, kategorije ${r.stats.cats}, korist ${r.stats.gain}`);
   assert.ok(ms < 5000);
+});
+
+test('strana od 8: najviše 2 gde dajem više i najviše 2 gde dobijam više, zajedno; bez dovoljno ravnomernih popunjava se po rangu', () => {
+  const T = (i, kG, kR) => ({ core: `c${i}`, top: i, rtop: 100 + i, shape: `${kG}:${kR}`, g: Array(kG).fill(0), r: Array(kR).fill(0) });
+  // rang: na vrhu 5 gde dajem više i 4 gde dobijam više, pa ravnomerni
+  const L = [T(0, 2, 1), T(1, 3, 2), T(2, 2, 1), T(3, 1, 2), T(4, 2, 1), T(5, 1, 2), T(6, 3, 2), T(7, 1, 2), T(8, 1, 2)];
+  for (let i = 9; i < 25; i++) L.push(T(i, (i % 2) + 1, (i % 2) + 1));
+  const out = E.paginate(L, 8, 3, 2, Infinity, 2);
+  const less = x => x.g.length > x.r.length, more = x => x.r.length > x.g.length;
+  for (let p = 0; (p + 1) * 8 <= out.length - 9; p++) { const pg = out.slice(p * 8, p * 8 + 8); assert.ok(pg.filter(less).length <= 2 && pg.filter(more).length <= 2, `strana ${p + 1}`); }
+  assert.deepStrictEqual(out.slice(0, 2).map(x => x.core), ['c0', 'c1']); // rang se čuva
+  assert.strictEqual(new Set(out.map(x => x.core)).size, L.length);    // niko ne nestaje
+  // samo neravnomerni: strana se ipak popunjava po rangu
+  const U = [T(0, 2, 1), T(1, 3, 2), T(2, 2, 1), T(3, 1, 2), T(4, 2, 1), T(5, 1, 2), T(6, 3, 2), T(7, 1, 2)];
+  assert.strictEqual(E.paginate(U, 8, 3, 2, Infinity, 2).slice(0, 8).length, 8);
+  assert.strictEqual(TF.GIVE_MORE_MAX, 2);
+});
+
+test('motor: najviše 2 od 8 gde dajem više u Najbolje za mene; Konsolidacija bez ograničenja', () => {
+  const mk = strategy => base({ mine: bigTeam(1, 9, 1).map(x => ({ ...x, drop: true })), theirs: bigTeam(100, 9, 5).map(x => ({ ...x, drop: true })), limits: TF.SLIDERS.map(k => TF.LIMITS[k]), strategy });
+  const less = x => x.g.length > x.r.length;
+  const L = E.search(mk('best')).list, even = L.filter(x => x.g.length === x.r.length).length;
+  for (let p = 0; (p + 1) * 8 <= even; p++) assert.ok(E.pageItems(L, p, 8).filter(less).length <= TF.GIVE_MORE_MAX, `strana ${p + 1}`);
+  const C = E.search(mk('cons')).list;
+  assert.ok(E.pageItems(C, 0, 8).filter(less).length > TF.GIVE_MORE_MAX); // Konsolidacija: sve daje više
+});
+
+test('Trejd kandidat se ne otpušta: trejd prolazi samo kad pređe na drugu stranu', () => {
+  // 21: cena 0.45 ispod moje zamene 0.5, pa se bez oznake otpušta (2:1); kao Trejd kandidat ne sme na waiver, nego prelazi na moju stranu (2:2)
+  const plain = E.search(convInp('best', 0.45, 8.2, 0.5)).list;
+  assert.ok(plain.some(x => x.od.includes(21) && !x.conv), 'bez oznake: otpust');
+  const inp = convInp('best', 0.45, 8.2, 0.5); inp.theirs[1] = { ...inp.theirs[1], tc: true, rv: -5 };
+  const L = E.search(inp).list;
+  assert.ok(!L.some(x => x.od.includes(21)), 'nema otpusta Trejd kandidata');
+  assert.ok(L.length && L.every(x => !x.od.length) && L.some(x => x.r.includes(21)), 'prelazi na moju stranu');
+  // pravi kandidat za otpust ide pre Trejd kandidata, najslabiji po stvarnoj vrednosti
+  const w = E.weakest([{ i: 0, v: 1, rv: -9, tc: true }, { i: 1, v: 2, rv: 3 }, { i: 2, v: 0, rv: 5 }].sort((a, b) => (a.tc ? 1 : 0) - (b.tc ? 1 : 0) || a.rv - b.rv), new Set(), [], 1);
+  assert.deepStrictEqual(w.map(x => x.i), [1]);
+});
+
+test('cena na tržištu: produkcija broji i ukradene lopte, blokade, trojke i izgubljene lopte', () => {
+  const a = { PTS: 15, REB: 5, AST: 3 }, b = { ...a, STL: 1, BLK: 1 };
+  assert.strictEqual(tfProd(b, TF.PROD_W) - tfProd(a, TF.PROD_W), 4);
+  assert.strictEqual(tfProd({ PTS: 10, TPM: 2, TO: 2 }, TF.PROD_W), 10);  // +1 za trojke, −1 za izgubljene lopte
+  assert.strictEqual(tfProd({ PTS: 10 }, TF.PROD_W), 10);                 // stavka koje nema = 0
+});
+
+test('ocene predloga: ključ bez redosleda, zamena, brisanje istom ocenom, najviše 500', () => {
+  assert.strictEqual(tfRateKey('finder', 'L1', [3, 1], [9]), tfRateKey('finder', 'L1', [1, 3], [9]));
+  assert.notStrictEqual(tfRateKey('finder', 'L1', [1], [9]), tfRateKey('fa', 'L1', [1], [9]));
+  const e = (k, rating) => ({ k, rating, give: [{ id: 1, name: 'A' }], get: [{ id: 2, name: 'B' }], league: { id: 'L1' }, myTeam: 'Tim', opp: 'Protivnik' });
+  let r = tfRateApply(null, e('x', 1));
+  assert.deepStrictEqual([r.rating, r.all.items.length, r.all.v], [1, 1, 1]);
+  r = tfRateApply(r.all, e('x', -1)); assert.deepStrictEqual([r.rating, r.all.items.length, r.all.items[0].rating], [-1, 1, -1]); // nova zamenjuje staru
+  r = tfRateApply(r.all, e('x', -1)); assert.deepStrictEqual([r.rating, r.all.items.length], [0, 0]); // ista ocena ponovo briše
+  let all = { v: 1, items: [] };
+  for (let i = 0; i < 503; i++) all = tfRateApply(all, e(`k${i}`, 1), 500).all;
+  assert.strictEqual(all.items.length, 500); assert.strictEqual(all.items[0].k, 'k3'); // najstarija ispada
+  assert.ok(!JSON.stringify(all).match(/firstName|lastName|owner/i)); // bez imena menadžera
+  assert.strictEqual(JSON.parse(JSON.stringify(all)).v, 1);
 });
 
 console.log(`\n${n} testova prošlo`);
