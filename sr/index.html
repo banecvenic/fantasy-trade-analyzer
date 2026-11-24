@@ -33,8 +33,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'">
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"></noscript>
-<link rel="stylesheet" href="../assets/app.css?v=4fdf8d8e">
-<link rel="stylesheet" href="../assets/site.css?v=04035223">
+<link rel="stylesheet" href="../assets/app.css?v=2e781e34">
+<link rel="stylesheet" href="../assets/site.css?v=35e1dea5">
 <script>
 (function(){var h=location.hash,app='../app/',ta='../sr/trade-analyzer/';
 if(/^#(home|league-)/.test(h)){location.replace(app+h);return;}
@@ -89,7 +89,7 @@ if(l)location.replace(app+'#league-'+l.id+'/overview&lang=sr');}catch(e){}})();
           <a role="menuitem" class="pm-item" href="../sr/trade-analyzer/" data-href="analyzer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8h14l-4-4M20 16H6l4 4"/></svg><span data-t="analyzer">Analiza trejda</span></a>
           <button type="button" role="menuitem" class="pm-item off" data-tool-soon="finder"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M8 11h6M11 8v6"/></svg><span data-t="builder">Pronađi trejd</span><span class="soon" data-t="soon">Uskoro</span></button>
           <button type="button" role="menuitem" class="pm-item off" data-tool-soon="targets"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg><span data-t="finder">Mete za trejd</span><span class="soon" data-t="soon">Uskoro</span></button>
-          <button type="button" role="menuitem" class="pm-item off" data-tool-soon="fa"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M2 21c1.2-3.5 3.8-5.5 7-5.5s5.8 2 7 5.5M19 8v6M16 11h6"/></svg><span data-t="fa">Pojačanja sa FA</span><span class="soon" data-t="soon">Uskoro</span></button>
+          <button type="button" role="menuitem" class="pm-item" data-pick-league="fa"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M2 21c1.2-3.5 3.8-5.5 7-5.5s5.8 2 7 5.5M19 8v6M16 11h6"/></svg><span data-t="fa">Pojačanja sa FA</span></button>
         </div></div>
       <div class="dd-wrap"><button type="button" class="gl" data-gmenu="leagues" aria-haspopup="menu" aria-expanded="false"><span data-t="leagues">Moje lige</span><svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
         <div class="gmenu gmenu-leagues" id="gmenu-leagues" role="menu" hidden>
@@ -105,7 +105,7 @@ if(l)location.replace(app+'#league-'+l.id+'/overview&lang=sr');}catch(e){}})();
     <label class="langsel" title="Jezik / Language"><svg class="globe" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.8 3.8 5.8 3.8 9s-1.3 6.2-3.8 9c-2.5-2.8-3.8-5.8-3.8-9S9.5 5.8 12 3z"/></svg><select data-publang aria-label="Jezik / Language"><option value="sr" data-go="../sr/" selected>Srpski</option><option value="en" data-go="../" >English</option></select></label>
   </div>
 </header>
-<script src="../assets/nav.js?v=269e8b29"></script>
+<script src="../assets/nav.js?v=a352b58f"></script>
 
 <div class="continue-bar" id="continue-bar" hidden><div class="wrap"><span>Nastavi gde si stao</span><a class="cta" id="continue-btn" href="../app/">…</a></div></div>
 <script>
@@ -137,7 +137,7 @@ var b=document.getElementById('continue-btn');b.textContent="Nastavi: {name}".re
     </a>
   </section>
 
-  <section class="mini" id="mini" aria-labelledby="mini-h" data-txt='{&quot;mini_give_ph&quot;: &quot;Koga daješ…&quot;, &quot;mini_get_ph&quot;: &quot;Koga dobijaš…&quot;, &quot;mini_loading&quot;: &quot;Učitavam igrače…&quot;, &quot;mini_error&quot;: &quot;Igrači nisu učitani. Pokušaj kasnije.&quot;, &quot;mini_none&quot;: &quot;Nema igrača&quot;, &quot;mini_hint&quot;: &quot;Dodaj igrača na svaku stranu da vidiš rezultat.&quot;, &quot;mini_remove&quot;: &quot;Ukloni&quot;, &quot;mini_stats&quot;: &quot;Cela statistika&quot;, &quot;mini_open&quot;: &quot;Otvori celu analizu&quot;, &quot;mini_cat&quot;: &quot;Kat.&quot;, &quot;mini_diff&quot;: &quot;Razlika&quot;, &quot;mini_total&quot;: &quot;Ukupno&quot;, &quot;mini_win&quot;: &quot;dobijaš&quot;, &quot;mini_lose&quot;: &quot;gubiš&quot;, &quot;mini_tie&quot;: &quot;nerešeno&quot;, &quot;mini_ties&quot;: &quot;{n} nerešeno&quot;}' data-app="../assets/app.js?v=eb6aca3f" data-lang="sr" data-ta="../sr/trade-analyzer/">
+  <section class="mini" id="mini" aria-labelledby="mini-h" data-txt='{&quot;mini_give_ph&quot;: &quot;Koga daješ…&quot;, &quot;mini_get_ph&quot;: &quot;Koga dobijaš…&quot;, &quot;mini_loading&quot;: &quot;Učitavam igrače…&quot;, &quot;mini_error&quot;: &quot;Igrači nisu učitani. Pokušaj kasnije.&quot;, &quot;mini_none&quot;: &quot;Nema igrača&quot;, &quot;mini_hint&quot;: &quot;Dodaj igrača na svaku stranu da vidiš rezultat.&quot;, &quot;mini_remove&quot;: &quot;Ukloni&quot;, &quot;mini_stats&quot;: &quot;Cela statistika&quot;, &quot;mini_open&quot;: &quot;Otvori celu analizu&quot;, &quot;mini_cat&quot;: &quot;Kat.&quot;, &quot;mini_diff&quot;: &quot;Razlika&quot;, &quot;mini_total&quot;: &quot;Ukupno&quot;, &quot;mini_win&quot;: &quot;dobijaš&quot;, &quot;mini_lose&quot;: &quot;gubiš&quot;, &quot;mini_tie&quot;: &quot;nerešeno&quot;, &quot;mini_ties&quot;: &quot;{n} nerešeno&quot;}' data-app="../assets/app.js?v=a54156c9" data-lang="sr" data-ta="../sr/trade-analyzer/">
     <h2 id="mini-h">Probaj brzi trejd</h2>
     <p class="lead">Do 2 igrača po strani. Prosek po utakmici za sezonu. <span class="mini-fmt">9-cat · drugi formati u punoj analizi</span></p>
     <div class="mini-sides">
@@ -159,7 +159,7 @@ var b=document.getElementById('continue-btn');b.textContent="Nastavi: {name}".re
   </section>
 
   <section class="feature" aria-labelledby="builder-h"><span class="tool-name">Pronađi trejd</span><h2 id="builder-h">Napravi trejd između dva tima</h2><p class="lead">Izaberi svoj i još jedan tim i dobij predloge trejdova 1 za 1, 2 za 1 i 2 za 2.</p><span class="soon">Uskoro</span></section>
-  <div class="feature-grid"><section class="feature" aria-labelledby="finder-h"><span class="tool-name">Mete za trejd</span><h2 id="finder-h">Nađi igrača koji treba tvom timu</h2><p class="lead">Izaberi kategorije koje hoćeš da popraviš i vidi igrače iz drugih ekipa koji ih donose.</p><span class="soon">Uskoro</span></section><section class="feature" aria-labelledby="fa-h"><span class="tool-name">Pojačanja sa FA</span><h2 id="fa-h">Nađi slobodne igrače za svoj tim</h2><p class="lead">Iz tvoje uvezene lige pronalazi slobodne igrače koji odgovaraju tvom timu, uključujući one kojima minutaža raste.</p><span class="soon">Uskoro</span></section></div>
+  <div class="feature-grid"><section class="feature" aria-labelledby="finder-h"><span class="tool-name">Mete za trejd</span><h2 id="finder-h">Nađi igrača koji treba tvom timu</h2><p class="lead">Izaberi kategorije koje hoćeš da popraviš i vidi igrače iz drugih ekipa koji ih donose.</p><span class="soon">Uskoro</span></section><section class="feature" aria-labelledby="fa-h"><span class="tool-name">Pojačanja sa FA</span><h2 id="fa-h">Nađi slobodne igrače za svoj tim</h2><p class="lead">Iz tvoje uvezene lige pronalazi slobodne igrače koji odgovaraju tvom timu, uključujući one kojima minutaža raste.</p><div class="tool-acts"><button type="button" class="cta2" data-pick-league="fa">Izaberi ligu</button><a class="more-link" href="../sr/free-agents/">Saznaj više</a></div></section></div>
 
   <section aria-labelledby="faq-h">
     <h2 id="faq-h">Česta pitanja</h2>
@@ -172,6 +172,7 @@ var b=document.getElementById('continue-btn');b.textContent="Nastavi: {name}".re
       <span class="f-brand"><img src="../assets/favicon.svg" width="24" height="24" alt="RosterSwing"> Fantasy Basketball Tools</span>
       <nav class="f-links" aria-label="Footer">
         <a href="../sr/about/">O sajtu</a>
+        <a href="../sr/free-agents/">Pojačanja sa FA</a>
         <a href="../sr/how-to-import/">Kako uvesti ligu</a>
         <a href="../sr/privacy/">Privatnost</a>
         <a href="https://github.com/banecvenic/fantasy-trade-analyzer/issues" rel="noopener">Kontakt</a>

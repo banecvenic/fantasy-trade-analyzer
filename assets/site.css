@@ -240,3 +240,22 @@
 
 /* naziv alata iznad naslova kartice na početnoj (isto ime kao u meniju Alati) */
 .feature .tool-name{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+/* kartica Pojačanja sa FA na početnoj: dugme + mali link */
+.tool-acts{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.tool-acts .cta2{cursor:pointer;font-family:inherit}
+.more-link{font-size:14px;color:var(--muted)}
+/* javna stranica /free-agents/ */
+.hero-fa{display:grid;grid-template-columns:1.1fr 1fr;gap:28px;align-items:center}
+.hero-fa .cta{cursor:pointer;font-family:inherit;border:0}
+.fa-ex-l{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.fa-rise-list{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.fa-rise-list .empty{color:var(--muted)}
+.fa-rise-row{display:grid;grid-template-columns:22px 40px 1fr auto auto;gap:10px;align-items:center;width:100%;padding:8px 12px;background:var(--card);border:1px solid var(--line);border-radius:10px;color:var(--text);font:inherit;text-align:left;cursor:pointer}
+.fa-rise-row:hover{border-color:var(--muted)}
+.fa-rise-n{color:var(--dim);font-weight:800;font-size:13px}
+.fa-rise-id,.fa-rise-own,.fa-rise-min{display:flex;flex-direction:column;min-width:0}
+.fa-rise-own,.fa-rise-min{text-align:right;font-variant-numeric:tabular-nums}
+.fa-rise-row small{font-size:11px;color:var(--muted)}
+.fa-rise-row .up{color:var(--win-text)}.fa-rise-row .down{color:var(--lose-text)}
+@media (max-width:700px){.hero-fa{grid-template-columns:1fr}.fa-rise-row{grid-template-columns:18px 34px 1fr auto;gap:8px}.fa-rise-min{display:none}}
+.fa-rise-row .mav{width:40px;height:40px;position:relative}.fa-rise-row .mav::before{content:attr(data-ini)}

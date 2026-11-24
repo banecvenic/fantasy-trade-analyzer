@@ -31,13 +31,14 @@ PAGES = {
     'privacy': {'en': 'privacy/', 'sr': 'sr/privacy/'},
     'about':   {'en': 'about/', 'sr': 'sr/about/'},
     'howto':   {'en': 'how-to-import/', 'sr': 'sr/how-to-import/'},
+    'fa':      {'en': 'free-agents/', 'sr': 'sr/free-agents/'},
 }
 
 # Alati sa početne: ready=False prikazuje "Coming soon"; kad alat postoji, ready=True i href (relativno od korena sajta)
 TOOLS = {
     'finder':  {'ready': False, 'href': None},   # Find the player your team needs
     'builder': {'ready': False, 'href': None},   # Build a trade between two teams
-    'fa':      {'ready': False, 'href': None},   # Free agent pickups
+    'fa':      {'ready': True, 'href': None, 'pick': True},   # Free agent pickups: otvara "Izaberi ligu" (nav.js), radi samo za uvezene lige
 }
 
 # ---------------------------------------------------------------------------
@@ -75,6 +76,7 @@ HOME = {
         'builder_p': 'Pick your team and one more, and get trade ideas: 1 for 1, 2 for 1 and 2 for 2.',
         'fa_h': 'Find free agents who fit your team',
         'fa_p': 'Uses your imported league to find free agents who fit your team, including players whose minutes are growing.',
+        'fa_cta': 'Choose a league', 'learn_more': 'Learn more',
         'soon': 'Coming soon', 'open_tool': 'Open',
         'my_league': 'My league', 'continue_bar': 'Continue where you left off',
         'continue_btn': 'Continue: {name}',
@@ -109,6 +111,7 @@ HOME = {
         'builder_p': 'Izaberi svoj i još jedan tim i dobij predloge trejdova 1 za 1, 2 za 1 i 2 za 2.',
         'fa_h': 'Nađi slobodne igrače za svoj tim',
         'fa_p': 'Iz tvoje uvezene lige pronalazi slobodne igrače koji odgovaraju tvom timu, uključujući one kojima minutaža raste.',
+        'fa_cta': 'Izaberi ligu', 'learn_more': 'Saznaj više',
         'soon': 'Uskoro', 'open_tool': 'Otvori',
         'my_league': 'Moja liga', 'continue_bar': 'Nastavi gde si stao',
         'continue_btn': 'Nastavi: {name}',
@@ -182,6 +185,7 @@ T = {
         'save_row': 'Save your team and see how this trade changes it',
         'footer_about': 'About',
         'footer_privacy': 'Privacy',
+        'footer_fa': 'Free agent pickups',
         'footer_howto': 'How to import a league',
         'footer_contact': 'Contact',
         'disclaimer': 'RosterSwing is not affiliated with ESPN, Yahoo or the NBA. Stats come from publicly available sources.',
@@ -253,6 +257,7 @@ T = {
         'save_row': 'Sačuvaj svoj tim i vidi kako trejd utiče na njega',
         'footer_about': 'O sajtu',
         'footer_privacy': 'Privatnost',
+        'footer_fa': 'Pojačanja sa FA',
         'footer_howto': 'Kako uvesti ligu',
         'footer_contact': 'Kontakt',
         'disclaimer': 'RosterSwing nije povezan sa ESPN, Yahoo ni NBA. Statistika dolazi iz javno dostupnih izvora.',
@@ -516,6 +521,59 @@ HOWTO = {
     },
 }
 
+
+# Javna stranica /free-agents/ (Pojačanja sa FA)
+FAPAGE = {
+    'en': {
+        'title': 'Fantasy Basketball Free Agent Pickups | RosterSwing',
+        'desc': 'Free agent pickups for your fantasy basketball team: we read your imported league, compare free agents with your weakest player and suggest who to add and who to drop.',
+        'h1': 'Fantasy Basketball Free Agent Pickups',
+        'lead': 'We read every roster in your imported league, find the free agents who help your team the most and show who you would drop for them. Suggestions follow your categories, your punts and the players you never want to drop.',
+        'cta': 'Choose a league',
+        'ex_label': 'Example suggestion',
+        'ex': {'in': 'Bench guard in a bigger role', 'in_meta': 'SG · Free agent', 'out': 'Your weakest active player', 'out_label': 'Drops', 'gain': 'Net', 'chips': ['✓ 3PM', '✓ AST', '✓ STL', '✗ BLK'],
+               'why': 'Minutes 18 → 29 in the last 7 days', 'games': '4 games in the next 7 days'},
+        'steps_h': 'How it works',
+        'steps': [('Import your league', 'Add your public ESPN, Sleeper or Fantrax league. We need all rosters to know who is really free.'),
+                  ('Choose the league', 'Pick the league in the Free agent pickups tool. Lock the players you never want to drop.'),
+                  ('Get suggestions', 'See the best pickups for your team, sorted by net gain, with a short report for each one.')],
+        'rising_h': 'Rising players this week',
+        'rising_note': 'Players rostered in less than 60% of ESPN leagues, sorted by the biggest rise in ownership as ESPN shows it in its +/- column. Minutes compare the last 7 days with the season.',
+        'rising_loading': 'Loading players…', 'rising_error': 'Players could not be loaded. Try again later.', 'rising_none': 'No rising players right now.',
+        'rising_own': 'rostered', 'rising_min': 'min',
+        'rising_cta': 'Import your league and see who fits your team',
+        'faq_h': 'Frequently asked questions',
+        'faq': [('How do you choose the suggestions?', 'We value every free agent for your team with a blend of the projection and the last 15 and 7 days, weighted by the categories your team needs and without your punted categories. A player is suggested only when he is clearly better than the player you would drop. Rising minutes, an injured teammate and growing ownership move a player up a little.'),
+                ('Why only imported leagues?', 'To know who is really a free agent we need every roster in your league. Imported leagues give us all rosters and player statuses, and manual leagues usually have only some teams.'),
+                ('What is an IR stash?', 'An injured free agent who is valuable when healthy. If you have a free IR spot and your league allows his status on IR, you can add him now and keep him on IR until he returns.'),
+                ('Do you see waiver claims and transaction limits?', 'Where the platform shares it. ESPN gives the waiver list and the transaction limit, Sleeper gives recent drops, and Fantrax gives neither, so there every player is shown as a free agent.')],
+    },
+    'sr': {
+        'title': 'Fantasy košarka: pojačanja sa waivera | RosterSwing',
+        'desc': 'Pojačanja sa waivera za tvoj fantasy košarkaški tim: čitamo tvoju uvezenu ligu, poredimo slobodne igrače sa tvojim najslabijim igračem i predlažemo koga da uzmeš i koga da otpustiš.',
+        'h1': 'Fantasy košarka: pojačanja sa waivera',
+        'lead': 'Čitamo sve rostere tvoje uvezene lige, nalazimo slobodne igrače koji najviše pomažu tvom timu i pokazujemo koga bi za njih otpustio. Predlozi prate kategorije tvoje lige, tvoj punt i igrače koje nikad ne bi otpustio.',
+        'cta': 'Izaberi ligu',
+        'ex_label': 'Primer predloga',
+        'ex': {'in': 'Bek sa klupe koji dobija veću ulogu', 'in_meta': 'SG · Slobodan', 'out': 'Tvoj najslabiji aktivni igrač', 'out_label': 'Odlazi', 'gain': 'Neto', 'chips': ['✓ 3PM', '✓ AST', '✓ STL', '✗ BLK'],
+               'why': 'Minuti 18 → 29 u poslednjih 7 dana', 'games': '4 ut. u narednih 7 dana'},
+        'steps_h': 'Kako radi',
+        'steps': [('Uvezi ligu', 'Dodaj svoju javnu ESPN, Sleeper ili Fantrax ligu. Trebaju nam svi rosteri da znamo ko je stvarno slobodan.'),
+                  ('Izaberi ligu', 'Izaberi ligu u alatu Pojačanja sa FA. Zaključaj igrače koje nikad ne bi otpustio.'),
+                  ('Dobij predloge', 'Vidi najbolja pojačanja za svoj tim, sortirana po neto dobiti, uz kratak izveštaj za svako.')],
+        'rising_h': 'Igrači u usponu ove nedelje',
+        'rising_note': 'Igrači koji su u manje od 60% ESPN liga, po najvećem rastu vlasništva kako ga ESPN prikazuje u koloni +/-. Minuti porede poslednjih 7 dana sa sezonom.',
+        'rising_loading': 'Učitavam igrače…', 'rising_error': 'Igrači nisu učitani. Pokušaj kasnije.', 'rising_none': 'Trenutno nema igrača u usponu.',
+        'rising_own': 'u ligama', 'rising_min': 'min',
+        'rising_cta': 'Uvezi ligu i vidi ko odgovara baš tvom timu',
+        'faq_h': 'Česta pitanja',
+        'faq': [('Kako biraš predloge?', 'Svakog slobodnog igrača vrednujemo za tvoj tim kao mešavinu projekcije i poslednjih 15 i 7 dana, po kategorijama koje tvom timu trebaju i bez punt kategorija. Igrač se predlaže samo kad je jasno bolji od igrača kog bi otpustio. Rast minuta, povređen saigrač i rast vlasništva ga blago podižu.'),
+                ('Zašto samo za uvezene lige?', 'Da bismo znali ko je stvarno slobodan, trebaju nam svi rosteri tvoje lige. Uvezene lige daju sve rostere i statuse igrača, a ručne lige obično imaju samo neke timove.'),
+                ('Šta je IR stash?', 'Povređen slobodan igrač koji vredi kad je zdrav. Ako imaš slobodno IR mesto i liga dozvoljava njegov status na IR-u, možeš da ga uzmeš sada i držiš na IR-u dok se ne vrati.'),
+                ('Da li vidiš waiver i limit transakcija?', 'Gde platforma to daje. ESPN daje listu igrača na waiveru i limit transakcija, Sleeper daje skorašnja otpuštanja, a Fantrax ni jedno, pa su tamo svi igrači prikazani kao slobodni.')],
+    },
+}
+
 COPY_JS = '''<script>
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-copy]'); if (!b) return;
@@ -647,6 +705,8 @@ def gnav_html(lang, root, page=None, app_page=False):
     app = '' if app_page else f'{root}app/'
     def tool_item(key):
         t = TOOL_PAGES[key]
+        if t.get('pick'):  # alat za uvezene lige: "Izaberi ligu" (nav.js)
+            return f'<button type="button" role="menuitem" class="pm-item" data-pick-league="{key}">{NAV_ICON[key]}<span data-t="{key}">{n[key]}</span></button>'
         if t['ready'] and t['href']:
             return f'<a role="menuitem" class="pm-item" href="{root}{t["href"]}">{NAV_ICON[key]}<span data-t="{key}">{n[key]}</span></a>'
         return f'<button type="button" role="menuitem" class="pm-item off" data-tool-soon="{APP_TOOL_ID[key]}">{NAV_ICON[key]}<span data-t="{key}">{n[key]}</span><span class="soon" data-t="soon">{n["soon"]}</span></button>'
@@ -721,6 +781,7 @@ def footer(lang, depth):
       <span class="f-brand"><img src="{r}assets/favicon.svg" width="24" height="24" alt="RosterSwing"> Fantasy Basketball Tools</span>
       <nav class="f-links" aria-label="Footer">
         <a href="{r}{pre}about/">{t['footer_about']}</a>
+        <a href="{r}{pre}free-agents/">{t['footer_fa']}</a>
         <a href="{r}{pre}how-to-import/">{t['footer_howto']}</a>
         <a href="{r}{pre}privacy/">{t['footer_privacy']}</a>
         <a href="{CONTACT_URL}" rel="noopener">{t['footer_contact']}</a>
@@ -826,8 +887,12 @@ def before_after_html(lang):
 
 def tool_card(lang, key):
     h = HOME[lang]; tool = TOOLS[key]
-    action = (f'<a class="cta2" href="{{root}}{tool["href"]}">{escape(h["open_tool"])}</a>' if tool['ready'] and tool['href']
-              else f'<span class="soon">{escape(h["soon"])}</span>')
+    if tool.get('pick'):
+        page = PAGES[key][lang]
+        action = f'<div class="tool-acts"><button type="button" class="cta2" data-pick-league="{key}">{escape(h[key + "_cta"])}</button><a class="more-link" href="{{root}}{page}">{escape(h["learn_more"])}</a></div>'
+    else:
+        action = (f'<a class="cta2" href="{{root}}{tool["href"]}">{escape(h["open_tool"])}</a>' if tool['ready'] and tool['href']
+                  else f'<span class="soon">{escape(h["soon"])}</span>')
     # mali naziv alata iznad naslova: isto ime kao u meniju Alati
     return f"""<section class="feature" aria-labelledby="{key}-h"><span class="tool-name">{escape(NAV_T[lang][key])}</span><h2 id="{key}-h">{escape(h[key + '_h'])}</h2><p class="lead">{escape(h[key + '_p'])}</p>{action}</section>"""
 
@@ -969,6 +1034,55 @@ def doc(lang, page, data, depth):
 ''' + footer(lang, depth) + '</body>\n</html>\n'
 
 
+
+def fa_public(lang):
+    d = FAPAGE[lang]
+    depth = 1 if lang == 'en' else 2
+    r = rel(depth)
+    app = f'{r}app/'
+    ex = d['ex']
+    faq = ''.join(f'<details><summary><h3>{escape(q)}</h3></summary><div class="a"><p>{escape(a)}</p></div></details>' for q, a in d['faq'])
+    faq_ld = ld({'@context': 'https://schema.org', '@type': 'FAQPage', 'inLanguage': lang,
+                 'mainEntity': [{'@type': 'Question', 'name': q, 'acceptedAnswer': {'@type': 'Answer', 'text': a}} for q, a in d['faq']]})
+    steps = ''.join(f'<li><h3>{escape(a)}</h3><p>{escape(b)}</p></li>' for a, b in d['steps'])
+    chips = ''.join(f'<span class="fa-chip {"down" if c.startswith("✗") else "up"}">{escape(c)}</span>' for c in ex['chips'])
+    card = f"""<div class="fa-ex" aria-label="{escape(d['ex_label'])}"><div class="fa-ex-l">{escape(d['ex_label'])}</div>
+      <article class="fa-card"><div class="fa-rank">1</div><div class="fa-main">
+        <div class="fa-in"><span class="av" data-ini="SG"></span><div class="fa-id"><b>{escape(ex['in'])}</b><span class="meta">{escape(ex['in_meta'])}</span></div><div class="fa-gain up"><small>{escape(ex['gain'])}</small>+1.6</div></div>
+        <div class="fa-out"><span class="slot-tag tag-out">{escape(ex['out_label'])}</span> {escape(ex['out'])}</div>
+        <div class="fa-chips">{chips}</div><div class="fa-why"><span>{escape(ex['why'])}</span></div>
+        <div class="fa-foot"><span class="meta">{escape(ex['games'])}</span></div></div></article></div>"""
+    txt = json.dumps({k: d[k] for k in ('rising_loading', 'rising_error', 'rising_none', 'rising_own', 'rising_min')}, ensure_ascii=False)
+    return head(lang, 'fa', d['title'], d['desc'], depth, extra=faq_ld) + header(lang, 'fa', depth) + f"""
+<main class="wrap fa-pub">
+  <section class="hero hero-fa">
+    <div class="hero-text">
+      <h1>{escape(d['h1'])}</h1>
+      <p>{escape(d['lead'])}</p>
+      <div class="hero-actions"><button type="button" class="cta" data-pick-league="fa">{escape(d['cta'])}</button></div>
+    </div>
+    {card}
+  </section>
+  <section aria-labelledby="steps-h">
+    <h2 id="steps-h">{escape(d['steps_h'])}</h2>
+    <ol class="hsteps">{steps}</ol>
+  </section>
+  <section class="fa-rise" id="fa-rise" aria-labelledby="rise-h" data-txt='{escape(txt)}' data-app="{r}assets/app.js" data-lang="{lang}">
+    <h2 id="rise-h">{escape(d['rising_h'])}</h2>
+    <p class="lead">{escape(d['rising_note'])}</p>
+    <ol class="fa-rise-list" id="fa-rise-list"><li class="empty">{escape(d['rising_loading'])}</li></ol>
+    <div class="mini-cta"><a class="cta2" href="{app}#home&amp;addleague=1&amp;lang={lang}">{escape(d['rising_cta'])}</a></div>
+  </section>
+  <section aria-labelledby="faq-h">
+    <h2 id="faq-h">{escape(d['faq_h'])}</h2>
+    <div class="faq">{faq}</div>
+  </section>
+</main>
+""" + footer(lang, depth) + f"""<script src="{r}assets/fa-public.js" defer></script>
+</body>
+</html>
+"""
+
 def write(path, content):
     full = os.path.join(ROOT, path)
     os.makedirs(os.path.dirname(full) or ROOT, exist_ok=True)
@@ -986,6 +1100,7 @@ def main():
         write(PAGES['privacy'][lang] + 'index.html', doc(lang, 'privacy', PRIVACY[lang], 1 if lang == 'en' else 2))
         write(PAGES['about'][lang] + 'index.html', doc(lang, 'about', ABOUT[lang], 1 if lang == 'en' else 2))
         write(PAGES['howto'][lang] + 'index.html', howto(lang))
+        write(PAGES['fa'][lang] + 'index.html', fa_public(lang))
     # /app/ nije u mapi sajta i ima <meta name="robots" content="noindex"> (ne blokira se ovde, da bi pretraživač video noindex)
     write_app_header()
     write('robots.txt', f'User-agent: *\nAllow: /\n\nSitemap: {SITE_URL}sitemap.xml\n')

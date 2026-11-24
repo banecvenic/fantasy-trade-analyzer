@@ -8,9 +8,9 @@
   const ROOT = H.dataset.root || '';
   const inApp = H.dataset.appPage === '1';
   const T = {
-    sr: { home: 'Početna', tools: 'Alati', leagues: 'Moje lige', analyzer: 'Analiza trejda', builder: 'Pronađi trejd', finder: 'Mete za trejd', fa: 'Pojačanja sa FA', soon: 'Uskoro', ok: 'U redu',
+    sr: { home: 'Početna', tools: 'Alati', leagues: 'Moje lige', analyzer: 'Analiza trejda', builder: 'Pronađi trejd', finder: 'Mete za trejd', fa: 'Pojačanja sa FA', soon: 'Uskoro', ok: 'U redu', pick: 'Izaberi ligu', pickSub: 'Radi za uvezene lige.', addLeague: 'Dodaj ligu', howWorks: 'Kako radi?', manual: 'Ručna liga', locked: 'Radi samo za uvezene lige, jer su nam potrebni svi rosteri.', howImport: 'Kako da uvezem ligu?', noLeagues: 'Još nemaš sačuvanu ligu. Uvezi svoju ligu sa ESPN-a, Sleepera ili Fantraxa.', close: 'Zatvori',
       quick: 'Brzo poređenje', all: 'Sve lige', add: 'Dodaj ligu', settings: 'Podešavanja lige', none: 'Još nemaš sačuvanu ligu', myLeague: 'Moja liga' },
-    en: { home: 'Home', tools: 'Tools', leagues: 'My leagues', analyzer: 'Trade analyzer', builder: 'Find a trade', finder: 'Trade targets', fa: 'Free agent pickups', soon: 'Coming soon', ok: 'OK',
+    en: { home: 'Home', tools: 'Tools', leagues: 'My leagues', analyzer: 'Trade analyzer', builder: 'Find a trade', finder: 'Trade targets', fa: 'Free agent pickups', soon: 'Coming soon', ok: 'OK', pick: 'Choose a league', pickSub: 'Works for imported leagues.', addLeague: 'Add league', howWorks: 'How it works', manual: 'Manual league', locked: 'Works only for imported leagues, because we need all rosters.', howImport: 'How do I import a league?', noLeagues: 'No saved leagues yet. Import your league from ESPN, Sleeper or Fantrax.', close: 'Close',
       quick: 'Quick compare', all: 'All leagues', add: 'Add league', settings: 'League settings', none: 'No saved leagues yet', myLeague: 'My league' },
   };
   let lang = H.dataset.lang === 'sr' ? 'sr' : 'en';
@@ -82,6 +82,47 @@
     m.querySelector('.btn').focus();
   }
 
+  /** "Izaberi ligu" za alat (Pojačanja sa FA): uvezene lige su aktivne, ručne zaključane uz objašnjenje. Isti modal na javnim stranicama i u aplikaciji. */
+  const SRC = { espn: 'ESPN', sleeper: 'Sleeper', fantrax: 'Fantrax', yahoo: 'Yahoo' };
+  const imported = l => !!(l.import && l.import.extId && l.import.source !== 'paste');
+  const PAGE = { fa: 'free-agents' };
+  const LOCK = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+  function pickLeague(tool = 'fa') {
+    const L = T[lang], list = [...(profile()?.leagues || [])].sort((a, b) => imported(b) - imported(a)); // uvezene prve
+    const app = inApp ? '' : href.app();
+    const howImport = `${ROOT}${pre()}how-to-import/`, howTool = `${ROOT}${pre()}${PAGE[tool]}/`;
+    const row = l => {
+      const plat = imported(l) ? SRC[l.import.source] || l.import.source : L.manual;
+      const team = l.teamName || l.roster?.name || '';
+      const meta = `<span class="lpk-meta"><span class="pbadge">${esc(plat)}</span>${team ? ` ${esc(team)}` : ''}</span>`;
+      if (imported(l)) return `<a class="lpk-row" href="${app}#league-${l.id}/${PAGE[tool]}&lang=${lang}" data-lpk-go><span class="lpk-name">${esc(lgName(l))}</span>${meta}</a>`;
+      return `<div class="lpk-row off" title="${esc(L.locked)}"><button type="button" class="lpk-lock" data-lpk-lock aria-expanded="false"><span class="lpk-name">${LOCK} ${esc(lgName(l))}</span>${meta}</button>
+        <p class="lpk-msg" hidden>${esc(L.locked)} <a href="${howImport}">${esc(L.howImport)}</a></p></div>`;
+    };
+    document.getElementById('modal')?.remove();
+    const m = document.createElement('div');
+    m.id = 'modal'; m.className = 'lpk-modal';
+    m.innerHTML = `<div class="modal-back" data-nav-close></div><div class="modal-box lpk-box" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="modal-t">
+      <button type="button" class="iconbtn lpk-x" data-nav-close aria-label="${esc(L.close)}">✕</button>
+      <h3 id="modal-t">${esc(L.pick)}</h3><p class="lpk-sub">${esc(T[lang][tool] || '')} · ${esc(L.pickSub)}</p>
+      <div class="lpk-list">${list.length ? list.map(row).join('') : `<p class="lpk-empty">${esc(L.noLeagues)}</p>`}</div>
+      <div class="lpk-actions"><a class="btn" href="${app}#home&addleague=1&lang=${lang}" data-lpk-go>＋ ${esc(L.addLeague)}</a><a class="linkbtn" href="${howTool}">${esc(L.howWorks)}</a></div></div>`;
+    document.body.appendChild(m);
+    m.addEventListener('click', e => {
+      if (e.target.closest('[data-nav-close]')) { m.remove(); return; }
+      const lk = e.target.closest('[data-lpk-lock]');
+      if (lk) { const msg = lk.parentElement.querySelector('.lpk-msg'); msg.hidden = !msg.hidden; lk.setAttribute('aria-expanded', String(!msg.hidden)); return; }
+      // u aplikaciji: hash se menja u mestu, modal se zatvara
+      if (e.target.closest('[data-lpk-go]') && inApp) setTimeout(() => m.remove(), 0);
+    });
+    (m.querySelector('a.lpk-row') || m.querySelector('.btn')).focus();
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-pick-league]');
+    if (!b) return;
+    e.preventDefault(); closeAll(); pickLeague(b.dataset.pickLeague);
+  });
+
   function closeAll(except) {
     H.querySelectorAll('[data-gmenu]').forEach(b => {
       if (b === except) return;
@@ -105,12 +146,12 @@
     if (e.target.closest('.gmenu a, .gmenu button')) setTimeout(() => closeAll(), 0);
   });
   document.addEventListener('click', e => { if (!e.target.closest('header.gnav .dd-wrap')) closeAll(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeAll(); if (!inApp) document.getElementById('modal')?.remove(); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeAll(); const m = document.getElementById('modal'); if (m && (!inApp || m.classList.contains('lpk-modal'))) m.remove(); } });
 
   // jezik: javne stranice idu na drugu adresu, aplikacija menja jezik u mestu (app.js)
   const ps = H.querySelector('[data-publang]');
   if (ps) ps.addEventListener('change', () => { location.href = ps.selectedOptions[0].dataset.go + (/[?&]home\b/.test(location.search) ? '?home' : ''); });
 
-  window.RSNav = { setLang(l) { lang = l === 'sr' ? 'sr' : 'en'; apply(); }, refresh: fillLeagues };
+  window.RSNav = { setLang(l) { lang = l === 'sr' ? 'sr' : 'en'; apply(); }, refresh: fillLeagues, pickLeague };
   apply();
 })();
