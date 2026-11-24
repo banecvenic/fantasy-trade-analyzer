@@ -404,6 +404,10 @@ tr.irhead td{font-size:11px;color:var(--muted);background:var(--bg2);text-align:
 .pp-local p{margin:0}
 .local-badge{font-size:12px;font-weight:700;color:var(--text)}
 .btn.ghost{background:var(--card2);color:var(--dim);border:1px solid var(--line);cursor:not-allowed}
+/* sporedno dugme (aktivno): isti mirni izgled kao ghost, ali jasno klikabilno */
+.btn.sec{background:var(--card2);color:var(--text);border:1px solid var(--line);cursor:pointer}
+.btn.sec:hover{border-color:var(--rs-red-btn);color:var(--text)}
+.btn.sec:disabled{color:var(--dim);cursor:not-allowed;border-color:var(--line)}
 .pp-leagues{display:flex;flex-direction:column;gap:6px;width:100%}
 .pp-league{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;color:var(--text);cursor:pointer;font:inherit;font-size:13px;font-weight:600;width:100%;text-align:left}
 .pp-league:hover{border-color:var(--accent)}
@@ -1234,6 +1238,9 @@ td.fa-notes{display:table-cell}td.fa-notes span{display:block}
 .tf-focus{display:flex;flex-wrap:wrap;gap:6px}
 .tf-ctrl-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .tf-ctrl-row .btn{margin-left:auto}
+.tf-toggle{display:inline-flex;align-items:center;gap:6px;background:none;border:0;color:var(--text);font:inherit;font-size:13px;cursor:pointer;padding:4px 2px}
+.tf-toggle .box{width:16px;height:16px;border:1.5px solid var(--dim);border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;line-height:1}
+.tf-toggle[aria-pressed="true"] .box{background:var(--rs-red-btn);border-color:var(--rs-red-btn);color:#fff}
 .tf-busy{display:flex;align-items:center;gap:10px}
 .tf-prog{flex:1;height:6px;border-radius:99px;background:var(--card2);overflow:hidden}
 .tf-prog i{display:block;height:100%;background:var(--info);transition:width .2s}
@@ -1254,7 +1261,9 @@ td.fa-notes{display:table-cell}td.fa-notes span{display:block}
 .tf-why b{color:var(--muted);font-weight:600}
 .tf-veto{margin:0;font-size:12px}
 .tf-veto b{color:var(--text);font-weight:600}
-.tf-foot{margin-top:auto;display:flex;justify-content:flex-end}
+.tf-foot{margin-top:auto;display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap}
+.tf-foot .tf-saved{margin-right:auto}
+.tf-card.saved{border-color:var(--win)}
 .tf-more{display:flex;justify-content:center;padding:12px}
 .tf-save{display:flex;justify-content:center;padding:12px 0}
 .tf-foot .btn{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;line-height:1}

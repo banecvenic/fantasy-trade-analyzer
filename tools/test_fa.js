@@ -100,6 +100,15 @@ test('igrač sa opštom vrednošću većom od igrača koji dolazi se ne predlaž
   assert.strictEqual(r.list[0].warn, false);
 });
 
+test('pravilo otpuštanja ide po tržišnoj vrednosti (kao Pronađi trejd), ne po opštoj vrednosti', () => {
+  // niska opšta vrednost, ali tržišna vrednost veća od igrača koji dolazi: ne predlaže se za otpuštanje
+  const fa = { id: 100, general: 0.2, mv: 5 };
+  assert.strictEqual(F.canDrop({ id: 9, general: -3, mv: 12, own: 30 }, fa), false);
+  assert.strictEqual(F.canDrop({ id: 9, general: 1.5, mv: 2, own: 30 }, fa), true);
+  const tc = F.tradeCandidates([{ id: 9, general: -3, mv: 12, own: 30 }], [fa], () => 1, { min: 0.05 });
+  assert.deepStrictEqual(tc.map(x => x.id), [9]); // vredniji od najboljeg FA po tržišnoj vrednosti -> trejd kandidat
+});
+
 test('igrač sa vlasništvom 50% ili više se ne predlaže automatski i dobija "Trejd kandidat"', () => {
   assert.strictEqual(F.canDrop(mine[1], faList[0]), false);
   assert.strictEqual(F.canDrop({ id: 9, general: -3, own: 50 }, faList[0]), false);

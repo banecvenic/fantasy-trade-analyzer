@@ -12,7 +12,7 @@ const start = src.indexOf('   Fer trejd: čiste funkcije');
 const end = src.indexOf('/* ==== kraj: Fer trejd, čiste funkcije ==== */');
 if (start < 0 || end < 0) throw new Error('Nije nađen modul Fer trejd u app.js');
 const code = src.slice(src.lastIndexOf('/*', start), end);
-const { TF, E, tfMarket, tfVetoPick, tfVetoShown } = new Function(`${code}\nreturn { TF, E: tfEngine(), tfMarket, tfVetoPick, tfVetoShown };`)();
+const { TF, E, tfMarket, tfVetoPick, tfVetoShown, tfDropOk, tfTabFor } = new Function(`${code}\nreturn { TF, E: tfEngine(), tfMarket, tfVetoPick, tfVetoShown, tfDropOk, tfTabFor };`)();
 // i motor kao tekst (kako ga dobija Web Worker) mora da radi samostalno
 const E2 = new Function(`return (${new Function(`${code}\nreturn tfEngine;`)().toString()})();`)();
 
@@ -256,14 +256,15 @@ test('savet za veto lige: samo kad postoji igrač na granici rostera', () => {
   const side = [{ id: 1, t: 2, v: 5, own: 90 }, { id: 2, t: -3, v: -4, own: 30 }, { id: 3, t: -4, v: -6, own: 60 }, { id: 4, t: -5, v: -8, own: 20, mark: 'lock' }, { id: 5, t: -6, v: -9, own: 10, ir: true }];
   assert.strictEqual(tfVetoPick(side, new Set(), -1, 50).id, 2);
   assert.strictEqual(tfVetoPick(side, new Set([2]), -1, 50), null);
-  assert.strictEqual(tfVetoPick(side, new Set(), -3.5, 50), null); // niko nije slabiji od najboljeg slobodnog
+  assert.strictEqual(tfVetoPick(side, new Set(), -5, 50), null); // niko nije slabiji od najboljeg slobodnog (po tržišnoj vrednosti)
 });
 
 test('savet za veto: ne kad je igrač za dopunu iznad nivoa zamene; najviše 3 od 8 kartica', () => {
   // ispod granice otpuštanja po opštoj vrednosti, ali tržišna vrednost iznad nivoa zamene: nema saveta
-  assert.strictEqual(tfVetoPick([{ id: 7, t: -3, v: 2, own: 30 }], new Set(), -1, 50), null);
-  assert.strictEqual(tfVetoPick([{ id: 7, t: -3, v: 0, own: 30 }], new Set(), -1, 50), null);
-  assert.strictEqual(tfVetoPick([{ id: 7, t: -3, v: -0.5, own: 30 }], new Set(), -1, 50).id, 7);
+  assert.strictEqual(tfVetoPick([{ id: 7, t: -3, v: 2, own: 30 }], new Set(), 5, 50), null);
+  assert.strictEqual(tfVetoPick([{ id: 7, t: -3, v: 0, own: 30 }], new Set(), 5, 50), null);
+  assert.strictEqual(tfVetoPick([{ id: 7, t: -3, v: -0.5, own: 30 }], new Set(), 5, 50).id, 7);
+  assert.strictEqual(tfVetoPick([{ id: 7, t: -9, v: -0.5, own: 30 }], new Set(), -1, 50), null); // vredniji od najboljeg slobodnog: nije dopuna
   // 8 kartica, savet moguć na 6: prikazuje se na 3 sa najnižom vrednošću igrača za dopunu
   const picks = [{ v: -1 }, null, { v: -9 }, { v: -3 }, null, { v: -7 }, { v: -2 }, { v: -8 }];
   const shown = tfVetoShown(picks, TF.VETO_MAX);
@@ -320,6 +321,46 @@ test('Otvori u analizi: otpuštanja i slobodno mesto preneti, rezultat isti kao 
       for (const x of list) assert.strictEqual(analysis(inp, x), card(inp, x), `${pts ? 'poeni' : 'kategorije'} ${strategy} ${x.shape}`);
     }
   }
+});
+
+test('otpuštanje po tržišnoj vrednosti: igrač vredniji od najboljeg slobodnog se ne otpušta (Brooks)', () => {
+  // Brooks: nisko vlasništvo (30%), ali tržišna vrednost veća od najboljeg slobodnog igrača -> nije otpustiv, ni kad mu je opšta vrednost (z-score) niska
+  const bestFa = 4, brooks = { id: 1, v: 9, t: -2, own: 30 }, weak = { id: 2, v: 1, t: 0.5, own: 20 };
+  assert.strictEqual(tfDropOk(brooks, bestFa, 50), false);
+  assert.strictEqual(tfDropOk(weak, bestFa, 50), true);           // slabiji od slobodnog po tržišnoj vrednosti, iako mu je opšta vrednost veća
+  assert.strictEqual(tfDropOk({ ...weak, own: 50 }, bestFa, 50), false);
+  assert.strictEqual(tfDropOk({ ...weak, mark: 'lock' }, bestFa, 50), false);
+  assert.strictEqual(tfDropOk({ ...weak, ir: true }, bestFa, 50), false);
+  // kroz pretragu: igrač koji nije otpustiv se nikad ne pojavljuje u otpuštanjima (moja i protivnikova)
+  const mine = bigTeam(1, 9, 1).map(x => ({ ...x, drop: tfDropOk({ ...x, own: 30 }, 4, 50) })), theirs = bigTeam(100, 9, 5).map(x => ({ ...x, drop: tfDropOk({ ...x, own: 30 }, 4, 50) }));
+  const ban = new Set([...mine, ...theirs].filter(x => !x.drop).map(x => x.id));
+  for (const strategy of ['best', 'depth', 'cons']) {
+    const list = E.search(base({ mine, theirs, limits: TF.SLIDERS.map(k => TF.LIMITS[k]), strategy })).list;
+    for (const x of list) for (const id of [...x.md, ...x.od]) assert.ok(!ban.has(id), `${strategy}: otpušten ${id}`);
+  }
+});
+
+test('"Ne otpuštam nikoga": nema predloga gde dobijam više igrača nego što dajem', () => {
+  const mk = (strategy, noDrop) => base({ mine: bigTeam(1, 9, 1).map(x => ({ ...x, drop: true })), theirs: bigTeam(100, 9, 5).map(x => ({ ...x, drop: true })), limits: TF.SLIDERS.map(k => TF.LIMITS[k]), strategy, noDrop });
+  const off = E.search(mk('best', false)).list;
+  assert.ok(off.some(x => x.r.length > x.g.length), 'bez prekidača ima i trejdova gde dobijam više');
+  for (const strategy of ['best', 'cons', 'cats']) {
+    const on = E.search(mk(strategy, true)).list;
+    assert.ok(on.every(x => x.r.length <= x.g.length && !x.md.length), strategy);
+  }
+  assert.ok(E.search(mk('best', true)).list.length > 0);
+  assert.strictEqual(E.search(mk('depth', true)).list.length, 0); // Dubina uvek dobija više igrača
+});
+
+test('Sačuvaj ne duplira tab; Otvori u analizi za sačuvan trejd nalazi postojeći tab', () => {
+  const tabs = [{ id: 'a', teams: [{ ids: [1] }, { ids: [9] }] }];
+  const save = (g, r, saved) => { let tb = tfTabFor(tabs, g, r, saved); if (!tb) { tb = { id: `t${tabs.length}`, teams: [{ ids: g }, { ids: r }] }; tabs.push(tb); } return tb.id; };
+  const id = save([2, 3], [10]);
+  assert.strictEqual(save([3, 2], [10], id), id);     // drugi put: isti tab
+  assert.strictEqual(save([2, 3], [10]), id);         // i bez zapamćenog id-a: isti igrači = isti tab
+  assert.strictEqual(tabs.length, 2);
+  assert.strictEqual(tfTabFor(tabs, [2, 3], [10], id).id, id);  // Otvori u analizi: postojeći tab
+  assert.strictEqual(tfTabFor(tabs, [2], [10], null), null);    // drugi trejd: nov tab
 });
 
 test('bliže fer prvo: veće odstupanje tek kad fer opcija nema dovoljno', () => {
