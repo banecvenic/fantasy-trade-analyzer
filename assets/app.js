@@ -1365,7 +1365,7 @@ function tfVetoShown(picks, max) {
 const TT = {
   REFINE: 40,            // posle grubog rangiranja (ponderi 1 i 2) toliko kandidata dobija ostale pondere
   TRADE_MAX_SIDE: 2,     // mogući trejd u izveštaju: najviše 2 igrača sa svake strane
-  PER_PAGE: 8,           // kartica po stranici
+  PER_PAGE: 9,           // kartica po stranici (3 reda po 3)
   MAX_OWNER: 2,          // najviše igrača istog vlasnika na jednoj stranici
   // ponderi: ocena = zbir (jačina × deo od 0 do 1); glavni (cat do inj) su znatno jači od dodatnih (playoff do close)
   W: { cat: 1, unreach: 0.6, willing: 0.3, form: 0.25, cheap: 0.25, inj: 0.25, playoff: 0.08, stable: 0.06, fragile: 0.08, close: 0.08 },
@@ -2494,6 +2494,7 @@ const EN = {
   "Promenio si izbor. Klikni Pronađi trejdove za nove predloge.": "You changed your choices. Click Find trades for new suggestions.",
   "Predlozi": "Suggestions",
   "Generiši novih 8": "Generate 8 more",
+  "Generiši novih 9": "Generate 9 more",
   "Izaberi tim sa kojim tražiš trejd.": "Pick the team you want to trade with.",
   "Za veto lige: dodaj {p} da bude {a}:{a}.": "For league veto: add {p} to make it {a} for {a}.",
   "Ili unesi oba tima ručno": "Or enter both teams manually",
@@ -10838,7 +10839,7 @@ function ttBodyHTML(lg) {
       : t('Igrači sa drugih timova u ligi koji najviše popravljaju kategorije koje ti trebaju, a realno ih je dobiti. Klikni na ime za izveštaj i mogući fer trejd.');
   const list = items.length
     ? `<div class="tt-cards">${items.map((x, k) => ttCardHTML(M, x, M.ui.page * TT.PER_PAGE + k)).join('')}</div>
-      <div class="tf-more">${more ? `<button type="button" class="btn sec" data-action="tt-more">${t('Generiši novih 8')}</button>` : `<span class="hint">${t('To su sve mete za ovaj izbor.')}</span>`}</div>`
+      <div class="tf-more">${more ? `<button type="button" class="btn sec" data-action="tt-more">${t('Generiši novih 9')}</button>` : `<span class="hint">${t('To su sve mete za ovaj izbor.')}</span>`}</div>`
     : `<div class="pcard fa-none"><b>${t('Trenutno nema meta koje bi ti pomogle')}</b><p class="pnote">${t('Nijedan igrač ne popravlja tvoj tim u odnosu na sadašnje stanje.')}</p></div>`;
   return `<p class="pnote fa-lead">${lead}</p>${ttLockHTML(lg)}${ttNeedHTML(M)}<h3 class="fa-h">${t('Mete')}</h3>${list}${ttWishHTML(M)}`;
 }

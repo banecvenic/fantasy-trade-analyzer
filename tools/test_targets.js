@@ -60,15 +60,15 @@ test('dodatni ponderi su slabiji od glavnih: ista promena dela menja ocenu manje
   assert.ok(maxExtra < minMain, `${maxExtra} >= ${minMain}`);
 });
 
-test('stranica: najviše 2 igrača istog vlasnika od 8, sledeća stranica bez prikazanih', () => {
+test('stranica: najviše 2 igrača istog vlasnika od 9, sledeća stranica bez prikazanih', () => {
   const list = Array.from({ length: 20 }, (_, i) => ({ id: i + 1, owner: i < 10 ? 'a' : `t${i}` }));
   const p1 = M.ttPage(list);
-  assert.strictEqual(p1.length, 8);
+  assert.strictEqual(p1.length, 9);
   assert.strictEqual(p1.filter(x => x.owner === 'a').length, 2);
   const p2 = M.ttPage(list, new Set(p1.map(x => x.id)));
   assert.ok(p2.every(x => !p1.includes(x)) && p2.filter(x => x.owner === 'a').length <= 2);
   const solo = M.ttPage(list.map(x => ({ ...x, owner: null })));
-  assert.deepStrictEqual(solo.map(x => x.id), [1, 2, 3, 4, 5, 6, 7, 8]); // bez vlasnika: bez ograničenja
+  assert.deepStrictEqual(solo.map(x => x.id), [1, 2, 3, 4, 5, 6, 7, 8, 9]); // bez vlasnika: bez ograničenja
 });
 
 // mali par timova za motor: vektor [PTS, REB, AST, TO, FGM, FGA, FPTS]
