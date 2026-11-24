@@ -614,18 +614,34 @@ test('povratak posle početka plejofa smanjuje vrednost samo za tim koji se bori
 // povređeni kod protivnika: 100 (jak, vraća se za 2 nedelje, sme na IR)
 const injInp = (o = {}) => {
   const T0 = bigTeam(100, 7, 5).map(x => ({ ...x, drop: true })), M0 = bigTeam(1, 7, 1).map(x => ({ ...x, drop: true }));
-  T0[0] = { ...T0[0], out: true, gone: false, wk: o.wk ?? 2, irOk: true, drop: false };
+  T0[0] = { ...T0[0], out: true, gone: false, wk: o.wk ?? 2, fr: o.fr ?? 0.8, irOk: true, drop: false };
   return base({ limits: TF.SLIDERS.map(k => TF.LIMITS[k]), mine: M0, theirs: T0, myIrFree: 0, thIrFree: 0, sit: null, ...o });
 };
-test('slobodno IR mesto: povređeni ide na IR i primalac ne otpušta nikoga; bez IR mesta zauzima aktivno mesto', () => {
+test('slobodno IR mesto: povređeni ide na IR i primalac sada ne otpušta, nego tek kad se vrati; bez IR mesta zauzima aktivno mesto', () => {
   const withIr = E.search(injInp({ myIrFree: 1 })).list.filter(x => x.r.includes(100) && x.r.length > x.g.length);
   assert.ok(withIr.length > 0);
-  for (const x of withIr) { assert.deepStrictEqual(x.irIn, [100]); assert.strictEqual(x.md.length, Math.max(0, x.r.length - 1 - x.g.length)); }
+  for (const x of withIr) {
+    assert.deepStrictEqual(x.irIn, [100]);
+    assert.strictEqual(x.md.length - x.mdl, Math.max(0, x.r.length - 1 - x.g.length)); // sada
+    assert.strictEqual(x.md.length, x.r.length - x.g.length); // ukupno, sa otpuštanjem kad se vrati
+    assert.strictEqual(x.mdl, 1);
+  }
   const noIr = E.search(injInp({ myIrFree: 0 })).list.filter(x => x.r.includes(100) && x.r.length > x.g.length);
   for (const x of noIr) { assert.deepStrictEqual(x.irIn, []); assert.strictEqual(x.md.length, x.r.length - x.g.length); }
   // 1:1 sa IR mestom: dajem jednog, povređeni na IR -> dobijam i slobodno mesto
   const one = E.search(injInp({ myIrFree: 1 })).list.find(x => x.r.join() === '100' && x.g.length === 1);
-  if (one) assert.strictEqual(one.mf, 1);
+  if (one) { assert.strictEqual(one.mf, 1); assert.strictEqual(one.mft, 1); assert.ok(Math.abs(one.wr - 0.2) < 1e-9); }
+});
+
+test('privremeno mesto vredi samo utakmice dok je povređeni na IR-u: što duža povreda, to više vredi', () => {
+  const key = x => `${x.g}|${x.r}`;
+  const pick = fr => new Map(E.search(injInp({ myIrFree: 1, fr })).list.filter(x => x.irIn.length && (x.mft || x.mdl)).map(x => [key(x), x]));
+  const longI = pick(0.5), shortI = pick(0.95);
+  const pair = [...longI.keys()].find(k => shortI.has(k));
+  assert.ok(pair, 'isti trejd u obe pretrage');
+  // isti povređeni, ista vrednost posle povratka (vektor se ovde ne menja): duža povreda = veći udeo privremenog mesta
+  assert.ok(longI.get(pair).wr > shortI.get(pair).wr);
+  assert.ok(longI.get(pair).gain >= shortI.get(pair).gain);
 });
 
 test('protivnik sa više povređenih nego IR mesta: veća šansa (rang) kad daje povređenog', () => {
