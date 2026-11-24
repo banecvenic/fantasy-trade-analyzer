@@ -60,10 +60,12 @@ test('dodatni ponderi su slabiji od glavnih: ista promena dela menja ocenu manje
   assert.ok(maxExtra < minMain, `${maxExtra} >= ${minMain}`);
 });
 
-test('stranica: najviše 2 igrača istog vlasnika od 9, sledeća stranica bez prikazanih', () => {
+test('stranica: najviše 2 igrača istog vlasnika od 9 (računar) i 8 (telefon), sledeća stranica bez prikazanih', () => {
   const list = Array.from({ length: 20 }, (_, i) => ({ id: i + 1, owner: i < 10 ? 'a' : `t${i}` }));
   const p1 = M.ttPage(list);
   assert.strictEqual(p1.length, 9);
+  assert.strictEqual(M.TT.PER_PAGE, 9); assert.strictEqual(M.TT.PER_PAGE_PHONE, 8);
+  assert.strictEqual(M.ttPage(list, new Set(), M.TT.PER_PAGE_PHONE).length, 8);
   assert.strictEqual(p1.filter(x => x.owner === 'a').length, 2);
   const p2 = M.ttPage(list, new Set(p1.map(x => x.id)));
   assert.ok(p2.every(x => !p1.includes(x)) && p2.filter(x => x.owner === 'a').length <= 2);

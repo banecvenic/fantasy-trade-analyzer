@@ -1365,7 +1365,8 @@ function tfVetoShown(picks, max) {
 const TT = {
   REFINE: 40,            // posle grubog rangiranja (ponderi 1 i 2) toliko kandidata dobija ostale pondere
   TRADE_MAX_SIDE: 2,     // mogući trejd u izveštaju: najviše 2 igrača sa svake strane
-  PER_PAGE: 9,           // kartica po stranici (3 reda po 3)
+  PER_PAGE: 9,           // kartica po stranici na računaru (3 reda po 3)
+  PER_PAGE_PHONE: 8,     // kartica po stranici na telefonu
   MAX_OWNER: 2,          // najviše igrača istog vlasnika na jednoj stranici
   // ponderi: ocena = zbir (jačina × deo od 0 do 1); glavni (cat do inj) su znatno jači od dodatnih (playoff do close)
   W: { cat: 1, unreach: 0.6, willing: 0.3, form: 0.25, cheap: 0.25, inj: 0.25, playoff: 0.08, stable: 0.06, fragile: 0.08, close: 0.08 },
@@ -2494,7 +2495,7 @@ const EN = {
   "Promenio si izbor. Klikni Pronađi trejdove za nove predloge.": "You changed your choices. Click Find trades for new suggestions.",
   "Predlozi": "Suggestions",
   "Generiši novih 8": "Generate 8 more",
-  "Generiši novih 9": "Generate 9 more",
+  "Generiši novih {n}": "Generate {n} more",
   "Izaberi tim sa kojim tražiš trejd.": "Pick the team you want to trade with.",
   "Za veto lige: dodaj {p} da bude {a}:{a}.": "For league veto: add {p} to make it {a} for {a}.",
   "Ili unesi oba tima ručno": "Or enter both teams manually",
@@ -10635,6 +10636,7 @@ function ttModel(lg, B, ui) {
 }
 const ttVisible = () => !!EMBED?.targets || state.page === 'targets';
 const ttRender = () => { if (EMBED?.targets) renderTargetsEmbed(); else if (state.page === 'targets') render(); };
+if (typeof matchMedia === 'function') matchMedia('(max-width:640px)').addEventListener?.('change', () => { if (ttVisible()) ttRender(); }); // 9 ili 8 kartica
 
 /* ---------- Mogući trejd: računa se tek u izveštaju, za jednog igrača (isti motor kao Pronađi trejd, Web Worker) ---------- */
 const ttTradeCtx = (lg, owner) => { const o = lg.opps[owner]; return { lg, scopeKey: lg.id, oppKey: owner, my: lg.roster?.players || [], opp: o?.players || [], oppName: o?.name || '' }; };
@@ -10798,10 +10800,13 @@ function ttLockSearch(query) {
   return searchResults(query, new Set(state.players.map(p => p.id).filter(id => !avail.has(id))), avail);
 }
 /** Stranica kartica: redom po oceni, bez prethodnih stranica, najviše 2 igrača istog vlasnika */
-function ttPageItems(M) {
+const TT_PHONE_MQ = '(max-width:640px)';
+/** Broj kartica po stranici: 9 na računaru, 8 na telefonu */
+const ttPer = () => (typeof matchMedia === 'function' && matchMedia(TT_PHONE_MQ).matches ? TT.PER_PAGE_PHONE : TT.PER_PAGE);
+function ttPageItems(M, per = ttPer()) {
   const shown = new Set(); let items = [];
-  for (let k = 0; k <= M.ui.page; k++) { items = ttPage(M.list, shown); items.forEach(x => shown.add(x.id)); }
-  return { items, more: ttPage(M.list, shown).length > 0 || M.list.length < M.coarseN };
+  for (let k = 0; k <= M.ui.page; k++) { items = ttPage(M.list, shown, per); items.forEach(x => shown.add(x.id)); }
+  return { items, per, off: shown.size - items.length, more: ttPage(M.list, shown, per).length > 0 || M.list.length < M.coarseN };
 }
 /** Vlasnik igrača sa liste želja: ključ protivnika, 'mine', 'fa' ili null (nije ni u jednom unetom timu) */
 const ttWishOwner = (M, id) => ttOwnerOf(id, new Set(ttMyRoster(M.lg).map(x => x.id)), M.lg?.opps, !!(M.lg && isSynced(M.lg)));
@@ -10832,14 +10837,14 @@ function ttWishHTML(M) {
 /** Telo alata (liga i javna stranica). Mogući trejd se ne računa ovde, nego tek u izveštaju. */
 function ttBodyHTML(lg) {
   const M = ttGet(lg);
-  const { items, more } = ttPageItems(M);
+  const { items, more, per, off } = ttPageItems(M);
   const lead = M.solo
     ? t('Bez drugih timova: kandidati su svi NBA igrači koji nisu na tvom rosteru. Kartica pokazuje šta igrač donosi tvom timu, ako uđe umesto tvog najslabijeg igrača.')
     : M.pts ? t('Igrači sa drugih timova u ligi koji najviše dižu FPts tvog tima, a realno ih je dobiti. Klikni na ime za izveštaj i mogući fer trejd.')
       : t('Igrači sa drugih timova u ligi koji najviše popravljaju kategorije koje ti trebaju, a realno ih je dobiti. Klikni na ime za izveštaj i mogući fer trejd.');
   const list = items.length
-    ? `<div class="tt-cards">${items.map((x, k) => ttCardHTML(M, x, M.ui.page * TT.PER_PAGE + k)).join('')}</div>
-      <div class="tf-more">${more ? `<button type="button" class="btn sec" data-action="tt-more">${t('Generiši novih 9')}</button>` : `<span class="hint">${t('To su sve mete za ovaj izbor.')}</span>`}</div>`
+    ? `<div class="tt-cards">${items.map((x, k) => ttCardHTML(M, x, off + k)).join('')}</div>
+      <div class="tf-more">${more ? `<button type="button" class="btn sec" data-action="tt-more">${t('Generiši novih {n}', { n: per })}</button>` : `<span class="hint">${t('To su sve mete za ovaj izbor.')}</span>`}</div>`
     : `<div class="pcard fa-none"><b>${t('Trenutno nema meta koje bi ti pomogle')}</b><p class="pnote">${t('Nijedan igrač ne popravlja tvoj tim u odnosu na sadašnje stanje.')}</p></div>`;
   return `<p class="pnote fa-lead">${lead}</p>${ttLockHTML(lg)}${ttNeedHTML(M)}<h3 class="fa-h">${t('Mete')}</h3>${list}${ttWishHTML(M)}`;
 }
@@ -11033,7 +11038,7 @@ const ttTaken = key => (key === 'tt-opp' ? new Set([...(state.tt.add?.ids || [])
 /* ---------- Akcije ---------- */
 function ttRate(i, rating, el) {
   const lg = currentLeague(); if (!lg) return;
-  const M = ttGet(lg), items = ttPageItems(M).items, x = items[i - M.ui.page * TT.PER_PAGE]; if (!x) return;
+  const M = ttGet(lg), P = ttPageItems(M), x = P.items[i - P.off]; if (!x) return;
   const B = tfBase(lg), pl = id => ratePlayer(B, id), tr = state.tt.trades.get(x.id) || null;
   rateSave({ k: tfRateKey('targets', lg.id, [], [x.id]), ts: new Date().toISOString(), tool: 'targets', rating,
     league: rateLeague(lg, M.cats), strategy: M.ui.need, slider: null, focus: M.ui.need === 'manual' ? [...M.ui.cats] : [],
@@ -11048,9 +11053,9 @@ function ttAction(a, el) {
     case 'tt-cat': { const k = el.dataset.k; ui.cats = ui.cats.includes(k) ? ui.cats.filter(x => x !== k) : [...ui.cats, k]; ui.page = 0; break; }
     case 'tt-more': {
       ui.page++;
-      const M = ttGet(lg), shown = new Set();
-      for (let k = 0; k < ui.page; k++) ttPage(M.list, shown).forEach(x => shown.add(x.id));
-      if (ttPage(M.list, shown).length < TT.PER_PAGE && M.list.length < M.coarseN) ui.refine += TT.REFINE; // kraj izabranih: sledećih 40
+      const M = ttGet(lg), shown = new Set(), per = ttPer();
+      for (let k = 0; k < ui.page; k++) ttPage(M.list, shown, per).forEach(x => shown.add(x.id));
+      if (ttPage(M.list, shown, per).length < per && M.list.length < M.coarseN) ui.refine += TT.REFINE; // kraj izabranih: sledećih 40
       break;
     }
     case 'tt-wish': lsSet(TT_WISH_KEY, ttWishToggle(ttWishAll(), ttScope(lg), id)); break;
