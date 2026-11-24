@@ -33,11 +33,12 @@ PAGES = {
     'howto':   {'en': 'how-to-import/', 'sr': 'sr/how-to-import/'},
     'fa':      {'en': 'free-agents/', 'sr': 'sr/free-agents/'},
     'finder':  {'en': 'trade-finder/', 'sr': 'sr/trade-finder/'},
+    'targets': {'en': 'trade-targets/', 'sr': 'sr/trade-targets/'},
 }
 
 # Alati sa početne: ready=False prikazuje "Coming soon"; kad alat postoji, ready=True i href (relativno od korena sajta)
 TOOLS = {
-    'finder':  {'ready': False, 'href': None},   # Find the player your team needs
+    'finder':  {'ready': True, 'href': None, 'page': 'targets'},   # Find the player your team needs: /trade-targets/ (po jeziku)
     'builder': {'ready': True, 'href': None, 'page': 'finder'},   # Build a trade between two teams: /trade-finder/ (po jeziku)
     'fa':      {'ready': True, 'href': None, 'pick': True},   # Free agent pickups: otvara "Izaberi ligu" (nav.js), radi samo za uvezene lige
 }
@@ -785,6 +786,7 @@ def footer(lang, depth):
       <nav class="f-links" aria-label="Footer">
         <a href="{r}{pre}about/">{t['footer_about']}</a>
         <a href="{r}{pre}trade-finder/">{FINDER[lang]['footer']}</a>
+        <a href="{r}{pre}trade-targets/">{TARGETS[lang]['footer']}</a>
         <a href="{r}{pre}free-agents/">{t['footer_fa']}</a>
         <a href="{r}{pre}how-to-import/">{t['footer_howto']}</a>
         <a href="{r}{pre}privacy/">{t['footer_privacy']}</a>
@@ -1210,6 +1212,118 @@ def finder_public(lang):
 </html>
 """
 
+# ---------------------------------------------------------------------------
+# /trade-targets/: javna stranica Mete za trejd (alat radi i bez lige, samo sa mojim timom)
+# ---------------------------------------------------------------------------
+TARGETS = {
+    'en': {
+        'title': 'Fantasy Basketball Trade Targets | RosterSwing',
+        'desc': 'Find fantasy basketball trade targets: players on other teams in your league who fix your weak categories and are realistic to get, with a fair trade idea for each one.',
+        'h1': 'Fantasy Basketball Trade Targets',
+        'lead': 'RosterSwing looks at every player on the other rosters in your league and shows the ones who help your team the most and are realistic to get. For each target it also finds a fair trade from your roster.',
+        'footer': 'Trade targets',
+        'leagues_h': 'Your leagues',
+        'manual_h': 'Or enter your team',
+        'loading': 'Loading players…',
+        'ex_label': 'Example target',
+        'ex': {'name': 'Jarrett Allen', 'meta': 'CLE · C', 'owner': 'Manager: Team 7', 'stats': [('11.2', 'REB'), ('1.1', 'BLK'), ('.640', 'FG%')],
+               'why': ['Helps you most in REB, BLK', 'The manager has a surplus in REB'],
+               'trade': 'Possible trade: Jalen Suggs for Jarrett Allen · 5:3', 'btn1': 'Suggest trades with this player', 'btn2': 'Trade'},
+        'steps_h': 'How it works',
+        'steps': [('Pick your league or enter your team', 'With an imported league we read every roster and the standings. Without a league, add your players and we look at all NBA players.'),
+                  ('Choose what you need', 'Let RosterSwing find your weak categories, or pick the categories yourself. Punted categories never count.'),
+                  ('Open the trade', 'Each card has a possible fair trade. Open it in the analyzer, ask for more trade ideas with that player, or save him to your wishlist.')],
+        'faq_h': 'Frequently asked questions',
+        'faq': [('How do you choose targets?', 'Mostly by how much a player improves the categories you need for the rest of the season. Then we check whether his manager might trade him: does he have a surplus in those categories, does he need what you have, is he short on IR spots or near the bottom. Form, role, value versus price and playoff games add a little.'),
+                ('What does an unreachable player mean?', 'A player who is one of the two most valuable players on his team, or one of the top stars in the league. Managers rarely trade those, so we rank them lower even when they would help you a lot.'),
+                ('What is the wishlist?', 'Tap the heart on a card to save a player. The wishlist sits at the bottom of the page, shows who owns him now and his status, and stays saved in this browser for each league.')],
+        'save_note': 'Save your team as a league to come back to it later and add the other teams.',
+    },
+    'sr': {
+        'title': 'Fantasy košarka: mete za trejd | RosterSwing',
+        'desc': 'Pronađi mete za trejd u fantasy košarci: igrače iz drugih timova u tvojoj ligi koji popravljaju tvoje slabe kategorije, a realno ih je dobiti, uz fer trejd za svakog.',
+        'h1': 'Fantasy košarka: mete za trejd',
+        'lead': 'RosterSwing pregleda sve igrače na drugim rosterima u tvojoj ligi i pokazuje one koji najviše pomažu tvom timu, a realno ih je dobiti. Za svaku metu traži i fer trejd sa tvojim rosterom.',
+        'footer': 'Mete za trejd',
+        'leagues_h': 'Tvoje lige',
+        'manual_h': 'Ili unesi svoj tim',
+        'loading': 'Učitavam igrače…',
+        'ex_label': 'Primer mete',
+        'ex': {'name': 'Jarrett Allen', 'meta': 'CLE · C', 'owner': 'Vlasnik: Tim 7', 'stats': [('11.2', 'REB'), ('1.1', 'BLK'), ('.640', 'FG%')],
+               'why': ['Najviše ti popravlja REB, BLK', 'Vlasnik ima višak u REB'],
+               'trade': 'Mogući trejd: Jalen Suggs za Jarrett Allen · 5:3', 'btn1': 'Predloži trejd sa ovim igračem', 'btn2': 'Trejduj'},
+        'steps_h': 'Kako radi',
+        'steps': [('Izaberi ligu ili unesi svoj tim', 'Sa uvezenom ligom čitamo sve rostere i tabelu. Bez lige dodaj svoje igrače, a mi gledamo sve NBA igrače.'),
+                  ('Izaberi šta ti treba', 'Pusti RosterSwing da nađe tvoje slabe kategorije ili ih izaberi sam. Punt kategorije se nikad ne računaju.'),
+                  ('Otvori trejd', 'Svaka kartica ima mogući fer trejd. Otvori ga u analizi, traži još ideja sa tim igračem ili ga sačuvaj na listu želja.')],
+        'faq_h': 'Česta pitanja',
+        'faq': [('Kako biraš mete?', 'Najviše po tome koliko igrač popravlja kategorije koje ti trebaju do kraja sezone. Onda proveravamo da li bi ga vlasnik dao: ima li višak u tim kategorijama, treba li mu ono što ti imaš, ima li više povređenih nego IR mesta, da li je pri dnu tabele. Forma, uloga, vrednost u odnosu na cenu i utakmice u plejofu dodaju malo.'),
+                ('Šta znači nedostižan igrač?', 'Igrač koji je jedan od dva najvrednija u svom timu ili jedna od najvećih zvezda lige. Menadžeri ih retko daju, pa ih rangiramo niže, čak i kad bi ti mnogo pomogli.'),
+                ('Šta je lista želja?', 'Klikni srce na kartici da sačuvaš igrača. Lista želja je na dnu stranice, pokazuje ko ga sada ima i njegov status, i ostaje sačuvana u ovom pregledaču za svaku ligu.')],
+        'save_note': 'Sačuvaj svoj tim kao ligu da mu se vratiš kasnije i dodaš ostale timove.',
+    },
+}
+
+def targets_public(lang):
+    d = TARGETS[lang]
+    depth = 1 if lang == 'en' else 2
+    r = rel(depth)
+    app = f'{r}app/'
+    ta = page_href('analyzer', lang, depth)
+    fu = page_href('finder', lang, depth)
+    ex = d['ex']
+    faq = ''.join(f'<details><summary><h3>{escape(q)}</h3></summary><div class="a"><p>{escape(a)}</p></div></details>' for q, a in d['faq'])
+    faq_ld = ld({'@context': 'https://schema.org', '@type': 'FAQPage', 'inLanguage': lang,
+                 'mainEntity': [{'@type': 'Question', 'name': q, 'acceptedAnswer': {'@type': 'Answer', 'text': a}} for q, a in d['faq']]})
+    steps = ''.join(f'<li><h3>{escape(a)}</h3><p>{escape(b)}</p></li>' for a, b in d['steps'])
+    stats = ''.join(f'<span class="tt-st hi"><b>{escape(v)}</b> {escape(k)}</span>' for v, k in ex['stats'])
+    card = f"""<div class="fa-ex tf-ex" aria-label="{escape(d['ex_label'])}"><div class="fa-ex-l">{escape(d['ex_label'])}</div>
+      <article class="tt-card static">
+        <div class="tt-head"><span class="av" data-ini="{initials(ex['name'])}"></span><div class="tt-id"><b class="nm">{escape(ex['name'])}</b><span class="meta">{escape(ex['meta'])}</span><span class="tt-owner">{escape(ex['owner'])}</span></div><span class="tt-heart on" aria-hidden="true">♥</span></div>
+        <div class="tt-stats">{stats}</div>
+        <div class="fa-why">{''.join(f'<span>{escape(w)}</span>' for w in ex['why'])}</div>
+        <span class="tt-trade up">{escape(ex['trade'])}</span>
+        <div class="tt-foot"><span class="linkbtn tt-sugg">{escape(ex['btn1'])}</span><span class="btn small">{escape(ex['btn2'])}</span></div></article></div>"""
+    return head(lang, 'targets', d['title'], d['desc'], depth, extra=faq_ld) + header(lang, 'targets', depth) + f"""
+<main class="wrap tf-pub tt-pub">
+  <section class="hero hero-fa">
+    <div class="hero-text">
+      <h1>{escape(d['h1'])}</h1>
+      <p>{escape(d['lead'])}</p>
+    </div>
+    {card}
+  </section>
+
+  <section class="tf-lg-sec" id="tt-leagues" aria-label="{escape(d['leagues_h'])}" hidden></section>
+
+  <section class="tool tf-manual" id="tool" aria-labelledby="tt-manual-h">
+    <h2 class="tf-sec-h" id="tt-manual-h">{escape(d['manual_h'])}</h2>
+    <div class="tool-periods"><div class="seg" id="periods" role="group" aria-label="Period"></div><div id="fmtbar" class="fmtbar"><span class="fbar"><span class="fchip static">9-cat H2H</span></span></div></div>
+    <div class="tool-app">
+      <div class="status" id="status">{escape(d['loading'])}</div>
+      <div id="banner"></div>
+      <div id="tt-app"></div>
+      <p class="pnote tf-save-note">{escape(d['save_note'])}</p>
+    </div>
+    <div hidden><span id="hleague"></span><button type="button" id="pchip"></button><section id="home"></section><div id="leaguebar"></div><div id="wshead"></div><div id="tradetabs"></div><div id="tradewarn"></div><div id="score"></div><div id="teams"></div><div id="compare"></div><div id="nudge"></div><div id="report"></div><div id="myteam"></div><div id="oppteam"></div><div id="history"></div></div>
+  </section>
+
+  <section aria-labelledby="steps-h">
+    <h2 id="steps-h">{escape(d['steps_h'])}</h2>
+    <ol class="hsteps">{steps}</ol>
+  </section>
+
+  <section aria-labelledby="faq-h">
+    <h2 id="faq-h">{escape(d['faq_h'])}</h2>
+    <div class="faq">{faq}</div>
+  </section>
+</main>
+""" + footer(lang, depth) + f"""<script>window.RS_EMBED={{lang:'{lang}',app:'{app}',targets:true,ta:'{ta}',finderUrl:'{fu}'}};</script>
+<script src="{r}assets/app.js" defer></script>
+</body>
+</html>
+"""
+
 def write(path, content):
     full = os.path.join(ROOT, path)
     os.makedirs(os.path.dirname(full) or ROOT, exist_ok=True)
@@ -1229,6 +1343,7 @@ def main():
         write(PAGES['howto'][lang] + 'index.html', howto(lang))
         write(PAGES['fa'][lang] + 'index.html', fa_public(lang))
         write(PAGES['finder'][lang] + 'index.html', finder_public(lang))
+        write(PAGES['targets'][lang] + 'index.html', targets_public(lang))
     # /app/ nije u mapi sajta i ima <meta name="robots" content="noindex"> (ne blokira se ovde, da bi pretraživač video noindex)
     write_app_header()
     write('robots.txt', f'User-agent: *\nAllow: /\n\nSitemap: {SITE_URL}sitemap.xml\n')

@@ -1308,3 +1308,60 @@ td.fa-notes{display:table-cell}td.fa-notes span{display:block}
 }
 .opp-drops .rm{background:none;border:0;color:var(--muted);cursor:pointer;font-size:11px;padding:0 4px;margin-left:2px}
 .opp-drops .rm:hover{color:var(--loss, #e5484d)}
+
+/* FAZA 4.4: Mete za trejd (kartice, lista želja, izveštaj, Dodaj protivnika) */
+.tt-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:1280px){.tt-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tt-card{display:flex;flex-direction:column;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;min-width:0}
+.tt-head{display:flex;align-items:flex-start;gap:10px}
+.tt-id{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.tt-id .nm{background:none;border:0;padding:0;color:var(--text);font:inherit;font-weight:700;cursor:pointer;text-align:left;overflow-wrap:anywhere}
+.tt-id .nm:hover{text-decoration:underline}
+.tt-id .meta{font-size:12px;color:var(--muted)}
+.tt-id .tf-inj{font-size:11px;color:var(--lose-text);line-height:1.3}
+.tt-owner{font-size:12px;color:var(--dim)}
+.tt-owner b{color:var(--text)}
+.tt-heart{background:none;border:1px solid var(--line);border-radius:999px;width:34px;height:34px;flex:none;display:inline-flex;align-items:center;justify-content:center;font-size:17px;line-height:1;color:var(--muted);cursor:pointer}
+.tt-heart.on{color:var(--lose-text);border-color:var(--lose-text);background:var(--lose-bg)}
+.tt-heart:focus-visible{outline:2px solid var(--info);outline-offset:2px}
+.tt-stats{display:flex;flex-wrap:wrap;gap:4px}
+.tt-st{font-size:12px;padding:2px 7px;border-radius:6px;background:var(--card2);color:var(--muted);font-variant-numeric:tabular-nums}
+.tt-st b{color:var(--text)}
+.tt-st.hi{background:var(--info-bg);color:var(--text)}
+.tt-trade{display:block;width:100%;text-align:left;font:inherit;font-size:12px;line-height:1.45;padding:7px 9px;border-radius:8px;border:1px solid var(--line);background:var(--card2);color:var(--text);cursor:pointer}
+.tt-trade:hover{border-color:var(--info)}
+.tt-trade .tt-tl{color:var(--muted)}
+.tt-trade.up .tt-wl{color:var(--win-text);font-weight:700}
+.tt-trade.down .tt-wl{color:var(--lose-text);font-weight:700}
+.tt-trade-wait,.tt-trade-none{margin:0;font-size:12px}
+.tt-solo-note{margin:0;font-size:12px}
+.tt-foot{margin-top:auto;display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap}
+.tt-foot .tt-sugg{flex:1 1 100%;text-align:left;font-size:12px}
+.tt-foot .rate-btns{margin-right:auto}
+.tt-btns{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.tt-btns .linkbtn{font-size:12px;text-align:right}
+.tt-wish{margin-top:18px}
+.tt-wlist{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.tt-wrow{display:flex;align-items:center;gap:10px;padding:8px;border:1px solid var(--line);border-radius:10px;min-width:0}
+.tt-wbtns{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.tt-wbtns .linkbtn{font-size:12px}
+.tt-mychips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tt-mychips .chip.on{border-color:var(--info)}
+.tt-my{margin-bottom:14px}
+.tt-rep-btns{display:flex;justify-content:flex-end;gap:12px;align-items:center;margin-top:14px}
+.tt-games td,.tt-games th{white-space:nowrap}
+.tt-add-name{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);margin:8px 0}
+.tt-add-name input{min-height:36px;background:var(--card2);border:1px solid var(--line);border-radius:8px;color:var(--text);font:inherit;font-size:14px;padding:0 10px}
+.tt-ex .tt-card,.tf-ex .tt-card.static{cursor:default}
+.tt-card.static .nm{cursor:default}
+.tt-card.static .tt-trade{cursor:default}
+@media (max-width:640px){
+  .tt-cards{grid-template-columns:minmax(0,1fr)}
+  .tt-wlist{grid-template-columns:minmax(0,1fr)}
+  .tt-needbar .fa-needs{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px;max-width:100%}
+  .tt-needbar .fa-need{flex:none}
+  .tt-needbar{flex-wrap:wrap}
+  .tt-needbar .fa-needs{flex:1 1 100%}
+  #modal.tt-add-modal{padding:0;place-items:stretch}
+  .tt-add-modal .modal-box{max-width:none;width:100%;max-height:none;height:100%;border-radius:0;border:0}
+}
