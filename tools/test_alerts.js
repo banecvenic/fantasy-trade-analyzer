@@ -11,7 +11,7 @@ const start = src.indexOf('   Alerti i dostupnost: čiste funkcije');
 const end = src.indexOf('/* ==== kraj: Alerti, čiste funkcije ==== */');
 if (start < 0 || end < 0) throw new Error('Nije nađen modul alerta u app.js');
 const code = src.slice(src.lastIndexOf('/*', start), end);
-const A = new Function(`${code}\nreturn { sleeperGroup, trackStatus, statusEvent, irVerdict, sortAlerts, keepHidden, availFactor, sleeperDeadline, SLEEPER_IR_KEY, sleeperStatus, stGroup, resolveStatus, orJoin };`)();
+const A = new Function(`${code}\nreturn { sleeperGroup, trackStatus, statusEvent, irVerdict, sortAlerts, keepHidden, availFactor, sleeperDeadline, SLEEPER_IR_KEY, sleeperStatus, stGroup, resolveStatus, orJoin, isStatusNews };`)();
 
 let n = 0;
 const test = (name, fn) => { fn(); n++; console.log(`ok  ${name}`); };
@@ -152,6 +152,24 @@ test('ESPN ključevi za IR pravilo iz zajedničkog statusa: OUT i IR dozvoljeni,
   assert.strictEqual(A.irVerdict(rule, A.resolveStatus({}, null, true).key), 'bad');
   assert.strictEqual(A.orJoin(['OUT', 'IR'], 'ili'), 'OUT ili IR');
   assert.strictEqual(A.orJoin(['Out', 'Sus', 'DNR'], 'or'), 'Out, Sus or DNR');
+});
+
+test('vesti za alerte: izveštaj sa utakmice nije status, osim kad pominje povredu', () => {
+  const no = [
+    "Poeltl recorded 15 points (5-10 FG, 5-6 FT), 10 rebounds, three assists, one block and one steal in 28 minutes before fouling out of Monday's 116-111 loss to the Bucks.",
+    'Brooks amassed 18 points (7-14 FG, 2-7 3Pt, 2-3 FT), three rebounds and two assists in 30 minutes during Friday\'s loss.',
+    'Buzelis notched nine points (4-10 FG, 1-5 3Pt), five rebounds, one assist and one steal.',
+    "Okongwu finished Friday's 111-97 win over the Hornets with 16 points (6-11 FG).",
+  ];
+  const yes = [
+    'Nembhard (hip) is available for Friday\'s game against the Cavaliers.',
+    'Morant has been diagnosed with a Grade 2 left hamstring strain and is expected to miss at least two weeks.',
+    'Head coach said Morant met with a doctor in Los Angeles.',
+    'Smith exited with a sprained right ankle after scoring 12 points (5-8 FG) in 18 minutes.',
+    'Jones is questionable for Wednesday\'s game due to illness.',
+  ];
+  for (const h of no) assert.strictEqual(A.isStatusNews(h), false, h);
+  for (const h of yes.slice(0, 2).concat(yes.slice(3))) assert.strictEqual(A.isStatusNews(h), true, h);
 });
 
 console.log(`\n${n} testova prošlo`);

@@ -577,6 +577,16 @@ const keepHidden = (hidden, activeKeys) => Object.fromEntries(Object.entries(hid
 const availFactor = (gp, teamGames, out) => (out ? 0 : teamGames > 0 ? Math.max(0, Math.min(1, (gp || 0) / teamGames)) : 1);
 /** Sleeper rok za trejdove (nedelja lige) -> približan datum: početak te nedelje. monday = ponedeljak tekuće nedelje (ms), leg = tekuća nedelja */
 const sleeperDeadline = (week, leg, monday) => (week > 0 && week < 40 && leg > 0 && monday > 0 ? monday + (week - leg) * 7 * 864e5 : null);
+const STATUS_NEWS = /\b(questionable|doubtful|probable|out|available|injur\w*|return\w*|sidelined|miss\w*|ruled|game-time|status|upgraded|downgraded|surgery|mri|x-rays?|restriction|suspend\w*|cleared|illness|sore\w*|sprain\w*|strain\w*|trade request)\b|\([a-z ]+\)/i;
+/** Izveštaj sa utakmice: statistička linija ("15 points (5-10 FG", "nine points", "with 16 points") */
+const GAME_RECAP = /\(\d+-\d+ (FG|3Pt|FT)\b|\b(\d+|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)[- ]points?\b/i;
+/** U izveštaju sa utakmice vest je o statusu samo ako pominje povredu ili izlazak iz igre */
+const RECAP_INJURY = /\b(injur\w*|sprain\w*|strain\w*|sore\w*|ankle|knee|hamstring|calf|groin|back spasms|concussion|illness|exit\w*|left (the|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\S*|ruled out|did not return|questionable|doubtful|sidelined|mri|x-rays?|surgery)\b/i;
+/** Naslov vesti je o statusu igrača (povreda, povratak, suspenzija), a ne obična statistika sa utakmice. "Fouled out" nije status. */
+const isStatusNews = h => {
+  const s = String(h || '').replace(/\bfoul(ed|ing|s)? out\b/gi, '');
+  return STATUS_NEWS.test(s) && (!GAME_RECAP.test(s) || RECAP_INJURY.test(s));
+};
 /* ==== kraj: Alerti, čiste funkcije ==== */
 
 /* =====================================================================
@@ -8979,7 +8989,6 @@ function ensureRosterNews() {
 const ALERT = { STATUS_HOURS: 72, LONG_OUT_DAYS: 7, LONG_OUT_GAMES: 4, NEWS_HOURS: 24, OFFER_DAYS: 2, MAX: 4, HIDDEN_NEWS_MS: 2 * 864e5 };
 const LONG_OUT_FLAGS = ['out for the season', 'out indefinitely', 'surgery news'];
 /** Vest o statusu igrača (povreda, povratak, ograničenje), ne izveštaj sa utakmice */
-const STATUS_NEWS = /\b(questionable|doubtful|probable|out|available|injur\w*|return\w*|sidelined|miss\w*|ruled|game-time|status|upgraded|downgraded|surgery|mri|x-rays?|restriction|suspend\w*|cleared|illness|sore\w*|sprain\w*|strain\w*|trade request)\b|\([a-z ]+\)/i;
 const STATUS_SEEN_KEY = 'fbaTrade.statusSeen.v2';   // { [leagueId]: { [pid]: [grupa, od, prethodna, oznaka] } }, bez imena
 const ALERTS_HIDDEN_KEY = 'fbaTrade.alertsHidden.v1'; // { [leagueId]: { [ključ alerta]: kada je sakriven } }
 
@@ -9071,7 +9080,7 @@ function rosterAlerts() {
     // nagli pad minuta (↓↓): poslednjih 15 dana vs sezona
     if (f.minS != null && f.minR != null && f.minR <= f.minS - MINUTES.STRONG) out.push({ key: `min:${x.id}`, p, ts: now, kind: 'min', txt: t('{n}: minutaža naglo pada, {a} → {b} min poslednjih 15 dana.', { n, a: Math.round(f.minS), b: Math.round(f.minR) }) });
     // vest iz poslednja 24 h (o statusu igrača, bez izveštaja sa utakmica); najnovija po igraču
-    const it = newsOf(p.id).find(v => isRecent(v.published, ALERT.NEWS_HOURS / 24) && (STATUS_NEWS.test(v.headline || '') || f.flags.some(fl => fl.n === v)));
+    const it = newsOf(p.id).find(v => isRecent(v.published, ALERT.NEWS_HOURS / 24) && (isStatusNews(v.headline) || f.flags.some(fl => fl.n === v)));
     if (it) out.push({ key: `news:${x.id}:${it.published}`, p, ts: Date.parse(it.published) || 0, kind: 'news', txt: `${n}: ${esc(it.headline)}`, tip: newsTipHTML(it) });
   }
   // rok za trejdove za 7 dana ili manje (samo kad je rok poznat)
