@@ -1014,7 +1014,8 @@ function tfEngine() {
     const strat = inp.strategy || 'best';
     const mine = inp.mine, theirs = inp.theirs;
     const usable = (list, x) => x.mark !== 'lock' && (!x.ir || x.mark === 'trade');
-    const mC = mine.map((x, i) => i).filter(i => usable(mine, mine[i])), tC = theirs.map((x, i) => i).filter(i => usable(theirs, theirs[i]));
+    // igrač koji je OUT (status lige ili ESPN) ne predlaže se kao igrač kog dobijam, osim ako je obeležen sa U trejd
+    const mC = mine.map((x, i) => i).filter(i => usable(mine, mine[i])), tC = theirs.map((x, i) => i).filter(i => usable(theirs, theirs[i]) && (!theirs[i].out || theirs[i].mark === 'trade'));
     const mReq = mC.filter(i => mine[i].mark === 'trade'), tReq = tC.filter(i => theirs[i].mark === 'trade');
     const hasTrade = mReq.length + tReq.length > 0;
     const stats = { shapes: {}, conv: 0, pairs: 0, value: 0, cats: 0, gain: 0, strat: 0, myCombos: 0, theirCombos: 0, reqTooMany: mReq.length > T.MAX_SIDE || tReq.length > T.MAX_SIDE };
@@ -1024,7 +1025,7 @@ function tfEngine() {
     const myTot = sumVec(mine.filter(x => !x.ir).map(x => x.vec), n), thTot = sumVec(theirs.filter(x => !x.ir).map(x => x.vec), n);
     const dropOk = x => (x.drop ?? (!x.ir && x.mark !== 'lock'));
     const myRoster = mine.map((x, i) => ({ i, id: x.id, v: x.v, rv: x.rv, tc: x.tc, t: x.t, vec: x.vec })).filter(x => dropOk(mine[x.i])).sort(wk);
-    const thRoster = theirs.map((x, i) => ({ i, id: x.id, v: x.v, rv: x.rv, tc: x.tc, t: x.t, vec: x.vec })).filter(x => dropOk(theirs[x.i])).sort(wk);
+    const thRoster = theirs.map((x, i) => ({ i, id: x.id, v: x.v, rv: x.rv, tc: x.tc, out: x.out, t: x.t, vec: x.vec })).filter(x => dropOk(theirs[x.i])).sort(wk);
     const maxDiff = strat === 'cons' || strat === 'depth' ? T.MAX_DIFF_WIDE : T.MAX_DIFF;
     const myTopRule = ['best', 'cats', 'buy', 'cons'].includes(strat);
     // kazna za veličinu: ukupno igrača iznad 2; Konsolidacija i Dubina gledaju veću stranu (iznad 2, dvostruko), pa 2:1, 3:1 i 3:2 i dalje izlaze
@@ -1141,7 +1142,7 @@ function tfEngine() {
     function convert(g, r, R) {
       const slotV = fa[0] ? fa[0].v : 0, by = (a, b) => b.v - a.v;
       if (!R.myDrop || !R.thDrop || R.myDrop.some(x => x.inc) || R.thDrop.some(x => x.inc)) return null;
-      let addR = R.thDrop.filter(x => x.tc || x.v > slotV).sort(by), addG = R.myDrop.filter(x => x.tc || x.v > slotV).sort(by);
+      let addR = R.thDrop.filter(x => !x.out && (x.tc || x.v > slotV)).sort(by), addG = R.myDrop.filter(x => x.tc || x.v > slotV).sort(by);
       if (strat === 'cons') addR = addR.slice(0, Math.max(0, g.length - r.length - 1)); // i dalje dajem više igrača
       if (strat === 'depth') addG = addG.slice(0, Math.max(0, r.length - g.length - 1)); // i dalje dobijam više igrača
       if (!addR.length && !addG.length) return null;
@@ -9498,7 +9499,7 @@ function tfModel(ctx) {
   const { pts, LV, vcats, keys, ki, cats, gpOf, lineOf, vecOf, genRaw, pool, dropBar, dropBarV, market, ros, real, ownOf, verdictOf, replVec, fa } = B;
   const entry = (x, marks) => { const p = state.byId.get(x.id); if (!p) return null; const mark = marks[x.id] || null;
     const vd = verdictOf(p, x, mark); // drop: sme da bude otpušten; tc: Trejd kandidat (u pretrazi samo ako pređe na drugu stranu)
-    return { id: x.id, v: ros(p), rv: real(p) ?? 0, t: genRaw.get(x.id) ?? -99, vec: vecOf(lineOf(p)), mark, ir: !!x.ir, drop: vd !== 'keep', tc: vd === 'trade', p }; };
+    return { id: x.id, v: ros(p), rv: real(p) ?? 0, t: genRaw.get(x.id) ?? -99, vec: vecOf(lineOf(p)), mark, ir: !!x.ir, out: playerStatus(p, lg).g === 'OUT', drop: vd !== 'keep', tc: vd === 'trade', p }; };
   const marks = tfMarks(ctx);
   const mine = ctx.my.map(x => entry(x, marks.mine)).filter(Boolean), theirs = ctx.opp.map(x => entry(x, marks.theirs)).filter(Boolean);
   // ostali timovi (za korist mog tima): svi uneti timovi lige osim mog; bez lige direktno poređenje dve strane
@@ -9551,7 +9552,7 @@ const tfEngineLocal = () => tfE || (tfE = tfEngine());
 /** Ulaz za motor (bez objekata igrača, da ide u Worker) */
 function tfInput(M) {
   const S = state.tf, si = TF.SLIDERS.indexOf(S.slider);
-  const strip = x => ({ id: x.id, v: x.v, rv: x.rv, t: x.t, vec: x.vec, mark: x.mark, ir: x.ir, drop: x.drop, tc: x.tc });
+  const strip = x => ({ id: x.id, v: x.v, rv: x.rv, t: x.t, vec: x.vec, mark: x.mark, ir: x.ir, out: x.out, drop: x.drop, tc: x.tc });
   const focus = S.strat === 'cats' ? M.cats.map((c, i) => (S.focus.includes(c.key) ? i : -1)).filter(i => i >= 0) : [];
   return {
     pts: M.pts, n: M.keys.length, cats: M.cats, myIdx: M.myIdx, oppIdx: M.oppIdx, fIdx: M.ki.FPTS,

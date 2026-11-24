@@ -543,6 +543,17 @@ test('Trejd kandidat se ne otpušta: trejd prolazi samo kad pređe na drugu stra
   assert.deepStrictEqual(w.map(x => x.i), [1]);
 });
 
+test('igrač koji je OUT se ne predlaže kao igrač kog dobijam, osim sa U trejd; ne prelazi ni pretvaranjem', () => {
+  const mk = (out, mark = null) => base({ limits: TF.SLIDERS.map(k => TF.LIMITS[k]),
+    mine: bigTeam(1, 6, 1).map(x => ({ ...x, drop: true })),
+    theirs: bigTeam(100, 6, 5).map((x, i) => (i === 0 ? { ...x, v: 0, rv: 0, out, mark, drop: true, tc: true } : { ...x, drop: true })) });
+  const id = 100;
+  assert.ok(E.search(mk(false)).list.some(x => x.r.includes(id)), 'zdrav: može');
+  const L = E.search(mk(true)).list;
+  assert.ok(L.length > 0 && !L.some(x => x.r.includes(id)), 'OUT: nikad među igračima koje dobijam');
+  assert.ok(E.search(mk(true, 'trade')).list.every(x => x.r.includes(id)), 'OUT sa U trejd: može');
+});
+
 test('cena na tržištu: produkcija broji i ukradene lopte, blokade, trojke i izgubljene lopte', () => {
   const a = { PTS: 15, REB: 5, AST: 3 }, b = { ...a, STL: 1, BLK: 1 };
   assert.strictEqual(tfProd(b, TF.PROD_W) - tfProd(a, TF.PROD_W), 4);
