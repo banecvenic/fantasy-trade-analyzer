@@ -8526,9 +8526,17 @@ function faStashHTML(M) {
   return `<section class="pcard fa-stash"><h3>${t('Uzmi i stavi na IR')} <span class="hint">${t('slobodnih IR mesta: {n}', { n: M.freeIr })}</span></h3>
     ${note ? `<p class="pnote warn">⚠ ${note}</p>` : ''}${rows ? `<ul class="fa-list">${rows}</ul>` : `<p class="pnote">${t('Trenutno nema povređenih slobodnih igrača sa visokom vrednošću koji smeju na IR.')}</p>`}</section>`;
 }
+/** Izbor perioda (Sezona, 7, 15, 30 dana, Projekcija) za karticu ili izveštaj; attrs = dodatni data-* atributi */
+const faPerSeg = (cur, action, attrs = '', cls = '') => `<div class="seg small fa-per ${cls}" role="group" aria-label="${esc(t('Period'))}">${['season', 'l7', 'l15', 'l30', 'proj'].map(k => `<button type="button" data-action="${action}" data-per="${k}" ${attrs} aria-pressed="${k === cur}">${PERIODS.find(y => y.key === k).label}</button>`).join('')}</div>`;
+/** Period kartice (U usponu, Svi slobodni igrači): sopstveni izbor ili period iz zaglavlja */
+const faCardPer = (M, k) => M.ui[k] || state.period;
 /** U usponu: tabela kao Moj tim (izabrani period, trend strelice) + Napomene; telefon: napomene ispod reda */
 function faRisingHTML(M) {
   if (!M.rising.length) return '';
+  const per = faCardPer(M, 'risePer');
+  return withPeriod(per, () => faRisingInner(M, per));
+}
+function faRisingInner(M, per) {
   const ids = sortIds('rise', M.rising.map(x => x.id));
   const cols = CATS.length + 3;
   const rows = ids.map(id => {
@@ -8537,7 +8545,7 @@ function faRisingHTML(M) {
       + `<tr class="fa-note-row"><td colspan="${cols + 1}"><div class="fa-notes">${notes}</div></td></tr>`;
   }).join('');
   const head = rosterHeaderRow('rise').replace(/<\/tr>$/, `<th class="fa-notes-th">${t('Napomene')}</th></tr>`);
-  return `<section class="card fa-rising"><div class="card-h"><div class="side-title"><b>${t('U usponu')}</b><small>${PERIODS.find(x => x.key === state.period).label}</small></div></div>
+  return `<section class="card fa-rising"><div class="card-h"><div class="side-title"><b>${t('U usponu')}</b><small>${PERIODS.find(x => x.key === state.period).label}</small></div>${faPerSeg(per, 'fa-card-per', 'data-card="risePer"', 'fa-card-per')}</div>
     <div class="tscroll fa-scroll"><table class="rtable fa-table fa-rise-t"><thead>${head}</thead><tbody>${rows}</tbody></table></div></section>`;
 }
 /** Brojevi stranica: 1 … 4 5 6 … 20 */
@@ -8550,6 +8558,10 @@ function faPagerHTML(page, pages) {
 }
 /** Tabela svih FA igrača: kolone kao Moj tim + utakmice ove nedelje i vlasništvo; 25 po stranici, sortiranje preko celog spiska */
 function faTableHTML(M, lg) {
+  const per = faCardPer(M, 'allPer');
+  return withPeriod(per, () => faTableInner(M, lg, per));
+}
+function faTableInner(M, lg, per) {
   // podrazumevano: po opštoj vrednosti; igrači bez utakmica u izabranom periodu na dnu
   const ids = sortIds('fa', M.fa.filter(x => x.p.stats && Object.keys(x.p.stats).length)
     .sort((a, b) => !playerLine(a.p) - !playerLine(b.p) || (b.general ?? -99) - (a.general ?? -99)).map(x => x.id));
@@ -8566,7 +8578,7 @@ function faTableHTML(M, lg) {
     const extra = `<td>${wk ?? '–'}</td><td class="fa-own">${own ? `${own.pct.toFixed(0)}%${own.chg ? ` <em class="${own.chg > 0 ? 'up' : 'down'}">${own.chg > 0 ? '+' : '−'}${Math.abs(own.chg).toFixed(1)}</em>` : ''}` : '–'}</td>`;
     return playerRowHTML(p, { tags: [faTagObj(x)], punt: false }).replace(/<\/tr>\s*$/, `${extra}</tr>`);
   }).join('');
-  return `<section class="card fa-all" id="fa-all"><div class="card-h"><div class="side-title"><b>${t('Svi slobodni igrači')}</b><small>${t('{n} igrača · {p}', { n: ids.length, p: PERIODS.find(x => x.key === state.period).label })}</small></div></div>
+  return `<section class="card fa-all" id="fa-all"><div class="card-h"><div class="side-title"><b>${t('Svi slobodni igrači')}</b><small>${t('{n} igrača · {p}', { n: ids.length, p: PERIODS.find(x => x.key === state.period).label })}</small></div>${faPerSeg(per, 'fa-card-per', 'data-card="allPer"', 'fa-card-per')}</div>
     <div class="tscroll fa-scroll"><table class="rtable fa-table"><thead>${head}</thead><tbody>${rows}</tbody></table></div>
     ${faPagerHTML(pg.page, pg.pages)}</section>`;
 }
@@ -8692,11 +8704,11 @@ function faReport(inId, outId, per = state.period) {
   const acqS = S?.used != null ? t('Preostala preuzimanja ove sezone: {n}.', { n: Math.max(0, S.n - S.used) }) : '';
   const s = M.sugg.find(y => y.id === inId && y.drop === outId);
   const why = x ? [...faReasons(x), ...(s ? faWhyCats(M, s) : [])] : [];
-  const seg = `<div class="seg small fa-rep-per" role="group" aria-label="${esc(t('Period'))}">${['season', 'l7', 'l15', 'l30', 'proj'].map(k => `<button type="button" data-action="fa-rep-per" data-per="${k}" data-in="${inId}" data-out="${outId || ''}" aria-pressed="${k === per}">${PERIODS.find(y => y.key === k).label}</button>`).join('')}</div>`;
+  const seg = faPerSeg(per, 'fa-rep-per', `data-in="${inId}" data-out="${outId || ''}"`, 'fa-rep-per');
   showModal({
     title: `${esc(pIn.name)} <span class="hint">⇄ ${pOut ? esc(pOut.name) : '–'}</span>`, cls: 'fa-rep-box', wide: true, cancel: null, confirm: t('Zatvori'), onConfirm: () => {},
-    body: `${seg}${warn ? `<p class="pnote warn">⚠ ${t('{n} vredi više od igrača koji dolazi.', { n: esc(pOut.name) })}</p>` : ''}${body.verdict}
-      <h4>${t('Dolazi i odlazi')} <span class="hint">${t('po utakmici')}</span></h4>${body.players}
+    body: `${warn ? `<p class="pnote warn">⚠ ${t('{n} vredi više od igrača koji dolazi.', { n: esc(pOut.name) })}</p>` : ''}${body.verdict}
+      <div class="fa-rep-h"><h4>${t('Dolazi i odlazi')} <span class="hint">${t('po utakmici')}</span></h4>${seg}</div>${body.players}
       ${vseg}${body.bottom}
       <h4>${t('Zašto')}</h4>${why.length ? `<div class="fa-why">${why.map(w => `<span>${w}</span>`).join('')}</div>` : `<p class="pnote">${t('Izmena popravlja tvoj tim u odnosu na ostale timove lige.')}</p>`}
       <div class="fa-rep-news" id="fa-rep-news"><p class="pnote">${t('Učitavam vesti…')}</p></div>
@@ -8926,7 +8938,7 @@ document.addEventListener('click', e => {
   if (pt) { togglePunt(pt.dataset.punt); return; }
   const el = e.target.closest('[data-action],[data-period]');
   if (!el) return;
-  if (el.dataset.period) { state.period = el.dataset.period; saveState(); render(); return; }
+  if (el.dataset.period) { state.period = el.dataset.period; for (const u of Object.values(state.fa)) { u.risePer = null; u.allPer = null; } saveState(); render(); return; } // zaglavlje: kartice FA opet prate period iz zaglavlja
   const ti = +el.dataset.team;
   switch (el.dataset.action) {
     case 'refresh': loadPlayers(true); loadSchedule(true); break;
@@ -8936,6 +8948,7 @@ document.addEventListener('click', e => {
     case 'tool-soon': closePopMenu(); openToolSoon(el.dataset.tool); break;
     // Pojačanja sa FA
     case 'fa-report': faReport(+el.dataset.in, +el.dataset.out || null); break;
+    case 'fa-card-per': { const u = faUi(); u[el.dataset.card] = el.dataset.per; if (el.dataset.card === 'allPer') u.page = 1; render(); break; }
     case 'fa-rep-per': faReport(+el.dataset.in, +el.dataset.out || null, el.dataset.per); break;
     case 'fa-rep-view': lsSet(FA_REP_VIEW_KEY, el.dataset.v); faReport(+el.dataset.in, +el.dataset.out || null, el.dataset.per); break;
     case 'fa-next-drop': { const u = faUi(), id = +el.dataset.id; u.skipBy[id] = (u.skipBy[id] || 0) + 1; render(); break; }

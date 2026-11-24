@@ -1197,3 +1197,11 @@ td.fa-notes{display:table-cell}td.fa-notes span{display:block}
 .fa-rise-t td.fa-notes{white-space:normal;vertical-align:top}
 .fa-rise-t td.fa-notes span{white-space:normal;overflow-wrap:anywhere}
 @media (min-width:641px){.fa-rise-t th:first-child,.fa-rise-t td:first-child{width:230px;max-width:230px}.fa-rise-t{min-width:980px}}
+/* FA 4.2d: izbor perioda u izveštaju desno, i na karticama U usponu i Svi slobodni igrači */
+.fa-rep-h{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap;margin:14px 0 6px}
+.fa-rep-h h4{margin:0}
+.fa-rep-h .fa-rep-per{margin:0}
+.fa-rising .card-h,.fa-all .card-h{flex-wrap:wrap;justify-content:space-between}
+.fa-card-per{margin-left:auto;max-width:100%;overflow-x:auto}
+@media (max-width:640px){.fa-card-per{margin-left:0}}
+@media (max-width:640px){.seg.small.fa-per button{padding:4px 7px}}
