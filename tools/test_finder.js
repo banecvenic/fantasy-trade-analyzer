@@ -12,7 +12,7 @@ const start = src.indexOf('   Fer trejd: čiste funkcije');
 const end = src.indexOf('/* ==== kraj: Fer trejd, čiste funkcije ==== */');
 if (start < 0 || end < 0) throw new Error('Nije nađen modul Fer trejd u app.js');
 const code = src.slice(src.lastIndexOf('/*', start), end);
-const { TF, E, tfMarket, tfVetoPick } = new Function(`${code}\nreturn { TF, E: tfEngine(), tfMarket, tfVetoPick };`)();
+const { TF, E, tfMarket, tfVetoPick, tfVetoShown } = new Function(`${code}\nreturn { TF, E: tfEngine(), tfMarket, tfVetoPick, tfVetoShown };`)();
 // i motor kao tekst (kako ga dobija Web Worker) mora da radi samostalno
 const E2 = new Function(`return (${new Function(`${code}\nreturn tfEngine;`)().toString()})();`)();
 
@@ -253,10 +253,73 @@ test('Najbolje za mene ne prikazuje predlog sa rezultatom 4:5, Popravi kategorij
 });
 
 test('savet za veto lige: samo kad postoji igrač na granici rostera', () => {
-  const side = [{ id: 1, t: 2, own: 90 }, { id: 2, t: -3, own: 30 }, { id: 3, t: -4, own: 60 }, { id: 4, t: -5, own: 20, mark: 'lock' }, { id: 5, t: -6, own: 10, ir: true }];
+  const side = [{ id: 1, t: 2, v: 5, own: 90 }, { id: 2, t: -3, v: -4, own: 30 }, { id: 3, t: -4, v: -6, own: 60 }, { id: 4, t: -5, v: -8, own: 20, mark: 'lock' }, { id: 5, t: -6, v: -9, own: 10, ir: true }];
   assert.strictEqual(tfVetoPick(side, new Set(), -1, 50).id, 2);
   assert.strictEqual(tfVetoPick(side, new Set([2]), -1, 50), null);
   assert.strictEqual(tfVetoPick(side, new Set(), -3.5, 50), null); // niko nije slabiji od najboljeg slobodnog
+});
+
+test('savet za veto: ne kad je igrač za dopunu iznad nivoa zamene; najviše 3 od 8 kartica', () => {
+  // ispod granice otpuštanja po opštoj vrednosti, ali tržišna vrednost iznad nivoa zamene: nema saveta
+  assert.strictEqual(tfVetoPick([{ id: 7, t: -3, v: 2, own: 30 }], new Set(), -1, 50), null);
+  assert.strictEqual(tfVetoPick([{ id: 7, t: -3, v: 0, own: 30 }], new Set(), -1, 50), null);
+  assert.strictEqual(tfVetoPick([{ id: 7, t: -3, v: -0.5, own: 30 }], new Set(), -1, 50).id, 7);
+  // 8 kartica, savet moguć na 6: prikazuje se na 3 sa najnižom vrednošću igrača za dopunu
+  const picks = [{ v: -1 }, null, { v: -9 }, { v: -3 }, null, { v: -7 }, { v: -2 }, { v: -8 }];
+  const shown = tfVetoShown(picks, TF.VETO_MAX);
+  assert.strictEqual(TF.VETO_MAX, 3);
+  assert.deepStrictEqual([...shown].sort(), [2, 5, 7]);
+  assert.strictEqual(tfVetoShown([null, null], 3).size, 0);
+});
+
+test('Otvori u analizi: otpuštanja i slobodno mesto preneti, rezultat isti kao na kartici (kategorije i poeni)', () => {
+  // analiza trejda: Daješ = moji igrači + moja otpuštanja, Dobijaš = njegovi igrači + moje slobodno mesto (najbolji slobodan ili nivo zamene);
+  // kategorije: zbir Dobijaš − Daješ (nerešeno ispod 0.05), procenti po promeni mog tima; poeni: razlika FPts
+  const analysis = (inp, x) => {
+    const byId = id => [...inp.mine, ...inp.theirs].find(y => y.id === id);
+    const sum = list => { const o = new Float64Array(KEYS.length); list.forEach(v => v.forEach((a, i) => { o[i] += a; })); return o; };
+    const give = sum([...x.g, ...x.md].map(id => byId(id).vec)), get = sum([...x.r.map(id => byId(id).vec), ...inp.fa.slice(0, x.mf).map(f => f.vec)]);
+    const before = sum(inp.mine.map(y => y.vec)), after = Float64Array.from(before);
+    get.forEach((v, i) => { after[i] += v; }); give.forEach((v, i) => { after[i] -= v; });
+    if (inp.pts) return +(get[inp.fIdx] - give[inp.fIdx]).toFixed(1);
+    let win = 0, lose = 0;
+    for (const i of inp.myIdx) {
+      const c = cats[i];
+      const d = c.pct ? after[c.m] / after[c.a] - before[c.m] / before[c.a] : get[c.k] - give[c.k];
+      if (Math.abs(d) < (c.pct ? TF.TIE.pct : TF.TIE.count)) continue;
+      if (c.low ? d < 0 : d > 0) win++; else lose++;
+    }
+    return `${win}:${lose}`;
+  };
+  const card = (inp, x) => {
+    const byId = id => [...inp.mine, ...inp.theirs].find(y => y.id === id);
+    const before = new Float64Array(KEYS.length); inp.mine.forEach(y => y.vec.forEach((v, i) => { before[i] += v; }));
+    const after = Float64Array.from(before);
+    x.g.forEach(id => byId(id).vec.forEach((v, i) => { after[i] -= v; })); x.r.forEach(id => byId(id).vec.forEach((v, i) => { after[i] += v; }));
+    x.md.forEach(id => byId(id).vec.forEach((v, i) => { after[i] -= v; })); inp.fa.slice(0, x.mf).forEach(f => f.vec.forEach((v, i) => { after[i] += v; }));
+    if (inp.pts) return +(after[inp.fIdx] - before[inp.fIdx]).toFixed(1);
+    const r = E.sideResult(before, after, cats, inp.myIdx, TF.TIE); return `${r.win}:${r.lose}`;
+  };
+  const withF = (list, f) => list.map(x => ({ ...x, drop: true, vec: x.vec.map((v, i) => (i === 6 ? f(x.vec) : v)) }));
+  const fp = v => v[0] + 1.2 * v[1] + 1.5 * v[2] - v[3];
+  // poeni: mali rosteri sa FPts u skladu sa vrednošću (2 za 1 i 1 za 2 prolaze)
+  const P = (id, v, f) => ({ ...pl(id, v, { PTS: f * 0.6, REB: f * 0.15, AST: f * 0.1, FGM: f * 0.2, FGA: f * 0.42, FPTS: f }), drop: true });
+  for (const strategy of ['best', 'cons', 'depth']) {
+    const inp = base({ pts: true, mine: [P(1, 10, 40), P(2, 6, 26), P(3, 4.5, 21), P(4, 0.5, 9), P(5, 3, 17)], theirs: [P(20, 7, 31), P(21, 5, 23), P(22, 9.6, 39), P(23, 0.4, 8), P(24, 3.2, 18)],
+      fa: [P(900, 0.3, 10), P(901, 0.2, 9)], limits: TF.SLIDERS.map(k => TF.LIMITS[k]), strategy });
+    const list = E.search(inp).list.slice(0, 8);
+    for (const x of list) assert.strictEqual(analysis(inp, x), card(inp, x), `poeni ${strategy} ${x.shape}`);
+    if (strategy !== 'best') assert.ok(list.some(x => x.g.length !== x.r.length && (x.md.length || x.mf)), `poeni ${strategy}: nema neravnomernog trejda`);
+  }
+  for (const pts of [false]) {
+    for (const strategy of ['best', 'cons', 'depth']) {
+      const inp = base({ pts, mine: withF(bigTeam(1, 9, 1), fp), theirs: withF(bigTeam(100, 9, 5), v => fp(v) * (pts ? 1.15 : 1)), fa: withF(base({}).fa, fp), limits: TF.SLIDERS.map(k => TF.LIMITS[k]), strategy });
+      const list = E.search(inp).list.slice(0, 8);
+      assert.ok(list.length > 0, `${pts} ${strategy}`);
+      if (strategy !== 'best') assert.ok(list.some(x => x.g.length !== x.r.length && (x.md.length || x.mf)), 'nema neravnomernog trejda sa otpuštanjem ili slobodnim mestom');
+      for (const x of list) assert.strictEqual(analysis(inp, x), card(inp, x), `${pts ? 'poeni' : 'kategorije'} ${strategy} ${x.shape}`);
+    }
+  }
 });
 
 test('bliže fer prvo: veće odstupanje tek kad fer opcija nema dovoljno', () => {
