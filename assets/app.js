@@ -883,7 +883,7 @@ let LANG = detectLang();
 document.documentElement.lang = LANG;
 /** Engleski prevodi (ključ = srpski tekst). Novi tekst u UI -> dodati i ovde. */
 const EN = {
-  "Analiza trejda": "Trade analysis",
+  "Analiza trejda": "Trade analyzer",
   "Dodaj tim": "Add team",
   "Dodaj tim u Ligi": "Add a team in League",
   "Izaberi protivnika sa kojim trejduješ.": "Pick the opponent you are trading with.",
@@ -1498,6 +1498,10 @@ const EN = {
   "Pokazuje igrače iz drugih timova u tvojoj ligi koji najviše pomažu tvom timu, i kojim timovima bi trejd takođe odgovarao.": "Shows players on other teams in your league who help your team the most, and which teams a trade could also suit.",
   "Iz tvoje uvezene lige pronalazi slobodne igrače koji odgovaraju tvom timu, uključujući one kojima minutaža raste.": "Uses your imported league to find free agents who fit your team, including players whose minutes are growing.",
   "Po kategorijama, u odnosu na prosečnog igrača sa rostera:": "By category, compared to an average rostered player:",
+  'Vrednost': 'Value',
+  'Fantasy poeni po utakmici iznad igrača kojeg možeš da nađeš na waiveru.': 'Fantasy points per game above a replacement-level player you could find on waivers.',
+  'Nivo zamene': 'Replacement level',
+  'Doprinos u kategorijama tvoje lige u odnosu na prosečnog igrača sa rostera. Oko +1 je jasno iznad proseka, +2 i više među najboljima. Vrednost je zbir svih kategorija.': 'Contribution in your league\'s categories compared to an average rostered player. Around +1 is clearly above average, +2 or more is among the best. The value is the sum of all categories.',
   'Novo: javi nam ako nešto nije uvezeno kako treba.': 'New: let us know if something was not imported correctly.',
   // Uvezena liga: podešavanja i kontekst cele lige
   'na {n}. mestu ({r})': 'in place {n} ({r})',
@@ -1542,7 +1546,7 @@ const EN = {
   "Promena": "Change",
   "Procena: (Dobijaš − Daješ) po utakmici × preostale utakmice NBA timova, dodato na zbir tvog tima iz {p}. Ostali timovi ostaju isti. FG% i FT% se računaju iz pogodaka i pokušaja.": "Estimate: (You get − You give) per game × remaining games of the NBA teams, added to your team totals from {p}. Other teams stay the same. FG% and FT% are computed from makes and attempts.",
   "U H2H ligi ovo je samo informativno.": "In an H2H league this is for information only.",
-  "Uskoro": "Soon",
+  "Uskoro": "Coming soon",
   "ESPN javna liga": "ESPN public league",
   "Uvozimo timove, rostere, bodovanje i tabelu preko ID-ja lige.": "We import teams, rosters, scoring and standings from the league ID.",
   "Sleeper liga": "Sleeper league",
@@ -6972,22 +6976,25 @@ function pmAddToTrade(id, side) {
   if (!inTrade) { setBack('trade'); goPage('trade'); } else render();
   toast(t('Dodato u trejd'));
 }
-/** Profil: vrednost igrača u zaglavlju ("Vrednost +8.4 · #23" ili "+6.2 FPts iznad zamene · #31"), za izabrani period */
+/** Profil: vrednost igrača u zaglavlju (samo vrednost i rang), za izabrani period; objašnjenje i raspodela su u tooltipu */
 function pmValueFact(p, per) {
   const v = playerValue(p);
   if (!v) return '';
   const val = isPointsFmt() ? t('{v} FPts iznad zamene', { v: fmtVal(v.total) }) : fmtVal(v.total);
-  const tip = isPointsFmt() ? t('Koliko fantasy poena po utakmici igrač donosi više od igrača koga bi lako našao na waiveru. 0 je nivo zamene.')
-    : t('Koliko igrač doprinosi u kategorijama tvoje lige u odnosu na igrače koji su na rosterima. 0 je prosečan igrač sa rostera. Ispod je doprinos po kategoriji: plus je iznad proseka, minus ispod. Oko +1 je jasno iznad proseka, +2 i više među najboljima. Vrednost je zbir svih kategorija.');
-  return `<span class="pm-val"><small>${t('Vrednost ({p})', { p: per.label.toLowerCase() })} <span class="i q" data-tip="${esc(tip)}">?</span></small><b class="${v.total >= 0 ? 'up' : 'down'}">${val} · #${v.rank}</b>${v.small ? ` <em class="small-tag" data-tip="${esc(t('Manje od {n} utakmica u ovom periodu.', { n: VALUE.SMALL_SAMPLE_GP }))}">${t('mali uzorak')}</em>` : ''}</span>`;
+  const tip = esc(pmValueTip(v));
+  return `<span class="pm-val"><small>${t('Vrednost ({p})', { p: per.label.toLowerCase() })} <span class="i q" data-tip="${esc(t('Vrednost'))}" data-tip-html="${tip}">?</span></small><b class="${v.total >= 0 ? 'up' : 'down'}" data-tip="${esc(t('Vrednost'))}" data-tip-html="${tip}">${val} · #${v.rank}</b>${v.small ? ` <em class="small-tag" data-tip="${esc(t('Manje od {n} utakmica u ovom periodu.', { n: VALUE.SMALL_SAMPLE_GP }))}">${t('mali uzorak')}</em>` : ''}</span>`;
 }
-/** Profil: raspodela vrednosti po kategorijama, od najveće do najmanje; punt kategorije sive */
-function pmValueBreak(p) {
-  const v = playerValue(p);
-  if (!v?.by) return '';
-  const lv = leagueValues(), lbl = k => lv.cats.find(c => c.key === k)?.label || k;
-  const items = Object.entries(v.by).sort((a, b) => b[1] - a[1]);
-  return `<div class="pm-vbreak"><span class="vb-l">${t('Po kategorijama, u odnosu na prosečnog igrača sa rostera:')}</span>${items.map(([k, z]) => `<span class="${isPunt({ key: k }) ? 'punt' : z >= 0.05 ? 'up' : z <= -0.05 ? 'down' : ''}">${esc(lbl(k))} ${fmtVal(z)}</span>`).join('<i>·</i>')}</div>`;
+/** Tooltip vrednosti: kratko objašnjenje, ispod raspodela po kategorijama (od najveće, punt sivo) ili FPts i nivo zamene */
+function pmValueTip(v) {
+  const lv = leagueValues();
+  if (isPointsFmt()) {
+    return `<div class="vt-p">${esc(t('Fantasy poeni po utakmici iznad igrača kojeg možeš da nađeš na waiveru.'))}</div>`
+      + `<div class="vt-b"><span>${esc(t('FPts po utakmici'))} <b>${fmt1(v.fpts ?? 0)}</b></span><i>·</i><span>${esc(t('Nivo zamene'))} <b>${fmt1(lv.repl ?? 0)}</b></span></div>`;
+  }
+  const lbl = k => lv.cats.find(c => c.key === k)?.label || k;
+  const items = Object.entries(v.by || {}).sort((a, b) => b[1] - a[1]);
+  return `<div class="vt-p">${esc(t('Doprinos u kategorijama tvoje lige u odnosu na prosečnog igrača sa rostera. Oko +1 je jasno iznad proseka, +2 i više među najboljima. Vrednost je zbir svih kategorija.'))}</div>`
+    + (items.length ? `<div class="vt-b">${items.map(([k, z]) => `<span class="${isPunt({ key: k }) ? 'punt' : z >= 0.05 ? 'up' : z <= -0.05 ? 'down' : ''}">${esc(lbl(k))} ${fmtVal(z)}</span>`).join('<i>·</i>')}</div>` : '');
 }
 function playerModalHTML(p) {
   const own = playerOwner(p.id), ps = playerStatus(p), inj = INJURY[ps.inj];
@@ -7002,7 +7009,7 @@ function playerModalHTML(p) {
           ${own ? `<span><small>${t('Vlasnik')}</small><b>${esc(own.name)}</b></span>` : ''}
           ${p.own ? `<span><small>${t('U ligama')}</small><b>${p.own.pct.toFixed(1)}% <em class="${chg > 0 ? 'up' : chg < 0 ? 'down' : ''}">(${chg > 0 ? '+' : ''}${chg.toFixed(1)})</em></b></span>` : ''}
           ${pmValueFact(p, per)}
-        </div>${pmValueBreak(p)}${act ? `<div class="pm-act">${act}</div>` : ''}</div></div>`;
+        </div>${act ? `<div class="pm-act">${act}</div>` : ''}</div></div>`;
   // proseci po periodima
   const bcol = hasBonusCol();
   const rows = PERIODS.map(x => ({ x, st: statOf(p, x.key) })).filter(r => r.st);
@@ -8406,9 +8413,11 @@ function showTip(el) {
   tipOwner = el;
   if (el.dataset.tipHtml) tipEl.innerHTML = el.dataset.tipHtml; else tipEl.textContent = el.dataset.tip;
   tipEl.hidden = false;
+  tipEl.style.left = '0px'; tipEl.style.top = '0px'; // meri punu širinu, pa tek onda postavi
   const r = el.getBoundingClientRect(), t = tipEl.getBoundingClientRect();
   const left = Math.max(8, Math.min(r.left + r.width / 2 - t.width / 2, innerWidth - t.width - 8));
-  const top = r.top - t.height - 6 < 8 ? r.bottom + 6 : r.top - t.height - 6;
+  let top = r.top - t.height - 6 < 8 ? r.bottom + 6 : r.top - t.height - 6;
+  top = Math.max(8, Math.min(top, innerHeight - t.height - 8)); // nikad van ekrana
   tipEl.style.left = `${left}px`; tipEl.style.top = `${top}px`;
 }
 const hideTip = () => { tipEl.hidden = true; tipOwner = null; };

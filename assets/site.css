@@ -237,3 +237,6 @@
 .lm-box h3{margin-top:0}
 .lm-box blockquote{margin:8px 0 12px;padding:10px 12px;border-left:3px solid var(--info);background:var(--bg2);color:var(--text);font-size:14px;line-height:1.55}
 .btn-copy{background:var(--accent);color:#fff;border:0;border-radius:999px;padding:7px 16px;font:inherit;font-weight:600;font-size:13px;cursor:pointer}
+
+/* naziv alata iznad naslova kartice na početnoj (isto ime kao u meniju Alati) */
+.feature .tool-name{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}

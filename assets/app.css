@@ -307,7 +307,7 @@ th.wth,td.wth{font-size:11px}
 #tip .tt-foot{margin-top:5px;padding-top:5px;border-top:1px solid var(--line);font-weight:600;color:var(--muted)}
 #tip .tt-foot.up{color:var(--win-text)}
 #tip .tt-foot.down{color:var(--lose-text)}
-#tip{position:fixed;z-index:300;max-width:260px;background:#0b0d10;border:1px solid var(--line);color:var(--text);font-size:12px;line-height:1.4;padding:7px 9px;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.6);pointer-events:none;white-space:normal}
+#tip{position:fixed;z-index:300;max-width:min(260px,calc(100vw - 16px));background:#0b0d10;border:1px solid var(--line);color:var(--text);font-size:12px;line-height:1.4;padding:7px 9px;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.6);pointer-events:none;white-space:normal}
 @media (max-width:640px){ .badge .frac{display:none} }
 .rm{background:none;border:0;color:var(--dim);cursor:pointer;padding:6px;font-size:14px;margin-left:auto;flex:none}
 @media (max-width:640px){
@@ -782,6 +782,7 @@ body[data-view="league"] header.gnav .gnav-row{max-width:1500px}
 .gmenu .pm-item svg{flex:none;color:var(--muted)}
 .gmenu .pm-item.off{color:var(--dim);cursor:default}
 .gmenu .pm-item.off:hover{background:none}
+.gmenu button.pm-item.off{width:100%;cursor:pointer}.gmenu button.pm-item.off:hover,.gmenu button.pm-item.off:focus-visible{background:var(--card)}
 .gmenu .pm-item .soon{margin-left:auto;font-size:11px;min-height:22px;padding:0 8px;border-radius:999px;background:var(--info-bg);color:var(--info);display:inline-flex;align-items:center;font-weight:700}
 .pm-sub{display:flex;flex-direction:column;margin:0 0 2px 18px;padding-left:8px;border-left:1px solid var(--line)}
 .pm-league{min-height:40px;font-weight:600}
@@ -1035,8 +1036,6 @@ body.is-coldrag,body.is-coldrag *{cursor:grabbing !important}
 .pm-facts .pm-val b.up{color:var(--win-text)}.pm-facts .pm-val b.down{color:var(--lose-text)}
 .pm-facts .pm-val .small-tag{font-style:normal;font-size:11px;color:var(--warn-text,var(--muted));margin-top:2px}
 .i.q{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid var(--line);font-size:9px;font-weight:700;cursor:help;text-transform:none;letter-spacing:0;vertical-align:1px}
-.pm-vbreak{display:flex;flex-wrap:wrap;gap:2px 6px;margin-top:8px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
-.pm-vbreak .vb-l{flex-basis:100%;font-size:11px;color:var(--dim)}.pm-vbreak i{font-style:normal;opacity:.5}.pm-vbreak .up{color:var(--win-text)}.pm-vbreak .down{color:var(--lose-text)}.pm-vbreak .punt{color:var(--dim);opacity:.6;text-decoration:line-through}
 .rp-value{margin:10px 0;padding:8px 10px;border-radius:8px;background:var(--card2);font-size:13px;font-variant-numeric:tabular-nums}
 .rp-value>div+div{margin-top:2px;color:var(--muted)}
 .rp-vnote{margin:4px 0 0;font-size:11px;color:var(--dim)}
@@ -1045,3 +1044,8 @@ body.is-coldrag,body.is-coldrag *{cursor:grabbing !important}
 .snav .nitem.soon .nlabel{display:flex;flex-direction:column;align-items:flex-start;line-height:1.15;white-space:nowrap}
 .snav .nitem.soon .soon-sub{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--dim)}
 .pm-item.soon{opacity:.6}.pm-item.soon .soon-tag{margin-left:auto}
+/* tooltip vrednosti igrača: objašnjenje + raspodela */
+#tip .vt-p{color:var(--muted)}
+#tip .vt-b{display:flex;flex-wrap:wrap;gap:2px 6px;margin-top:6px;padding-top:6px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums;font-weight:600}
+#tip .vt-b span{white-space:nowrap}#tip .vt-b i{font-style:normal;opacity:.5}#tip .vt-b .punt{color:var(--dim);opacity:.7;text-decoration:line-through}
+.pm-facts .pm-val b[data-tip]{cursor:help}

@@ -8,9 +8,9 @@
   const ROOT = H.dataset.root || '';
   const inApp = H.dataset.appPage === '1';
   const T = {
-    sr: { home: 'Početna', tools: 'Alati', leagues: 'Moje lige', analyzer: 'Analiza trejda', finder: 'Igrač za tim', builder: 'Trejd između dva tima', soon: 'Uskoro',
+    sr: { home: 'Početna', tools: 'Alati', leagues: 'Moje lige', analyzer: 'Analiza trejda', builder: 'Pronađi trejd', finder: 'Mete za trejd', fa: 'Pojačanja sa FA', soon: 'Uskoro', ok: 'U redu',
       quick: 'Brzo poređenje', all: 'Sve lige', add: 'Dodaj ligu', settings: 'Podešavanja lige', none: 'Još nemaš sačuvanu ligu', myLeague: 'Moja liga' },
-    en: { home: 'Home', tools: 'Tools', leagues: 'My leagues', analyzer: 'Trade analyzer', finder: 'Player for your team', builder: 'Trade between two teams', soon: 'Coming soon',
+    en: { home: 'Home', tools: 'Tools', leagues: 'My leagues', analyzer: 'Trade analyzer', builder: 'Find a trade', finder: 'Trade targets', fa: 'Free agent pickups', soon: 'Coming soon', ok: 'OK',
       quick: 'Quick compare', all: 'All leagues', add: 'Add league', settings: 'League settings', none: 'No saved leagues yet', myLeague: 'My league' },
   };
   let lang = H.dataset.lang === 'sr' ? 'sr' : 'en';
@@ -59,6 +59,29 @@
   }
   const ICON = { gear: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>' };
 
+  /** Zaključan alat: isti kratak opis kao u meniju lige (u aplikaciji ga otvara app.js) */
+  const SOON = {
+    finder: { t: 'builder', sr: 'Za igrača kog želiš ili kategoriju koja ti fali, predlaže trejdove sa timovima iz tvoje lige koji imaju smisla za obe strane.',
+      en: 'For a player you want or a category you need, suggests trades with teams in your league that make sense for both sides.' },
+    targets: { t: 'finder', sr: 'Pokazuje igrače iz drugih timova u tvojoj ligi koji najviše pomažu tvom timu, i kojim timovima bi trejd takođe odgovarao.',
+      en: 'Shows players on other teams in your league who help your team the most, and which teams a trade could also suit.' },
+    fa: { t: 'fa', sr: 'Iz tvoje uvezene lige pronalazi slobodne igrače koji odgovaraju tvom timu, uključujući one kojima minutaža raste.',
+      en: 'Uses your imported league to find free agents who fit your team, including players whose minutes are growing.' },
+  };
+  function toolSoon(id) {
+    if (inApp && typeof window.openToolSoon === 'function') { window.openToolSoon(id); return; }
+    const s = SOON[id]; if (!s) return;
+    document.getElementById('modal')?.remove();
+    const m = document.createElement('div');
+    m.id = 'modal';
+    m.innerHTML = `<div class="modal-back" data-nav-close></div><div class="modal-box" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="modal-t">
+      <h3 id="modal-t">${esc(T[lang][s.t])} <span class="soon-tag">${esc(T[lang].soon)}</span></h3><div class="modal-body"><p>${esc(s[lang])}</p></div>
+      <div class="modal-actions"><button type="button" class="btn" data-nav-close>${esc(T[lang].ok)}</button></div></div>`;
+    document.body.appendChild(m);
+    m.addEventListener('click', e => { if (e.target.closest('[data-nav-close]')) m.remove(); });
+    m.querySelector('.btn').focus();
+  }
+
   function closeAll(except) {
     H.querySelectorAll('[data-gmenu]').forEach(b => {
       if (b === except) return;
@@ -77,10 +100,12 @@
       if (open) m.querySelector('a,button')?.focus({ preventScroll: true });
       return;
     }
+    const soon = e.target.closest('[data-tool-soon]');
+    if (soon) { closeAll(); toolSoon(soon.dataset.toolSoon); return; }
     if (e.target.closest('.gmenu a, .gmenu button')) setTimeout(() => closeAll(), 0);
   });
   document.addEventListener('click', e => { if (!e.target.closest('header.gnav .dd-wrap')) closeAll(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAll(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeAll(); if (!inApp) document.getElementById('modal')?.remove(); } });
 
   // jezik: javne stranice idu na drugu adresu, aplikacija menja jezik u mestu (app.js)
   const ps = H.querySelector('[data-publang]');

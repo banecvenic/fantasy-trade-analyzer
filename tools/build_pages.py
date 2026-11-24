@@ -73,7 +73,7 @@ HOME = {
         'finder_p': 'Pick the categories you want to improve and see players on other teams who bring them.',
         'builder_h': 'Build a trade between two teams',
         'builder_p': 'Pick your team and one more, and get trade ideas: 1 for 1, 2 for 1 and 2 for 2.',
-        'fa_h': 'Free agent pickups',
+        'fa_h': 'Find free agents who fit your team',
         'fa_p': 'Uses your imported league to find free agents who fit your team, including players whose minutes are growing.',
         'soon': 'Coming soon', 'open_tool': 'Open',
         'my_league': 'My league', 'continue_bar': 'Continue where you left off',
@@ -107,7 +107,7 @@ HOME = {
         'finder_p': 'Izaberi kategorije koje hoćeš da popraviš i vidi igrače iz drugih ekipa koji ih donose.',
         'builder_h': 'Napravi trejd između dva tima',
         'builder_p': 'Izaberi svoj i još jedan tim i dobij predloge trejdova 1 za 1, 2 za 1 i 2 za 2.',
-        'fa_h': 'Pojačanja sa FA',
+        'fa_h': 'Nađi slobodne igrače za svoj tim',
         'fa_p': 'Iz tvoje uvezene lige pronalazi slobodne igrače koji odgovaraju tvom timu, uključujući one kojima minutaža raste.',
         'soon': 'Uskoro', 'open_tool': 'Otvori',
         'my_league': 'Moja liga', 'continue_bar': 'Nastavi gde si stao',
@@ -618,21 +618,24 @@ def page_href(page, lang, depth):
 
 
 NAV_T = {
-    'sr': {'home': 'Početna', 'tools': 'Alati', 'leagues': 'Moje lige', 'analyzer': 'Analiza trejda', 'finder': 'Igrač za tim', 'builder': 'Trejd između dva tima',
+    'sr': {'home': 'Početna', 'tools': 'Alati', 'leagues': 'Moje lige', 'analyzer': 'Analiza trejda', 'builder': 'Pronađi trejd', 'finder': 'Mete za trejd', 'fa': 'Pojačanja sa FA',
            'soon': 'Uskoro', 'quick': 'Brzo poređenje', 'all': 'Sve lige', 'add': 'Dodaj ligu'},
-    'en': {'home': 'Home', 'tools': 'Tools', 'leagues': 'My leagues', 'analyzer': 'Trade analyzer', 'finder': 'Player for your team', 'builder': 'Trade between two teams',
+    'en': {'home': 'Home', 'tools': 'Tools', 'leagues': 'My leagues', 'analyzer': 'Trade analyzer', 'builder': 'Find a trade', 'finder': 'Trade targets', 'fa': 'Free agent pickups',
            'soon': 'Coming soon', 'quick': 'Quick compare', 'all': 'All leagues', 'add': 'Add league'},
 }
 NAV_ICON = {
     'analyzer': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8h14l-4-4M20 16H6l4 4"/></svg>',
-    'finder': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
-    'builder': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="16" r="3"/><path d="M11 8h6v5M13 16H7v-5"/></svg>',
+    'builder': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M8 11h6M11 8v6"/></svg>',
+    'finder': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>',
+    'fa': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M2 21c1.2-3.5 3.8-5.5 7-5.5s5.8 2 7 5.5M19 8v6M16 11h6"/></svg>',
     'quick': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>',
     'all': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
     'add': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
     'caret': '<svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>',
 }
-TOOL_PAGES = {'finder': TOOLS['finder'], 'builder': TOOLS['builder']}
+TOOL_PAGES = {'builder': TOOLS['builder'], 'finder': TOOLS['finder'], 'fa': TOOLS['fa']}
+# ključ na sajtu -> id alata u aplikaciji (APP_PAGES u app.js; isti opis kad je alat zaključan)
+APP_TOOL_ID = {'builder': 'finder', 'finder': 'targets', 'fa': 'fa'}
 
 
 def gnav_html(lang, root, page=None, app_page=False):
@@ -646,7 +649,7 @@ def gnav_html(lang, root, page=None, app_page=False):
         t = TOOL_PAGES[key]
         if t['ready'] and t['href']:
             return f'<a role="menuitem" class="pm-item" href="{root}{t["href"]}">{NAV_ICON[key]}<span data-t="{key}">{n[key]}</span></a>'
-        return f'<span class="pm-item off" aria-disabled="true">{NAV_ICON[key]}<span data-t="{key}">{n[key]}</span><span class="soon" data-t="soon">{n["soon"]}</span></span>'
+        return f'<button type="button" role="menuitem" class="pm-item off" data-tool-soon="{APP_TOOL_ID[key]}">{NAV_ICON[key]}<span data-t="{key}">{n[key]}</span><span class="soon" data-t="soon">{n["soon"]}</span></button>'
     if app_page:
         langsel = '<select data-langsel aria-label="Jezik / Language"><option value="sr">Srpski</option><option value="en">English</option></select>'
     else:
@@ -660,8 +663,9 @@ def gnav_html(lang, root, page=None, app_page=False):
       <div class="dd-wrap"><button type="button" class="gl" data-gmenu="tools" aria-haspopup="menu" aria-expanded="false"><span data-t="tools">{n['tools']}</span>{NAV_ICON['caret']}</button>
         <div class="gmenu" id="gmenu-tools" role="menu" hidden>
           <a role="menuitem" class="pm-item" href="{ta}" data-href="analyzer">{NAV_ICON['analyzer']}<span data-t="analyzer">{n['analyzer']}</span></a>
-          {tool_item('finder')}
           {tool_item('builder')}
+          {tool_item('finder')}
+          {tool_item('fa')}
         </div></div>
       <div class="dd-wrap"><button type="button" class="gl" data-gmenu="leagues" aria-haspopup="menu" aria-expanded="false"><span data-t="leagues">{n['leagues']}</span>{NAV_ICON['caret']}</button>
         <div class="gmenu gmenu-leagues" id="gmenu-leagues" role="menu" hidden>
@@ -824,7 +828,8 @@ def tool_card(lang, key):
     h = HOME[lang]; tool = TOOLS[key]
     action = (f'<a class="cta2" href="{{root}}{tool["href"]}">{escape(h["open_tool"])}</a>' if tool['ready'] and tool['href']
               else f'<span class="soon">{escape(h["soon"])}</span>')
-    return f"""<section class="feature" aria-labelledby="{key}-h"><h2 id="{key}-h">{escape(h[key + '_h'])}</h2><p class="lead">{escape(h[key + '_p'])}</p>{action}</section>"""
+    # mali naziv alata iznad naslova: isto ime kao u meniju Alati
+    return f"""<section class="feature" aria-labelledby="{key}-h"><span class="tool-name">{escape(NAV_T[lang][key])}</span><h2 id="{key}-h">{escape(h[key + '_h'])}</h2><p class="lead">{escape(h[key + '_p'])}</p>{action}</section>"""
 
 
 def home(lang):
