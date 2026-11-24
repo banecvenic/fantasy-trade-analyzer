@@ -1220,19 +1220,19 @@ TARGETS = {
         'title': 'Fantasy Basketball Trade Targets | RosterSwing',
         'desc': 'Find fantasy basketball trade targets: players on other teams in your league who fix your weak categories and are realistic to get, with a fair trade idea for each one.',
         'h1': 'Fantasy Basketball Trade Targets',
-        'lead': 'RosterSwing looks at every player on the other rosters in your league and shows the ones who help your team the most and are realistic to get. For each target it also finds a fair trade from your roster.',
+        'lead': 'RosterSwing looks at every player on the other rosters in your league and shows the ones who help your team the most and are realistic to get. Open a target to see its report and a possible fair trade from your roster.',
         'footer': 'Trade targets',
         'leagues_h': 'Your leagues',
         'manual_h': 'Or enter your team',
         'loading': 'Loading players…',
         'ex_label': 'Example target',
-        'ex': {'name': 'Jarrett Allen', 'meta': 'CLE · C', 'owner': 'Manager: Team 7', 'stats': [('11.2', 'REB'), ('1.1', 'BLK'), ('.640', 'FG%')],
+        'ex': {'name': 'Jarrett Allen', 'meta': 'CLE · C', 'owner': 'Manager: Team 7', 'stats': [('MIN', '30.1', 0), ('FG%', '.640', 1), ('FT%', '.710', 0), ('3PM', '0.1', 0), ('REB', '11.2', 1), ('AST', '2.1', 0), ('STL', '0.8', 0), ('BLK', '1.1', 1), ('TO', '1.4', 0), ('PTS', '13.5', 0)],
                'why': ['Helps you most in REB, BLK', 'The manager has a surplus in REB'],
                'trade': 'Possible trade: Jalen Suggs for Jarrett Allen · 5:3', 'btn1': 'Suggest trades with this player', 'btn2': 'Trade'},
         'steps_h': 'How it works',
         'steps': [('Pick your league or enter your team', 'With an imported league we read every roster and the standings. Without a league, add your players and we look at all NBA players.'),
                   ('Choose what you need', 'Let RosterSwing find your weak categories, or pick the categories yourself. Punted categories never count.'),
-                  ('Open the trade', 'Each card has a possible fair trade. Open it in the analyzer, ask for more trade ideas with that player, or save him to your wishlist.')],
+                  ('Open the trade', 'Tap a name to see the report with a possible fair trade, up to 2 for 2. Open it in the analyzer, ask for other trades with that player, or save him to your wishlist.')],
         'faq_h': 'Frequently asked questions',
         'faq': [('How do you choose targets?', 'Mostly by how much a player improves the categories you need for the rest of the season. Then we check whether his manager might trade him: does he have a surplus in those categories, does he need what you have, is he short on IR spots or near the bottom. Form, role, value versus price and playoff games add a little.'),
                 ('What does an unreachable player mean?', 'A player who is one of the two most valuable players on his team, or one of the top stars in the league. Managers rarely trade those, so we rank them lower even when they would help you a lot.'),
@@ -1243,19 +1243,19 @@ TARGETS = {
         'title': 'Fantasy košarka: mete za trejd | RosterSwing',
         'desc': 'Pronađi mete za trejd u fantasy košarci: igrače iz drugih timova u tvojoj ligi koji popravljaju tvoje slabe kategorije, a realno ih je dobiti, uz fer trejd za svakog.',
         'h1': 'Fantasy košarka: mete za trejd',
-        'lead': 'RosterSwing pregleda sve igrače na drugim rosterima u tvojoj ligi i pokazuje one koji najviše pomažu tvom timu, a realno ih je dobiti. Za svaku metu traži i fer trejd sa tvojim rosterom.',
+        'lead': 'RosterSwing pregleda sve igrače na drugim rosterima u tvojoj ligi i pokazuje one koji najviše pomažu tvom timu, a realno ih je dobiti. Otvori metu za izveštaj i mogući fer trejd sa tvojim rosterom.',
         'footer': 'Mete za trejd',
         'leagues_h': 'Tvoje lige',
         'manual_h': 'Ili unesi svoj tim',
         'loading': 'Učitavam igrače…',
         'ex_label': 'Primer mete',
-        'ex': {'name': 'Jarrett Allen', 'meta': 'CLE · C', 'owner': 'Vlasnik: Tim 7', 'stats': [('11.2', 'REB'), ('1.1', 'BLK'), ('.640', 'FG%')],
+        'ex': {'name': 'Jarrett Allen', 'meta': 'CLE · C', 'owner': 'Vlasnik: Tim 7', 'stats': [('MIN', '30.1', 0), ('FG%', '.640', 1), ('FT%', '.710', 0), ('3PM', '0.1', 0), ('REB', '11.2', 1), ('AST', '2.1', 0), ('STL', '0.8', 0), ('BLK', '1.1', 1), ('TO', '1.4', 0), ('PTS', '13.5', 0)],
                'why': ['Najviše ti popravlja REB, BLK', 'Vlasnik ima višak u REB'],
                'trade': 'Mogući trejd: Jalen Suggs za Jarrett Allen · 5:3', 'btn1': 'Predloži trejd sa ovim igračem', 'btn2': 'Trejduj'},
         'steps_h': 'Kako radi',
         'steps': [('Izaberi ligu ili unesi svoj tim', 'Sa uvezenom ligom čitamo sve rostere i tabelu. Bez lige dodaj svoje igrače, a mi gledamo sve NBA igrače.'),
                   ('Izaberi šta ti treba', 'Pusti RosterSwing da nađe tvoje slabe kategorije ili ih izaberi sam. Punt kategorije se nikad ne računaju.'),
-                  ('Otvori trejd', 'Svaka kartica ima mogući fer trejd. Otvori ga u analizi, traži još ideja sa tim igračem ili ga sačuvaj na listu želja.')],
+                  ('Otvori trejd', 'Klikni na ime za izveštaj sa mogućim fer trejdom, do 2 za 2. Otvori ga u analizi, traži druge trejdove sa tim igračem ili ga sačuvaj na listu želja.')],
         'faq_h': 'Česta pitanja',
         'faq': [('Kako biraš mete?', 'Najviše po tome koliko igrač popravlja kategorije koje ti trebaju do kraja sezone. Onda proveravamo da li bi ga vlasnik dao: ima li višak u tim kategorijama, treba li mu ono što ti imaš, ima li više povređenih nego IR mesta, da li je pri dnu tabele. Forma, uloga, vrednost u odnosu na cenu i utakmice u plejofu dodaju malo.'),
                 ('Šta znači nedostižan igrač?', 'Igrač koji je jedan od dva najvrednija u svom timu ili jedna od najvećih zvezda lige. Menadžeri ih retko daju, pa ih rangiramo niže, čak i kad bi ti mnogo pomogli.'),
@@ -1276,14 +1276,14 @@ def targets_public(lang):
     faq_ld = ld({'@context': 'https://schema.org', '@type': 'FAQPage', 'inLanguage': lang,
                  'mainEntity': [{'@type': 'Question', 'name': q, 'acceptedAnswer': {'@type': 'Answer', 'text': a}} for q, a in d['faq']]})
     steps = ''.join(f'<li><h3>{escape(a)}</h3><p>{escape(b)}</p></li>' for a, b in d['steps'])
-    stats = ''.join(f'<span class="tt-st hi"><b>{escape(v)}</b> {escape(k)}</span>' for v, k in ex['stats'])
+    stats = f'''<div class="tt-stat-wrap"><table class="tt-stat"><thead><tr>{''.join(f'<th>{escape(k)}</th>' for k, v, h in ex['stats'])}</tr></thead><tbody><tr>{''.join(f'<td class="{"hi" if h else ""}">{escape(v)}</td>' for k, v, h in ex['stats'])}</tr></tbody></table></div>'''
     card = f"""<div class="fa-ex tf-ex" aria-label="{escape(d['ex_label'])}"><div class="fa-ex-l">{escape(d['ex_label'])}</div>
       <article class="tt-card static">
-        <div class="tt-head"><span class="av" data-ini="{initials(ex['name'])}"></span><div class="tt-id"><b class="nm">{escape(ex['name'])}</b><span class="meta">{escape(ex['meta'])}</span><span class="tt-owner">{escape(ex['owner'])}</span></div><span class="tt-heart on" aria-hidden="true">♥</span></div>
-        <div class="tt-stats">{stats}</div>
+        <div class="tt-corner"><span class="tt-heart on" aria-hidden="true">♥</span></div>
+        <div class="tt-head"><span class="av" data-ini="{initials(ex['name'])}"></span><div class="tt-id"><b class="nm">{escape(ex['name'])}</b><span class="meta">{escape(ex['meta'])}</span><span class="tt-owner">{escape(ex['owner'])}</span></div></div>
+        {stats}
         <div class="fa-why">{''.join(f'<span>{escape(w)}</span>' for w in ex['why'])}</div>
-        <span class="tt-trade up">{escape(ex['trade'])}</span>
-        <div class="tt-foot"><span class="linkbtn tt-sugg">{escape(ex['btn1'])}</span><span class="btn small">{escape(ex['btn2'])}</span></div></article></div>"""
+        <div class="tt-acts"><span class="btn sec tt-big">{escape(ex['btn1'])}</span><span class="btn tt-big">{escape(ex['btn2'])}</span></div></article></div>"""
     return head(lang, 'targets', d['title'], d['desc'], depth, extra=faq_ld) + header(lang, 'targets', depth) + f"""
 <main class="wrap tf-pub tt-pub">
   <section class="hero hero-fa">

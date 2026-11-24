@@ -1365,3 +1365,61 @@ td.fa-notes{display:table-cell}td.fa-notes span{display:block}
   #modal.tt-add-modal{padding:0;place-items:stretch}
   .tt-add-modal .modal-box{max-width:none;width:100%;max-height:none;height:100%;border-radius:0;border:0}
 }
+
+/* Ispravke 4.4: veća kartica bez mogućeg trejda, tabela statistike, dugmad, Ne dam, lista želja kao tabela */
+.tt-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (min-width:1500px){.tt-cards{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.tt-card{position:relative;padding:14px;gap:10px}
+.tt-card .tt-head{padding-right:120px}
+.tt-card .tt-id .nm{font-size:16px}
+.tt-corner{position:absolute;top:10px;right:10px;display:flex;align-items:center;gap:4px}
+.tt-corner .rate-btns{margin:0;gap:3px}
+.tt-corner .rate-btn{min-width:28px;height:28px;padding:0 6px;font-size:12px}
+.tt-corner .tt-heart{width:30px;height:30px;font-size:15px}
+.tt-stat-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:8px}
+.tt-stat{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:13px}
+.tt-stat th{font-size:11px;font-weight:700;color:var(--muted);padding:5px 6px;text-align:center;background:var(--card2);white-space:nowrap}
+.tt-stat td{padding:6px;text-align:center;font-weight:700;white-space:nowrap;border-top:1px solid var(--line)}
+.tt-stat td.hi{background:var(--win-bg);color:var(--win-text)}
+.tt-stat .punt{opacity:.45}
+.tt-acts{margin-top:auto;display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:8px}
+.btn.tt-big{min-height:42px;font-size:14px;white-space:normal;line-height:1.2;padding:6px 12px}
+.tt-rep-btns .btn.tt-big{min-height:38px}
+.tt-trade-btns{justify-content:flex-start;flex-wrap:wrap;margin-top:12px}
+.tt-calc{display:flex;align-items:center;gap:8px}
+.tt-spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--info);animation:ttspin .8s linear infinite;flex:none}
+@keyframes ttspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.tt-spin{animation:none}}
+.tt-lockbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:0 0 12px;font-size:13px}
+.tt-lock-l{font-weight:700}
+.tt-lock-chip{display:inline-flex;align-items:center;gap:4px;font:inherit;font-size:12px;padding:4px 9px;border-radius:999px;border:1px solid var(--line);background:var(--card2);color:var(--text);cursor:pointer}
+.tt-lock-chip:hover{border-color:var(--lose-text)}
+.tt-lock-add{min-width:200px;max-width:260px;flex:1}
+.tt-lock-add .search{margin:0}
+.tt-wtable .tt-wown{white-space:nowrap;font-size:13px}
+.tt-wtable .tt-wact{white-space:nowrap}
+.tt-wtable button.nm{background:none;border:0;padding:0;margin:0;font:inherit;font-weight:600;color:var(--text,inherit);cursor:pointer;text-align:left}
+.tt-wtable button.nm:hover{text-decoration:underline}
+.tt-wtable .tt-wbtns{display:inline-flex;align-items:center;gap:6px;justify-content:flex-end;flex-wrap:nowrap}
+.tt-wbtn .tt-wic{display:none}
+.rtable.tt-wtable{min-width:1180px}.tt-wtable .tt-wown-h{width:150px}.tt-wtable .tt-wact-h{width:280px}
+.tt-wtable .tt-wown{overflow:hidden;text-overflow:ellipsis}
+@media (max-width:1000px){.tt-wscroll .tt-wtable th:first-child,.tt-wscroll .tt-wtable td:first-child{position:sticky;left:0;z-index:2;background:var(--card)}}
+@media (min-width:1001px){.tt-wtable th:first-child,.tt-wtable td:first-child{width:260px;max-width:260px}}
+@media (max-width:640px){
+  .tt-cards{grid-template-columns:minmax(0,1fr)}
+  .tt-card .tt-head{padding-right:0;padding-top:30px}
+  .tt-acts{grid-template-columns:minmax(0,1fr)}
+  .tt-lock-add{max-width:none;flex:1 1 100%}
+  .tt-wbtn{min-width:36px;min-height:36px;padding:0 8px}
+  .tt-wbtn .tt-wic{display:inline}
+  .tt-wbtn .tt-wtx{display:none}
+  .rtable.tt-wtable{min-width:920px}
+  .tt-wtable .tt-wown-h{width:110px}.tt-wtable .tt-wact-h{width:140px}
+  .tt-wtable .tt-wact{padding-left:4px;padding-right:4px}
+}
+.tt-stat th:first-child,.tt-stat td:first-child{min-width:0;width:auto;max-width:none;position:static;text-align:center}
+.tt-stat td:first-child{background:none}
+.tt-stat th,.tt-stat td{padding:5px 4px;border-bottom:0}
+.tt-stat td{font-size:13px}
+@media (max-width:640px){.tt-stat th,.tt-stat td{padding:4px 2px}.tt-stat td{font-size:12px}.tt-stat th{font-size:10px}}

@@ -1026,6 +1026,7 @@ function tfEngine() {
    */
   function search(inp, progress = () => {}) {
     const T = inp.TF, n = inp.n, cats = inp.cats, pts = inp.pts;
+    const MS = inp.maxSide || T.MAX_SIDE; // najviše igrača po strani (Mete za trejd: 2)
     const strat = inp.strategy || 'best';
     const mine = inp.mine, theirs = inp.theirs;
     const usable = (list, x) => x.mark !== 'lock' && (!x.ir || x.mark === 'trade');
@@ -1034,8 +1035,8 @@ function tfEngine() {
     const mC = mine.map((x, i) => i).filter(i => fit(mine[i])), tC = theirs.map((x, i) => i).filter(i => fit(theirs[i]));
     const mReq = mC.filter(i => mine[i].mark === 'trade'), tReq = tC.filter(i => theirs[i].mark === 'trade');
     const hasTrade = mReq.length + tReq.length > 0;
-    const stats = { shapes: {}, conv: 0, pairs: 0, value: 0, cats: 0, gain: 0, strat: 0, myCombos: 0, theirCombos: 0, reqTooMany: mReq.length > T.MAX_SIDE || tReq.length > T.MAX_SIDE };
-    const mCombos = combos(mC, mReq, T.MAX_SIDE), tCombos = combos(tC, tReq, T.MAX_SIDE);
+    const stats = { shapes: {}, conv: 0, pairs: 0, value: 0, cats: 0, gain: 0, strat: 0, myCombos: 0, theirCombos: 0, reqTooMany: mReq.length > MS || tReq.length > MS };
+    const mCombos = combos(mC, mReq, MS), tCombos = combos(tC, tReq, MS);
     stats.myCombos = mCombos.length; stats.theirCombos = tCombos.length;
     // zbir tima: svi aktivni (bez IR); otpuštanje: samo igrači koji ispunjavaju pravila (drop: vlasništvo, slabiji od slobodnih, nije zaključan ni na IR)
     const myTot = sumVec(mine.filter(x => !x.ir).map(x => x.vec), n), thTot = sumVec(theirs.filter(x => !x.ir).map(x => x.vec), n);
@@ -1044,6 +1045,7 @@ function tfEngine() {
     const thRoster = theirs.map((x, i) => ({ i, id: x.id, v: x.v, rv: x.rv, tc: x.tc, gone: x.gone, t: x.t, vec: x.vec })).filter(x => dropOk(theirs[x.i])).sort(wk);
     const maxDiff = strat === 'cons' || strat === 'depth' ? T.MAX_DIFF_WIDE : T.MAX_DIFF;
     const myTopRule = ['best', 'cats', 'buy', 'cons'].includes(strat);
+    const topI = inp.topId != null ? theirs.findIndex(x => x.id === inp.topId) : -1;
     // kazna za veličinu: ukupno igrača iznad 2; Konsolidacija i Dubina gledaju veću stranu (iznad 2, dvostruko), pa 2:1, 3:1 i 3:2 i dalje izlaze
     const wide = strat === 'cons' || strat === 'depth';
     const sizeStep = wide ? (pts ? T.SIZE_PEN_WIDE_PTS : T.SIZE_PEN_WIDE) : (pts ? T.SIZE_PEN_PTS : T.SIZE_PEN);
@@ -1070,11 +1072,13 @@ function tfEngine() {
     const gInfo = g => { const gTopI = g.reduce((b, i) => (b == null || mine[i].v > mine[b].v ? i : b), null);
       return { kG: g.length, gV: g.reduce((s, i) => s + mine[i].v, 0), gSet: new Set(g), gAct: g.filter(i => !mine[i].ir).length, gSoft: g.some(i => mine[i].mark === 'soft'), gTopI, gTop: mine[gTopI].v }; };
     /** Dozvoljen oblik trejda za strategiju (broj igrača, Konsolidacija, Dubina, "Ne otpuštam nikoga") */
-    const shapeOk = (kG, kR) => kG >= 1 && kR >= 1 && kG <= T.MAX_SIDE && kR <= T.MAX_SIDE && !(strat === 'cons' && !(kG > kR)) && !(strat === 'depth' && !(kR > kG))
+    const shapeOk = (kG, kR) => kG >= 1 && kR >= 1 && kG <= MS && kR <= MS && !(strat === 'cons' && !(kG > kR)) && !(strat === 'depth' && !(kR > kG))
       && !(inp.noDrop && kR > kG) && Math.abs(kR - kG) <= maxDiff;
     /** Ocena para (g, r) po svim pravilima -> { x: predlog ili null, myDrop, thDrop (ko bi bio otpušten, kad se stigne do toga) } */
     function evalPair(g, r, P, rV, rTop, quiet = false) {
       const { kG, gV, gSet, gAct, gSoft, gTopI, gTop } = P, kR = r.length, R = { x: null, myDrop: null, thDrop: null };
+      // Mete za trejd: meta je najvredniji igrač kog dobijam (po ceni na tržištu)
+      if (topI >= 0 && r.some(i => i !== topI && (theirs[i].mk ?? -Infinity) > (theirs[topI].mk ?? -Infinity))) return R;
       // najbolji igrač u trejdu: moj ne sme biti znatno bolji od najboljeg kog dobijam (Prodaj skupo: samo ako mu je forma iznad vrednosti); obrnuto za protivnika
       if (gTop > 0 && rTop < gTop * (1 - T.TOP_TOL)) { if (myTopRule) return R; if (strat === 'sell' && !sell.has(mine[gTopI].id)) return R; }
       if (rTop > 0 && gTop < rTop * (1 - T.TOP_TOL_OPP)) return R;
@@ -1200,7 +1204,7 @@ function tfEngine() {
     for (const g of mCombos) {
       if (++done % 200 === 0) progress(done / mCombos.length);
       const P = gInfo(g), kG = P.kG, gV = P.gV;
-      for (let kR = 1; kR <= T.MAX_SIDE; kR++) {
+      for (let kR = 1; kR <= MS; kR++) {
         const arr = byK[kR]; if (!arr) continue;
         if (!shapeOk(kG, kR)) continue; // Konsolidacija, Dubina, "Ne otpuštam nikoga", razlika u broju igrača
         const d0 = kR - kG;
@@ -1359,7 +1363,8 @@ function tfVetoShown(picks, max) {
    Testovi: tools/test_targets.js (zajedno sa delom Fer trejd).
    ===================================================================== */
 const TT = {
-  REFINE: 40,            // posle grubog rangiranja (ponderi 1 i 2) toliko kandidata dobija ostale pondere i mogući trejd (Web Worker)
+  REFINE: 40,            // posle grubog rangiranja (ponderi 1 i 2) toliko kandidata dobija ostale pondere
+  TRADE_MAX_SIDE: 2,     // mogući trejd u izveštaju: najviše 2 igrača sa svake strane
   PER_PAGE: 8,           // kartica po stranici
   MAX_OWNER: 2,          // najviše igrača istog vlasnika na jednoj stranici
   // ponderi: ocena = zbir (jačina × deo od 0 do 1); glavni (cat do inj) su znatno jači od dodatnih (playoff do close)
@@ -1454,9 +1459,21 @@ function ttWishToggle(all, scope, id) {
   return { ...(all || {}), [scope]: [...cur] };
 }
 const ttWishHas = (all, scope, id) => !!all?.[scope]?.includes(id);
+/** Vlasnik igrača sa liste želja: 'mine' (moj tim), ključ protivnika, 'fa' (uvezena liga, niko ga nema) ili null. opps: { [ključ]: { players: [{ id }] } } */
+function ttOwnerOf(id, myIds, opps, synced) {
+  if (myIds.has(id)) return 'mine';
+  const k = Object.keys(opps || {}).find(o => opps[o].players?.some(y => y.id === id));
+  return k || (synced ? 'fa' : null);
+}
+/** Lista želja po koloni Vlasnik: abecedno (dir 'asc' A do Ž), bez vlasnika uvek na dnu, isti vlasnik po redu dodavanja */
+function ttWishOrder(ids, nameOf, dir = 'asc') {
+  const sg = dir === 'asc' ? 1 : -1;
+  return ids.map((id, i) => ({ id, i, n: nameOf(id) || '' })).sort((a, b) => (!a.n) - (!b.n) || a.n.localeCompare(b.n) * sg || a.i - b.i).map(x => x.id);
+}
 /** Ulaz za mogući trejd: isti kao Pronađi trejd (Najbolje za mene, Fer), sa ovim igračem obeleženim U trejd */
-function ttTradeInput(inp, id, T = TF) {
-  return { ...inp, theirs: inp.theirs.map(x => (x.id === id ? { ...x, mark: 'trade' } : x)), strategy: 'best', limits: [T.LIMITS.fair], focus: [], w: null };
+function ttTradeInput(inp, id, mk = {}, T = TF) {
+  return { ...inp, theirs: inp.theirs.map(x => ({ ...x, mark: x.id === id ? 'trade' : x.mark, mk: mk[x.id] ?? x.mk })), strategy: 'best', limits: [T.LIMITS.fair], focus: [], w: null,
+    maxSide: TT.TRADE_MAX_SIDE, topId: id };
 }
 /** Samo moj tim (bez drugih timova): korist = zbir razlika z po kategoriji (ulazi umesto mog najslabijeg), slabe kategorije veća težina */
 function ttSoloGain(byIn, byOut, weights) {
@@ -1729,7 +1746,7 @@ const EN = {
   "Nema upozorenja za tvoje igrače.": "No alerts for your players.",
   "Opcije": "Options",
   "Otvoreni trejdovi": "Open trades",
-  "Otvori u analizi": "Open in analysis",
+  "Otvori u analizi": "Open in Trade analyzer",
   "Pogledaj kako tim sada stoji": "See how your team looks now",
   "Poslednji trejdovi": "Recent trades",
   "Počni od svog tima": "Start with your team",
@@ -2607,6 +2624,26 @@ const EN = {
   "{n} {u} u nedeljama plejofa": "{n} {u} in the playoff weeks",
   "{r}, a ti imaš slobodno IR mesto": "{r}, and you have a free IR spot",
   "Nazad na Mete za trejd": "Back to Trade targets",
+  "Dodaj svog igrača…": "Add your player…",
+  "Igrači sa drugih timova u ligi koji najviše dižu FPts tvog tima, a realno ih je dobiti. Klikni na ime za izveštaj i mogući fer trejd.": "Players on other teams in your league who add the most FPts to your team and are realistic to get. Tap a name for the report and a possible fair trade.",
+  "Igrači sa drugih timova u ligi koji najviše popravljaju kategorije koje ti trebaju, a realno ih je dobiti. Klikni na ime za izveštaj i mogući fer trejd.": "Players on other teams in your league who improve the categories you need the most and are realistic to get. Tap a name for the report and a possible fair trade.",
+  "Izaberi drugi trejd sa ovim igračem": "Choose another trade with this player",
+  "Klik uklanja": "Click to remove",
+  "Ne dam:": "Untouchable:",
+  "Nema fer trejda do 2 za 2 sa tvojim rosterom": "No fair trade up to 2 for 2 with your roster",
+  "Ovi igrači ne ulaze ni u jedan trejd sa bilo kojim timom u ligi. Isti Lock kao u Pronađi trejd.": "These players stay out of every trade with any team in the league. Same Lock as in Find a trade.",
+  "Predloži trejd": "Suggest trades",
+  "Računam mogući trejd…": "Calculating a possible trade…",
+  "Ukloniti i zaključane igrače za celu ligu?": "Also remove the players locked for the whole league?",
+  "Važi za sve protivnike u ovoj ligi": "Applies to all opponents in this league",
+  "Zadrži": "Keep",
+  "Zeleno: FPts, jer igrač diže FPts tvog tima.": "Green: FPts, because the player adds FPts to your team.",
+  "Zeleno: kategorija koja ti treba, a igrač je u njoj jak.": "Green: a category you need where the player is strong.",
+  "ako uđe umesto {n}": "if he replaces {n}",
+  "do 2 za 2, Najbolje za mene, Fer": "up to 2 for 2, Best for me, Fair",
+  "nijedan igrač": "no players",
+  "Šta ti donosi": "What he brings you",
+  "Rezultat za ostatak sezone, kao u Pronađi trejd. Tabele prate izabrani period.": "Result for the rest of the season, as in Find a trade. The tables follow the selected period.",
   'Novo: javi nam ako nešto nije uvezeno kako treba.': 'New: let us know if something was not imported correctly.',
   // Uvezena liga: podešavanja i kontekst cele lige
   'na {n}. mestu ({r})': 'in place {n} ({r})',
@@ -5761,19 +5798,20 @@ const SORT_KEY = 'fbaTrade.sort.v1';
 const sortStore = () => lsGet(SORT_KEY) || {};
 /** Tabela: Moj tim (stranica tima i analiza), protivnik u analizi, svaki tim na stranici Liga */
 const sortTableId = kind => (kind === 'lt' ? `lt:${state.leagueTeam}` : kind);
+const sortScope = () => currentLeague()?.id || (EMBED?.targets ? 'quick' : null); // javna Mete za trejd: lista želja bez lige
 function sortOf(kind) {
-  const lg = currentLeague();
-  const s = lg ? sortStore()[lg.id]?.[sortTableId(kind)] : null;
+  const sc = sortScope();
+  const s = sc ? sortStore()[sc]?.[sortTableId(kind)] : null;
   return s && sortCols(kind).includes(s.col) ? s : null;
 }
 function setSort(kind, s) {
-  const lg = currentLeague();
-  if (!lg) return;
-  const st = sortStore(), m = st[lg.id] || (st[lg.id] = {});
+  const sc = sortScope();
+  if (!sc) return;
+  const st = sortStore(), m = st[sc] || (st[sc] = {});
   if (s) m[sortTableId(kind)] = s; else delete m[sortTableId(kind)];
   lsSet(SORT_KEY, st);
 }
-const sortCols = kind => ['MIN', ...CATS.map(c => c.key), 'GP', ...(kind === 'fa' ? ['WK', 'OWN'] : [])]; // FA tabela: + utakmice ove nedelje i vlasništvo
+const sortCols = kind => ['MIN', ...CATS.map(c => c.key), 'GP', ...(kind === 'fa' ? ['WK', 'OWN'] : []), ...(kind === 'ttw' ? ['OWNER'] : [])]; // FA tabela: + utakmice ove nedelje i vlasništvo
 /** Vrednost za sortiranje u izabranom periodu; null = bez podataka (uvek na dnu) */
 function sortVal(p, key) {
   if (key === 'OWN') return p?.own ? p.own.pct : null;
@@ -5798,7 +5836,7 @@ function sortIds(kind, ids) {
 /** Prvi klik: najveće gore (TO i kolone gde je manje bolje: najmanje gore), drugi klik obrnuto */
 function clickSort(kind, col) {
   const s = sortOf(kind);
-  const first = CATS.find(c => c.key === col)?.lowerIsBetter ? 'asc' : 'desc'; // OWN i WK: najveće gore
+  const first = col === 'OWNER' || CATS.find(c => c.key === col)?.lowerIsBetter ? 'asc' : 'desc'; // OWN i WK: najveće gore; Vlasnik (lista želja): A do Ž
   setSort(kind, { col, dir: s?.col === col ? (s.dir === 'asc' ? 'desc' : 'asc') : first });
   render();
 }
@@ -8676,6 +8714,7 @@ function updateDropdown(key) {
 /** Pretraga zavisi od cilja: roster isključuje samo igrače već na rosteru */
 function searchFor(key, query) {
   if (key.startsWith('tf-')) return searchResults(query, tfTaken());
+  if (key === 'tt-lock') return ttLockSearch(query);
   if (key.startsWith('tt-')) return searchResults(query, ttTaken(key));
   const ds = key.match(/^(my|opp)-d$/);
   if (ds) {
@@ -9726,18 +9765,47 @@ function tfCtx() {
   const o = oppKey ? lg.opps[oppKey] : null;
   return { lg, scopeKey: lg.id, oppKey, opps, my: lg.roster?.players || [], opp: o?.players || [], oppName: o?.name || '' };
 }
-const tfMarksAll = () => lsGet(TF_MARK_KEY) || {};
+/** Lock mojih igrača važi za celu ligu (svi protivnici): čuva se pod ključem TF_LOCK_K. "Dajem ako mora" i "U trejd" ostaju po protivniku. */
+const TF_LOCK_K = '@lock';
+/** Sve oznake; stari Lock mog igrača kod bilo kog protivnika prelazi u Lock za celu ligu (jednom) */
+function tfMarksAll() {
+  const all = lsGet(TF_MARK_KEY) || {};
+  let ch = false;
+  for (const sc of Object.values(all)) {
+    if (!sc || typeof sc !== 'object') continue;
+    for (const [k, m] of Object.entries(sc)) {
+      if (k === TF_LOCK_K || !m?.mine) continue;
+      for (const [id, v] of Object.entries(m.mine)) if (v === 'lock') { (sc[TF_LOCK_K] || (sc[TF_LOCK_K] = {}))[id] = 'lock'; delete m.mine[id]; ch = true; }
+    }
+  }
+  if (ch) lsSet(TF_MARK_KEY, all);
+  return all;
+}
+/** Moji zaključani igrači u ligi: { pid: 'lock' } */
+const tfLocks = scopeKey => tfMarksAll()[scopeKey]?.[TF_LOCK_K] || {};
 function tfMarks(ctx) {
-  const all = tfMarksAll(), m = all[ctx.scopeKey]?.[ctx.oppKey || '-'];
-  return { mine: m?.mine || {}, theirs: m?.theirs || {} };
+  const sc = tfMarksAll()[ctx.scopeKey] || {}, m = sc[ctx.oppKey || '-'];
+  const mine = { ...(m?.mine || {}) };
+  for (const id of Object.keys(sc[TF_LOCK_K] || {})) mine[id] = 'lock';
+  return { mine, theirs: m?.theirs || {} };
 }
 function tfSetMark(ctx, side, id, mark) {
   const all = tfMarksAll(), sc = all[ctx.scopeKey] || (all[ctx.scopeKey] = {}), k = ctx.oppKey || '-';
   const m = sc[k] || (sc[k] = { mine: {}, theirs: {} });
-  if (!mark || m[side][id] === mark) delete m[side][id]; else m[side][id] = mark;
+  if (side === 'mine') {
+    const lk = sc[TF_LOCK_K] || (sc[TF_LOCK_K] = {}), cur = lk[id] ? 'lock' : m.mine[id];
+    delete lk[id]; delete m.mine[id];
+    if (mark && cur !== mark) { if (mark === 'lock') lk[id] = 'lock'; else m.mine[id] = mark; }
+  } else if (!mark || m[side][id] === mark) delete m[side][id]; else m[side][id] = mark;
   lsSet(TF_MARK_KEY, all);
 }
-function tfResetMarks(ctx) { const all = tfMarksAll(); if (all[ctx.scopeKey]) { delete all[ctx.scopeKey][ctx.oppKey || '-']; lsSet(TF_MARK_KEY, all); } }
+/** Poništi sve: oznake za ovog protivnika; Lock za celu ligu samo kad je locks = true */
+function tfResetMarks(ctx, locks = false) {
+  const all = tfMarksAll(); if (!all[ctx.scopeKey]) return;
+  delete all[ctx.scopeKey][ctx.oppKey || '-'];
+  if (locks) delete all[ctx.scopeKey][TF_LOCK_K];
+  lsSet(TF_MARK_KEY, all);
+}
 
 /** Model za pretragu: linije (mešavina perioda kao u FA alatu), vrednost za ostatak sezone, slobodni igrači, ostali timovi, punt i slabosti protivnika */
 /** Osnova za Pronađi trejd i analizu trejda otvorenu iz njega (ne zavisi od izabranih timova): mešavina perioda po igraču,
@@ -10115,7 +10183,7 @@ function tfRowHTML(x, side, marks, quick) {
   const p = x.p || state.byId.get(x.id); if (!p) return '';
   const cur = marks[x.id] || '';
   const kinds = side === 'mine' ? ['lock', 'soft', 'trade'] : ['lock', 'trade'];
-  const btns = kinds.map(k => { const M = TF_MARKS[k], tip = t(side === 'mine' ? M.tipMine : M.tipTheirs), on = cur === k;
+  const btns = kinds.map(k => { const M = TF_MARKS[k], tip = t(side === 'mine' ? M.tipMine : M.tipTheirs) + (side === 'mine' && k === 'lock' && !quick ? ` ${t('Važi za sve protivnike u ovoj ligi')}` : ''), on = cur === k;
     return `<button type="button" class="tf-mk mk-${k} ${on ? 'on' : ''}" data-action="tf-mark" data-side="${side}" data-id="${p.id}" data-m="${k}" aria-pressed="${on}" title="${esc(`${t(M.sr)}: ${tip}`)}" aria-label="${esc(t(M.sr))}"><span class="ic" aria-hidden="true">${M.ic}</span><span class="lb">${t(M.sr)}</span></button>`; }).join('');
   return `<li class="tf-row ${cur ? `m-${cur}` : ''}"><span class="pm-open" data-pm="${p.id}">${avatarHTML(p)}</span>
     <div class="tf-id"><button type="button" class="nm pm-open" data-pm="${p.id}">${esc(p.name)}</button><span class="meta">${p.team} · ${posTxt(p)} ${injHTML(p)}${x.ir ? ' <span class="slot-tag tag-ir">IR</span>' : ''}</span></div>
@@ -10220,6 +10288,15 @@ function tfVetoHTML(x, c) {
   return c ? `<p class="pnote tf-veto">${t('Za veto lige: dodaj {p} da bude {a}:{a}.', { p: `<b>${esc(c.p.name)}</b>`, a: Math.max(x.g.length, x.r.length) })}</p>` : '';
 }
 const ordinalEn = n => { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`; };
+/** Otpuštanja i slobodno mesto za predlog (kartica Pronađi trejd, izveštaj Meta za trejd) */
+function tfDropText(M, x) {
+  const nmL = ids => ids.map(id => esc(state.byId.get(id)?.name || '')).join(', ');
+  const mdNow = x.md.length - (x.mdl || 0), mfP = x.mf - (x.mft || 0), irN = nmL(x.irIn || []);
+  return [mdNow ? t('Otpuštaš: {n}', { n: nmL(x.md.slice(0, mdNow)) }) : '',
+    x.mdl ? t('Kad se {ir} vrati sa IR-a, otpuštaš: {n}', { ir: irN, n: nmL(x.md.slice(mdNow)) }) : '',
+    mfP ? tfFreeSlotText(M.fa.slice(0, mfP)) : '',
+    x.mft ? t('Dok je {ir} na IR-u, slobodno mesto popunjava igrač sa waivera.', { ir: irN }) : ''].filter(Boolean).join(' ');
+}
 function tfCardHTML(M, x, i, veto = null) {
   const v = tfCardView(M, x);
   // povređeni: status (sa "(ESPN)" kad liga ne daje status) i procena povratka; "ide na IR" kad ide na slobodno IR mesto primaoca
@@ -10227,12 +10304,7 @@ function tfCardHTML(M, x, i, veto = null) {
   const toIr = new Set([...(x.irIn || []), ...(x.irOut || [])]);
   const pl = (id, soft) => { const p = state.byId.get(id); if (!p) return ''; return `<li>${avatarHTML(p)}<span class="tf-pn"><b>${esc(p.name)}</b><small>${p.team} · ${posTxt(p)}${soft ? ` <span class="slot-tag tag-soft" title="${esc(t('Dajem ako mora'))}">💲 ${t('Dajem ako mora')}</span>` : ''}${toIr.has(id) ? ` <span class="slot-tag tag-ir">${t('ide na IR')}</span>` : ''}</small>${injTxt(p)}</span></li>`; };
   const soft = id => M.marks.mine[id] === 'soft';
-  const nmL = ids => ids.map(id => esc(state.byId.get(id)?.name || '')).join(', ');
-  const mdNow = x.md.length - (x.mdl || 0), mfP = x.mf - (x.mft || 0), irN = nmL(x.irIn || []);
-  const drop = [mdNow ? t('Otpuštaš: {n}', { n: nmL(x.md.slice(0, mdNow)) }) : '',
-    x.mdl ? t('Kad se {ir} vrati sa IR-a, otpuštaš: {n}', { ir: irN, n: nmL(x.md.slice(mdNow)) }) : '',
-    mfP ? tfFreeSlotText(M.fa.slice(0, mfP)) : '',
-    x.mft ? t('Dok je {ir} na IR-u, slobodno mesto popunjava igrač sa waivera.', { ir: irN }) : ''].filter(Boolean).join(' ');
+  const drop = tfDropText(M, x);
   // Sačuvaj: nov tab u Analizi trejda bez prelaska; bez lige nema tabova lige, pa ni dugmeta
   const saved = !!state.tf.saved?.[tfTradeKey(x)];
   const saveBtn = M.ctx.quick ? '' : saved ? `<span class="slot-tag tag-in tf-saved">✓ ${t('Sačuvano')}</span><button type="button" class="btn small sec" disabled>${t('Sačuvaj')}</button>` : `<button type="button" class="btn small sec" data-action="tf-save" data-i="${i}">${t('Sačuvaj')}</button>`;
@@ -10361,7 +10433,11 @@ function tfAction(a, el) {
   const S = state.tf, ctx = tfCtx();
   switch (a) {
     case 'tf-mark': tfSetMark(ctx, el.dataset.side, +el.dataset.id, el.dataset.m); break;
-    case 'tf-reset': tfResetMarks(ctx); break;
+    case 'tf-reset': {
+      tfResetMarks(ctx);
+      if (Object.keys(tfLocks(ctx.scopeKey)).length) showModal({ title: t('Poništi sve'), body: `<p>${t('Ukloniti i zaključane igrače za celu ligu?')}</p>`, confirm: t('Ukloni'), cancel: t('Zadrži'), onConfirm: () => { tfResetMarks(ctx, true); renderTfAll(); } });
+      break;
+    }
     case 'tf-strat': S.strat = el.dataset.v; break;
     case 'tf-focus': { const k = el.dataset.k; S.focus = S.focus.includes(k) ? S.focus.filter(x => x !== k) : [...S.focus, k]; break; }
     case 'tf-slider': S.slider = el.dataset.v; break;
@@ -10401,7 +10477,7 @@ const tfTaken = () => { const q = lsGet(TF_QUICK_KEY) || { my: [], opp: [] }; re
    ===================================================================== */
 const TT_WISH_KEY = 'fbaTrade.ttWish.v1'; // { [liga|quick]: [id] } lista želja (lični izbor)
 const TT_UI = {};                          // po ligi: { need, cats, page, refine }
-state.tt = { M: null, sig: null, trades: new Map(), tsig: null, busy: false, worker: null, msModel: 0, msTrades: 0, logsAsked: new Set(), add: null };
+state.tt = { M: null, sig: null, trades: new Map(), tms: new Map(), tkey: null, pending: null, worker: null, msModel: 0, msTrades: 0, logsAsked: new Set(), add: null };
 const ttScope = lg => lg?.id || 'quick';
 const ttUi = lg => TT_UI[ttScope(lg)] || (TT_UI[ttScope(lg)] = { need: 'auto', cats: [], page: 0, refine: TT.REFINE });
 const ttMyRoster = lg => (lg ? lg.roster?.players || [] : (lsGet(TF_QUICK_KEY)?.my || []).map(id => ({ id, ir: false })));
@@ -10559,9 +10635,9 @@ function ttModel(lg, B, ui) {
 const ttVisible = () => !!EMBED?.targets || state.page === 'targets';
 const ttRender = () => { if (EMBED?.targets) renderTargetsEmbed(); else if (state.page === 'targets') render(); };
 
-/* ---------- Mogući trejd (isti motor kao Pronađi trejd, Web Worker) ---------- */
+/* ---------- Mogući trejd: računa se tek u izveštaju, za jednog igrača (isti motor kao Pronađi trejd, Web Worker) ---------- */
 const ttTradeCtx = (lg, owner) => { const o = lg.opps[owner]; return { lg, scopeKey: lg.id, oppKey: owner, my: lg.roster?.players || [], opp: o?.players || [], oppName: o?.name || '' }; };
-/** Ulazi za motor: po vlasniku jednom model, pa igrač obeležen U trejd (Najbolje za mene, Fer, kao Pronađi trejd) */
+/** Ulazi za motor: po vlasniku jednom model, pa igrač obeležen U trejd, do 2 za 2, meta najvredniji igrač kog dobijam (cena na tržištu) */
 function ttInputs(M, ids) {
   const S = state.tf, keep = [S.strat, S.slider, S.focus];
   S.strat = 'best'; S.slider = 'fair'; S.focus = [];
@@ -10571,43 +10647,46 @@ function ttInputs(M, ids) {
       const x = M.byId.get(id); if (!x?.owner) continue;
       let m = state.tt.tms.get(x.owner);
       if (!m) { const TM = tfModel(ttTradeCtx(M.lg, x.owner)); m = { TM, inp: tfInput(TM) }; state.tt.tms.set(x.owner, m); }
-      out.push({ id, inp: ttTradeInput(m.inp, id) });
+      const mk = Object.fromEntries(m.inp.theirs.map(y => [y.id, M.B.market(state.byId.get(y.id)) ?? null]));
+      out.push({ id, inp: ttTradeInput(m.inp, id, mk) });
     }
     return out;
   } finally { [S.strat, S.slider, S.focus] = keep; }
 }
 function ttWorker() {
-  const src = `const E=(${tfEngine.toString()})();onmessage=e=>{const t0=Date.now(),out=[];e.data.forEach(q=>{const r=E.search(q.inp),o={id:q.id,x:r.list[0]||null};out.push(o);postMessage({one:o});});postMessage({done:out,ms:Date.now()-t0});};`;
+  const src = `const E=(${tfEngine.toString()})();onmessage=e=>{const t0=Date.now(),r=E.search(e.data);postMessage({x:r.list[0]||null,ms:Date.now()-t0});};`;
   return new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
 }
-/** Pokreni računanje mogućih trejdova za izabrane bez rezultata (rezultat važi dok se model ne promeni) */
-function ttEnsureTrades(M) {
+/** Rezultat važi dok se ne promeni model, "Ne otpuštam nikoga" ili oznake u ligi (Lock) */
+const ttTradeKey = M => JSON.stringify([state.tt.sig, tfNoDrop({ scopeKey: M.lg.id }), tfMarksAll()[M.lg.id] || {}]);
+/** Mogući trejd za igrača: { done, x } (x = predlog ili null); ako nije izračunat, pokreće računanje i vraća done: false */
+function ttTradeFor(M, id) {
+  const T = state.tt, k = ttTradeKey(M);
+  if (T.tkey !== k) { if (T.worker) { T.worker.terminate(); T.worker = null; } T.tkey = k; T.trades = new Map(); T.tms = new Map(); T.pending = null; }
+  if (T.trades.has(id)) return { done: true, x: T.trades.get(id) };
+  if (T.pending !== id) ttStartTrade(M, id, k);
+  return { done: false };
+}
+function ttStartTrade(M, id, k) {
   const T = state.tt;
-  if (M.solo || !M.lg) return;
-  const tsig = JSON.stringify([T.sig, tfNoDrop({ scopeKey: M.lg.id }), JSON.stringify(tfMarksAll()[M.lg.id] || {})]);
-  if (T.tsig !== tsig) { if (T.worker) { T.worker.terminate(); T.worker = null; } T.tsig = tsig; T.trades = new Map(); T.tms = new Map(); T.busy = false; }
-  if (T.busy) return;
-  const page = new Set(ttPageItems(M).items.map(x => x.id)); // prvo kartice sa ove stranice
-  const want = [...M.list.filter(x => page.has(x.id)), ...M.list.filter(x => !page.has(x.id))].map(x => x.id).filter(id => !T.trades.has(id));
-  if (!want.length) return;
-  const qs = ttInputs(M, want);
-  T.busy = true;
+  if (T.worker) { T.worker.terminate(); T.worker = null; }
+  const [q] = ttInputs(M, [id]);
+  if (!q) { T.trades.set(id, null); return; }
+  T.pending = id;
   const t0 = performance.now();
-  const done = (res, ms) => { T.busy = false; T.worker = null; for (const r of res) T.trades.set(r.id, r.x); T.msTrades = ms ?? performance.now() - t0; ttRender();
-    const R = T.rep; if (R && document.getElementById('tt-rep-news') && T.trades.has(R.id)) ttReport(R.id, R.per); }; // otvoren izveštaj: mogući trejd stiže
+  const fin = x => {
+    T.worker = null; if (T.pending === id) T.pending = null;
+    if (T.tkey !== k) return;
+    T.trades.set(id, x); T.msTrades = performance.now() - t0;
+    const R = T.rep; if (R?.id === id && document.getElementById('tt-rep-news')) ttReport(id, R.per); // otvoren izveštaj: mogući trejd stiže
+  };
+  const local = () => fin(tfEngineLocal().search(q.inp).list[0] || null);
   try {
     const w = ttWorker(); T.worker = w;
-    let tm = null;
-    w.onmessage = e => {
-      if (T.tsig !== tsig) return;
-      if (e.data.one) { T.trades.set(e.data.one.id, e.data.one.x); if (!tm) tm = setTimeout(() => { tm = null; if (T.busy) ttRender(); }, 250); return; } // kartica dobija trejd čim je izračunat
-      if (e.data.done) { w.terminate(); clearTimeout(tm); done(e.data.done, e.data.ms); }
-    };
-    w.onerror = () => { w.terminate(); T.worker = null; setTimeout(() => done(qs.map(q => ({ id: q.id, x: tfEngineLocal().search(q.inp).list[0] || null }))), 0); };
-    w.postMessage(qs);
-  } catch {
-    setTimeout(() => done(qs.map(q => ({ id: q.id, x: tfEngineLocal().search(q.inp).list[0] || null }))), 30);
-  }
+    w.onmessage = e => { w.terminate(); if (T.worker === w || T.pending === id) fin(e.data.x); };
+    w.onerror = () => { w.terminate(); setTimeout(local, 0); };
+    w.postMessage(q.inp);
+  } catch { setTimeout(local, 30); }
 }
 
 /* ---------- Prikaz ---------- */
@@ -10644,14 +10723,16 @@ function ttReasonOf(M, x, k) {
   }
 }
 const ttReasons = (M, x, max = 2) => (x.by2 || []).filter(b => b.c > 0.001).map(b => ttReasonOf(M, x, b.k)).filter(Boolean).slice(0, max);
-/** Statistika u izabranim (ili slabim) kategorijama, istaknute kategorije u kojima je ispred drugih igrača */
+/** Statistika u dva reda (nazivi kolona, pa brojevi), kao red zbira u tabelama; zeleno samo kategorija koja mi treba, a igrač je u njoj jak */
 function ttStatsHTML(M, x) {
   const line = playerLine(x.p);
-  if (M.pts) return `<div class="tt-stats"><span class="tt-st hi"><b>${line ? fmt1(fptsOf(line)) : '–'}</b> FPts</span><span class="tt-st"><b>${line?.MIN != null ? fmt1(line.MIN) : '–'}</b> MIN</span></div>`;
-  const keys = M.need.size ? M.cats.filter(c => M.need.has(c.key)) : M.cats;
-  return `<div class="tt-stats">${keys.map(c => { const C = CATS.find(k => k.key === c.key); const v = line && C ? catValue(line, C) : null; return `<span class="tt-st ${x.strong.includes(c.key) ? 'hi' : ''}"><b>${C ? fmtCat(C, v) : '–'}</b> ${esc(c.label)}</span>`; }).join('')}</div>`;
+  const good = c => (M.pts ? c.fpts && x.gain > 0 : M.need.has(c.key) && x.strong.includes(c.key));
+  const cols = [{ label: 'MIN', v: line?.MIN != null ? fmt1(line.MIN) : '-', hi: false }, ...CATS.map(c => ({ label: c.label, v: line ? fmtCat(c, catValue(line, c)) : '-', hi: !isPunt(c) && good(c), punt: isPunt(c) }))];
+  const tip = M.pts ? t('Zeleno: FPts, jer igrač diže FPts tvog tima.') : t('Zeleno: kategorija koja ti treba, a igrač je u njoj jak.');
+  return `<div class="tt-stat-wrap"><table class="tt-stat" title="${esc(tip)}"><thead><tr>${cols.map(c => `<th class="${c.punt ? 'punt' : ''}">${esc(c.label)}</th>`).join('')}</tr></thead>
+    <tbody><tr>${cols.map(c => `<td class="${c.hi ? 'hi' : ''}${c.punt ? ' punt' : ''}">${c.v}</td>`).join('')}</tr></tbody></table></div>`;
 }
-/** Samo moj tim: promena mojih kategorija ako uđe umesto mog najslabijeg (izabrani period u zaglavlju) */
+/** Promena mojih kategorija ako uđe umesto mog najslabijeg (izabrani period u zaglavlju); procena bez protivnika */
 function ttSoloChange(M, x) {
   const act = ttMyRoster(M.lg).filter(y => !y.ir).map(y => y.id), out = M.weakest?.id;
   const Bt = sumPlayers(act), A = sumPlayers([...act.filter(id => id !== out), x.id]);
@@ -10661,23 +10742,12 @@ function ttSoloChange(M, x) {
   const chips = cats.map(c => { const b = Bt.vals[c.key], a = A.vals[c.key]; if (a == null || b == null) return ''; const d = a - b, zero = c.type === 'pct' ? Math.abs(d) < teamTieOf(c) : fmtDelta(c, d).zero, r = zero ? 0 : (c.lowerIsBetter ? d < 0 : d > 0) ? 1 : -1; if (r > 0) w++; else if (r < 0) l++; return `<span class="fa-chip ${r > 0 ? 'up' : r < 0 ? 'down' : 'tie'}">${r > 0 ? '✓' : r < 0 ? '✗' : '='} ${esc(c.label)}</span>`; }).join('');
   return `<div class="fa-score ${w >= l ? 'up' : 'down'}"><b>${faWL(w, l)}</b></div><div class="fa-chips">${chips}</div>`;
 }
-/** Red "Mogući trejd" na kartici */
-function ttTradeHTML(M, x) {
-  if (M.solo) return '';
-  const T = state.tt;
-  if (!T.trades.has(x.id)) return `<p class="pnote tt-trade-wait">${t('Mogući trejd: računam…')}</p>`;
-  const tr = T.trades.get(x.id);
-  if (!tr) return `<p class="pnote tt-trade-none">${t('Nema fer trejda sa tvojim rosterom')}</p>`;
-  const m = T.tms.get(x.owner), v = m ? tfCardView(m.TM, tr) : null;
-  const names = ids => ids.map(id => esc(state.byId.get(id)?.name || '')).join(', ');
-  return `<button type="button" class="tt-trade ${v?.up ? 'up' : 'down'}" data-action="tt-open-trade" data-id="${x.id}" title="${esc(t('Otvori u analizi'))}"><span class="tt-tl">${t('Mogući trejd')}:</span> <b>${names(tr.g)}</b> ${t('za')} <b>${names(tr.r)}</b>${v ? ` · <span class="tt-wl">${esc(v.wl)}</span>` : ''}</button>`;
-}
 function ttHeartHTML(M, id) {
   const on = ttWishHas(ttWishAll(), ttScope(M.lg), id);
   return `<button type="button" class="tt-heart ${on ? 'on' : ''}" data-action="tt-wish" data-id="${id}" aria-pressed="${on}" title="${esc(on ? t('Ukloni sa liste želja') : t('Dodaj na listu želja'))}" aria-label="${esc(on ? t('Ukloni sa liste želja') : t('Dodaj na listu želja'))}">${on ? '♥' : '♡'}</button>`;
 }
 function ttBtnsHTML(M, id) {
-  return `<button type="button" class="linkbtn" data-action="tt-suggest" data-id="${id}">${t('Predloži trejd sa ovim igračem')}</button><button type="button" class="btn small" data-action="tt-trade-tab" data-id="${id}">${t('Trejduj')}</button>`;
+  return `<button type="button" class="btn sec tt-big" data-action="tt-suggest" data-id="${id}">${t('Predloži trejd sa ovim igračem')}</button><button type="button" class="btn tt-big" data-action="tt-trade-tab" data-id="${id}">${t('Trejduj')}</button>`;
 }
 function ttCardHTML(M, x, i) {
   const p = x.p, st = playerStatus(p, M.lg), ret = injRetText(p, M.lg);
@@ -10685,17 +10755,16 @@ function ttCardHTML(M, x, i) {
   const why = ttReasons(M, x);
   const rate = M.solo ? '' : rateBtnsHTML(tfRateKey('targets', M.lg?.id, [], [p.id]), 'tt-rate', i);
   return `<article class="tt-card">
+    <div class="tt-corner">${rate}${ttHeartHTML(M, p.id)}</div>
     <div class="tt-head"><span class="pm-open" data-pm="${p.id}">${avatarHTML(p)}</span>
       <div class="tt-id"><button type="button" class="nm" data-action="tt-report" data-id="${p.id}">${esc(p.name)}</button>
         <span class="meta">${p.team} · ${posTxt(p)} ${injHTML(p)}</span>
         ${st.g !== 'OK' ? `<span class="tf-inj">${esc(stLabel(st))}${ret ? `, ${esc(ret)}` : ''}</span>` : ''}
-        ${owner ? `<span class="tt-owner">${t('Vlasnik')}: <b>${esc(owner)}</b></span>` : ''}</div>
-      ${ttHeartHTML(M, p.id)}</div>
+        ${owner ? `<span class="tt-owner">${t('Vlasnik')}: <b>${esc(owner)}</b></span>` : ''}</div></div>
     ${ttStatsHTML(M, x)}
     ${M.solo ? `<p class="pnote tt-solo-note">${t('Procena bez protivnika: ulazi umesto {n}', { n: esc(M.weakest?.name || '–') })}</p>${ttSoloChange(M, x)}` : ''}
     ${why.length ? `<div class="fa-why">${why.map(w => `<span>${w}</span>`).join('')}</div>` : ''}
-    ${ttTradeHTML(M, x)}
-    <div class="tt-foot"><button type="button" class="linkbtn tt-sugg" data-action="tt-suggest" data-id="${p.id}">${t('Predloži trejd sa ovim igračem')}</button>${rate}<button type="button" class="btn small" data-action="tt-trade-tab" data-id="${p.id}">${t('Trejduj')}</button></div></article>`;
+    <div class="tt-acts">${ttBtnsHTML(M, p.id)}</div></article>`;
 }
 /** Šta mom timu treba: Proceni sam ili ručni izbor kategorija (punt se ne računa) */
 function ttNeedHTML(M) {
@@ -10712,47 +10781,66 @@ function ttNeedHTML(M) {
       <button type="button" data-action="tt-need" data-v="auto" aria-pressed="${!manual}">${t('Proceni sam')}</button><button type="button" data-action="tt-need" data-v="manual" aria-pressed="${manual}">${t('Biram kategorije')}</button></div>
     <div class="fa-needs">${chips}</div><span class="i" data-tip="${esc(tip)}">ⓘ</span></div>`;
 }
+/** "Ne dam": moji zaključani igrači za celu ligu (isti Lock kao u Pronađi trejd) */
+function ttLockHTML(lg) {
+  if (!lg) return '';
+  const lk = tfLocks(lg.id), mine = new Set((lg.roster?.players || []).map(x => x.id));
+  const ids = Object.keys(lk).map(Number).filter(id => mine.has(id));
+  const chips = ids.map(id => { const p = state.byId.get(id); return p ? `<button type="button" class="chip tt-lock-chip" data-action="tt-unlock" data-id="${id}" title="${esc(t('Klik uklanja'))}">🔒 ${esc(p.name)} <span aria-hidden="true">✕</span></button>` : ''; }).join('');
+  return `<div class="tt-lockbar"><span class="tt-lock-l">${t('Ne dam:')}</span><span class="i" data-tip="${esc(t('Ovi igrači ne ulaze ni u jedan trejd sa bilo kojim timom u ligi. Isti Lock kao u Pronađi trejd.'))}">ⓘ</span>
+    ${chips || `<span class="hint">${t('nijedan igrač')}</span>`}<span class="tt-lock-add">${searchBoxHTML('tt-lock', t('Dodaj svog igrača…'))}</span></div>`;
+}
+/** Pretraga "Ne dam": samo moji igrači koji nisu zaključani */
+function ttLockSearch(query) {
+  const lg = currentLeague(); if (!lg) return [];
+  const lk = tfLocks(lg.id), avail = new Set((lg.roster?.players || []).map(x => x.id).filter(id => !lk[id]));
+  return searchResults(query, new Set(state.players.map(p => p.id).filter(id => !avail.has(id))), avail);
+}
 /** Stranica kartica: redom po oceni, bez prethodnih stranica, najviše 2 igrača istog vlasnika */
 function ttPageItems(M) {
   const shown = new Set(); let items = [];
   for (let k = 0; k <= M.ui.page; k++) { items = ttPage(M.list, shown); items.forEach(x => shown.add(x.id)); }
   return { items, more: ttPage(M.list, shown).length > 0 || M.list.length < M.coarseN };
 }
-/** Lista želja: trenutni vlasnik (osvežava se sa ligom), status i ista dugmad */
+/** Vlasnik igrača sa liste želja: ključ protivnika, 'mine', 'fa' ili null (nije ni u jednom unetom timu) */
+const ttWishOwner = (M, id) => ttOwnerOf(id, new Set(ttMyRoster(M.lg).map(x => x.id)), M.lg?.opps, !!(M.lg && isSynced(M.lg)));
+const ttWishOwnerName = (M, o) => (o === 'mine' ? t('Tvoj tim') : o === 'fa' ? t('Slobodan') : o ? M.lg.opps[o]?.name || '' : '');
+/** Lista želja: tabela kao Moj tim (kolone formata lige, period iz zaglavlja), Vlasnik, dugmad i srce; sortiranje kao ostale tabele */
 function ttWishHTML(M) {
-  const ids = ttWishAll()[ttScope(M.lg)] || [];
+  const ids = (ttWishAll()[ttScope(M.lg)] || []).filter(id => state.byId.has(id));
   if (!ids.length) return `<section class="pcard tt-wish"><h3>${t('Lista želja')}</h3><p class="pnote">${t('Klikni ♡ na kartici da igrača sačuvaš ovde.')}</p></section>`;
-  const myIds = new Set(ttMyRoster(M.lg).map(x => x.id));
-  const rows = ids.map(id => {
-    const p = state.byId.get(id); if (!p) return '';
-    const ownerK = M.lg ? Object.keys(M.lg.opps || {}).find(k => M.lg.opps[k].players?.some(y => y.id === id)) : null;
-    const st = playerStatus(p, M.lg), ret = injRetText(p, M.lg);
-    let where;
-    if (myIds.has(id)) where = `<span class="slot-tag tag-mine">${t('Sada u tvom timu')}</span>`;
-    else if (ownerK) where = `${t('Vlasnik')}: <b>${esc(M.lg.opps[ownerK].name)}</b>`;
-    else if (M.lg && isSynced(M.lg)) where = `<span class="slot-tag tag-fa">${t('Slobodan igrač')}</span> <a class="linkbtn" href="${pageHash('fa')}" data-goto="fa">${t('Pojačanja sa FA')}</a>`;
-    else where = M.lg ? `<span class="hint">${t('Nije ni u jednom unetom timu')}</span>` : '';
-    const btns = myIds.has(id) || (M.lg && !ownerK && !M.solo) ? '' : ttBtnsHTML(M, id);
-    return `<li class="tt-wrow"><span class="pm-open" data-pm="${id}">${avatarHTML(p)}</span><div class="tt-id"><button type="button" class="nm" data-action="tt-report" data-id="${id}">${esc(p.name)}</button>
-      <span class="meta">${p.team} · ${posTxt(p)} ${injHTML(p)}${st.g !== 'OK' ? ` <span class="inj-ret">${esc(stLabel(st))}${ret ? `, ${esc(ret)}` : ''}</span>` : ''}</span><span class="tt-owner">${where}</span></div>
-      <span class="tt-wbtns">${btns}${ttHeartHTML(M, id)}</span></li>`;
+  const own = new Map(ids.map(id => [id, ttWishOwner(M, id)]));
+  const s = sortOf('ttw');
+  const order = s?.col === 'OWNER'
+    ? ttWishOrder(ids, id => ttWishOwnerName(M, own.get(id)), s.dir)
+    : sortIds('ttw', ids);
+  const head = rosterHeaderRow('ttw').replace('</tr>', `<th class="sortth tt-wown-h${s?.col === 'OWNER' ? ' sorted' : ''}" data-sort="OWNER" data-skind="ttw" title="${esc(t('Sortiraj po {c}', { c: t('Vlasnik') }))}">${t('Vlasnik')}${s?.col === 'OWNER' ? `<span class="sarr">${s.dir === 'asc' ? '▲' : '▼'}</span>` : ''}</th><th class="tt-wact-h"></th></tr>`);
+  const ic = (a, id, label, sym) => `<button type="button" class="btn small sec tt-wbtn" data-action="${a}" data-id="${id}" title="${esc(label)}" aria-label="${esc(label)}"><span class="tt-wic" aria-hidden="true">${sym}</span><span class="tt-wtx">${esc(label)}</span></button>`;
+  const rows = order.map(id => {
+    const p = state.byId.get(id), o = own.get(id);
+    const ownTxt = o === 'mine' ? `<span class="slot-tag tag-mine">${t('Tvoj tim')}</span>`
+      : o === 'fa' ? `<span class="slot-tag tag-fa">${t('Slobodan')}</span> <a class="linkbtn" href="${pageHash('fa')}" data-goto="fa">${t('Pojačanja sa FA')}</a>`
+        : o ? esc(M.lg.opps[o]?.name || '') : M.lg ? `<span class="hint">${t('Nije ni u jednom unetom timu')}</span>` : '';
+    const btns = o === 'mine' || o === 'fa' ? '' : `${ic('tt-suggest', id, t('Predloži trejd'), '⇄')}${ic('tt-trade-tab', id, t('Trejduj'), '＋')}`;
+    const row = playerRowHTML(p, { punt: true }).replace(`class="nm pm-open" data-pm="${id}"`, `class="nm" data-action="tt-report" data-id="${id}"`);
+    return row.replace(/<\/tr>\s*$/, `<td class="tt-wown">${ownTxt}</td><td class="tt-wact"><span class="tt-wbtns">${btns}${ttHeartHTML(M, id)}</span></td></tr>`);
   }).join('');
-  return `<section class="pcard tt-wish"><h3>${t('Lista želja')} <span class="hint">${ids.length}</span></h3><ul class="tt-wlist">${rows}</ul></section>`;
+  return `<section class="pcard tt-wish"><h3>${t('Lista želja')} <span class="hint">${ids.length}</span></h3>
+    <div class="tscroll tt-wscroll"><table class="rtable tt-wtable"><thead>${head}</thead><tbody>${rows}</tbody></table></div></section>`;
 }
-/** Telo alata (liga i javna stranica) */
+/** Telo alata (liga i javna stranica). Mogući trejd se ne računa ovde, nego tek u izveštaju. */
 function ttBodyHTML(lg) {
   const M = ttGet(lg);
-  ttEnsureTrades(M);
   const { items, more } = ttPageItems(M);
   const lead = M.solo
     ? t('Bez drugih timova: kandidati su svi NBA igrači koji nisu na tvom rosteru. Kartica pokazuje šta igrač donosi tvom timu, ako uđe umesto tvog najslabijeg igrača.')
-    : M.pts ? t('Igrači sa drugih timova u ligi koji najviše dižu FPts tvog tima, a realno ih je dobiti. Za svakog tražimo i fer trejd sa tvojim rosterom.')
-      : t('Igrači sa drugih timova u ligi koji najviše popravljaju kategorije koje ti trebaju, a realno ih je dobiti. Za svakog tražimo i fer trejd sa tvojim rosterom.');
+    : M.pts ? t('Igrači sa drugih timova u ligi koji najviše dižu FPts tvog tima, a realno ih je dobiti. Klikni na ime za izveštaj i mogući fer trejd.')
+      : t('Igrači sa drugih timova u ligi koji najviše popravljaju kategorije koje ti trebaju, a realno ih je dobiti. Klikni na ime za izveštaj i mogući fer trejd.');
   const list = items.length
     ? `<div class="tt-cards">${items.map((x, k) => ttCardHTML(M, x, M.ui.page * TT.PER_PAGE + k)).join('')}</div>
       <div class="tf-more">${more ? `<button type="button" class="btn sec" data-action="tt-more">${t('Generiši novih 8')}</button>` : `<span class="hint">${t('To su sve mete za ovaj izbor.')}</span>`}</div>`
     : `<div class="pcard fa-none"><b>${t('Trenutno nema meta koje bi ti pomogle')}</b><p class="pnote">${t('Nijedan igrač ne popravlja tvoj tim u odnosu na sadašnje stanje.')}</p></div>`;
-  return `<p class="pnote fa-lead">${lead}</p>${ttNeedHTML(M)}<h3 class="fa-h">${t('Mete')}</h3>${list}${ttWishHTML(M)}`;
+  return `<p class="pnote fa-lead">${lead}</p>${ttLockHTML(lg)}${ttNeedHTML(M)}<h3 class="fa-h">${t('Mete')}</h3>${list}${ttWishHTML(M)}`;
 }
 function renderTargetsPage() {
   const lg = currentLeague();
@@ -10811,7 +10899,7 @@ function ttTeamAB(M, x, tr) {
 function ttReport(id, per = state.period) {
   const lg = currentLeague(), M = ttGet(lg), p = state.byId.get(id);
   if (!p) return;
-  const x = M.byId.get(id) || null, tr = x && !M.solo ? state.tt.trades.get(id) || null : null;
+  const x = M.byId.get(id) || null, R = x?.owner && !M.solo ? ttTradeFor(M, id) : null, tr = R?.done ? R.x : null;
   state.tt.rep = { id, per };
   const view = faRepView(), pts = isPointsFmt();
   const owner = x?.owner ? lg.opps[x.owner]?.name : null;
@@ -10840,7 +10928,7 @@ function ttReport(id, per = state.period) {
       const res = {}; let win = 0, lose = 0;
       for (const c of CATS.filter(k => !isPunt(k) && !k.fpts)) { const b = Bt.vals[c.key], a = A.vals[c.key]; if (a == null || b == null) continue; const d = a - b, zero = c.type === 'pct' ? Math.abs(d) < teamTieOf(c) : fmtDelta(c, d).zero; res[c.key] = zero ? 0 : (c.lowerIsBetter ? d < 0 : d > 0) ? 1 : -1; if (res[c.key] > 0) win++; else if (res[c.key] < 0) lose++; }
       const fd = (A.vals.FPTS ?? 0) - (Bt.vals.FPTS ?? 0);
-      const verdict = pts ? `<div class="fa-verdict ${fd >= 0 ? 'up' : 'down'}">${t('{d} FPts po utakmici', { d: `${fd >= 0 ? '+' : '−'}${Math.abs(fd).toFixed(1)}` })}</div>` : `<div class="fa-verdict ${win >= lose ? 'up' : 'down'}">${faWL(win, lose)}</div>`;
+      let verdict = pts ? `<div class="fa-verdict ${fd >= 0 ? 'up' : 'down'}">${t('{d} FPts po utakmici', { d: `${fd >= 0 ? '+' : '−'}${Math.abs(fd).toFixed(1)}` })}</div>` : `<div class="fa-verdict ${win >= lose ? 'up' : 'down'}">${faWL(win, lose)}</div>`;
       const v = (vals, c) => `<td class="${colCls(c)}">${fmtCat(c, vals[c.key])}</td>`;
       const dcell = c => { const b = Bt.vals[c.key], a = A.vals[c.key]; if (a == null || b == null) return `<td class="${colCls(c)}">-</td>`; const f = fmtDelta(c, a - b), r = c.fpts ? (f.zero ? 0 : a > b ? 1 : -1) : res[c.key] ?? 0; return `<td class="${colCls(c)} ${r > 0 ? 'win' : r < 0 ? 'lose' : ''}">${f.txt}</td>`; };
       const head2 = `<tr><th></th><th></th>${CATS.map(c => `<th class="${colCls(c)}">${c.label}</th>`).join('')}<th></th></tr>`;
@@ -10848,8 +10936,15 @@ function ttReport(id, per = state.period) {
         : tbl('fa-rep', head2, `<tr><td>${t('Pre')}</td><td></td>${CATS.map(c => v(Bt.vals, c)).join('')}<td></td></tr><tr><td>${t('Posle')}</td><td></td>${CATS.map(c => v(A.vals, c)).join('')}<td></td></tr><tr class="total"><td>${t('Razlika')}</td><td></td>${CATS.map(dcell).join('')}<td></td></tr>`);
       const tip = view === 'diff' ? t('Razlika u zbiru tvog tima posle trejda, po utakmici, u izabranom periodu.') : t('Zbir proseka po utakmici svih aktivnih igrača tvog tima, pre i posle trejda, u izabranom periodu.');
       const vseg = `<div class="fa-rep-view"><div class="seg small" role="group" aria-label="${esc(t('Prikaz'))}">${[['diff', 'Razlika'], ['team', 'Ceo tim pre i posle']].map(([k, l]) => `<button type="button" data-action="tt-rep-view" data-v="${k}" data-per="${per}" data-id="${id}" aria-pressed="${k === view}">${t(l)}</button>`).join('')}</div><span class="i" data-tip="${esc(tip)}">ⓘ</span></div>`;
-      trade = `<h4>${tr ? t('Mogući trejd') : t('Procena bez protivnika: ulazi umesto {n}', { n: esc(M.weakest?.name || '–') })}</h4>${verdict}${sides}<h4>${t('Tvoj tim')}</h4>${vseg}${bottom}`;
-    } else if (x && !M.solo) trade = `<h4>${t('Mogući trejd')}</h4><p class="pnote">${state.tt.trades.has(id) ? t('Nema fer trejda sa tvojim rosterom') : t('Mogući trejd: računam…')}</p>`;
+      const m = tr ? state.tt.tms.get(x.owner) : null, drop = m ? tfDropText(m.TM, tr) : '';
+      if (m) { const cv = tfCardView(m.TM, tr); verdict = `<div class="fa-verdict ${cv.up ? 'up' : 'down'}">${cv.head}</div><p class="pnote">${t('Rezultat za ostatak sezone, kao u Pronađi trejd. Tabele prate izabrani period.')}</p>`; } // isti rezultat kao kartica u Pronađi trejd i analiza otvorena iz nje
+      const acts = tr ? `<div class="tt-rep-btns tt-trade-btns"><button type="button" class="btn sec" data-action="tt-other" data-id="${id}">${t('Izaberi drugi trejd sa ovim igračem')}</button><button type="button" class="btn" data-action="tt-open-trade" data-id="${id}">${t('Otvori u analizi')}</button></div>` : '';
+      trade = `<h4>${tr ? `${t('Mogući trejd')} <span class="hint">${t('do 2 za 2, Najbolje za mene, Fer')}</span>` : t('Procena bez protivnika: ulazi umesto {n}', { n: esc(M.weakest?.name || '–') })}</h4>${verdict}${drop ? `<p class="pnote tf-drop">${drop}</p>` : ''}${sides}<h4>${t('Tvoj tim')}</h4>${vseg}${bottom}${acts}`;
+    } else if (R && !R.done) trade = `<h4>${t('Mogući trejd')}</h4><p class="pnote tt-calc" role="status"><span class="tt-spin" aria-hidden="true"></span>${t('Računam mogući trejd…')}</p>`;
+    else if (R) trade = `<h4>${t('Mogući trejd')}</h4><p class="pnote">${t('Nema fer trejda do 2 za 2 sa tvojim rosterom')}</p><div class="tt-rep-btns tt-trade-btns"><button type="button" class="btn sec" data-action="tt-other" data-id="${id}">${t('Izaberi drugi trejd sa ovim igračem')}</button></div>`;
+    // šta mi donosi po kategorijama (ako uđe umesto mog najslabijeg), u ligi uz mogući trejd
+    const brings = x && !M.solo ? `<h4>${t('Šta ti donosi')} <span class="hint">${t('ako uđe umesto {n}', { n: esc(M.weakest?.name || '–') })}</span></h4>${ttSoloChange(M, x)}` : '';
+    trade = brings + trade;
     return { me, games, trade };
   });
   // zašto bi vlasnik pristao, forma i uloga, povreda, plejof
@@ -10911,6 +11006,13 @@ function ttAddOppSave() {
 }
 const TF_AUTORUN_KEY = 'fbaTrade.tfAutoRun.v1'; // Mete za trejd (bez lige) -> Pronađi trejd: pretraga kreće sama
 function ttPick(key, id) {
+  if (key === 'tt-lock') { // Ne dam: Lock za celu ligu
+    const lg = currentLeague(); if (!lg) return;
+    if (!tfLocks(lg.id)[id]) tfSetMark({ scopeKey: lg.id, oppKey: null }, 'mine', id, 'lock');
+    searchUI.set(key, { query: '', sel: 0 }); ttRender();
+    document.querySelector(`[data-search="${key}"]`)?.focus();
+    return;
+  }
   if (key === 'tt-my') {
     const q = lsGet(TF_QUICK_KEY) || { my: [], opp: [] };
     if (!q.my.includes(id)) { q.my.push(id); q.opp = (q.opp || []).filter(x => x !== id); lsSet(TF_QUICK_KEY, q); }
@@ -10955,10 +11057,12 @@ function ttAction(a, el) {
     case 'tt-rep-per': closeModal(); ttReport(id, el.dataset.per); return true;
     case 'tt-rep-view': lsSet(FA_REP_VIEW_KEY, el.dataset.v); closeModal(); ttReport(id, el.dataset.per); return true;
     case 'tt-open-trade': { const M = ttGet(lg), x = M.byId.get(id), tr = state.tt.trades.get(id); if (x && tr) { closeModal(); tfOpenX(tr, ttTradeCtx(lg, x.owner)); } return true; }
+    case 'tt-other': { closeModal(); const x = ttGet(lg).byId.get(id); if (x?.owner) openFinder({ opp: x.owner, want: id, run: true, back: 'targets' }); return true; }
+    case 'tt-unlock': tfSetMark({ scopeKey: lg.id, oppKey: null }, 'mine', id, null); break;
     case 'tt-suggest': {
       closeModal();
       const owner = lg ? Object.keys(lg.opps || {}).find(k => lg.opps[k].players?.some(y => y.id === id)) : null;
-      if (owner) openFinder({ opp: owner, want: id, run: true }); else ttAddOpp(id);
+      if (owner) openFinder({ opp: owner, want: id, run: true, back: 'targets' }); else ttAddOpp(id);
       return true;
     }
     case 'tt-trade-tab': {

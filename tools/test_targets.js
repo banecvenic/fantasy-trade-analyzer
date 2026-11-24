@@ -12,7 +12,7 @@ const start = src.indexOf('   Fer trejd: čiste funkcije');
 const end = src.indexOf('/* ==== kraj: Mete za trejd, čiste funkcije ==== */');
 if (start < 0 || end < 0) throw new Error('Nije nađen modul Mete za trejd u app.js');
 const code = src.slice(src.lastIndexOf('/*', start), end);
-const M = new Function(`${code}\nreturn { TF, TT, E: tfEngine(), ttCandidates, ttUnreach, ttWilling, ttForm, ttInjInvest, ttStable, ttFragile, ttScore, ttCoarse, ttPage, ttWishToggle, ttWishHas, ttTradeInput, ttSoloGain, ttMode };`)();
+const M = new Function(`${code}\nreturn { TF, TT, E: tfEngine(), ttCandidates, ttUnreach, ttWilling, ttForm, ttInjInvest, ttStable, ttFragile, ttScore, ttCoarse, ttPage, ttWishToggle, ttWishHas, ttTradeInput, ttSoloGain, ttMode, ttOwnerOf, ttWishOrder };`)();
 const { TF, TT, E } = M;
 
 let n = 0;
@@ -84,18 +84,42 @@ const inp = {
   mine: team(1, 8), theirs: team(100, 8),
 };
 
-test('mogući trejd na kartici = prvi predlog Pronađi trejd sa tim igračem obeleženim U trejd (Najbolje za mene, Fer)', () => {
+// cena na tržištu za njihove igrače: ista kao vrednost (veći id = slabiji)
+const mk = Object.fromEntries(inp.theirs.map(x => [x.id, x.v]));
+
+test('mogući trejd u izveštaju: Najbolje za mene, Fer, igrač U trejd, najviše 2 po strani', () => {
   const id = 102;
-  const tin = M.ttTradeInput(inp, id);
+  const tin = M.ttTradeInput(inp, id, mk);
   assert.strictEqual(tin.strategy, 'best');
   assert.deepStrictEqual(tin.limits, [TF.LIMITS.fair]);
+  assert.strictEqual(tin.maxSide, 2);
+  assert.strictEqual(tin.topId, id);
   assert.strictEqual(tin.theirs.find(x => x.id === id).mark, 'trade');
   assert.strictEqual(inp.theirs.find(x => x.id === id).mark, null); // ulaz Pronađi trejd se ne menja
-  // isto kao Pronađi trejd: strategija Najbolje za mene, Fer, igrač U trejd
-  const finder = E.search({ ...inp, strategy: 'best', limits: [TF.LIMITS.fair], focus: [], w: null, theirs: inp.theirs.map(x => (x.id === id ? { ...x, mark: 'trade' } : x)) }).list[0];
-  const card = E.search(tin).list[0];
-  assert.deepStrictEqual(card && [card.g, card.r], finder && [finder.g, finder.r]);
-  assert.ok(card, 'motor nalazi trejd'); assert.ok(card.r.includes(id));
+  const all = E.search(tin).list;
+  assert.ok(all.length, 'motor nalazi trejd');
+  for (const x of all) { assert.ok(x.g.length <= 2 && x.r.length <= 2, `${x.g.length}:${x.r.length}`); assert.ok(x.r.includes(id)); }
+  // bez ograničenja motor nalazi i veće trejdove (isti ulaz kao Pronađi trejd)
+  const wide = E.search({ ...tin, maxSide: 4, topId: null }).list;
+  assert.ok(wide.some(x => x.g.length > 2 || x.r.length > 2));
+});
+
+test('mogući trejd: meta je najvredniji igrač kog dobijam (po ceni na tržištu)', () => {
+  const id = 103; // nije najbolji kod protivnika: 100, 101 i 102 vrede više
+  const list = E.search(M.ttTradeInput(inp, id, mk)).list;
+  for (const x of list) for (const r of x.r) assert.ok(mk[r] <= mk[id], `${r} vredi više od mete ${id}`);
+  const free = E.search({ ...M.ttTradeInput(inp, id, mk), topId: null }).list;
+  assert.ok(free.some(x => x.r.some(r => mk[r] > mk[id])), 'bez pravila motor uzima i vrednije igrače');
+});
+
+test('mogući trejd poštuje moj Lock', () => {
+  const id = 102;
+  const base = E.search(M.ttTradeInput(inp, id, mk)).list[0];
+  assert.ok(base);
+  const lockId = base.g[0];
+  const locked = { ...inp, mine: inp.mine.map(x => (x.id === lockId ? { ...x, mark: 'lock' } : x)) };
+  const list = E.search(M.ttTradeInput(locked, id, mk)).list;
+  assert.ok(list.every(x => !x.g.includes(lockId)), 'zaključan igrač nije u trejdu');
 });
 
 test('lista želja: dodavanje, uklanjanje i pamćenje po ligi', () => {
@@ -126,6 +150,57 @@ test('forma, stabilnost i krhkost: delovi od 0 do 1', () => {
   assert.ok(M.ttStable([10, 35, 12, 38, 9, 36]) < 0.2);
   assert.strictEqual(M.ttFragile(20, 20), 0);
   assert.strictEqual(M.ttFragile(10, 20), 1);
+});
+
+test('lista želja: kolona Vlasnik i sortiranje po vlasniku (bez vlasnika na dnu)', () => {
+  const opps = { e1: { name: 'Zeta', players: [{ id: 5 }] }, e2: { name: 'Alfa', players: [{ id: 6 }] } };
+  const my = new Set([7]);
+  assert.strictEqual(M.ttOwnerOf(5, my, opps, true), 'e1');
+  assert.strictEqual(M.ttOwnerOf(7, my, opps, true), 'mine');
+  assert.strictEqual(M.ttOwnerOf(8, my, opps, true), 'fa');
+  assert.strictEqual(M.ttOwnerOf(8, my, opps, false), null);
+  const name = id => ({ 5: 'Zeta', 6: 'Alfa', 7: 'Tvoj tim', 8: '' })[id];
+  assert.deepStrictEqual(M.ttWishOrder([5, 8, 6, 7], name, 'asc'), [6, 7, 5, 8]);
+  assert.deepStrictEqual(M.ttWishOrder([5, 8, 6, 7], name, 'desc'), [5, 7, 6, 8]);
+});
+
+// Lock mog igrača za celu ligu: oznake iz app.js sa lažnim localStorage-om
+{
+  const a = src.indexOf("const TF_MARK_KEY = 'fbaTrade.tfMarks.v1';"), b = src.indexOf('/** Poništi sve: oznake za ovog protivnika');
+  const b2 = src.indexOf('\n}\n', b) + 3;
+  if (a < 0 || b < 0) throw new Error('Nisu nađene oznake Pronađi trejd u app.js');
+  const store = {};
+  const L = new Function('store', `const lsGet = k => (k in store ? JSON.parse(store[k]) : null), lsSet = (k, v) => { store[k] = JSON.stringify(v); };\n${src.slice(a, src.indexOf('\n', a))}\n${src.slice(src.indexOf('const TF_LOCK_K'), b2)}\nreturn { tfMarks, tfSetMark, tfResetMarks, tfLocks, tfMarksAll };`)(store);
+  test('Lock mog igrača važi protiv svih protivnika u ligi; ostale oznake po protivniku', () => {
+    const c1 = { scopeKey: 'lg', oppKey: 'e1' }, c2 = { scopeKey: 'lg', oppKey: 'e2' };
+    L.tfSetMark(c1, 'mine', 10, 'lock');
+    L.tfSetMark(c1, 'mine', 11, 'soft');
+    L.tfSetMark(c1, 'theirs', 20, 'lock');
+    assert.strictEqual(L.tfMarks(c2).mine[10], 'lock'); // drugi protivnik: isti Lock
+    assert.strictEqual(L.tfMarks(c2).mine[11], undefined); // Dajem ako mora: samo za e1
+    assert.strictEqual(L.tfMarks(c2).theirs[20], undefined);
+    L.tfResetMarks(c1); // Poništi sve bez potvrde: Lock ostaje
+    assert.strictEqual(L.tfMarks(c1).mine[10], 'lock');
+    assert.strictEqual(L.tfMarks(c1).mine[11], undefined);
+    L.tfResetMarks(c1, true);
+    assert.strictEqual(L.tfMarks(c2).mine[10], undefined);
+  });
+  test('prenos starih oznaka: Lock protiv bilo kog protivnika postaje Lock za celu ligu', () => {
+    store['fbaTrade.tfMarks.v1'] = JSON.stringify({ lg2: { e1: { mine: { 30: 'lock', 31: 'trade' }, theirs: {} }, e2: { mine: {}, theirs: {} } } });
+    assert.strictEqual(L.tfMarks({ scopeKey: 'lg2', oppKey: 'e2' }).mine[30], 'lock');
+    assert.strictEqual(L.tfMarks({ scopeKey: 'lg2', oppKey: 'e2' }).mine[31], undefined);
+    assert.strictEqual(L.tfMarks({ scopeKey: 'lg2', oppKey: 'e1' }).mine[31], 'trade');
+  });
+}
+
+// kartica i učitavanje stranice: bez mogućeg trejda (računa se tek u izveštaju)
+test('kartica nema mogući trejd; učitavanje stranice ne pokreće računanje trejdova', () => {
+  const fn = name => { const i = src.indexOf(`function ${name}(`); assert.ok(i > 0, name); return src.slice(i, src.indexOf('\n}\n', i)); };
+  for (const f of ['ttCardHTML', 'ttBodyHTML', 'renderTargetsPage', 'ttGet', 'ttModel']) {
+    const body = fn(f);
+    assert.ok(!/ttTradeFor|ttStartTrade|ttInputs|tt-open-trade/.test(body), `${f} računa ili prikazuje mogući trejd`);
+  }
+  assert.ok(/ttTradeFor\(/.test(fn('ttReport')), 'izveštaj računa mogući trejd');
 });
 
 console.log(`\n${n} testova prošlo`);
