@@ -36,6 +36,16 @@ test('mešavina perioda: mali uzorak smanjuje težinu perioda, bez podataka peri
   near(v.total, 1); near(v.by.PTS, 1);
 });
 
+test('mešavina sa sezonom: projekcija gubi težinu kako igrač igra, najmanje PROJ_FLOOR', () => {
+  const early = F.blendWeights({ proj: 1, season: 2, l15: 2, l7: 1 });
+  const mid = F.blendWeights({ proj: 1, season: 15, l15: 7, l7: 4 });
+  const late = F.blendWeights({ proj: 1, season: 60, l15: 7, l7: 4 });
+  assert.ok(early.proj > 0.5, `rano u sezoni projekcija vodi (${early.proj})`);
+  assert.ok(mid.proj < 0.25 && mid.season > mid.proj, `posle 15 utakmica sezona važi više od projekcije (${mid.proj}, ${mid.season})`);
+  near(late.proj / late.season, (F.FA.BLEND.proj * F.FA.PROJ_FLOOR) / F.FA.BLEND.season); // pod: projekcija ne nestaje
+  for (const w of [early, mid, late]) near(Object.values(w).reduce((a, b) => a + b, 0), 1);
+});
+
 test('IR stash poštuje irRule i slobodno IR mesto', () => {
   const fa = [{ id: 1, k: 'OUT', out: true, healthy: 3 }, { id: 2, k: 'DTD', out: false, healthy: 4 }, { id: 3, k: 'IR', out: true, healthy: 2 }, { id: 4, k: 'OUT', out: true, healthy: -1 }];
   assert.deepStrictEqual(F.irStash(fa, { irRule: ['OUT', 'IR'], freeIr: 0 }), []);

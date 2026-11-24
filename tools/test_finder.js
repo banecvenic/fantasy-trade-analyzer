@@ -144,8 +144,9 @@ test('Dajem ako mora: ulazi u top 5 samo kad je korist jasno veća', () => {
   const marked = E.search(inp).list;
   const bestWithout = marked.filter(x => !x.soft)[0];
   // trejd sa njim je u top 5 ispred trejda bez njega samo kad mu je korist veća bar za kaznu
-  const top5 = marked.slice(0, 5);
-  top5.forEach((x, i) => { if (!x.soft) return; for (const y of marked.slice(i + 1)) if (!y.soft && y.tier === x.tier) assert.ok(x.gain >= y.gain + TF.SOFT_PENALTY - 1e-9); });
+  const pen = z => TF.SIZE_PEN * Math.max(0, z.n - 2); // ocena bez kazne "Dajem ako mora" = korist − kazna za veličinu
+  const ranked = [...marked].sort(E.cmpRank); // čist rang (raznovrsnost i ograničenje 2 od 8 mogu da pomere predloge)
+  ranked.slice(0, 5).forEach((x, i) => { if (!x.soft) return; for (const y of ranked.slice(i + 1)) if (!y.soft && y.tier === x.tier) assert.ok(x.gain - pen(x) >= y.gain - pen(y) + TF.SOFT_PENALTY - 1e-9); });
   assert.ok(bestWithout);
   // trejd sa njim gubi kaznu u rangu
   const withSoft = marked.find(x => x.soft);
@@ -229,7 +230,16 @@ test('kazna za veličinu: kod iste koristi manji trejd ima prednost', () => {
   assert.deepStrictEqual([big, small].sort(E.cmpRank)[0], small);
   // Konsolidacija gleda veću stranu: 2:1 bez kazne, 3:2 manje od 4:3
   const cons = E.search({ ...inp, strategy: 'cons' }).list;
-  for (const x of cons) assert.ok(Math.abs(x.gain - x.s - TF.SIZE_PEN * 3 * Math.max(0, Math.max(x.g.length, x.r.length) - 2)) < 1e-9);
+  for (const x of cons) assert.ok(Math.abs(x.gain - x.s - TF.SIZE_PEN_WIDE * 3 * Math.max(0, Math.max(x.g.length, x.r.length) - 2)) < 1e-9);
+});
+
+test('kazna za veličinu: dobar 1:1 ispred 4:4 sa malo većom koristi; Konsolidacija i Dubina sa starom kaznom', () => {
+  const one = { s: 0.25 - TF.SIZE_PEN * 0, ob: 0, n: 2 }, four = { s: 0.9 - TF.SIZE_PEN * 6, ob: 0, n: 8 };
+  assert.deepStrictEqual([four, one].sort(E.cmpRank)[0], one); // 1:1 +0,25 ispred 4:4 +0,90
+  assert.deepStrictEqual([TF.SIZE_PEN, TF.SIZE_PEN_PTS, TF.SIZE_PEN_WIDE, TF.SIZE_PEN_WIDE_PTS], [0.13, 1.3, 0.07, 0.7]);
+  // tržišna vrednost: vlasništvo meri koliko je igrač poznat, pa ima manju težinu od opšte vrednosti
+  assert.ok(TF.MARKET.OWN <= 0.10 && TF.MARKET.GEN > TF.MARKET.OWN * 4);
+  assert.ok(Math.abs(Object.values(TF.MARKET).reduce((a, b) => a + b, 0) - 1) < 1e-9);
 });
 
 test('Najbolje za mene ne prikazuje predlog sa rezultatom 4:5, Popravi kategorije može', () => {
@@ -427,6 +437,21 @@ test('slobodno mesto: prosek 3. do 5. zdravog slobodnog igrača, waiver sa umanj
   assert.strictEqual(tfSlotValue(fas.slice(0, 4), 3, 5, 1).picks.length, 2);
   assert.ok(tfSlotValue([F(1, 3), F(2, 2), F(3, -2, true)], 3, 3, 0.8).v < -2); // negativna vrednost na waiveru još manja
   assert.deepStrictEqual([TF.SLOT_FROM, TF.SLOT_TO, TF.SLOT_WAIVER], [3, 5, 0.8]);
+});
+
+test('strana od 8: raznovrsnost i najviše 2 sa više dobijenih igrača važe zajedno', () => {
+  // rang: na vrhu mnogo trejdova sa istim glavnim igračem (1) i trejdovi gde dobijam više
+  const T = (i, top, kG, kR) => ({ core: `c${i}`, top, rtop: 100 + i, shape: `${kG}:${kR}`, g: Array(kG).fill(0), r: Array(kR).fill(0) });
+  const L = [T(0, 1, 1, 2), T(1, 1, 1, 2), T(2, 1, 1, 2), T(3, 1, 1, 1), T(4, 1, 1, 1), T(5, 1, 2, 2), T(6, 1, 2, 2)];
+  for (let i = 7; i < 30; i++) L.push(T(i, i, (i % 3) + 1, (i % 3) + 1));
+  const out = E.paginate(L, 8, 3, 2);
+  for (let p = 0; p * 8 < out.length; p++) {
+    const pg = out.slice(p * 8, p * 8 + 8);
+    if (pg.length < 8) break;
+    assert.ok(pg.filter(x => x.top === 1).length <= 3, `strana ${p + 1}: isti glavni igrač`);
+    assert.ok(pg.filter(x => x.r.length > x.g.length).length <= 2, `strana ${p + 1}: više dobijenih`);
+  }
+  assert.strictEqual(new Set(out.map(x => x.core)).size, L.length); // niko ne nestaje
 });
 
 test('Sačuvaj ne duplira tab; Otvori u analizi za sačuvan trejd nalazi postojeći tab', () => {

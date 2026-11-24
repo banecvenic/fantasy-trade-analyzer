@@ -669,8 +669,10 @@ const weightedValue = (by, weights) => Object.entries(by).reduce((s, [k, z]) => 
    ===================================================================== */
 /** Podesive konstante alata (sve na jednom mestu) */
 const FA = {
-  BLEND: { proj: 0.5, l15: 0.3, l7: 0.2 },  // mešavina perioda za vrednost FA igrača
-  BLEND_FULL_GP: { l15: 6, l7: 3 },         // ispod ovoliko utakmica period dobija srazmerno manju težinu
+  BLEND: { proj: 0.5, season: 0.35, l15: 0.3, l7: 0.2 },  // mešavina perioda za vrednost igrača (FA alat, Pronađi trejd)
+  BLEND_FULL_GP: { season: 20, l15: 6, l7: 3 },           // ispod ovoliko utakmica period dobija srazmerno manju težinu
+  PROJ_FADE_GP: 25,     // projekcija pre sezone gubi težinu kako igrač igra: × (1 − utakmice u sezoni / 25), ali najmanje PROJ_FLOOR
+  PROJ_FLOOR: 0.25,
   MIN_GAIN: 0.05,       // kategorije: najmanje koliko kategorija više u proseku protiv ostalih timova da bi se predlog prikazao
   MIN_GAIN_PTS: 1.5,    // poeni: najmanja razlika FPts po utakmici
   TOP: 9,               // kartica u glavnoj listi (3 reda po 3)
@@ -698,6 +700,8 @@ function blendWeights(gp, B = FA.BLEND, FULL = FA.BLEND_FULL_GP) {
     if (!(g > 0)) continue;
     w[k] = FULL[k] ? base * Math.min(1, g / FULL[k]) : base;
   }
+  // projekcija pre sezone: što više odigranih utakmica, to manje vredi (sezona i poslednji dani pokazuju stvarnu ulogu)
+  if (w.proj && gp.season > 0 && B.season) w.proj *= Math.max(FA.PROJ_FLOOR, 1 - gp.season / FA.PROJ_FADE_GP);
   const sum = Object.values(w).reduce((a, b) => a + b, 0);
   if (!(sum > 0)) return {};
   for (const k of Object.keys(w)) w[k] /= sum;
@@ -888,15 +892,18 @@ const TF = {
   KEEP: 400,              // koliko najboljih trejdova se čuva za "Generiši novih 8"
   PER_PAGE: 8,
   // tržišna vrednost (za fer i ocenu prihvatanja): težine z-score-ova u bazenu (top igrači po vlasništvu)
-  MARKET: { GEN: 0.35, PROD: 0.25, MIN: 0.15, OWN: 0.20, RANK: 0.05 },
+  MARKET: { GEN: 0.45, PROD: 0.25, MIN: 0.15, OWN: 0.10, RANK: 0.05 }, // vlasništvo meri koliko je igrač poznat, ne koliko pomaže: manja težina
   MARKET_Z_MIN: -2,       // tržište ne kažnjava slabu efikasnost u kategorijama bez granice: z svake komponente najmanje -2
   PROD_W: { REB: 1.2, AST: 1.5 },   // sirova produkcija: PTS + 1.2 × REB + 1.5 × AST (poeni: FPts)
   MAX_DIFF: 1,            // razlika u broju igrača (Najbolje za mene, Popravi kategorije, Prodaj skupo, Kupi jeftino)
   MAX_DIFF_WIDE: 2,       // Konsolidacija i Dubina
   TOP_TOL: 0.20,          // moj najbolji igrač u trejdu sme biti najviše 20% vredniji od najboljeg kog dobijam
   TOP_TOL_OPP: 0.30,      // obrnuto za protivnika (ocena prihvatanja)
-  SIZE_PEN: 0.07,         // blaga kazna u rangu po igraču iznad 2 u trejdu (očekivane pobede): 2:2 −0,14, 3:3 −0,28, 4:4 −0,42
-  SIZE_PEN_PTS: 0.7,      // isto, poeni (FPts po utakmici)
+  SIZE_PEN: 0.13,         // kazna u rangu po igraču iznad 2 u trejdu (očekivane pobede): 2:2 −0,26, 3:3 −0,52, 4:4 −0,78. Fer granica je relativna (10% veće strane),
+                          // pa veći trejd sme da donese veći apsolutni višak; ova kazna to izjednačava da dobri 1:1 i 2:2 ne nestanu iz top 8
+  SIZE_PEN_PTS: 1.3,      // isto, poeni (FPts po utakmici)
+  SIZE_PEN_WIDE: 0.07,    // Konsolidacija i Dubina (veća strana iznad 2, × 3): bez promene
+  SIZE_PEN_WIDE_PTS: 0.7,
   VETO_MAX: 3,            // savet za veto na najviše toliko kartica od 8
   SLOT_FROM: 3, SLOT_TO: 5, // slobodno mesto (uvezena liga): prosek 3. do 5. najboljeg zdravog slobodnog igrača, ne najbolji (konzervativno)
   SLOT_WAIVER: 0.8,       // igrač na waiveru ulazi u taj prosek sa ovim umanjenjem (nije zagarantovan)
@@ -1005,8 +1012,9 @@ function tfEngine() {
     const maxDiff = strat === 'cons' || strat === 'depth' ? T.MAX_DIFF_WIDE : T.MAX_DIFF;
     const myTopRule = ['best', 'cats', 'buy', 'cons'].includes(strat);
     // kazna za veličinu: ukupno igrača iznad 2; Konsolidacija i Dubina gledaju veću stranu (iznad 2, dvostruko), pa 2:1, 3:1 i 3:2 i dalje izlaze
-    const sizeStep = pts ? T.SIZE_PEN_PTS : T.SIZE_PEN;
-    const sizePen = (kG, kR) => sizeStep * (strat === 'cons' || strat === 'depth' ? 3 * Math.max(0, Math.max(kG, kR) - 2) : Math.max(0, kG + kR - 2));
+    const wide = strat === 'cons' || strat === 'depth';
+    const sizeStep = wide ? (pts ? T.SIZE_PEN_WIDE_PTS : T.SIZE_PEN_WIDE) : (pts ? T.SIZE_PEN_PTS : T.SIZE_PEN);
+    const sizePen = (kG, kR) => sizeStep * (wide ? 3 * Math.max(0, Math.max(kG, kR) - 2) : Math.max(0, kG + kR - 2));
     const myBase = pts ? null : expWins(myTot, inp.opps, cats, inp.myIdx, inp.sd, inp.w);
     const fa = inp.fa, faV = k => fa.slice(0, k).reduce((s, x) => s + x.v, 0);
     const lim = inp.limits; // [[bez, sa], ...] po stepenu
@@ -1152,43 +1160,48 @@ function tfEngine() {
       }
     }
     progress(1);
-    let list = diversify(orderTiers(tiers, T.ENOUGH, Infinity), T.PER_PAGE);
-    if (T.GET_MORE_STRATS.includes(strat)) list = capGetMore(list, T.PER_PAGE, T.GET_MORE_MAX);
+    // strane od 8: raznovrsnost i najviše 2 trejda gde dobijam više igrača (Najbolje za mene, Popravi kategorije, Prodaj skupo, Kupi jeftino) zajedno, po strani
+    const list = paginate(orderTiers(tiers, T.ENOUGH, Infinity), T.PER_PAGE, 3, T.GET_MORE_STRATS.includes(strat) ? T.GET_MORE_MAX : null, T.KEEP);
     return { list: list.slice(0, T.KEEP), stats, hasTrade };
   }
   /** Jezgro trejda: igrači koji nešto vrede (ili su označeni za trejd); dodaci bez vrednosti ne prave novi predlog */
   const core = (idx, side) => idx.filter(i => side[i].v > 0 || side[i].mark === 'trade').map(i => side[i].id).sort().join(',');
-  /** Raznovrsnost: isto jezgro samo jednom; na svakih 8 predloga najviše 3 sa istim glavnim igračem kog daješ, 3 sa istim kog dobijaš
-      i 3 istog oblika (1:1, 2:1, 3:3...). Ostali idu na kraj, istim redom. */
-  function diversify(list, per = 8, cap = 3) {
-    const seen = new Set(), cnt = new Map(), out = [], rest = [];
-    const keys = x => [`g${x.top}`, `r${x.rtop}`, `s${x.shape}`];
-    for (const x of list) {
-      if (seen.has(x.core)) continue;
-      seen.add(x.core);
-      const lim = cap * (1 + Math.floor(out.length / per)), ks = keys(x);
-      if (ks.every(k => (cnt.get(k) || 0) < lim)) { for (const k of ks) cnt.set(k, (cnt.get(k) || 0) + 1); out.push(x); } else rest.push(x);
-    }
-    return out.concat(rest);
-  }
-  /** Na svakoj stranici od per predloga najviše cap trejdova gde dobijam više igrača (x.r > x.g); ostala mesta po rangu iz ostalih trejdova,
-      a ako njih nema dovoljno, stranica se ipak popunjava trejdovima sa više dobijenih igrača (bolje 8 predloga nego manje) */
-  function capGetMore(list, per = 8, cap = 2) {
-    const more = x => x.r.length > x.g.length, A = [], B = [], out = [];
-    list.forEach((x, i) => (more(x) ? B : A).push(i));
-    let a = 0, b = 0;
-    while (a < A.length || b < B.length) {
-      let nb = 0;
-      for (let k = 0; k < per && (a < A.length || b < B.length); k++) {
-        const takeB = b < B.length && (a >= A.length || (B[b] < A[a] && nb < cap));
-        if (takeB) { out.push(list[B[b++]]); nb++; } else out.push(list[A[a++]]);
+  /** Slaganje strana od per predloga, redom po rangu, uz pravila koja važe na svakoj strani posebno:
+      isto jezgro samo jednom; najviše cap predloga sa istim glavnim igračem kog daješ, istim kog dobijaš i istog oblika (raznovrsnost);
+      najviše moreCap trejdova gde dobijam više igrača (null = bez ograničenja).
+      Kad strana ne može da se popuni: prvo popuštaju raznovrsnost, pa ograničenje za više dobijenih igrača (bolje 8 predloga nego manje).
+      keep: koliko predloga ukupno (ostali se ne slažu). */
+  function paginate(list, per = 8, cap = 3, moreCap = null, keep = Infinity) {
+    const seen = new Set(), pool = [];
+    for (const x of list) { if (x.core != null) { if (seen.has(x.core)) continue; seen.add(x.core); } pool.push(x); }
+    const more = x => !!(x.r && x.g && x.r.length > x.g.length), keys = x => [`g${x.top}`, `r${x.rtop}`, `s${x.shape}`];
+    const used = new Uint8Array(pool.length), out = [];
+    let first = 0;
+    while (out.length < pool.length && out.length < keep) {
+      const page = [], cnt = new Map(); let nm = 0;
+      for (const [div, mc] of [[true, true], [false, true], [false, false]]) {
+        for (let i = first; i < pool.length && page.length < per; i++) {
+          if (used[i]) continue;
+          const x = pool[i];
+          if (mc && moreCap != null && more(x) && nm >= moreCap) continue;
+          if (div && keys(x).some(k => (cnt.get(k) || 0) >= cap)) continue;
+          used[i] = 1; page.push(x); if (more(x)) nm++;
+          for (const k of keys(x)) cnt.set(k, (cnt.get(k) || 0) + 1);
+        }
+        if (page.length >= per) break;
       }
+      while (first < pool.length && used[first]) first++;
+      if (!page.length) break;
+      out.push(...page);
     }
     return out;
   }
+  /** Raznovrsnost (bez ograničenja za više dobijenih igrača) i samo ograničenje 2 od 8 (bez raznovrsnosti): za testove */
+  const diversify = (list, per = 8, cap = 3) => paginate(list, per, cap, null);
+  const capGetMore = (list, per = 8, cap = 2) => paginate(list, per, Infinity, cap);
   /** Stranica rezultata (8 po 8, bez ponavljanja) */
   const pageItems = (list, page, per) => list.slice(page * per, page * per + per);
-  return { star, sideResult, catFilterOk, expWins, valueGap, weakest, combos, orderTiers, cmpRank, search, pageItems, normCdf, diversify, capGetMore };
+  return { star, sideResult, catFilterOk, expWins, valueGap, weakest, combos, orderTiers, cmpRank, search, pageItems, normCdf, diversify, capGetMore, paginate };
 }
 /** Tržišna vrednost po utakmici: z-score-ovi u bazenu (poolN igrača sa najvećim vlasništvom), težine W { GEN, PROD, MIN, OWN, RANK }.
     rows [{ id, gen (opšta vrednost), prod (PTS + REB + AST ili FPts), min, own (% vlasništva), rank (po vlasništvu) }]
@@ -2102,8 +2115,8 @@ const EN = {
   "{n} je OUT": "{n} is OUT",
   "Vlasništvo raste: +{n}%": "Ownership rising: +{n}%",
   "{a} → {b} FPts po utakmici": "{a} → {b} FPts per game",
-  "Razlika FPts po utakmici: igrač koji dolazi minus igrač koji odlazi (projekcija, 15 i 7 dana).": "Difference in FPts per game: incoming player minus outgoing player (projection, 15 and 7 days).",
-  "Neto dobit za tvoj tim: vrednost igrača koji dolazi minus vrednost igrača koji odlazi, po potrebama tvog tima (projekcija, 15 i 7 dana).": "Net gain for your team: value of the incoming player minus value of the outgoing player, weighted by your team's needs (projection, 15 and 7 days).",
+  "Razlika FPts po utakmici: igrač koji dolazi minus igrač koji odlazi (sezona, 15 i 7 dana i projekcija).": "Difference in FPts per game: incoming player minus outgoing player (season, 15 and 7 days and projection).",
+  "Neto dobit za tvoj tim: vrednost igrača koji dolazi minus vrednost igrača koji odlazi, po potrebama tvog tima (sezona, 15 i 7 dana i projekcija).": "Net gain for your team: value of the incoming player minus value of the outgoing player, weighted by your team's needs (season, 15 and 7 days and projection).",
   "Neto": "Net",
   "{n} ut. u narednih 7 dana": "{n} games in the next 7 days",
   "Predlog za otpuštanje": "Suggested drop",
@@ -2144,8 +2157,8 @@ const EN = {
   "Nijedan slobodan igrač ne donosi dovoljno više od igrača koji bi otišao. Ne spuštamo kriterijum da bi lista bila puna.": "No free agent adds enough over the player who would go. We do not lower the bar just to fill the list.",
   "Prati": "Watch",
   "Proveravam waiver u ligi…": "Checking league waivers…",
-  "Predlozi su po FPts po utakmici (mešavina projekcije, poslednjih 15 i 7 dana), u odnosu na igrača koji odlazi.": "Suggestions use FPts per game (a blend of the projection and the last 15 and 7 days), compared with the player who goes.",
-  "Predlozi su po vrednosti za tvoj tim (mešavina projekcije, poslednjih 15 i 7 dana), u odnosu na igrača koji odlazi.": "Suggestions use value for your team (a blend of the projection and the last 15 and 7 days), compared with the player who goes.",
+  "Predlozi su po FPts po utakmici (mešavina sezone, poslednjih 15 i 7 dana i projekcije), u odnosu na igrača koji odlazi.": "Suggestions use FPts per game (a blend of the season, the last 15 and 7 days and the projection), compared with the player who goes.",
+  "Predlozi su po vrednosti za tvoj tim (mešavina sezone, poslednjih 15 i 7 dana i projekcije), u odnosu na igrača koji odlazi.": "Suggestions use value for your team (a blend of the season, the last 15 and 7 days and the projection), compared with the player who goes.",
   "Najbolja kombinacija": "Best combination",
   "Najbolja pojačanja": "Best pickups",
   "Pre": "Before",
@@ -2186,8 +2199,8 @@ const EN = {
   "Tvoj roster je jači od onoga što je trenutno na waiveru": "Your roster is stronger than what's on waivers right now",
   "Nijedan tvoj igrač nema manju tržišnu vrednost od slobodnih igrača uz vlasništvo ispod {n}%. Ako ipak želiš nekog da otpustiš, izaberi ga gore.": "None of your players has lower market value than the free agents together with ownership under {n}%. If you still want to drop someone, pick them above.",
   "Nijedna izmena ne popravlja tvoj tim dovoljno u odnosu na ostale timove lige. Ne spuštamo kriterijum da bi lista bila puna.": "No move improves your team enough against the other teams in the league. We don't lower the bar just to fill the list.",
-  "Svaka izmena se računa kao trejd 1 za 1: FPts tvog tima po utakmici pre i posle (mešavina projekcije, poslednjih 15 i 7 dana).": "Each move is calculated as a 1 for 1 trade: your team's FPts per game before and after (a blend of projection, last 15 and last 7 days).",
-  "Svaka izmena se računa kao trejd 1 za 1: zbirovi tvog tima pre i posle, pa koliko kategorija više dobijaš protiv ostalih timova lige (mešavina projekcije, poslednjih 15 i 7 dana).": "Each move is calculated as a 1 for 1 trade: your team totals before and after, then how many more categories you win against the other teams in the league (a blend of projection, last 15 and last 7 days).",
+  "Svaka izmena se računa kao trejd 1 za 1: FPts tvog tima po utakmici pre i posle (mešavina sezone, poslednjih 15 i 7 dana i projekcije).": "Each move is calculated as a 1 for 1 trade: your team's FPts per game before and after (a blend of the season, last 15 and last 7 days and the projection).",
+  "Svaka izmena se računa kao trejd 1 za 1: zbirovi tvog tima pre i posle, pa koliko kategorija više dobijaš protiv ostalih timova lige (mešavina sezone, poslednjih 15 i 7 dana i projekcije).": "Each move is calculated as a 1 for 1 trade: your team totals before and after, then how many more categories you win against the other teams in the league (a blend of the season, last 15 and last 7 days and the projection).",
   "Do kraja nedelje meča: {a} ut. za {n1}, {b} za {n2}.": "Until the end of the matchup week: {a} games for {n1}, {b} for {n2}.",
   "Period": "Period",
   "Dolazi i odlazi": "In and out",
@@ -2252,8 +2265,8 @@ const EN = {
   "Ručna": "Manual",
   "To su svi predlozi za ovaj izbor.": "Those are all suggestions for these choices.",
   "Rok za trejdove je prošao. Alat i dalje radi, za razmišljanje i sledeću sezonu.": "The trade deadline has passed. The tool still works, for planning and next season.",
-  "Predlozi su trejdovi fer po vrednosti za obe strane, rangirani po tome koliko FPts po utakmici dobija tvoj tim (mešavina projekcije, poslednjih 15 i 7 dana).": "Suggestions are trades that are fair in value for both sides, ranked by how many FPts per game your team gains (a blend of projection, last 15 and last 7 days).",
-  "Predlozi su trejdovi fer po vrednosti za obe strane, rangirani po tome koliko kategorija više dobijaš protiv ostalih timova lige (mešavina projekcije, poslednjih 15 i 7 dana).": "Suggestions are trades that are fair in value for both sides, ranked by how many more categories you win against the other teams in your league (a blend of projection, last 15 and last 7 days).",
+  "Predlozi su trejdovi fer po vrednosti za obe strane, rangirani po tome koliko FPts po utakmici dobija tvoj tim (mešavina sezone, poslednjih 15 i 7 dana i projekcije).": "Suggestions are trades that are fair in value for both sides, ranked by how many FPts per game your team gains (a blend of the season, last 15 and last 7 days and the projection).",
+  "Predlozi su trejdovi fer po vrednosti za obe strane, rangirani po tome koliko kategorija više dobijaš protiv ostalih timova lige (mešavina sezone, poslednjih 15 i 7 dana i projekcije).": "Suggestions are trades that are fair in value for both sides, ranked by how many more categories you win against the other teams in your league (a blend of the season, last 15 and last 7 days and the projection).",
   "Tvoje lige": "Your leagues",
   "Sačuvaj kao ligu": "Save as a league",
   "Najbolje za mene": "Best for me",
@@ -2290,7 +2303,7 @@ const EN = {
   "Daješ više igrača nego što dobijaš, pa ti posle trejda ostaje slobodno mesto. Igrač sa waivera ulazi u rezultat trejda. Dok ga ne izabereš, računa se najbolji slobodan igrač (uvezena liga) ili nivo zamene.": "You give more players than you get, so you have an open spot after the trade. A waiver pickup counts in the trade score. Until you pick one, the best free agent (imported league) or replacement level is used.",
   "Ista mešavina perioda kao na kartici u Pronađi trejd. Izaberi period da vidiš samo njega.": "The same blend of periods as the card in Find a trade. Pick a period to see only that period.",
   "Mešavina": "Blend",
-  "Mešavina kao na kartici u Pronađi trejd (projekcija, 15 i 7 dana)": "Blend as on the Find a trade card (projection, 15 and 7 days)",
+  "Mešavina kao na kartici u Pronađi trejd (sezona, 15 i 7 dana i projekcija)": "Blend as on the Find a trade card (season, 15 and 7 days and projection)",
   "Predlažu se samo trejdovi u kojima ne dobijaš više igrača nego što daješ, pa ne moraš nikog da otpustiš.": "Only trades where you do not get more players than you give, so you do not have to drop anyone.",
   "Dubina uvek dobija više igrača, a uključeno je Ne otpuštam nikoga.": "Depth always gets more players, and Don't drop anyone is on.",
   "Rosteri su se promenili, pokreni pretragu ponovo.": "Rosters have changed, run the search again.",
@@ -3296,7 +3309,7 @@ async function loadPlayers(force = false) {
    ===================================================================== */
 const currentStatId = () => PERIODS.find(p => p.key === state.period).statId(CONFIG.SEASON);
 
-/** Analiza trejda otvorena iz Pronađi trejd: ista mešavina perioda kao na kartici (projekcija, 15 i 7 dana), dok korisnik ne izabere period */
+/** Analiza trejda otvorena iz Pronađi trejd: ista mešavina perioda kao na kartici (sezona, 15 i 7 dana i projekcija), dok korisnik ne izabere period */
 const mixOn = () => !!state.mix && (state.page === 'trade' || state.view === 'quick' && !EMBED?.finder); // brza analiza (/trade-analyzer/) je uvek analiza trejda
 let mixCache = { B: null, m: new Map() };
 function mixLine(p) {
@@ -5331,7 +5344,7 @@ function renderScore(totals, cmp) {
   }
   const win = cmp.score[GET], lose = cmp.score[GIVE];
   const verdict = win > lose ? 'good' : win < lose ? 'bad' : '';
-  const per = mixOn() ? t('Mešavina kao na kartici u Pronađi trejd (projekcija, 15 i 7 dana)') : PERIODS.find(p => p.key === state.period).label;
+  const per = mixOn() ? t('Mešavina kao na kartici u Pronađi trejd (sezona, 15 i 7 dana i projekcija)') : PERIODS.find(p => p.key === state.period).label;
   const pts = cmp.points;
   const head = pts
     // poeni: razlika FPts po utakmici, ispod obe strane
@@ -8900,7 +8913,7 @@ function faIrKey(st, rule) {
   return st.key;
 }
 /** Sve što stranica prikazuje. Par (dolazi, odlazi) se računa kao trejd 1 za 1: zbirovi mog tima pre i posle
-    (mešavina projekcije, 15 i 7 dana), pa poređenje sa ostalim timovima lige po kategorijama (poeni: FPts po utakmici). */
+    (mešavina sezone, 15 i 7 dana i projekcije), pa poređenje sa ostalim timovima lige po kategorijama (poeni: FPts po utakmici). */
 function faModel(lg = currentLeague()) {
   const MB = tfBase(lg), mvOf = p => MB.market(p); // tržišna vrednost (kao u Pronađi trejd) za pravilo otpuštanja
   const pts = isPointsFmt(), ui = faUi(lg);
@@ -8908,18 +8921,18 @@ function faModel(lg = currentLeague()) {
   const allCats = pts ? [] : LV.proj.cats.map(c => ({ ...c, ratio: !!CATS.find(k => k.key === c.key)?.ratio }));
   const cats = allCats.filter(c => !isPunt({ key: c.key }));
   const weights = !pts && ui.need === 'manual' && ui.cats.length ? Object.fromEntries(cats.map(c => [c.key, ui.cats.includes(c.key) ? 1 : FA.MANUAL_OFF])) : null;
-  const gpOf = p => ({ proj: statOf(p, 'proj') ? 1 : 0, l15: statOf(p, 'l15')?.GP || 0, l7: statOf(p, 'l7')?.GP || 0 });
+  const gpOf = p => ({ proj: statOf(p, 'proj') ? 1 : 0, season: statOf(p, 'season')?.GP || 0, l15: statOf(p, 'l15')?.GP || 0, l7: statOf(p, 'l7')?.GP || 0 });
   // linija po utakmici (mešavina perioda) i opšta vrednost (vrednost u ligi, bez potreba mog tima)
   const lines = new Map();
   const lineOf = p => {
     if (lines.has(p.id)) return lines.get(p.id);
-    const w = blendWeights(gpOf(p)), per = { proj: valueLine(p, 'proj', allCats), l15: statOf(p, 'l15'), l7: statOf(p, 'l7') };
+    const w = blendWeights(gpOf(p)), per = { proj: valueLine(p, 'proj', allCats), season: statOf(p, 'season'), l15: statOf(p, 'l15'), l7: statOf(p, 'l7') };
     const l = blendLine(per, w);
     if (l && pts) { const keys = Object.keys(w).filter(k => per[k]), sum = keys.reduce((a, k) => a + w[k], 0); l.FPTS = keys.reduce((a, k) => a + fptsOf(per[k]) * w[k] / sum, 0); }
     lines.set(p.id, l);
     return l;
   };
-  const generalOf = p => blendValue({ proj: LV.proj.values.get(p.id), l15: LV.l15.values.get(p.id), l7: LV.l7.values.get(p.id) }, blendWeights(gpOf(p)))?.total ?? null;
+  const generalOf = p => blendValue({ proj: LV.proj.values.get(p.id), season: LV.season.values.get(p.id), l15: LV.l15.values.get(p.id), l7: LV.l7.values.get(p.id) }, blendWeights(gpOf(p)))?.total ?? null;
   // timovi: aktivni igrači bez IR-a; OUT igrači sada ne donose ništa (zato se vidi i šta gubim zbog njih)
   const teamLines = r => (r?.players || []).filter(x => !x.ir).map(x => state.byId.get(x.id)).filter(p => p && playerStatus(p, lg).g !== 'OUT').map(lineOf);
   const my = lg.roster?.players || [];
@@ -9185,7 +9198,7 @@ function renderFaPage() {
       : `<div class="pcard fa-none"><b>${t('Trenutno nema pojačanja koja bi ti pomogla')}</b><p class="pnote">${t('Nijedna izmena ne popravlja tvoj tim dovoljno u odnosu na ostale timove lige. Ne spuštamo kriterijum da bi lista bila puna.')}</p>${watch}</div>`;
   const wnote = M.wv.loading && !M.wv.map ? `<span class="hint">${t('Proveravam waiver u ligi…')}</span>` : '';
   return `${title}
-    <p class="pnote fa-lead">${M.pts ? t('Svaka izmena se računa kao trejd 1 za 1: FPts tvog tima po utakmici pre i posle (mešavina projekcije, poslednjih 15 i 7 dana).') : t('Svaka izmena se računa kao trejd 1 za 1: zbirovi tvog tima pre i posle, pa koliko kategorija više dobijaš protiv ostalih timova lige (mešavina projekcije, poslednjih 15 i 7 dana).')} ${wnote}</p>
+    <p class="pnote fa-lead">${M.pts ? t('Svaka izmena se računa kao trejd 1 za 1: FPts tvog tima po utakmici pre i posle (mešavina sezone, poslednjih 15 i 7 dana i projekcije).') : t('Svaka izmena se računa kao trejd 1 za 1: zbirovi tvog tima pre i posle, pa koliko kategorija više dobijaš protiv ostalih timova lige (mešavina sezone, poslednjih 15 i 7 dana i projekcije).')} ${wnote}</p>
     ${faNeedHTML(M)}${faDropHTML(M)}
     <h3 class="fa-h">${t('Najbolja pojačanja')}</h3>${list}
     ${faStashHTML(M)}${faRisingHTML(M)}${faTableHTML(M, lg)}`;
@@ -9359,16 +9372,16 @@ function tfBase(lg = currentLeague()) {
   const key = [lg?.id || 'quick', fmtKeyNow(), state.loadedAt, state.players.length, lg?.import?.syncedAt || '', Object.keys(state.schedule || {}).length, lg && isSynced(lg) ? faWaivers(lg).map?.size ?? -1 : ''].join('|');
   if (tfBaseCache?.key === key) return tfBaseCache;
   const pts = isPointsFmt();
-  const LV = { proj: leagueValues(lg, 'proj'), l15: leagueValues(lg, 'l15'), l7: leagueValues(lg, 'l7') };
+  const LV = { proj: leagueValues(lg, 'proj'), season: leagueValues(lg, 'season'), l15: leagueValues(lg, 'l15'), l7: leagueValues(lg, 'l7') };
   const vcats = pts ? [] : LV.proj.cats.map(c => ({ ...c, ratio: !!CATS.find(k => k.key === c.key)?.ratio }));
   const keys = [...new Set([...vcats.flatMap(c => (c.pct ? [c.made, c.att] : [c.key])), 'FPTS'])], ki = Object.fromEntries(keys.map((k, i) => [k, i]));
   const cats = vcats.map(c => ({ key: c.key, label: c.label, pct: c.pct, low: c.low, ratio: c.ratio, k: c.pct ? null : ki[c.key], m: c.pct ? ki[c.made] : null, a: c.pct ? ki[c.att] : null }));
-  const gpOf = p => ({ proj: statOf(p, 'proj') ? 1 : 0, l15: statOf(p, 'l15')?.GP || 0, l7: statOf(p, 'l7')?.GP || 0 });
+  const gpOf = p => ({ proj: statOf(p, 'proj') ? 1 : 0, season: statOf(p, 'season')?.GP || 0, l15: statOf(p, 'l15')?.GP || 0, l7: statOf(p, 'l7')?.GP || 0 });
   const lines = new Map();
   const lineOf = p => {
     if (!p) return null;
     if (lines.has(p.id)) return lines.get(p.id);
-    const w = blendWeights(gpOf(p)), per = { proj: valueLine(p, 'proj', vcats), l15: statOf(p, 'l15'), l7: statOf(p, 'l7') };
+    const w = blendWeights(gpOf(p)), per = { proj: valueLine(p, 'proj', vcats), season: statOf(p, 'season'), l15: statOf(p, 'l15'), l7: statOf(p, 'l7') };
     const l = blendLine(per, w);
     if (l && pts) { const ks = Object.keys(w).filter(k => per[k]), sum = ks.reduce((a, k) => a + w[k], 0); l.FPTS = ks.reduce((a, k) => a + fptsOf(per[k]) * w[k] / sum, 0); }
     lines.set(p.id, l);
@@ -9377,7 +9390,7 @@ function tfBase(lg = currentLeague()) {
   const vecOf = l => keys.map(k => +l?.[k] || 0);
   // opšta vrednost po utakmici iznad nivoa zamene (kategorije: z-score minus igrači oko mesta broj timova × aktivna mesta)
   const genRaw = new Map();
-  for (const p of state.players) { const v = blendValue({ proj: LV.proj.values.get(p.id), l15: LV.l15.values.get(p.id), l7: LV.l7.values.get(p.id) }, blendWeights(gpOf(p))); if (v) genRaw.set(p.id, v.total); }
+  for (const p of state.players) { const v = blendValue({ proj: LV.proj.values.get(p.id), season: LV.season.values.get(p.id), l15: LV.l15.values.get(p.id), l7: LV.l7.values.get(p.id) }, blendWeights(gpOf(p))); if (v) genRaw.set(p.id, v.total); }
   const pool = LV.proj.pool, sorted = [...genRaw.entries()].sort((a, b) => b[1] - a[1]);
   const band = sorted.slice(pool.n, pool.n + pool.teams);
   // nivo zamene po opštoj vrednosti (prosek igrača oko mesta broj timova × aktivna mesta)
@@ -9614,7 +9627,7 @@ function tfControlsHTML(M) {
 /** Linije za prikaz na kartici: izabrani period u zaglavlju (kao FA kartica); slobodno mesto / nivo zamene iz mešavine */
 function tfCardView(M, x) {
   const keys = M.keys, E = tfEngineLocal();
-  const vec = p => M.vecOf(M.lineOf(p)); // ista mešavina kao u pretrazi (projekcija, 15 i 7 dana), pa se kartica i redosled slažu
+  const vec = p => M.vecOf(M.lineOf(p)); // ista mešavina kao u pretrazi (sezona, 15 i 7 dana i projekcija), pa se kartica i redosled slažu
   const my = M.ctx.my.filter(y => !y.ir).map(y => state.byId.get(y.id)).filter(Boolean);
   const before = keys.map(() => 0); for (const p of my) vec(p).forEach((v, i) => { before[i] += v; });
   const after = [...before];
@@ -9729,7 +9742,7 @@ function renderFinderPage() {
   const R = leagueRules(lg);
   const dl = R.deadline && R.deadline < Date.now() ? `<div class="banner info dl-bar"><span>⏱ ${t('Rok za trejdove je prošao. Alat i dalje radi, za razmišljanje i sledeću sezonu.')}</span></div>` : '';
   return `<h2 class="page-t">${t('Pronađi trejd')}${lg.teamName ? ` <span class="hint">${esc(lg.teamName)}</span>` : ''}</h2>${dl}
-    <p class="pnote fa-lead">${isPointsFmt() ? t('Predlozi su trejdovi fer po vrednosti za obe strane, rangirani po tome koliko FPts po utakmici dobija tvoj tim (mešavina projekcije, poslednjih 15 i 7 dana).') : t('Predlozi su trejdovi fer po vrednosti za obe strane, rangirani po tome koliko kategorija više dobijaš protiv ostalih timova lige (mešavina projekcije, poslednjih 15 i 7 dana).')}</p>
+    <p class="pnote fa-lead">${isPointsFmt() ? t('Predlozi su trejdovi fer po vrednosti za obe strane, rangirani po tome koliko FPts po utakmici dobija tvoj tim (mešavina sezone, poslednjih 15 i 7 dana i projekcije).') : t('Predlozi su trejdovi fer po vrednosti za obe strane, rangirani po tome koliko kategorija više dobijaš protiv ostalih timova lige (mešavina sezone, poslednjih 15 i 7 dana i projekcije).')}</p>
     ${state.players.length ? tfBodyHTML() : `<p class="pnote">${t('Učitavam igrače…')}</p>`}`;
 }
 /** Javna stranica /trade-finder/: izbor lige gore, pa alat bez lige */
