@@ -1423,3 +1423,11 @@ td.fa-notes{display:table-cell}td.fa-notes span{display:block}
 .tt-stat th,.tt-stat td{padding:5px 4px;border-bottom:0}
 .tt-stat td{font-size:13px}
 @media (max-width:640px){.tt-stat th,.tt-stat td{padding:4px 2px}.tt-stat td{font-size:12px}.tt-stat th{font-size:10px}}
+
+/* Analiza trejda: birač slobodnog mesta (Realna zamena / Izaberi igrača / Ne računaj) */
+.spot-sel{font:inherit;font-size:11px;font-weight:600;line-height:1.2;color:var(--text);background:var(--card2);border:1px solid var(--line);border-radius:6px;padding:2px 4px;margin-left:6px;max-width:160px;cursor:pointer;vertical-align:middle}
+.spot-sel:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.acts .spot-sel{margin:0 4px 0 0}
+.spot-pickrow .search{margin:6px 0 2px;max-width:260px}
+.spot-none td{color:var(--dim)}
+@media (max-width:640px){.repl-row .tags{display:flex;flex-wrap:wrap;gap:4px}.repl-row .spot-sel{display:block;width:100%;max-width:100%;margin:2px 0 0}.acts .spot-sel{max-width:96px}.spot-pickrow .search{max-width:none;margin-top:4px}.spot-pickrow .search-in input{min-width:0}}

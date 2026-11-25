@@ -2212,7 +2212,7 @@ const EN = {
   "{x} nisu u timu {team}.": "{x} are not on {team}.",
   "Procena plasmana": "Rank projection",
   "Kraj sezone, posle trejda": "End of season, after trade",
-  "Mesto od {n} timova. Svi timovi su projektovani na celu sezonu istim tempom, a tvom timu je dodata razlika iz trejda (Dobijaš − Daješ po utakmici × preostale utakmice njihovih NBA timova). FG% i FT% iz pogodaka i pokušaja. Procena uzima u obzir koliko igrač inače propušta utakmica, a igrač koji je OUT se ne računa.": "Rank out of {n} teams. All teams are projected to the full season at their current pace, and your team gets the trade difference (You get − You give per game × remaining games of their NBA teams). FG% and FT% from makes and attempts. The estimate accounts for how often a player usually misses games, and a player who is OUT is not counted.",
+  "Mesto od {n} timova. Svi timovi su projektovani na celu sezonu istim tempom, a tvom timu je dodata razlika iz trejda (Dobijaš − Daješ po utakmici × preostale utakmice njihovih NBA timova). FG% i FT% iz pogodaka i pokušaja. Procena uzima u obzir koliko igrač inače propušta utakmica, a trenutni status (OUT, DTD) se ne gleda. Računaju se isti igrači kao u tabeli kategorija, uključujući slobodno mesto i otpuštanja.": "Rank out of {n} teams. All teams are projected to the full season at their current pace, and your team gets the trade difference (You get − You give per game × remaining games of their NBA teams). FG% and FT% from makes and attempts. The estimate accounts for how often a player usually misses games, and the current status (OUT, DTD) is not used. It counts the same players as the category table, including the open spot and drops.",
   "Prikaz": "View",
   "Sortiraj po {c}": "Sort by {c}",
   "Snaga trenutnog rostera": "Current roster strength",
@@ -2299,7 +2299,7 @@ const EN = {
   "bonusi za prag": "threshold bonuses",
   "3D i 4D (da li daju i niže bonuse)": "3D and 4D (whether they also give the lower bonuses)",
   "Približno: {l}. Ove stavke bodovanja sa platforme {p} nismo mogli da proverimo na pravoj ligi.": "Approximate: {l}. We could not verify these {p} scoring items on a real league.",
-  "Procena uzima u obzir koliko igrač inače propušta utakmica, a igrač koji je OUT se ne računa.": "The estimate accounts for how often a player usually misses games, and a player who is OUT is not counted.",
+  "Procena uzima u obzir koliko igrač inače propušta utakmica. Trenutni status (OUT, DTD) se ne gleda, ne računa se samo igrač koji je van do kraja sezone.": "The estimate accounts for how often a player usually misses games. The current status (OUT, DTD) is not used; only a player who is out for the season is not counted.",
   "Procena: komesar, LM ili glasanje lige mogu da obore trejd.": "Estimate: the commissioner, LM or a league vote can still cancel the trade.",
   "{p} obrađuje trejd oko {d}": "{p} processes the trade around {d}",
   "procena": "estimate",
@@ -2656,6 +2656,23 @@ const EN = {
   "nijedan igrač": "no players",
   "Šta ti donosi": "What he brings you",
   "Rezultat za ostatak sezone, kao u Pronađi trejd. Tabele prate izabrani period.": "Result for the rest of the season, as in Find a trade. The tables follow the selected period.",
+  "Kako se računa slobodno mesto": "How the open spot is counted",
+  "Realna zamena": "Realistic replacement",
+  "Izaberi igrača": "Pick a player",
+  "Ne računaj": "Don't count",
+  "Ne računa se": "Not counted",
+  "Mesto ostaje prazno, poredi se samo ko ide i ko dolazi.": "The spot stays empty, only who leaves and who arrives is compared.",
+  "Koga uzimaš sa waivera…": "Who do you pick up from waivers…",
+  "Dok ne izabereš igrača, računa se realna zamena.": "Until you pick a player, the realistic replacement counts.",
+  "Ne znamo da li je igrač stvarno slobodan u tvojoj ligi.": "We do not know if the player is really free in your league.",
+  "Daješ više igrača nego što dobijaš. Slobodno mesto se ne računa: poredi se samo ko ide i ko dolazi.": "You give more players than you get. The open spot is not counted: only who leaves and who arrives is compared.",
+  "Daješ više igrača nego što dobijaš. Slobodno mesto popunjava igrač kog izabereš u redu Slobodno mesto. Dok ga ne izabereš, računa se realna zamena.": "You give more players than you get. The open spot is filled by the player you pick in the Open spot row. Until you pick one, the realistic replacement counts.",
+  "Daješ više igrača nego što dobijaš. Slobodno mesto se računa kao realna zamena sa waivera (uvezena liga) ili nivo zamene. U redu Slobodno mesto možeš da izabereš svog igrača ili da se mesto ne računa.": "You give more players than you get. The open spot counts as a realistic waiver replacement (imported league) or replacement level. In the Open spot row you can pick your own player or not count the spot.",
+  "Kako se računa slobodno mesto biraš gore, u redu Slobodno mesto u kartici Dobijaš.": "You choose how the open spot is counted above, in the Open spot row of the You get card.",
+  "Dok ne izabereš igrača, računa se nivo zamene.": "Until you pick a player, replacement level counts.",
+  "Daješ više igrača nego što dobijaš. Slobodno mesto popunjava igrač kog izabereš u redu Slobodno mesto. Dok ga ne izabereš, računa se nivo zamene.": "You give more players than you get. The open spot is filled by the player you pick in the Open spot row. Until you pick one, replacement level counts.",
+  "{n} je van do kraja sezone i ne računa se.": "{n} is out for the season and is not counted.",
+  "{n} su van do kraja sezone i ne računaju se.": "{n} are out for the season and are not counted.",
   'Novo: javi nam ako nešto nije uvezeno kako treba.': 'New: let us know if something was not imported correctly.',
   // Uvezena liga: podešavanja i kontekst cele lige
   'na {n}. mestu ({r})': 'in place {n} ({r})',
@@ -3524,6 +3541,8 @@ function handleSharedLink(hp) {
   // mv=1: moj trejd iz brzog poređenja prelazi u ligu koju izaberem, strane ostaju iste
   const keep = hp.get('mv') === '1';
   state.pendingFormat = decodeFormat(hp.get('f')); // format iz linka (null: link bez formata)
+  const om = { r: 'repl', p: 'pick', n: 'none' }[hp.get('o')];
+  state.pendingSpot = om ? { mode: om, w: om === 'pick' ? ids(hp.get('w') || '') : [] } : null; // slobodno mesto iz linka
   const per = hp.get('per');
   if (PERIODS.some(p => p.key === per)) { state.period = per; tradeStoreGet().period = per; persistTrades(); }
   const leagues = profile?.leagues || [];
@@ -3572,6 +3591,9 @@ function openSharedIn(scope, lists, keep = false) {
     persistTrades();
   }
   state.sharedOpen = !own;
+  // slobodno mesto iz linka važi samo za ovaj tab i samo kad trejd nije okrenut (to je pošiljaočevo mesto)
+  const ps = state.pendingSpot; state.pendingSpot = null;
+  if (ps && own && !same) { const tb = activeTab(); tb.spotMode = ps.mode; if (ps.w.length) state.balance.my.waivers = [...ps.w]; persistTrades(); }
   // u ligi važi format lige; ako je trejd poslat za drugi format, tab to pamti (jedan red iznad rezultata)
   if (lg && sentF && !sameFormat(sentF, leagueFormatOf(lg))) { activeTab().sentFormat = encodeFormat(sentF); persistTrades(); }
   // isti igrač ne može biti na obe strane
@@ -3750,6 +3772,25 @@ function irBoundIds(kind) {
   const other = kind === 'my' ? 'opp' : 'my';
   return tfIrBound(lg, state.teams[KINDS[kind].in].ids, rosterOf(other), tfIrFree(lg, rosterOf(kind), kind === 'my'));
 }
+/* ---------- Slobodno mesto (dajem više igrača nego što dobijam): kako se računa ----------
+   'repl' = realna zamena sa waivera (uvezena liga) ili nivo zamene, 'pick' = igrač kog izabereš, 'none' = ne računa se.
+   Izbor se pamti po ligi; deljeni link ga postavlja samo za svoj tab (tab.spotMode). Izabrani igrač je u balance.my.waivers taba. */
+const SPOT_KEY = 'fbaTrade.openSpot.v1'; // { [liga | 'quick']: 'repl' | 'pick' | 'none' }
+const SPOT_MODES = ['repl', 'pick', 'none'];
+const spotScope = () => currentLeague()?.id || 'quick';
+function spotMode() {
+  const tb = state.teams ? activeTab() : null;
+  if (tb && SPOT_MODES.includes(tb.spotMode)) return tb.spotMode;
+  const m = (lsGet(SPOT_KEY) || {})[spotScope()];
+  return SPOT_MODES.includes(m) ? m : 'repl';
+}
+function setSpotMode(m) {
+  if (!SPOT_MODES.includes(m)) return;
+  const all = lsGet(SPOT_KEY) || {};
+  all[spotScope()] = m; lsSet(SPOT_KEY, all);
+  const tb = activeTab(); if (tb) delete tb.spotMode;
+  persistTrades();
+}
 function slotPlan(kind) {
   const outSide = state.teams[KINDS[kind].out].ids, inSide = state.teams[KINDS[kind].in].ids;
   const both = outSide.length > 0 && inSide.length > 0;
@@ -3765,7 +3806,7 @@ function slotPlan(kind) {
   const drops = [...new Set(bal.drops)].filter(id => !trade.has(id)).slice(0, dropSlots);
   // waiver dodatak ne ulazi u rezultat trejda (tamo se računa koga protivnik izbacuje), samo u to kako se menja moj tim;
   // koga protivnik uzima sa waivera nije bitno (njegov tim), pa za 'opp' nema waivera
-  const waivers = kind === 'opp' ? [] : [...new Set(bal.waivers)].filter(id => !trade.has(id) && !drops.includes(id) && !onRoster.has(id)).slice(0, waiverSlots);
+  const waivers = kind === 'opp' || spotMode() !== 'pick' ? [] : [...new Set(bal.waivers)].filter(id => !trade.has(id) && !drops.includes(id) && !onRoster.has(id)).slice(0, waiverSlots);
   const nowN = dropSlots - laterSlots;
   return { dropSlots, waiverSlots, drops, waivers, laterSlots, tempSlots, w, irB, nowDrops: drops.slice(0, nowN), laterDrops: drops.slice(nowN) };
 }
@@ -3794,6 +3835,8 @@ function teamTotals(team, ti) {
  */
 function freeFill(kind = 'my') {
   const sp = slotPlan(kind), n = sp.waiverSlots, rest = n - sp.waivers.length;
+  // Ne računaj: mesto ostaje prazno (nula), poredi se samo ko ide i ko dolazi
+  if (kind === 'my' && n > 0 && spotMode() === 'none') return { ids: [], auto: [], repl: 0, n, permIds: [], permRepl: 0, tempIds: [], tempRepl: 0, w: sp.w, irB: sp.irB, none: true };
   let ids = [...sp.waivers], auto = [], repl = 0;
   if (rest > 0 && state.players.length) {
     const taken = new Set([...takenIds(), ...sp.waivers, ...slotPlan('opp').drops]);
@@ -4979,28 +5022,47 @@ function playerAvail(p, lg = currentLeague()) {
   const d = durability(p);
   return availFactor(d?.gp ?? 0, d?.n ?? 0, out);
 }
-/** Procena plasmana posle trejda: [{ key, c, before, after }] ili null (nema uvoza, rasporeda ili trejda) */
+/** Van do kraja sezone: samo kad izvor to eksplicitno kaže (ESPN injuryDetails.outForSeason). Sleeper i Fantrax nemaju takav podatak,
+    a tekst vesti se ne koristi za ovo. */
+const seasonOut = p => !!(p && Array.isArray(state.injRet?.[p.id]) && state.injRet[p.id][3]);
+/** Dostupnost za procenu plasmana: koliko utakmica igrač inače odigra (trajnost), bez trenutnog statusa (OUT, DTD se ne gledaju) */
+const projAvail = p => { const d = durability(p); return availFactor(d?.gp ?? 0, d?.n ?? 0, false); };
+/** Procena plasmana posle trejda: [{ key, c, before, after }] (+ gone: imena igrača van do kraja sezone) ili null (nema uvoza, rasporeda ili trejda).
+    Isti igrači kao u tabeli kategorija: Daješ + koga izbacujem, Dobijaš + slobodno mesto po izboru (realna zamena, izabran igrač ili ništa). */
 function rankProjection(lg = currentLeague()) {
   if (!lg?.import?.teams?.length || isPointsFmt() || lg.import.myTid == null || !state.schedule) return null;
   const teams = lg.import.teams.filter(x => x.vals);
   if (teams.length < 2 || !teams.some(x => x.tid === lg.import.myTid) || (!giveIds().length && !getIds().length)) return null;
-  const delta = {};
-  const add = (id, sign) => {
-    const p = state.byId.get(id), line = p && playerLine(p), g = p ? gamesLeft(p.tid) : null;
+  const delta = {}, gone = [];
+  const addLine = (line, g, a, sign) => { for (const k of SUM_KEYS) if (line[k] != null) delta[k] = (delta[k] || 0) + sign * line[k] * g * a; };
+  const add = (id, sign, share = 1) => {
+    const p = state.byId.get(id);
+    if (!p) return;
+    if (seasonOut(p)) { if (!gone.includes(p.name)) gone.push(p.name); return; }
+    const line = playerLine(p), g = gamesLeft(p.tid);
     if (!line || !g) return;
-    const a = playerAvail(p, lg);
-    for (const k of SUM_KEYS) if (line[k] != null) delta[k] = (delta[k] || 0) + sign * line[k] * g * a;
+    addLine(line, g, projAvail(p) * share, sign);
   };
-  getIds().forEach(id => add(id, 1));
-  giveIds().forEach(id => add(id, -1));
+  const sp = slotPlan('my'), ff = freeFill('my');
+  [...giveIds(), ...sp.nowDrops].forEach(id => add(id, -1));
+  sp.laterDrops.forEach(id => add(id, -1, 1 - sp.w)); // kasnije otpušten igra dok je povređeni na IR-u
+  [...getIds(), ...ff.permIds].forEach(id => add(id, 1));
+  ff.tempIds.forEach(id => add(id, 1, ff.w));
+  // realna zamena (nivo zamene): nema svoj NBA tim, pa srednji broj preostalih utakmica
+  const rl = replLineNow(), gl = Object.keys(state.schedule).map(gamesLeft).filter(x => x != null).sort((a, b) => a - b), gMed = gl.length ? gl[gl.length >> 1] : 0;
+  if (rl && gMed) { for (let k = 0; k < ff.permRepl; k++) addLine(rl, gMed, 1, 1); for (let k = 0; k < ff.tempRepl; k++) addLine(rl, gMed, ff.w, 1); }
   // zbirovi timova su do danas, a razlika iz trejda je za ostatak sezone: svi timovi se prvo projektuju na celu sezonu
   const f = seasonFactor();
   if (!f) return null;
   const full = vals => Object.fromEntries(Object.entries(vals).map(([k, v]) => [k, v != null && SUM_KEYS.includes(k) ? v * f : v]));
   const cats = rankCats();
-  return rotoProjection(teams.map(x => ({ id: x.tid, vals: full(x.vals) })), lg.import.myTid, delta, cats)
+  const res = rotoProjection(teams.map(x => ({ id: x.tid, vals: full(x.vals) })), lg.import.myTid, delta, cats)
     .filter(x => x.before != null).map(x => ({ ...x, c: cats.find(y => y.key === x.key) }));
+  res.gone = gone;
+  return res;
 }
+/** Red iznad procene: igrači van do kraja sezone se ne računaju */
+const goneTxt = gone => (!gone?.length ? '' : gone.length === 1 ? t('{n} je van do kraja sezone i ne računa se.', { n: gone[0] }) : t('{n} su van do kraja sezone i ne računaju se.', { n: joinList(gone) }));
 
 /* ---------- Vrednost igrača: po ligi i periodu (čita samo zajednički model lige), keš dok se liga ili baza igrača ne osveže ----------
    Budući alati (Pronađi trejd, Mete, Pojačanja sa FA) traže vrednost za bilo koji period: leagueValues(lg, period). */
@@ -5108,7 +5170,7 @@ function leagueReportLines() {
     const proj = rankProjection();
     if (proj) {
       const ch = proj.filter(x => x.after !== x.before);
-      out.push(ch.length ? t('Procena plasmana posle trejda: {list}', { list: ch.map(x => `${x.c.label} ${x.before}. → ${x.after}.`).join(', ') }) : t('Procena plasmana posle trejda: plasman po kategorijama se ne menja.'));
+      out.push((ch.length ? t('Procena plasmana posle trejda: {list}', { list: ch.map(x => `${x.c.label} ${x.before}. → ${x.after}.`).join(', ') }) : t('Procena plasmana posle trejda: plasman po kategorijama se ne menja.')) + (proj.gone?.length ? ` ${esc(goneTxt(proj.gone))}` : ''));
     }
   }
   return out;
@@ -5140,7 +5202,7 @@ function leagueAIText() {
     lines.push(`\n${L('Lideri lige po kategorijama (zbir cele sezone)', 'League leaders by category (season totals)')}:`);
     lines.push(...ctx.leaders.map(x => `${x.c.label}: ${x.teams.map(tm => `${tm.name}${tag(tm)}`).join(', ')} (${totalTxt(x.c, x.v)})${me && x.teams.includes(me) ? '' : me ? L(`; ja ${totalTxt(x.c, ctx.val(me, x.c))}`, `; me ${totalTxt(x.c, ctx.val(me, x.c))}`) : ''}`));
     const proj = rankProjection();
-    if (proj) lines.push(`\n${L('Procena mog plasmana posle trejda (preostale utakmice, ostali timovi isti)', 'Estimated rank after the trade (remaining games, other teams unchanged)')}: ${proj.map(x => `${x.c.label} ${x.before}→${x.after}`).join(', ')}`);
+    if (proj) lines.push(`\n${L('Procena mog plasmana posle trejda (preostale utakmice, ostali timovi isti; trenutni status igrača se ne gleda, samo koliko inače igra)', 'Estimated rank after the trade (remaining games, other teams unchanged; current player status is not used, only how often he usually plays)')}: ${proj.map(x => `${x.c.label} ${x.before}→${x.after}`).join(', ')}${proj.gone?.length ? `. ${goneTxt(proj.gone)}` : ''}`);
   }
   return lines.join('\n');
 }
@@ -6010,13 +6072,58 @@ function searchBoxHTML(key, placeholder, label = '') {
 const sideCellCls = (mark, ti) => (mark === 'win' ? (ti === GET ? 'better-me' : 'better-them') : '');
 
 /** Red "Slobodno mesto: nivo zamene" sa statistikom nivoa zamene (iste kolone kao red igrača) */
-function replRowHTML(tail = '<td></td>', extraTag = '') {
+function replRowHTML(tail = '<td></td>', extraTag = '', sel = '') {
   const line = replLineNow();
   const cells = CATS.map(c => { const v = line ? catValue(line, c) : null; return `<td class="${c.fpts ? 'fpts' : ''}">${fmtCat(c, v)}</td>`; }).join('');
   const real = !!tfBase().slot?.slot; // uvezena liga: realna zamena sa waivera; inače nivo zamene
   const tip = real ? ` data-tip="${esc(t('Prosek 3. do 5. najboljeg zdravog slobodnog igrača u ligi (igrač na waiveru se računa sa umanjenjem jer nije zagarantovan). Najbolji slobodan igrač bi bio previše optimističan.'))}"` : '';
-  return `<tr class="arriving repl-row"><td><div class="pl"><div class="txt"><span class="tags"><span class="slot-tag tag-in">${t('Slobodno mesto')}</span>${extraTag ? ` <span class="slot-tag tag-ir">${esc(extraTag)}</span>` : ''}</span><span class="nm"${tip}>${t(real ? 'Realna zamena sa waivera' : 'Nivo zamene')}</span>
+  return `<tr class="arriving repl-row"><td><div class="pl"><div class="txt"><span class="tags"><span class="slot-tag tag-in">${t('Slobodno mesto')}</span>${extraTag ? ` <span class="slot-tag tag-ir">${esc(extraTag)}</span>` : ''}${sel}</span><span class="nm"${tip}>${t(real ? 'Realna zamena sa waivera' : 'Nivo zamene')}</span>
     <span class="meta">${t(real ? 'Prosek 3. do 5. najboljeg zdravog slobodnog' : 'Prosek igrača koje lako nađeš na waiveru')}</span></div></div></td><td>${line?.MIN != null ? fmt1(line.MIN) : '-'}</td>${cells}${tail}</tr>`;
+}
+/** Birač za slobodno mesto: Realna zamena / Izaberi igrača / Ne računaj (padajući meni, ne razbija red ni na telefonu) */
+function spotSelHTML() {
+  const m = spotMode(), real = !!tfBase().slot?.slot;
+  const opt = (v, label) => `<option value="${v}"${m === v ? ' selected' : ''}>${esc(label)}</option>`;
+  return ` <select class="spot-sel" data-spot-sel aria-label="${esc(t('Kako se računa slobodno mesto'))}" title="${esc(t('Kako se računa slobodno mesto'))}">${opt('repl', t(real ? 'Realna zamena' : 'Nivo zamene'))}${opt('pick', t('Izaberi igrača'))}${opt('none', t('Ne računaj'))}</select>`;
+}
+/** Redovi slobodnog mesta u kartici Dobijaš, po izboru (birač je u prvom redu) */
+function spotRowsHTML(f) {
+  const mode = spotMode(), sp = slotPlan('my'), lg = currentLeague();
+  const tmp = k => (k >= f.n - sp.tempSlots ? t('dok je {n} na IR-u', { n: irNames(f.irB) }) : '');
+  const rows = [];
+  let k = 0;
+  const sel = () => (k === 0 ? spotSelHTML() : '');
+  if (mode === 'none') {
+    for (; k < f.n; k++) rows.push(`<tr class="arriving repl-row spot-none"><td><div class="pl"><div class="txt"><span class="tags"><span class="slot-tag tag-in">${t('Slobodno mesto')}</span>${sel()}</span><span class="nm">${t('Ne računa se')}</span>
+      <span class="meta">${t('Mesto ostaje prazno, poredi se samo ko ide i ko dolazi.')}</span></div></div></td><td>-</td>${CATS.map(() => '<td>-</td>').join('')}<td></td></tr>`);
+    return rows.join('');
+  }
+  for (const id of sp.waivers) {
+    const p = state.byId.get(id); if (!p) continue;
+    const tg = tmp(k);
+    rows.push(playerRowHTML(p, { tags: [{ text: 'Slobodno mesto', cls: 'tag-in' }, ...(tg ? [{ text: esc(tg), raw: true, cls: 'tag-ir' }] : [])], cls: 'slot-w spot-pick',
+      actions: `${sel()}<button class="rm" type="button" data-action="bal-w-remove" data-kind="my" data-id="${id}" aria-label="${esc(t('Ukloni'))} ${esc(p.name)}">✕</button>` }));
+    k++;
+  }
+  for (const id of f.auto) { const p = state.byId.get(id); if (p) { rows.push(playerRowHTML(p, { tags: [{ text: t('Slobodno mesto · najbolji slobodan'), raw: true, cls: 'tag-in' }], cls: 'slot-w' })); k++; } }
+  for (let r = 0; r < f.repl; r++, k++) {
+    if (mode === 'pick' && r === 0) {
+      // Izaberi igrača: pretraga u redu; dok ne izabereš, računa se realna zamena (statistika u redu)
+      const line = replLineNow(), tg = tmp(k);
+      const cells = CATS.map(c => `<td class="${c.fpts ? 'fpts' : ''}">${fmtCat(c, line ? catValue(line, c) : null)}</td>`).join('');
+      const note = lg && !isSynced(lg) ? ` ${t('Ne znamo da li je igrač stvarno slobodan u tvojoj ligi.')}` : '';
+      rows.push(`<tr class="arriving repl-row spot-pickrow"><td><div class="pl"><div class="txt"><span class="tags"><span class="slot-tag tag-in">${t('Slobodno mesto')}</span>${tg ? ` <span class="slot-tag tag-ir">${esc(tg)}</span>` : ''}${sel()}</span>
+        ${searchBoxHTML('my-w', t('Koga uzimaš sa waivera…'))}<span class="meta">${tfBase().slot?.slot ? t('Dok ne izabereš igrača, računa se realna zamena.') : t('Dok ne izabereš igrača, računa se nivo zamene.')}${note}</span></div></div></td><td>${line?.MIN != null ? fmt1(line.MIN) : '-'}</td>${cells}<td></td></tr>`);
+    } else rows.push(replRowHTML(undefined, tmp(k), sel()));
+  }
+  return rows.join('');
+}
+/** Napomena ispod kartice Dobijaš kad dajem više igrača nego što dobijam */
+function spotNoteText() {
+  const m = spotMode();
+  return m === 'none' ? t('Daješ više igrača nego što dobijaš. Slobodno mesto se ne računa: poredi se samo ko ide i ko dolazi.')
+    : m === 'pick' ? (tfBase().slot?.slot ? t('Daješ više igrača nego što dobijaš. Slobodno mesto popunjava igrač kog izabereš u redu Slobodno mesto. Dok ga ne izabereš, računa se realna zamena.') : t('Daješ više igrača nego što dobijaš. Slobodno mesto popunjava igrač kog izabereš u redu Slobodno mesto. Dok ga ne izabereš, računa se nivo zamene.'))
+      : t('Daješ više igrača nego što dobijaš. Slobodno mesto se računa kao realna zamena sa waivera (uvezena liga) ili nivo zamene. U redu Slobodno mesto možeš da izabereš svog igrača ili da se mesto ne računa.');
 }
 function totalRow(t, cmp, ti) {
   const tt = window.t; // parametar t zaklanja funkciju prevoda
@@ -6049,11 +6156,9 @@ function renderTeams(totals, cmp) {
     // Dobijaš: moje slobodno mesto (dajem više nego što dobijam) ulazi u rezultat, kao u Pronađi trejd
     let fillRows = '', fillNote = '';
     if (ti === GET) {
-      const f = freeFill('my'), chosen = slotPlan('my').waivers;
-      const tmpTag = id => (f.tempIds.includes(id) ? [{ text: esc(t('dok je {n} na IR-u', { n: irNames(f.irB) })), raw: true, cls: 'tag-ir' }] : []);
-      fillRows = [...chosen.map(id => [id, 'Waiver']), ...f.auto.map(id => [id, null])].map(([id, tag]) => { const p = state.byId.get(id); return p ? playerRowHTML(p, { tags: [{ text: tag || t('Slobodno mesto · najbolji slobodan'), raw: !tag, cls: 'tag-in' }, ...tmpTag(id)], cls: 'slot-w' }) : ''; }).join('')
-        + Array.from({ length: f.repl }, (_, k) => replRowHTML(undefined, k >= f.permRepl ? t('dok je {n} na IR-u', { n: irNames(f.irB) }) : '')).join('');
-      if (f.n > 0) fillNote = `<div class="card-warn soft">${t('Daješ više igrača nego što dobijaš: slobodno mesto popunjavaš igračem sa waivera i to ulazi u rezultat. Uvezena liga: realna zamena (prosek 3. do 5. najboljeg zdravog slobodnog igrača), inače nivo zamene. Svog igrača sa waivera biraš u sekciji Moj tim.')}</div>`;
+      const f = freeFill('my');
+      fillRows = f.n > 0 ? spotRowsHTML(f) : '';
+      if (f.n > 0) fillNote = `<div class="card-warn soft">${spotNoteText()}</div>`;
       const od = sp.drops.map(id => state.byId.get(id)).filter(Boolean);
       if (od.length) fillNote += `<div class="card-warn soft opp-drops">${t('Protivnik otpušta: {list}', { list: od.map(p => `${pmLink(p.id, p.name)}<button class="rm" type="button" data-action="bal-d-remove" data-kind="opp" data-id="${p.id}" aria-label="${esc(t('Ukloni'))}">✕</button>`).join(', ') })}<br><span class="meta">${t('Koga protivnik izbacuje menja njegov tim, ne tvoj rezultat.')}</span></div>`;
     }
@@ -6198,7 +6303,7 @@ function renderCompare(totals, cmp) {
       <button type="button" data-action="cmp-view" data-v="cats" aria-pressed="${!rank}">${t('Poređenje kategorija')}</button>
       <button type="button" data-action="cmp-view" data-v="rank" aria-pressed="${rank}">${t('Procena plasmana')}</button></div>` : '';
   el.innerHTML = rank
-    ? `<div class="section-t cmp-head"><span>${t('Procena plasmana u ligi posle trejda')} <span class="i" data-tip="${esc(t('Procena uzima u obzir koliko igrač inače propušta utakmica, a igrač koji je OUT se ne računa.'))}">ⓘ</span></span>${seg}</div>${rankProjHTML(proj)}`
+    ? `<div class="section-t cmp-head"><span>${t('Procena plasmana u ligi posle trejda')} <span class="i" data-tip="${esc(t('Procena uzima u obzir koliko igrač inače propušta utakmica. Trenutni status (OUT, DTD) se ne gleda, ne računa se samo igrač koji je van do kraja sezone.'))}">ⓘ</span></span>${seg}</div>${rankProjHTML(proj)}`
     : `<div class="section-t cmp-head"><span>${t('Poređenje kategorija')} <span class="hint">· ${t('klik na kategoriju = punt')}</span></span>${seg}</div>
     <div class="card"><div class="tscroll"><table class="cmp"><thead><tr><th>${t('Kat.')}</th>${SIDES.map(sd => `<th style="color:${sd.color}">${sd.name}</th>`).join('')}<th title="${esc(t('Dobijaš − Daješ, iz tvoje perspektive'))}">${t('Razlika')}</th></tr></thead>
     <tbody>${rows}</tbody></table></div></div>`;
@@ -6211,8 +6316,9 @@ function rankProjHTML(proj) {
     return `<tr><td class="catth"><b>${x.c.label}</b></td><td>${x.before}.</td><td class="${cls}">${x.after}.</td><td class="${cls}">${d > 0 ? `▲ ${d}` : d < 0 ? `▼ ${-d}` : '='}</td></tr>`;
   }).join('');
   const h2h = FMT_ACTIVE.scoringType !== 'roto';
-  return `<div class="card"><div class="tscroll"><table class="cmp rproj"><thead><tr><th>${t('Kat.')}</th><th>${t('Sada')}</th><th title="${esc(t('Kraj sezone, posle trejda'))}">${t('Posle trejda')}</th><th>${t('Promena')}</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <p class="pnote rp-note">${t('Mesto od {n} timova. Svi timovi su projektovani na celu sezonu istim tempom, a tvom timu je dodata razlika iz trejda (Dobijaš − Daješ po utakmici × preostale utakmice njihovih NBA timova). FG% i FT% iz pogodaka i pokušaja. Procena uzima u obzir koliko igrač inače propušta utakmica, a igrač koji je OUT se ne računa.', { n: of })}${h2h ? ` ${t('U H2H ligi ovo je samo informativno.')}` : ''}</p></div>`;
+  const gl = goneTxt(proj.gone);
+  return `${gl ? `<p class="pnote rp-gone">${esc(gl)}</p>` : ''}<div class="card"><div class="tscroll"><table class="cmp rproj"><thead><tr><th>${t('Kat.')}</th><th>${t('Sada')}</th><th title="${esc(t('Kraj sezone, posle trejda'))}">${t('Posle trejda')}</th><th>${t('Promena')}</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="pnote rp-note">${t('Mesto od {n} timova. Svi timovi su projektovani na celu sezonu istim tempom, a tvom timu je dodata razlika iz trejda (Dobijaš − Daješ po utakmici × preostale utakmice njihovih NBA timova). FG% i FT% iz pogodaka i pokušaja. Procena uzima u obzir koliko igrač inače propušta utakmica, a trenutni status (OUT, DTD) se ne gleda. Računaju se isti igrači kao u tabeli kategorija, uključujući slobodno mesto i otpuštanja.', { n: of })}${h2h ? ` ${t('U H2H ligi ovo je samo informativno.')}` : ''}</p></div>`;
 }
 
 /** Poeni: tabela doprinosa umesto Poređenja kategorija */
@@ -6917,7 +7023,7 @@ function reportItems(side, totals, cmp) {
         add(pluses, 3.5, rt('room', { who: names(plan.incoming.length ? plan.incoming : recvIds), n: plan.pre.length, max: ROSTER.ACTIVE }, seed), ['future']);
       }
     } else if (sp.waiverSlots > 0) {
-      real = rt('real', { give: names(sendIds), get: `${names(recvIds)} + ${sp.waivers.length ? names(sp.waivers) : rt('freeSpot')}` });
+      real = spotMode() === 'none' ? rt('real', { give: names(sendIds), get: names(recvIds) }) : rt('real', { give: names(sendIds), get: `${names(recvIds)} + ${sp.waivers.length ? names(sp.waivers) : rt('freeSpot')}` });
       const regularOut = send.filter(f => f.dur && f.dur.pct >= REPORT.GP_GOOD && (f.minR ?? f.minS ?? 0) >= REPORT.REGULAR_MIN);
       if (regularOut.length >= 2 || (regularOut.length && send.length > recv.length)) add(risks, 5.5, rt('depth', { list: joinList(regularOut.map(f => esc(f.p.name))) }, seed), ['depth']);
     }
@@ -7285,7 +7391,14 @@ function buildAIText(shortRosterNews = false) {
   block(L('DOBIJAŠ', 'I GET'), getIds());
   block(L('IZBACUJEŠ (sa mog rostera)', 'I DROP (from my roster)'), sp.drops);
   block(L('PROTIVNIK IZBACUJE (sa svog rostera, jer dobija više igrača; računa se u trejd)', 'OPPONENT DROPS (from their roster, because they get more players; counts in the trade)'), slotPlan('opp').drops);
-  block(L('MOJ WAIVER DODATAK (slobodno mesto, računa se u rezultat)', 'MY WAIVER ADD (open spot, counted in the score)'), sp.waivers);
+  block(L('MOJ IGRAČ ZA SLOBODNO MESTO (sa waivera, računa se u rezultat)', 'MY PLAYER FOR THE OPEN SPOT (from waivers, counted in the score)'), sp.waivers);
+  if (sp.waiverSlots > 0) {
+    const m = spotMode(), rest = sp.waiverSlots - sp.waivers.length, real = !!tfBase().slot?.slot;
+    const replTxt = real ? L('realna zamena sa waivera (prosek 3. do 5. najboljeg zdravog slobodnog igrača u ligi)', 'a realistic waiver replacement (average of the 3rd to 5th best healthy free agent in the league)') : L('nivo zamene (prosek igrača koje lako nađeš na waiveru)', 'replacement level (average of players you can easily find on waivers)');
+    tr.push(m === 'none' ? L('SLOBODNO MESTO: dajem više igrača nego što dobijam, a slobodno mesto se ne računa (poredi se samo ko ide i ko dolazi).', 'OPEN SPOT: I give more players than I get, and the open spot is not counted (only who leaves and who arrives is compared).')
+      : rest > 0 ? L(`SLOBODNO MESTO: dajem više igrača nego što dobijam, ${rest > 1 ? `${rest} mesta se računaju` : 'mesto se računa'} kao ${replTxt}.`, `OPEN SPOT: I give more players than I get, ${rest > 1 ? `${rest} spots count` : 'the spot counts'} as ${replTxt}.`) : '');
+    if (!tr[tr.length - 1]) tr.pop();
+  }
   const VS = tradeValueSums();
   if (VS.give != null || VS.get != null) tr.push(L(`UKUPNA VREDNOST (informativno, presuda je po ${isPointsFmt() ? 'FPts' : 'kategorijama'}): dajem ${valUnit(VS.give)}, dobijam ${valUnit(VS.get)}. Zbir ne uzima u obzir da strana koja dobija više igrača mora nekoga da otpusti.`,
     `TOTAL VALUE (informational, the verdict is by ${isPointsFmt() ? 'FPts' : 'categories'}): I give ${valUnit(VS.give)}, I get ${valUnit(VS.get)}. The sum does not account for the side getting more players having to drop someone.`));
@@ -7585,11 +7698,9 @@ function balanceHTML(kind, plan) {
     if (plan.dropSlots) notes.push(t('Koga izbacuješ ({a}/{b}) biraš gore, u kartici Daješ.', { a: slotPlan('my').drops.length, b: plan.dropSlots }));
     const warn = plan.missingDrops > 0
       ? `<div class="card-warn strong">⚠ ${t('Posle trejda imaš {n} aktivnih (max {m}). Izaberi koga izbacuješ u kartici Daješ, dotle Razlika nije realna.', { n: plan.pre.length, m: ROSTER.ACTIVE })}</div>` : '';
-    // dajem više igrača: slobodno mesto popunjavam sa waivera; to menja moj tim, ne rezultat trejda
-    const waiver = plan.waiverSlots ? `<div class="balance"><span class="hint">${t('Daješ više igrača nego što dobijaš, pa ti posle trejda ostaje slobodno mesto. Igrač sa waivera ulazi u rezultat trejda. Dok ga ne izabereš, računa se najbolji slobodan igrač (uvezena liga) ili nivo zamene.')}</span>
-      ${slotPlan('my').waivers.map(id => `<span class="chip"><span class="slot-tag tag-in">Waiver</span> ${nm(id)}
-        <button type="button" data-action="bal-w-remove" data-kind="my" data-id="${id}" aria-label="${t('Ukloni')}">✕</button></span>`).join('')}
-      ${slotInputHTML('my', 'w', 'balance')}</div>` : '';
+    // dajem više igrača: kako se računa slobodno mesto bira se gore, u redu Slobodno mesto (kartica Dobijaš)
+    if (plan.waiverSlots) notes.push(t('Kako se računa slobodno mesto biraš gore, u redu Slobodno mesto u kartici Dobijaš.'));
+    const waiver = '';
     return (notes.length ? `<div class="balance"><span class="hint">${notes.join(' ')}</span></div>` : '') + waiver + warn;
   }
   // Protivnik: ista komponenta za slotove, ovde u sekciji
@@ -8047,6 +8158,8 @@ function shareURL() {
   const q = new URLSearchParams();
   q.set('per', state.period);
   q.set('t', `${giveIds().join(',')}|${getIds().join(',')}`);
+  // slobodno mesto (dajem više nego što dobijam): izbor (r | p | n) i izabrani igrač
+  if (state.balance && slotPlan('my').waiverSlots > 0) { const m = spotMode(); q.set('o', m[0]); if (m === 'pick' && slotPlan('my').waivers.length) q.set('w', slotPlan('my').waivers.join(',')); }
   if (LANG === 'en') q.set('lang', 'en');
   if (!EMBED?.mini) q.set('f', encodeFormat(activeFormat())); // format za koji je trejd poslat
   q.set('s', '1'); // oznaka: otvoreno preko deljenog linka
@@ -8716,7 +8829,7 @@ function updateDropdown(key) {
   inp.setAttribute('aria-expanded', 'true');
   dd.innerHTML = results.length
     ? results.map((p, k) => `<li role="option" data-pick="${p.id}" data-key="${key}" aria-selected="${k === ui.sel}">
-        ${avatarHTML(p)}<div class="dd-main"><div>${esc(p.name)} ${pref?.set.has(p.id) ? `<span class="slot-tag tag-mine">${esc(pref.label)}</span>` : ''}</div><div class="meta">${p.team} · ${posTxt(p)} ${injHTML(p)}</div></div>
+        ${avatarHTML(p)}<div class="dd-main"><div>${esc(p.name)} ${pref?.set.has(p.id) ? `<span class="slot-tag tag-mine">${esc(pref.label)}</span>` : ''}</div><div class="meta">${p.team} · ${posTxt(p)} ${injHTML(p)}${key === 'my-w' && statOf(p, 'season')?.MIN != null ? ` · ${fmt1(statOf(p, 'season').MIN)} min` : ''}</div></div>
         <button type="button" class="dd-prof" data-pm="${p.id}" title="${esc(t('Profil igrača: {n}', { n: p.name }))}" aria-label="${esc(t('Profil igrača: {n}', { n: p.name }))}">ⓘ</button>
         ${showAddMy && !myIds.has(p.id) ? `<button type="button" class="dd-addmy ${myRoom ? '' : 'is-disabled'}" data-addmy="${p.id}" ${myRoom ? `title="${esc(t('Dodaj u moj tim'))}"` : `aria-disabled="true" title="${esc(fullTip())}"`}>＋ ${t('Moj tim')}</button>` : ''}</li>`).join('')
     : `<li class="empty">${t('Nema igrača za „{q}“', { q: esc(ui.query) })}</li>`;
@@ -8735,6 +8848,7 @@ function searchFor(key, query) {
     const r = rosterOf(ds[1]);
     return searchResults(query, ex, r?.players.length ? new Set(rosterIds(r)) : null);
   }
+  if (key === 'my-w') return spotSearch(query);
   const m = key.match(/^(my|opp|lt)-(add|w)$/);
   if (m) {
     const r = rosterOf(m[1]);
@@ -8744,6 +8858,19 @@ function searchFor(key, query) {
   }
   const pref = searchPrefer(key);
   return searchResults(query, new Set([...takenIds(), ...slotIds('my'), ...slotIds('opp')]), pref?.set || null);
+}
+
+/** Slobodno mesto, Izaberi igrača: uvezena liga = pravi slobodni igrači lige; manuelna liga i bez lige = igrači koji nisu ni na jednom
+    unetom rosteru. Redosled po skrivenoj vrednosti (stvarna vrednost za ostatak sezone, kao u Pojačanjima sa FA, pa povređeni padaju); prazan upit nudi najbolje. */
+function spotSearch(query) {
+  const lg = currentLeague(), B = tfBase();
+  const ex = new Set([...takenIds(), ...slotIds('my'), ...slotIds('opp')]);
+  const rosters = lg ? [lg.roster, ...Object.values(lg.opps || {})] : [state.rosters?.my, rosterOf('opp')];
+  for (const r of rosters) for (const x of r?.players || []) ex.add(x.id);
+  const tokens = norm(query) ? norm(query).split(' ') : [];
+  const rv = new Map();
+  for (const p of state.players) if (!ex.has(p.id) && tokens.every(tk => p._n.includes(tk))) { const v = B.real(p); if (v != null) rv.set(p.id, v); }
+  return [...rv.keys()].sort((a, b) => rv.get(b) - rv.get(a)).slice(0, CONFIG.DROPDOWN_MAX).map(id => state.byId.get(id));
 }
 
 /** Ključ pretrage -> gde ide igrač: "0" = tim 0 dobija, "0:d" = izbacuje, "0:w" = waiver */
@@ -11487,6 +11614,7 @@ document.addEventListener('toggle', e => {
   if (f === 'hist') { state.histOpen = e.target.open; }
 }, true);
 document.addEventListener('change', e => {
+  if (e.target.matches('[data-spot-sel]')) { setSpotMode(e.target.value); render(); return; }
   if (e.target.matches('[data-langsel]')) {
     const inModal = !!e.target.closest('#modal');
     setLang(e.target.value);
