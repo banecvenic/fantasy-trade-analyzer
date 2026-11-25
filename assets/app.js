@@ -8821,7 +8821,7 @@ function updateDropdown(key) {
   searchUI.set(key, ui);
   const pref = searchPrefer(key);
   // "Dodaj u moj tim" u rezultatima, osim u pretrazi koja već dodaje na roster
-  const showAddMy = !/^(my|opp|lt)-add$/.test(key) && !key.startsWith('tf-') && !key.startsWith('tt-') && !rosterLocked();
+  const showAddMy = !/^(my|opp|lt)-add$/.test(key) && key !== 'my-w' && !key.startsWith('tf-') && !key.startsWith('tt-') && !rosterLocked();
   const myIds = new Set(rosterIds(state.rosters.my));
   const myRoom = hasRoom(state.rosters.my);
   if (!results.length && !norm(ui.query)) { dd.hidden = true; inp.setAttribute('aria-expanded', 'false'); return; }
@@ -8833,8 +8833,34 @@ function updateDropdown(key) {
         <button type="button" class="dd-prof" data-pm="${p.id}" title="${esc(t('Profil igrača: {n}', { n: p.name }))}" aria-label="${esc(t('Profil igrača: {n}', { n: p.name }))}">ⓘ</button>
         ${showAddMy && !myIds.has(p.id) ? `<button type="button" class="dd-addmy ${myRoom ? '' : 'is-disabled'}" data-addmy="${p.id}" ${myRoom ? `title="${esc(t('Dodaj u moj tim'))}"` : `aria-disabled="true" title="${esc(fullTip())}"`}>＋ ${t('Moj tim')}</button>` : ''}</li>`).join('')
     : `<li class="empty">${t('Nema igrača za „{q}“', { q: esc(ui.query) })}</li>`;
+  if (key === 'my-w') placeFixedDD(inp, dd);
   dd.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
 }
+
+/**
+ * Lista u redu Slobodno mesto je unutar tabele koja se skroluje (overflow), pa bi bila odsečena.
+ * Zato je postavljamo fiksno uz polje: ispod njega, ili iznad kad dole nema mesta.
+ */
+function placeFixedDD(inp, dd) {
+  const r = (inp.closest('.search-in') || inp).getBoundingClientRect();
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const w = Math.min(Math.max(r.width, 300), vw - 16);
+  const below = vh - r.bottom - 12, above = r.top - 12;
+  const up = below < 220 && above > below;
+  dd.classList.add('dd-fixed');
+  Object.assign(dd.style, {
+    visibility: r.bottom < 0 || r.top > vh ? 'hidden' : '',
+    left: `${Math.max(8, Math.min(r.left, vw - w - 8))}px`, width: `${w}px`, right: 'auto',
+    top: up ? 'auto' : `${r.bottom + 4}px`, bottom: up ? `${vh - r.top + 4}px` : 'auto',
+    maxHeight: `${Math.max(140, Math.min(320, up ? above : below))}px`,
+  });
+}
+const refixDD = () => document.querySelectorAll('.dd.dd-fixed:not([hidden])').forEach(dd => {
+  const inp = document.querySelector(`[aria-controls="${dd.id}"]`);
+  if (inp) placeFixedDD(inp, dd);
+});
+window.addEventListener('scroll', refixDD, { capture: true, passive: true });
+window.addEventListener('resize', refixDD);
 
 /** Pretraga zavisi od cilja: roster isključuje samo igrače već na rosteru */
 function searchFor(key, query) {
