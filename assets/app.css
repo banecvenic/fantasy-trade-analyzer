@@ -1207,7 +1207,10 @@ td.fa-notes{display:table-cell}td.fa-notes span{display:block}
 .fa-rep-h .fa-rep-per{margin:0}
 .fa-rising .card-h,.fa-all .card-h{flex-wrap:wrap;justify-content:space-between}
 .fa-card-per{margin-left:auto;max-width:100%;overflow-x:auto}
-@media (max-width:640px){.fa-card-per{margin-left:0}}
+.fa-card-tools{display:flex;align-items:center;gap:8px;margin-left:auto;max-width:100%;min-width:0}
+.fa-card-tools .fa-card-per{margin-left:0}
+.flt-card-none{padding:12px}
+@media (max-width:640px){.fa-card-per{margin-left:0}.fa-card-tools{margin-left:0;width:100%;flex-wrap:wrap}}
 @media (max-width:640px){.seg.small.fa-per button{padding:4px 7px}}
 
 /* Pronađi trejd (4.3): split prikaz, oznake, strategije, kartice */
@@ -1434,3 +1437,76 @@ td.fa-notes{display:table-cell}td.fa-notes span{display:block}
 td:has(.dd.dd-fixed:not([hidden])){z-index:5}
 .dd.dd-fixed li .dd-main>div:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @media (max-width:640px){.repl-row .tags{display:flex;flex-wrap:wrap;gap:4px}.repl-row .spot-sel{display:block;width:100%;max-width:100%;margin:2px 0 0}.acts .spot-sel{max-width:96px}.spot-pickrow .search{max-width:none;margin-top:4px}.spot-pickrow .search-in input{min-width:0}}
+
+/* ---------- Filteri igrača (Mete za trejd, Pronađi trejd): plava je boja filtera, da se ne meša sa crvenom i zelenom ---------- */
+.flt-wrap{display:inline-flex;align-items:center;flex:none;border:1px solid var(--line);border-radius:999px;background:var(--card)}
+.flt-wrap.on{border-color:var(--rs-blue)}
+#flt-host{display:inline-flex}
+.flt-btn{display:inline-flex;align-items:center;gap:6px;background:none;border:0;border-radius:999px;color:var(--text);font:inherit;font-size:13px;font-weight:600;padding:6px 12px;cursor:pointer}
+.flt-btn:hover{color:var(--rs-blue)}
+.flt-wrap.on .flt-btn{padding-right:6px}
+.flt-badge{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border:0;border-radius:999px;background:var(--rs-blue);color:var(--bg);font:inherit;font-size:11px;font-weight:800;cursor:pointer}
+.flt-clear{background:none;border:0;color:var(--muted);font-size:17px;line-height:1;padding:4px 10px 4px 6px;cursor:pointer}
+.flt-clear:hover{color:var(--text)}
+.modal-box.flt-box{max-width:600px;padding:0;display:flex;flex-direction:column;overflow:hidden}
+.flt-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:16px 18px 12px}
+.flt-head h3{margin:0 0 2px;font-size:16px}
+.flt-per{color:var(--muted);font-size:12px}
+.flt-x{flex:none;width:32px;height:32px;background:none;border:0;border-radius:8px;color:var(--muted);font-size:15px;cursor:pointer}
+.flt-x:hover{color:var(--text);background:var(--card2)}
+.flt-scroll{overflow:auto;padding:0 18px;min-height:0}
+.flt-fields{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px 10px}
+.flt-sec{grid-column:1 / -1;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.flt-sec-max{margin-top:4px}
+.flt-f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.flt-f label{font-size:11px;font-weight:700;color:var(--muted)}
+.flt-maxl{font-weight:500;color:var(--dim);text-transform:lowercase}
+.flt-f input{width:100%;min-width:0;background:var(--bg2);border:1px solid var(--line);border-radius:8px;color:var(--text);font:inherit;font-size:16px;font-weight:600;padding:8px 10px}
+.flt-f input::placeholder{color:var(--dim);font-weight:500}
+.flt-f input:focus{outline:none;border-color:var(--muted)}
+.flt-f.on input{border-color:var(--rs-blue);box-shadow:inset 0 0 0 1px var(--rs-blue)}
+.flt-n{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.flt-f.on .flt-n{color:var(--rs-blue);font-weight:600}
+.flt-hr{border:0;border-top:1px solid var(--line);margin:16px 0 12px}
+.flt-row2{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-bottom:16px}
+.flt-pos{display:flex;gap:6px;flex-wrap:wrap}
+.flt-pos-b{min-width:40px;background:var(--card2);border:1px solid var(--line);border-radius:999px;color:var(--muted);font:inherit;font-size:12px;font-weight:700;padding:6px 10px;cursor:pointer}
+.flt-pos-b[aria-pressed="true"]{border-color:var(--rs-blue);color:var(--rs-blue);background:color-mix(in srgb,var(--rs-blue) 14%,transparent)}
+.flt-healthy{display:inline-flex;align-items:center;gap:8px;background:none;border:0;color:var(--text);font:inherit;font-size:13px;font-weight:600;cursor:pointer;padding:4px 0}
+.flt-sw{position:relative;width:34px;height:20px;border-radius:999px;background:var(--card2);border:1px solid var(--line);flex:none;transition:background .15s}
+.flt-sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--dim);transition:transform .15s,background .15s}
+.flt-healthy[aria-checked="true"] .flt-sw{background:var(--rs-blue);border-color:var(--rs-blue)}
+.flt-healthy[aria-checked="true"] .flt-sw::after{transform:translateX(14px);background:var(--bg)}
+.flt-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 18px;border-top:1px solid var(--line);background:var(--card)}
+.flt-total{font-size:13px;color:var(--muted)}
+.flt-total b{color:var(--rs-blue)}
+.flt-acts{display:flex;gap:8px;margin-left:auto}
+.flt-ap-m{display:none}
+.flt-none-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.flt-note{margin:-4px 0 10px}
+.flt-link{color:var(--rs-blue);border-color:color-mix(in srgb,var(--rs-blue) 45%,transparent)}
+.tf-card li.flt-hit{box-shadow:inset 0 0 0 1px var(--rs-blue);border-radius:8px;padding:3px 4px;margin:0 -4px}
+.flt-tag{color:var(--rs-blue);background:color-mix(in srgb,var(--rs-blue) 14%,transparent);margin-left:6px;cursor:help;text-transform:none;letter-spacing:0}
+@media (max-width:640px){
+  #modal.flt-modal{place-items:end stretch;padding:0}
+  .modal-box.flt-box{max-width:none;width:100%;max-height:90vh;border-radius:16px 16px 0 0;border-width:1px 0 0}
+  .flt-fields{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px 8px}
+  .flt-sec-max{display:none}
+  .flt-f input{min-height:44px;padding:8px 6px}
+  .flt-f input::placeholder{font-size:13px}
+  .flt-pos-b,.flt-healthy,.flt-x{min-height:44px}
+  .flt-pos-b{min-width:44px}
+  .flt-x{width:44px}
+  .flt-total{display:none}
+  .flt-acts{width:100%}
+  .flt-acts .btn{flex:1}
+  .flt-acts .flt-apply{flex:2}
+  .flt-ap-d{display:none}
+  .flt-ap-m{display:inline}
+  #wshead .flt-wrap{grid-column:1 / -1;grid-row:3;justify-self:start}
+}
+@media (max-width:640px),(pointer:coarse){
+  .flt-btn,.flt-clear{min-height:44px}
+  .flt-badge{min-width:28px;height:28px}
+  .flt-clear{min-width:40px}
+}
