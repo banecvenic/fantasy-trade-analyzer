@@ -2,6 +2,45 @@
 
 Grana `tuning-v2`, od `main` (2fe7f4c). Ništa nije objavljeno.
 
+## Ukratko
+
+| Korak | Commit | Šta |
+|---|---|---|
+| 1 | bdfeadd | Ne želim, zaključano dugme sa tooltipom, Otvori trejd, veto do 3 po strani, raznovrsnost, Dajem ako mora za celu ligu, vrednost igrača bez utakmica, kontekst u izvozu ocena |
+| 1b | d3adcfe | Srednje rešenje za raznovrsnost (tvoja odluka) |
+| 2 | a0dcfd9 | Vrednost igrača: kratki periodi po minutima, projekcija u stvarnoj vrednosti kao u tržišnoj |
+| 3 | 8c1ce26 | Svi timovi u ligi, filter tipa trejda; usput: predlozi posle osvežavanja |
+| 4 | 40f16ac | Mete za trejd, Biram kategorije: redosled, prag 0,15 SD, tekst |
+| 5 | a15edf7 | Provera iz ugla 12 timova i u 2 druga formata, uzorak od 30 predloga; Popravi kategorije samo u ligama sa kategorijama |
+
+**Pravila 1 do 7 posle svakog koraka:**
+
+| Merenje | Polazna | Korak 1 | Srednje rešenje | Korak 2 | Korak 3 | Korak 5 |
+|---|---|---|---|---|---|---|
+| Tvoje lige (3 lige, 234 pretrage) | 1.221 (pravila 4 i 5) | 0 | 0 | 0 | 0 | |
+| Iz ugla svih 12 timova (2.376 pretraga) | | | | | | 0 |
+| Sleeper poeni + Fantrax Roto (363 pretrage) | | | | | | 0 (254 pre ispravke) |
+
+Korak 4 menja samo Mete za trejd, pa Pronađi trejd posle njega nije ponovo meren. Korak 5 je meren posle koraka 4.
+
+**Glavni brojevi:**
+- Vrednost igrača (prvih 50 / 150 po stvarnoj vrednosti, Spearman sa tržištem): 0,70 → 0,80 / 0,83 → 0,90. Sa ESPN vlasništvom: 0,38 → 0,62 / 0,60 → 0,75.
+- 20 najvećih odstupanja: prosečna razlika 81 → 56 mesta (stvarna bolja) i 105 → 72 (stvarna lošija). Igrača sa razlikom 50+ mesta: 42 → 21.
+- Tvoje ocene (dodatno, nije meta): 👍 trejd ima veću korist od 👎 u 53% parova pre, 61% posle koraka 2.
+- Srednje rešenje: prva strana prosečno 5,9 predloga, sve strane 5,2, pune prve strane 59 od 201 (posle koraka 2).
+- Svi timovi: 0,3 do 2,9 s računanja za 11 timova, zavisno od strategije (u skrivenom panelu u Workeru 11,6 do 12,5 s).
+
+## Odstupanja od plana
+
+1. **Polazna tačka** nije kraj tuning-v1: dopuna strane do 8 (2fe7f4c) je popuštala raznovrsnost, pa su pravila 4 i 5 na startu bila 125 i 1.096.
+2. **Raznovrsnost:** strogo pravilo (2 od 8) je davalo kratke strane, pa sam pitao. Ti si izabrao srednje rešenje, i tako je urađeno.
+3. **Korak 2, bez faktora uloge i bez izmene procenata i TO:** dijagnoza je pokazala da ostatak razlike dolazi od toga što tržište namerno uključuje minute i ne broji TO kao punu kategoriju. Izmereno je i upisano. Manja težina TO bi popravila slaganje sa tržištem, ali je to odluka o pravilu lige, pa je ostavljena tebi.
+4. **Korak 3, tip trejda ne pokreće novu pretragu:** sakriva predloge iz poslednje pretrage i ponovo slaže strane. Zato brojač u modalu odmah zna koliko ostaje. Malih trejdova (1 za 1, 2 za 1) zaista ima malo i u punim listama.
+5. **Korak 3, usput:** ispravljena stara greška. Predlozi posle osvežavanja stranice su pokazivali „Promenio si izbor”.
+6. **Korak 4, bez lige:** prag 0,15 važi za razliku z vrednosti igrača, jer nema timova za SD.
+7. **Korak 5:** provera iz ugla drugih timova radi na privremenim kopijama lige (posle obrisane). Druga dva formata su uvezena iz javnih test liga i posle obrisana. Ispravljena je greška koju je provera našla (Popravi kategorije u poen ligi). Prazne strategije u Sleeper i Fantrax ligama su zapisane kao nalaz, bez izmene.
+8. **Trajanje Svi timovi** je izmereno u test browseru čiji je panel bio skriven. Broj za vidljivu stranicu je procena iz računanja na glavnoj niti.
+
 ## Kako je mereno
 
 - Isti skript i ista pravila kao u tuning-v1: [tools/tf_audit.js](../tools/tf_audit.js), `tfAudit.snapshot(tag)`, pravila 1 do 7 (pravilo 4 po definiciji iz koraka 5).
@@ -28,19 +67,20 @@ Polazna tačka nije ista kao kraj tuning-v1: dopuna strane do 8 (commit 2fe7f4c,
 - Ako ni sa granicom 3 nema 6 predloga, a ima još predloga za sledeće strane, prikazuje se koliko ima, uz napomenu (vraćena napomena iz koraka 5 tuning-v1, dopunjena pravilom).
 - Pravilo 5 u proveri je usklađeno: granica 3 za njegovog igrača je dozvoljena samo kad strana sa granicom 2 (računata na pravom redosledu po rangu) ne bi imala 6 predloga.
 
-| 202 prve strane (3 lige, 234 pretrage, bez praznih) | Strogo (2 od 8) | Srednje rešenje |
-|---|---|---|
-| Pune strane (8) | vidi napomenu | **52** |
-| Prva strana, prosečno predloga | vidi napomenu | **6,0** |
-| Sve strane, prosečno predloga | vidi napomenu | **5,5** |
-| Prve strane sa bar 6 predloga | | 160 |
-| Granica podignuta na 3 | | 87 pretraga |
-| Pravila 1 do 7 | 0 | 0 |
-| Predloga na prvim stranama | 1.095 | 1.210 |
+| 3 lige, 234 pretrage | Strogo (2 od 8) | Srednje rešenje | Srednje, posle koraka 2 |
+|---|---|---|---|
+| Prve strane sa bar 1 predlogom | 202 | 202 | 201 |
+| Pune prve strane (8) | 16 od 64 (samo NBA tviter, Fer) | **52** | **59** |
+| Prva strana, prosečno predloga | oko 4,2 (samo NBA tviter, Fer) | **6,0** | **5,9** |
+| Sve strane, prosečno predloga | | **5,5** | **5,2** |
+| Prve strane sa bar 6 predloga | | 160 | 146 |
+| Granica podignuta na 3 | | 87 pretraga | 88 pretraga |
+| Pravila 1 do 7 | 0 | 0 | 0 |
+| Predloga na prvim stranama | 1.095 | 1.210 | 1.182 |
 
 Raspodela prve strane: 1: 17, 2: 4, 3: 11, 4: 6, 5: 4, 6: 64, 7: 44, 8: 52. Strane sa 1 do 3 predloga su pretrage koje ukupno imaju malo predloga (najviše Konsolidacija).
 
-Napomena: strogo pravilo sam merio samo na NBA tviter ligi (13 protivnika × 6 strategija, Fer): pune prve strane 16 od 64, prosečna strana oko 4,2 predloga.
+Strogo pravilo je mereno samo na NBA tviter ligi (13 protivnika × 6 strategija, Fer), pre odluke o srednjem rešenju.
 
 ## Korak 1: sitne greške i tekstovi
 
