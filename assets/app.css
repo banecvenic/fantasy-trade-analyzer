@@ -1487,6 +1487,7 @@ td:has(.dd.dd-fixed:not([hidden])){z-index:5}
 .flt-link{color:var(--rs-blue);border-color:color-mix(in srgb,var(--rs-blue) 45%,transparent)}
 .tf-card li.flt-hit{box-shadow:inset 0 0 0 1px var(--rs-blue);border-radius:8px;padding:3px 4px;margin:0 -4px}
 .flt-tag{color:var(--rs-blue);background:color-mix(in srgb,var(--rs-blue) 14%,transparent);margin-left:6px;cursor:help;text-transform:none;letter-spacing:0}
+.tag-role{color:var(--win-text);background:var(--win-bg);margin-left:6px;cursor:help;text-transform:none;letter-spacing:0}
 @media (max-width:640px){
   #modal.flt-modal{place-items:end stretch;padding:0}
   .modal-box.flt-box{max-width:none;width:100%;max-height:90vh;border-radius:16px 16px 0 0;border-width:1px 0 0}
