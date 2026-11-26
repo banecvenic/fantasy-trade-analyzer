@@ -92,4 +92,34 @@ test('isti igrač u ligama različitih formata dobija različitu vrednost', () =
   assert.notStrictEqual(a.toFixed(3), b.toFixed(3));
 });
 
+// igrač bez utakmica ove sezone: prošla sezona se čuva samo kao rezerva, projekcija ima prednost (compactPlayer, statOf, noSeasonGames iz app.js)
+test('bez utakmica ove sezone: projekcija, pa prošla sezona; sa utakmicama sezona preuzima', () => {
+  const grabFn = name => { const i = src.indexOf(`function ${name}(`); return src.slice(i, src.indexOf('\n}\n', i) + 2); };
+  const grabConst = name => { const i = src.indexOf(`const ${name} =`); const j = src.indexOf('\n};\n', i), k = src.indexOf(';\n', i); return src.slice(i, (j > 0 && j < src.indexOf('\nconst ', i + 1) ? j + 3 : k + 2)); };
+  const SEASON = 2027, STAT = { GP: '42', PTS: '0', MIN: '40' };
+  const env = `const CONFIG = { SEASON: ${SEASON} }; const STAT = ${JSON.stringify(STAT)}; const PERIODS = [{ key: 'season', statId: s => '00' + s }, { key: 'proj', statId: s => '10' + s }];
+    const PROJ_STAT_ID = '10${SEASON}', PREV_SEASON_STAT_ID = '00${SEASON - 1}', NO_PROJ_KEYS = [], PROJ_FROM_SEASON = [], PRO_TEAMS = { 1: 'ATL' }, POSITIONS = { 1: 'PG' };
+    const noSeasonGames = ${src.match(/const noSeasonGames = (p => [^\n]+);/)[1]}
+    ${grabFn('compactPlayer')}
+    ${src.slice(src.indexOf('const statOf = (p, key) => {'), src.indexOf('\n};\n', src.indexOf('const statOf = (p, key) => {')) + 3)}
+    return { compactPlayer, statOf, noSeasonGames };`;
+  const { compactPlayer, statOf, noSeasonGames } = new Function(env)();
+  const av = (gp, pts) => ({ 42: gp, 0: pts, 40: 30 });
+  const raw = stats => ({ id: 1, fullName: 'X', proTeamId: 1, defaultPositionId: 1, stats });
+  // bez sezone i bez projekcije: projekcija = prošla sezona
+  const a = compactPlayer(raw([{ id: '002026', averageStats: av(38, 20) }]));
+  assert.ok(noSeasonGames(a));
+  assert.strictEqual(statOf(a, 'proj').PTS, 20);
+  assert.strictEqual(statOf(a, 'season'), null);
+  // ESPN projekcija ima prednost
+  const b = compactPlayer(raw([{ id: '002026', averageStats: av(38, 20) }, { id: '102027', averageStats: av(31, 14) }]));
+  assert.strictEqual(statOf(b, 'proj').PTS, 14);
+  // sa utakmicama ove sezone: prošla sezona se ne čuva
+  const c = compactPlayer(raw([{ id: '002026', averageStats: av(38, 20) }, { id: '002027', averageStats: av(5, 9) }]));
+  assert.ok(!noSeasonGames(c)); assert.strictEqual(c.prev, undefined); assert.strictEqual(statOf(c, 'proj'), null);
+  // bez ičega: nema procene
+  const d = compactPlayer(raw([]));
+  assert.strictEqual(statOf(d, 'proj'), null);
+});
+
 console.log(`\n${n} testova prošlo`);

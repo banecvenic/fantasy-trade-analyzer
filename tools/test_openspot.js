@@ -22,12 +22,18 @@ const test = (name, fn) => { fn(); n++; console.log(`ok  ${name}`); };
 // availFactor (čista funkcija) + seasonOut + projAvail
 const availSrc = src.slice(src.indexOf('const availFactor ='), src.indexOf('\n', src.indexOf('const availFactor =')));
 const projSrc = grab('const seasonOut =', '/** Procena plasmana posle trejda');
-const mk = (injRet, dur) => new Function('state', 'durability', `${availSrc}\n${projSrc}\nreturn { seasonOut, projAvail, availFactor };`)({ injRet }, () => dur);
+const mk = (injRet, dur) => new Function('state', 'durability', 'noSeasonGames', 'VALUE', `${availSrc}\n${projSrc}\nreturn { seasonOut, projAvail, availFactor };`)({ injRet }, () => dur, p => !!p.noGames, { NO_GAMES_DISC: 0.7 });
 
 test('procena: igrač koji je OUT se broji po tome koliko inače igra (nije nula)', () => {
   const M = mk({}, { gp: 13, n: 17 });
   assert.ok(Math.abs(M.projAvail({ id: 1, inj: 'OUT' }) - 13 / 17) < 1e-9);
   assert.strictEqual(M.availFactor(13, 17, true), 0); // stari način (OUT = 0) ostaje za ostale alate
+});
+
+test('procena: igrač bez utakmica ove sezone dobija popust VALUE.NO_GAMES_DISC, ne 0', () => {
+  const M = mk({}, { gp: 0, n: 17 });
+  assert.strictEqual(M.projAvail({ id: 2, noGames: true }), 0.7);
+  assert.strictEqual(M.projAvail({ id: 3 }), 0); // 0 od 17 bez oznake: stari način
 });
 
 test('procena: van do kraja sezone samo kad ESPN kaže outForSeason (4. polje = 1)', () => {

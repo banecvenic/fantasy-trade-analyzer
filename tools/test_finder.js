@@ -12,7 +12,7 @@ const start = src.indexOf('   Fer trejd: čiste funkcije');
 const end = src.indexOf('/* ==== kraj: Fer trejd, čiste funkcije ==== */');
 if (start < 0 || end < 0) throw new Error('Nije nađen modul Fer trejd u app.js');
 const code = src.slice(src.lastIndexOf('/*', start), end);
-const { TF, E, tfMarket, tfVetoPick, tfVetoShown, tfDropOk, tfTabFor, tfSlotValue, tfProd, tfRateKey, tfRateApply, tfInjury, tfInjFrac, tfNewsWeeks, tfLate } = new Function(`${code}\nreturn { TF, E: tfEngine(), tfMarket, tfVetoPick, tfVetoShown, tfDropOk, tfTabFor, tfSlotValue, tfProd, tfRateKey, tfRateApply, tfInjury, tfInjFrac, tfNewsWeeks, tfLate };`)();
+const { TF, E, tfMarket, tfVetoPick, tfVetoShown, tfDropOk, tfTabFor, tfSlotValue, tfProd, tfRateKey, tfRateApply, tfInjury, tfInjFrac, tfNewsWeeks, tfLate, tfVetoSizeOk } = new Function(`${code}\nreturn { TF, E: tfEngine(), tfMarket, tfVetoPick, tfVetoShown, tfVetoSizeOk, tfDropOk, tfTabFor, tfSlotValue, tfProd, tfRateKey, tfRateApply, tfInjury, tfInjFrac, tfNewsWeeks, tfLate };`)();
 // i motor kao tekst (kako ga dobija Web Worker) mora da radi samostalno
 const E2 = new Function(`return (${new Function(`${code}\nreturn tfEngine;`)().toString()})();`)();
 
@@ -130,13 +130,12 @@ test('zaključan igrač se ni ne otpušta; primalac ne dobija igrača kog bi odm
   }
 });
 
-test('raznovrsnost: isto jezgro samo jednom; moj igrač najviše u 3, a popušta samo da se strana popuni', () => {
+test('raznovrsnost: isto jezgro samo jednom; moj igrač najviše u 3 i nikad ne popušta', () => {
   const X = (core, g, r) => ({ core, g, r, s: 1, n: g.length + r.length });
   const L = [X('a|b', [1], [5]), X('a|b', [1], [5]), X('a|c', [1], [6]), X('a|d', [1], [7]), X('a|e', [1], [8]), X('f|b', [2], [5])];
-  // 5 različitih jezgara, strana od 8: sve staju na prvu stranu (četvrti sa igračem 1 tek na kraju strane)
+  // 5 različitih jezgara, strana od 8: četvrti sa igračem 1 ide na sledeću stranu i kad prva nije puna (tuning-v2)
   const out = E.diversify(L, 8, 3);
-  assert.deepStrictEqual(out.map(x => x.core), ['a|b', 'a|c', 'a|d', 'f|b', 'a|e']);
-  assert.ok(out.every(x => x.pg === 0));
+  assert.deepStrictEqual(out.map(x => [x.core, x.pg]), [['a|b', 0], ['a|c', 0], ['a|d', 0], ['f|b', 0], ['a|e', 1]]);
   // strana od 4: četvrti sa igračem 1 ide na sledeću stranu, jer ima drugih
   const o4 = E.diversify(L, 4, 3);
   assert.deepStrictEqual(o4.map(x => [x.core, x.pg]), [['a|b', 0], ['a|c', 0], ['a|d', 0], ['f|b', 0], ['a|e', 1]]);
@@ -277,6 +276,12 @@ test('savet za veto lige: samo kad postoji igrač na granici rostera', () => {
   assert.strictEqual(tfVetoPick(side, new Set(), -1, 50).id, 2);
   assert.strictEqual(tfVetoPick(side, new Set([2]), -1, 50), null);
   assert.strictEqual(tfVetoPick(side, new Set(), -5, 50), null); // niko nije slabiji od najboljeg slobodnog (po tržišnoj vrednosti)
+});
+
+test('savet za veto: najviše 3 igrača po strani (3:4 i 4:3 nemaju savet)', () => {
+  assert.ok(tfVetoSizeOk(2, 1)); assert.ok(tfVetoSizeOk(1, 2)); assert.ok(tfVetoSizeOk(3, 2)); assert.ok(tfVetoSizeOk(2, 3));
+  assert.ok(!tfVetoSizeOk(4, 3)); assert.ok(!tfVetoSizeOk(3, 4)); // bio bi 4:4
+  assert.ok(!tfVetoSizeOk(2, 2)); assert.ok(!tfVetoSizeOk(3, 1));
 });
 
 test('savet za veto: ne kad je igrač za dopunu iznad nivoa zamene; najviše 3 od 8 kartica', () => {
@@ -727,8 +732,8 @@ test('strana sa 4 igrača: samo kad korist pobedi najbolji manji trejd za 0,10; 
   const T = (i, kG, kR) => ({ core: `c${i}`, s: 10 - i, g: Array.from({ length: kG }, (_, k) => i * 10 + k), r: Array.from({ length: kR }, (_, k) => 500 + i * 10 + k) });
   const P = E.paginate([T(0, 4, 4), T(1, 3, 4), T(2, 2, 2), T(3, 1, 1), T(4, 2, 2)], { per: 4, bigCap: 1 });
   assert.deepStrictEqual(P.map(x => [x.core, x.pg]), [['c0', 0], ['c2', 0], ['c3', 0], ['c4', 0], ['c1', 1]]);
-  // bez drugih predloga strana se popunjava i drugim sa 4 igrača
-  assert.ok(E.paginate([T(0, 4, 4), T(1, 3, 4), T(2, 2, 2)], { per: 8, bigCap: 1 }).every(x => x.pg === 0));
+  // i bez drugih predloga drugi sa 4 igrača ide na sledeću stranu (tuning-v2: ograničenje ne popušta)
+  assert.deepStrictEqual(E.paginate([T(0, 4, 4), T(1, 3, 4), T(2, 2, 2)], { per: 8, bigCap: 1 }).map(x => [x.core, x.pg]), [['c0', 0], ['c2', 0], ['c1', 1]]);
 });
 
 test('manji trejd ispred većeg kad je razlika u oceni manja od 0,07', () => {
@@ -740,10 +745,10 @@ test('manji trejd ispred većeg kad je razlika u oceni manja od 0,07', () => {
 test('raznovrsnost: njegov igrač najviše u 2 od 8; U trejd je izuzet', () => {
   const X = (i, g, r) => ({ core: `c${i}`, s: 10 - i, g: [g], r: [r] });
   const L = [X(0, 1, 50), X(1, 2, 50), X(2, 3, 50), X(3, 4, 51), X(4, 5, 50)];
-  // strana od 3: treći sa igračem 50 čeka, jer ima drugih; na strani od 8 sve staje (popunjavanje)
+  // strana od 3: treći sa igračem 50 čeka; isto i na strani od 8 (raznovrsnost ne popušta ni da se strana popuni)
   assert.deepStrictEqual(E.paginate(L, { per: 3, capG: 3, capR: 2 }).map(x => [x.core, x.pg]), [['c0', 0], ['c1', 0], ['c3', 0], ['c2', 1], ['c4', 1]]);
   assert.deepStrictEqual(E.paginate(L, { per: 3, capG: 3, capR: 2, exempt: new Set([50]) }).map(x => x.pg), [0, 0, 0, 1, 1]);
-  assert.ok(E.paginate(L, { per: 8, capG: 3, capR: 2 }).every(x => x.pg === 0));
+  assert.deepStrictEqual(E.paginate(L, { per: 8, capG: 3, capR: 2 }).map(x => [x.core, x.pg]), [['c0', 0], ['c1', 0], ['c3', 0], ['c2', 1], ['c4', 1]]);
   assert.deepStrictEqual([TF.DIV_MINE, TF.DIV_THEIRS, TF.FLT_FEW], [3, 2, 3]);
 });
 

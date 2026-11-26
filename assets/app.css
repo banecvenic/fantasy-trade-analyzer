@@ -377,6 +377,7 @@ tr.irhead td{font-size:11px;color:var(--muted);background:var(--bg2);text-align:
 .tag-out{background:var(--lose-bg);color:var(--lose-text)}
 .tag-in{background:var(--win-bg);color:var(--win-text)}
 .tag-ir{background:var(--card2);color:var(--muted);border:1px solid var(--line)}
+.tag-nogames{background:var(--card2);color:var(--warn);border:1px solid var(--line);cursor:help}
 .tag-mine{background:rgba(var(--accent-rgb),.16);color:var(--give)}
 .mini{background:var(--bg2);border:1px solid var(--line);border-radius:4px;color:var(--muted);font-size:10px;padding:2px 5px;cursor:pointer;flex:none;margin-left:auto}
 .mini:hover{color:var(--text)}
@@ -1228,7 +1229,8 @@ td.fa-notes{display:table-cell}td.fa-notes span{display:block}
 .tf-marks{display:flex;gap:4px;flex-shrink:0}
 .tf-mk{display:inline-flex;align-items:center;gap:4px;font:inherit;font-size:12px;font-weight:600;padding:4px 8px;border-radius:999px;border:1px solid var(--line);background:none;color:var(--muted);cursor:pointer;white-space:nowrap}
 .tf-mk .ic{font-size:12px;line-height:1}
-.tf-mk.on.mk-lock{color:var(--text);border-color:var(--text);background:var(--card2)}
+.tf-mk.on.mk-lock,.tf-mk.on.mk-excl{color:var(--text);border-color:var(--text);background:var(--card2)}
+.tf-mk.mk-excl .ic{font-size:14px}
 .tf-mk.on.mk-soft{color:var(--warn);border-color:var(--warn)}
 .tf-mk.on.mk-trade{color:var(--info);border-color:var(--info);background:var(--info-bg)}
 .tf-rm{background:none;border:0;color:var(--dim);cursor:pointer;padding:2px 6px;font:inherit}
@@ -1281,6 +1283,7 @@ td.fa-notes{display:table-cell}td.fa-notes span{display:block}
 .rate-set .btn:disabled{opacity:.45;cursor:default;filter:grayscale(.5)}
 .tf-card.saved{border-color:var(--win)}
 .tf-more{display:flex;justify-content:center;padding:12px}
+.tf-more-tip{display:inline-flex;cursor:help}.tf-more-tip .btn[disabled]{pointer-events:none}
 .tf-save{display:flex;justify-content:center;padding:12px 0}
 .tf-foot .btn{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;line-height:1}
 /* javna stranica /trade-finder/: lige kao kartice, pa jasno odvojen ručni unos */

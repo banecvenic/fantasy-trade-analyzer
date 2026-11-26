@@ -174,23 +174,33 @@ test('lista želja: kolona Vlasnik i sortiranje po vlasniku (bez vlasnika na dnu
   if (a < 0 || b < 0) throw new Error('Nisu nađene oznake Pronađi trejd u app.js');
   const store = {};
   const L = new Function('store', `const lsGet = k => (k in store ? JSON.parse(store[k]) : null), lsSet = (k, v) => { store[k] = JSON.stringify(v); };\n${src.slice(a, src.indexOf('\n', a))}\n${src.slice(src.indexOf('const TF_LOCK_K'), b2)}\nreturn { tfMarks, tfSetMark, tfResetMarks, tfLocks, tfMarksAll };`)(store);
-  test('Lock mog igrača važi protiv svih protivnika u ligi; ostale oznake po protivniku', () => {
+  test('Lock i Dajem ako mora mog igrača važe protiv svih protivnika u ligi; U trejd i njegovi igrači po protivniku', () => {
     const c1 = { scopeKey: 'lg', oppKey: 'e1' }, c2 = { scopeKey: 'lg', oppKey: 'e2' };
     L.tfSetMark(c1, 'mine', 10, 'lock');
     L.tfSetMark(c1, 'mine', 11, 'soft');
     L.tfSetMark(c1, 'theirs', 20, 'lock');
     assert.strictEqual(L.tfMarks(c2).mine[10], 'lock'); // drugi protivnik: isti Lock
-    assert.strictEqual(L.tfMarks(c2).mine[11], undefined); // Dajem ako mora: samo za e1
+    assert.strictEqual(L.tfMarks(c2).mine[11], 'soft'); // Dajem ako mora: cela liga (tuning-v2)
     assert.strictEqual(L.tfMarks(c2).theirs[20], undefined);
-    L.tfResetMarks(c1); // Poništi sve bez potvrde: Lock ostaje
-    assert.strictEqual(L.tfMarks(c1).mine[10], 'lock');
+    L.tfSetMark(c1, 'mine', 12, 'trade');
+    assert.strictEqual(L.tfMarks(c2).mine[12], undefined); // U trejd: samo za e1
+    assert.deepStrictEqual(L.tfLocks('lg'), { 10: 'lock' }); // "Ne dam" u Metama: samo Lock
+    L.tfSetMark(c2, 'mine', 11, 'soft'); // isti klik kod drugog protivnika skida oznaku za celu ligu
     assert.strictEqual(L.tfMarks(c1).mine[11], undefined);
+    L.tfSetMark(c1, 'mine', 11, 'soft');
+    L.tfResetMarks(c1); // Poništi sve bez potvrde: oznake za celu ligu ostaju
+    assert.strictEqual(L.tfMarks(c1).mine[10], 'lock');
+    assert.strictEqual(L.tfMarks(c1).mine[11], 'soft');
+    assert.strictEqual(L.tfMarks(c1).mine[12], undefined);
     L.tfResetMarks(c1, true);
     assert.strictEqual(L.tfMarks(c2).mine[10], undefined);
+    assert.strictEqual(L.tfMarks(c2).mine[11], undefined);
   });
-  test('prenos starih oznaka: Lock protiv bilo kog protivnika postaje Lock za celu ligu', () => {
-    store['fbaTrade.tfMarks.v1'] = JSON.stringify({ lg2: { e1: { mine: { 30: 'lock', 31: 'trade' }, theirs: {} }, e2: { mine: {}, theirs: {} } } });
+  test('prenos starih oznaka: Lock i Dajem ako mora protiv bilo kog protivnika važe za celu ligu', () => {
+    store['fbaTrade.tfMarks.v1'] = JSON.stringify({ lg2: { e1: { mine: { 30: 'lock', 31: 'trade', 32: 'soft', 33: 'soft' }, theirs: {} }, e2: { mine: { 33: 'lock' }, theirs: {} } } });
     assert.strictEqual(L.tfMarks({ scopeKey: 'lg2', oppKey: 'e2' }).mine[30], 'lock');
+    assert.strictEqual(L.tfMarks({ scopeKey: 'lg2', oppKey: 'e2' }).mine[32], 'soft');
+    assert.strictEqual(L.tfMarks({ scopeKey: 'lg2', oppKey: 'e1' }).mine[33], 'lock'); // Lock ima prednost
     assert.strictEqual(L.tfMarks({ scopeKey: 'lg2', oppKey: 'e2' }).mine[31], undefined);
     assert.strictEqual(L.tfMarks({ scopeKey: 'lg2', oppKey: 'e1' }).mine[31], 'trade');
   });
