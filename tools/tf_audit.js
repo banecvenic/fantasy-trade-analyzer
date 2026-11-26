@@ -10,6 +10,8 @@
   A.sleep = ms => new Promise(res => { const t0 = performance.now(), ch = new MessageChannel(); ch.port1.onmessage = () => (performance.now() - t0 >= ms ? res() : ch.port2.postMessage(0)); ch.port2.postMessage(0); });
   const r3 = v => (v == null || !Number.isFinite(v) ? v : Math.round(v * 1000) / 1000);
   const nm = id => state.byId.get(id)?.name || String(id);
+  /** Prva strana rezultata (korak 5: strane imaju broj x.pg i mogu biti kraće od 8) */
+  const pg0 = list => (list.length && list[0].pg != null ? list.filter(x => x.pg === 0) : list.slice(0, 8));
 
   /* ---------- 1) Motor sa brojačima ---------- */
   function patchedSrc() {
@@ -50,8 +52,8 @@
             if (C.small && kG === kR && kG <= 2) D.small.push({ g: g.map(i => mine[i].id), r: r.map(i => theirs[i].id), lab }); }
           if (!x) continue;
           const tier = x.tier;`);
-    rep('if (tiers[tier].length > 12000) {', 'if (tiers[tier].length > 12000) { if (D) D.trunc++;');
-    rep('const list = paginate(orderTiers(tiers, T.ENOUGH, Infinity),', 'const __ord = orderTiers(tiers, T.ENOUGH, Infinity); if (D) { D.tierN = tiers.map(t => t.length); D.ordN = __ord.length; if (C.ordered) D.ordered = __ord; }\n    const list = paginate(__ord,');
+    rep('if (found.length > 12000) {', 'if (found.length > 12000) { if (D) D.trunc++;');
+    rep('sizeTie(ord, T.SIZE_TIE);', 'sizeTie(ord, T.SIZE_TIE); if (D) { D.tierN = [found.length]; D.ordN = ord.length; if (C.ordered) D.ordered = ord; }');
     rep('return { list: list.slice(0, T.KEEP), stats, hasTrade };', 'return { list: list.slice(0, T.KEEP), stats, hasTrade, dbg: D };');
     return s;
   }
@@ -73,7 +75,8 @@
     try { return tfInput(M); } finally { Object.assign(S, keep); }
   };
   /** Moje 3 najslabije kategorije (očekivane pobede po kategoriji protiv ostalih timova, bez punta) */
-  A.weakCats = (M, n = 3) => { const inp = A.input(M); const myTot = A.myTot(M); const b = A.E.expWins(myTot, inp.opps, M.cats, M.myIdx, M.sd, null); return M.myIdx.map(i => ({ i, key: M.cats[i].key, e: b.by[i] })).sort((x, y) => x.e - y.e).slice(0, n); };
+  A.weakCats = (M, n = 3) => (typeof tfWeakIdx === 'function' ? tfWeakIdx(M, n).map(i => ({ i, key: M.cats[i].key })) : A.weakCatsOld(M, n));
+  A.weakCatsOld = (M, n = 3) => { const inp = A.input(M); const myTot = A.myTot(M); const b = A.E.expWins(myTot, inp.opps, M.cats, M.myIdx, M.sd, null); return M.myIdx.map(i => ({ i, key: M.cats[i].key, e: b.by[i] })).sort((x, y) => x.e - y.e).slice(0, n); };
   A.myTot = M => { const v = new Float64Array(M.keys.length); for (const x of M.mine) if (!x.ir) x.vec.forEach((a, i) => { v[i] += a; }); return v; };
 
   /* ---------- 3) Igrač: tržišna i stvarna vrednost, komponente cene ---------- */
@@ -206,7 +209,7 @@
       trace: tr ? { ...tr, myTot: undefined, myAfter: undefined, thTot: undefined, thAfter: undefined, A: r3(tr.A), Bx: r3(tr.Bx), gap: r3(tr.gap), gain: r3(tr.gain), s: r3(tr.s) } : null,
       team, ordIdx, ordN: D.ordN, listIdx, page: listIdx >= 0 ? Math.floor(listIdx / 8) + 1 : null, x: x ? { ...x, s: r3(x.s), gain: r3(x.gain) } : null, judge: J,
       noSlotCats: noSlot ? { after: M.cats.map(c => r3(cv(noSlot.after, c))) } : null, conv,
-      oppW: M.oppW.map(r3), oppIdx: M.oppIdx, myIdx: M.myIdx, oppRanks: M.oppRanks, sd: M.sd.map(r3), top8: res.list.slice(0, 8).map(y => ({ g: y.g.map(nm), r: y.r.map(nm), md: y.md.map(nm), mf: y.mf, s: r3(y.s), gain: r3(y.gain), conv: !!y.conv, shape: y.shape })),
+      oppW: M.oppW.map(r3), oppIdx: M.oppIdx, myIdx: M.myIdx, oppRanks: M.oppRanks, sd: M.sd.map(r3), top8: pg0(res.list).map(y => ({ g: y.g.map(nm), r: y.r.map(nm), md: y.md.map(nm), mf: y.mf, s: r3(y.s), gain: r3(y.gain), conv: !!y.conv, shape: y.shape })),
     };
   };
 
@@ -214,7 +217,7 @@
   A.funnel = (oppKey, opt = {}, marks = {}) => {
     const M = A.model(oppKey, marks);
     const res = A.run(M, opt, { ordered: true, small: true }), D = res.dbg;
-    const ord = D.ordered, top = res.list.slice(0, 8), s8 = top.length ? Math.min(...top.map(y => y.s)) : null;
+    const ord = D.ordered, top = pg0(res.list), s8 = top.length ? Math.min(...top.map(y => y.s)) : null;
     const bestOf = sh => ord.map((y, i) => ({ y, i })).filter(o => o.y.shape === sh).slice(0, 3).map(o => ({ rank: o.i + 1, g: o.y.g.map(nm), r: o.y.r.map(nm), md: o.y.md.map(nm), mf: o.y.mf, s: r3(o.y.s), gain: r3(o.y.gain), minusS: r3(o.y.gain - o.y.s), sit: o.y.sit, conv: !!o.y.conv }));
     // mali trejdovi (1:1 i 2:2) koji nisu stigli do rangiranja: korist za moj tim (prosta zamena, kao motor bez otpuštanja), razlog
     const inp = res.inp, E = A.E, myTot = A.myTot(M), base = M.pts ? null : E.expWins(myTot, inp.opps, M.cats, M.myIdx, M.sd, inp.w).total;
@@ -260,7 +263,8 @@
     if (strat === 'best') return J.gain >= 0.05 && (!J.card || J.card.win - J.card.lose >= 2);
     if (strat === 'cats') return !!J.card && weak.some(w => J.card.res[w.i] > 0);
     if (strat === 'sell') return x.g.some(id => (P.rvRank.get(id) ?? 1e9) - (P.mvRank.get(id) ?? 1e9) >= RANK_GAP);
-    if (strat === 'buy') return x.r.some(id => (P.mvRank.get(id) ?? 1e9) - (P.rvRank.get(id) ?? 1e9) >= RANK_GAP);
+    // Kupi jeftino: igrač jeftiniji na tržištu nego po stvarnoj vrednosti, ili kratko povređen igrač koji ide na moj IR (situacija myir)
+    if (strat === 'buy') return x.r.some(id => (P.mvRank.get(id) ?? 1e9) - (P.rvRank.get(id) ?? 1e9) >= RANK_GAP) || x.r.some(id => { const e = byId.get(id); return e && e.wk != null && e.wk <= TF.INJ.SHORT_WEEKS && (e.irOk || e.out); });
     if (strat === 'cons') { const all = [...x.g, ...x.r], best = all.reduce((b, id) => ((byId.get(id).rv ?? -1e9) > (byId.get(b).rv ?? -1e9) ? id : b), all[0]); return x.g.length > x.r.length && x.r.includes(best); }
     if (strat === 'depth') return x.r.length > x.g.length;
     return true;
@@ -284,7 +288,7 @@
         const got = await Promise.all(jobs);
         const pages = {};
         for (const { strat, slider, inp, d } of got) {
-          const page = d.r.list.slice(0, 8), tag = `${lg.name} · ${lg.opps[oppKey].name} · ${strat}/${slider}`;
+          const page = pg0(d.r.list), tag = `${lg.name} · ${lg.opps[oppKey].name} · ${strat}/${slider}`;
           pages[`${strat}/${slider}`] = page.map(key).sort().join(';');
           out.runs.push({ lg: lg.name, opp: lg.opps[oppKey].name, strat, slider, n: d.r.list.length, page: page.length, ms: d.ms, tierN: d.r.dbg?.tierN, ordN: d.r.dbg?.ordN, st: { pairs: d.r.stats.pairs, value: d.r.stats.value, cats: d.r.stats.cats, gain: d.r.stats.gain, strat: d.r.stats.strat, conv: d.r.stats.conv }, slots: page.filter(x => x.mf > 0).length, drops: page.filter(x => x.md.length).length, convN: page.filter(x => x.conv).length });
           if (!page.length) out.emptyRuns++;
@@ -305,8 +309,13 @@
             if (rotG.length >= 2 && x.r.every(id => minOf(id) < 20)) { v.push(2); push(2, rotG.reduce((s, id) => s + minOf(id), 0) - Math.max(...x.r.map(minOf)), { ...desc, min: [...x.g, ...x.r].map(id => `${nm(id)} ${minOf(id).toFixed(1)}`).join(', ') }); }
             // 3. Najbolje za mene: razlika u kategorijama 1 ili manje, ili korist blizu nule
             if (strat === 'best' && ((J.card && J.card.win - J.card.lose <= 1) || J.gain < 0.05)) { v.push(3); push(3, 1 - (J.card ? J.card.win - J.card.lose : 0) + (0.05 - J.gain), desc); }
-            // 4. više od 3 igrača na strani van Konsolidacije i Dubine
-            if (!['cons', 'depth'].includes(strat) && Math.max(x.g.length, x.r.length) > 3) { v.push(4); push(4, Math.max(x.g.length, x.r.length), desc); }
+            // 4. (korak 5) strana sa 4 igrača: prekršaj ako nije opravdana (korist manja od najboljeg trejda do 3 po strani + BIG_GAIN) ili ih je više od 1 na strani od 8; sirov broj u out.big4
+            if (Math.max(x.g.length, x.r.length) > 3) {
+              out.big4 = (out.big4 || 0) + 1;
+              const small = Math.max(-Infinity, ...d.r.list.filter(y => Math.max(y.g.length, y.r.length) <= 3).map(y => y.gain)), bar = small + (M.pts ? TF.BIG_GAIN_PTS : TF.BIG_GAIN);
+              const nBig = page.filter(y => Math.max(y.g.length, y.r.length) > 3).length;
+              if (x.gain < bar - 1e-9 || nBig > TF.BIG_PER_PAGE) { v.push(4); push(4, nBig + Math.max(0, bar - x.gain), desc); }
+            }
             // 5. ponavljanje na strani od 8
             const rep = x.g.some(id => cntG.get(id) > 3) || x.r.some(id => cntR.get(id) > 2);
             if (rep) { v.push(5); push(5, Math.max(...x.g.map(id => cntG.get(id)), ...x.r.map(id => cntR.get(id))), { ...desc, txt: `${tag}: ${[...cntG].filter(([, c]) => c > 3).map(([id, c]) => `${nm(id)} (moj) ${c}/8`).concat([...cntR].filter(([, c]) => c > 2).map(([id, c]) => `${nm(id)} ${c}/8`)).join(', ')}` }); }
@@ -327,12 +336,12 @@
         for (const s of STRATS) { out.sliderSame.n++; if (pages[`${s}/fair`] === pages[`${s}/slight`]) out.sliderSame.fairSlight++; if (pages[`${s}/fair`] === pages[`${s}/aggr`]) out.sliderSame.fairAggr++; }
         // 6. "Dajem ako mora": moj igrač koji je najčešće u predlozima (Najbolje za mene, Fer) dobija oznaku; da li i dalje ulazi iako ima dovoljno predloga bez njega
         if (softRun) {
-          const base = got.find(o => o.strat === 'best' && o.slider === 'fair').d.r.list.slice(0, 8), c = new Map();
+          const base = pg0(got.find(o => o.strat === 'best' && o.slider === 'fair').d.r.list), c = new Map();
           base.forEach(x => x.g.forEach(id => c.set(id, (c.get(id) || 0) + 1)));
           const top = [...c].sort((a, b) => b[1] - a[1])[0];
           if (top) {
             const Ms = A.model(oppKey, { soft: [top[0]] }), inp = A.input(Ms, { strat: 'best', slider: 'fair' }); inp.__dbg = {};
-            const d = await P0.run(inp), list = d.r.list, page = list.slice(0, 8), withIt = page.filter(x => x.g.includes(top[0])).length, without = list.filter(x => !x.g.includes(top[0])).length;
+            const d = await P0.run(inp), list = d.r.list, page = pg0(list), withIt = page.filter(x => x.g.includes(top[0])).length, without = list.filter(x => !x.g.includes(top[0])).length;
             out.softChk.push({ lg: lg.name, opp: lg.opps[oppKey].name, player: nm(top[0]), before: top[1], after: withIt, alt: without });
             if (withIt && without >= 8) { out.viol[6] = (out.viol[6] || 0) + 1; push(6, withIt, { txt: `${lg.name} · ${lg.opps[oppKey].name}: ${nm(top[0])} (Dajem ako mora) u ${withIt} od 8, a bez njega postoji ${without} predloga`, ranks: page.map((x, i) => (x.g.includes(top[0]) ? i + 1 : null)).filter(Boolean) }); }
           }
@@ -369,7 +378,7 @@
     return hits;
   };
   /** Prva strana za jednog protivnika (imena, korist, kartica) */
-  A.page = (oppKey, opt = {}, marks = {}) => { const M = A.model(oppKey, marks), res = A.run(M, opt); return { ms: Math.round(res.ms), n: res.list.length, note: res.note || null, top: res.list.slice(0, 8).map(x => { const J = A.judge(M, res.inp, x); return { g: x.g.map(nm), r: x.r.map(nm), md: x.md.map(nm), od: x.od.map(nm), mf: x.mf, of: x.of, shape: x.shape, s: r3(x.s), gain: r3(x.gain), card: J.card ? `${J.card.win}:${J.card.lose}` : null, why: x.why || null, sit: x.sit || null }; }) }; };
+  A.page = (oppKey, opt = {}, marks = {}) => { const M = A.model(oppKey, marks), res = A.run(M, opt); return { ms: Math.round(res.ms), n: res.list.length, note: res.note || null, top: pg0(res.list).map(x => { const J = A.judge(M, res.inp, x); return { g: x.g.map(nm), r: x.r.map(nm), md: x.md.map(nm), od: x.od.map(nm), mf: x.mf, of: x.of, shape: x.shape, s: r3(x.s), gain: r3(x.gain), card: J.card ? `${J.card.win}:${J.card.lose}` : null, why: x.why || null, sit: x.sit || null }; }) }; };
   /** Sve odjednom: provera, FA, Mete, slučaj Lajkovacka pruga; rezultat ide na lokalni sink (port 5181) */
   A.snapshot = async (tag, { leagues = null, workers = 4 } = {}) => {
     const t0 = performance.now(), out = { tag, at: new Date().toISOString() };

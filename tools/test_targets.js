@@ -79,10 +79,11 @@ const cats = [{ key: 'PTS', k: 0 }, { key: 'REB', k: 1 }, { key: 'AST', k: 2 }, 
 const vec = o => KEYS.map(k => o[k] || 0);
 const pl = (id, v, o) => ({ id, v, rv: v, vec: vec(o), mark: null, ir: false, drop: true });
 const team = (id0, base) => Array.from({ length: 6 }, (_, i) => pl(id0 + i, base - i, { PTS: 10 + base - i * 2, REB: 3 + (i % 3), AST: 2 + (i % 2), TO: 1.5, FGM: 4, FGA: 9 }));
+const TFL = { ...TF, BEST_GAIN: -1e9, BEST_GAIN_PTS: -1e9, BEST_CARD: -99, CARD_SD: 0.01, DIV_MINE: 99, DIV_THEIRS: 99, BIG_GAIN: -1e9, BIG_GAIN_PTS: -1e9, BIG_PER_PAGE: 99 }; // pravila pre koraka 5: testovi mehanike (Lock, otpuštanje, IR, filteri) ne zavise od pravila za Najbolje, raznovrsnost i veličinu
 const inp = {
   pts: false, n: KEYS.length, cats, myIdx: [0, 1, 2, 3, 4], oppIdx: [0, 1, 2, 3, 4], fIdx: 6,
   fa: [pl(900, 1, { PTS: 5, REB: 2, AST: 1, TO: 1, FGM: 2, FGA: 4.5 })], opps: [], sd: [5, 3, 2, 1, 0.01], w: null, oppW: [1, 1, 1, 1, 1],
-  limits: [TF.LIMITS.fair, TF.LIMITS.slight], strategy: 'cats', sell: [], buy: [], focus: [1], TF,
+  limits: [TF.LIMITS.fair, TF.LIMITS.slight], strategy: 'cats', sell: [], buy: [], focus: [1], TF: TFL,
   mine: team(1, 8), theirs: team(100, 8),
 };
 

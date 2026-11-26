@@ -16,6 +16,8 @@ const { TF, E, tfMarket, tfVetoPick, tfVetoShown, tfDropOk, tfTabFor, tfSlotValu
 // i motor kao tekst (kako ga dobija Web Worker) mora da radi samostalno
 const E2 = new Function(`return (${new Function(`${code}\nreturn tfEngine;`)().toString()})();`)();
 
+const TFL = { ...TF, BEST_GAIN: -1e9, BEST_GAIN_PTS: -1e9, BEST_CARD: -99, CARD_SD: 0.01, DIV_MINE: 99, DIV_THEIRS: 99, BIG_GAIN: -1e9, BIG_GAIN_PTS: -1e9, BIG_PER_PAGE: 99 }; // pravila pre koraka 5: testovi mehanike (Lock, otpuštanje, IR, filteri) ne zavise od pravila za Najbolje, raznovrsnost i veličinu
+
 let n = 0;
 const test = (name, fn) => { fn(); n++; console.log(`ok  ${name}`); };
 
@@ -30,7 +32,7 @@ const base = over => ({
   pts: false, n: KEYS.length, cats, myIdx: [0, 1, 2, 3, 4], oppIdx: [0, 1, 2, 3, 4], fIdx: 6,
   fa: [pl(900, 1, { PTS: 5, REB: 2, AST: 1, TO: 1, FGM: 2, FGA: 4.5 }), pl(901, 0.8, { PTS: 4, REB: 2, AST: 1, TO: 1, FGM: 2, FGA: 4.5 })],
   opps: [], sd: [5, 3, 2, 1, 0.01], w: null, oppW: [1, 1, 1, 1, 1],
-  limits: [TF.LIMITS.fair], strategy: 'best', sell: [], buy: [], focus: [], TF, ...over,
+  limits: [TF.LIMITS.fair], strategy: 'best', sell: [], buy: [], focus: [], TF: TFL, ...over,
 });
 
 test('dodatak za zvezde: zvezda vredi više od dva igrača iste ukupne vrednosti', () => {
@@ -80,15 +82,23 @@ test('punt protivnika se ne računa u njegov rezultat', () => {
   assert.strictEqual(E.catFilterOk(noPunt, 1), true); // 1:1
 });
 
-test('granice klizača: sa igračem obeleženim U trejd granica je šira', () => {
-  const mk = (mark) => base({ mine: [pl(1, 10, { PTS: 20, REB: 2 }, { mark }), pl(2, 2, { PTS: 4 })], theirs: [pl(20, 8.8, { PTS: 15, REB: 8, AST: 3 }), pl(21, 20, { PTS: 30 }, { mark: 'lock' })] });
-  // razlika 12%: ne prolazi Fer (10%) bez oznake, prolazi sa oznakom (15%)
-  assert.ok(Math.abs(E.valueGap(10, 8.8) - 0.12) < 1e-9);
-  assert.strictEqual(E.search(mk(null)).list.some(x => x.g.join() === '1' && x.r.join() === '20'), false);
-  assert.strictEqual(E.search(mk('trade')).list.some(x => x.g.join() === '1' && x.r.join() === '20'), true);
-  // Agresivno (15%) prolazi i bez oznake
-  const ag = mk(null); ag.limits = TF.SLIDERS.map(k => TF.LIMITS[k]);
-  assert.strictEqual(E.search(ag).list.some(x => x.g.join() === '1' && x.r.join() === '20'), true);
+test('režimi po smeru: Fer od −10% do +10%, Malo u moju korist od 0 do +12,5%, Agresivno od +5% do +20%; U trejd širi gornju granicu', () => {
+  // d = (šta dobijam − šta daje) / veće; Popravi kategorije da pravila za Najbolje ne utiču
+  const mk = (gv, rv, mark, slider) => base({ strategy: 'cats', band: TF.LIMITS[slider], mine: [pl(1, gv, { PTS: 15, REB: 8, AST: 3 }, { mark }), pl(2, 1, { PTS: 4 })], theirs: [pl(20, rv, { PTS: 20, REB: 8, AST: 3 }), pl(21, 30, { PTS: 30 }, { mark: 'lock' })] });
+  const has = inp => E.search(inp).list.some(x => x.g.join() === '1' && x.r.join() === '20');
+  // dobijam 12% više (8,8 za 10)
+  assert.strictEqual(has(mk(8.8, 10, null, 'fair')), false);
+  assert.strictEqual(has(mk(8.8, 10, 'trade', 'fair')), true); // gornja granica 15%
+  assert.strictEqual(has(mk(8.8, 10, null, 'slight')), true);
+  assert.strictEqual(has(mk(8.8, 10, null, 'aggr')), true);
+  // dajem 5% više (10 za 9,5): samo Fer
+  assert.strictEqual(has(mk(10, 9.5, null, 'fair')), true);
+  assert.strictEqual(has(mk(10, 9.5, null, 'slight')), false);
+  assert.strictEqual(has(mk(10, 9.5, null, 'aggr')), false);
+  // dobijam 3% više: Fer i Malo, ne Agresivno
+  assert.strictEqual(has(mk(9.7, 10, null, 'aggr')), false);
+  assert.strictEqual(has(mk(9.7, 10, null, 'slight')), true);
+  assert.deepStrictEqual([TF.LIMITS.fair, TF.LIMITS.slight, TF.LIMITS.aggr, TF.TRADE_WIDEN], [[-0.10, 0.10], [0, 0.125], [0.05, 0.20], 0.05]);
 });
 
 const bigTeam = (off, n, seed) => Array.from({ length: n }, (_, i) => {
@@ -120,12 +130,14 @@ test('zaključan igrač se ni ne otpušta; primalac ne dobija igrača kog bi odm
   }
 });
 
-test('raznovrsnost: isto jezgro trejda samo jednom', () => {
-  const L = [{ core: 'a|b', top: 1, rtop: 5, shape: '1:1' }, { core: 'a|b', top: 1, rtop: 5, shape: '1:1' }, { core: 'a|c', top: 1, rtop: 6, shape: '2:2' },
-    { core: 'a|d', top: 1, rtop: 7, shape: '3:3' }, { core: 'a|e', top: 1, rtop: 8, shape: '2:1' }, { core: 'f|b', top: 2, rtop: 5, shape: '1:2' }];
+test('raznovrsnost: isto jezgro samo jednom; moj igrač najviše u 3 od 8, ne popušta (kraća strana)', () => {
+  const X = (core, g, r) => ({ core, g, r, s: 1, n: g.length + r.length });
+  const L = [X('a|b', [1], [5]), X('a|b', [1], [5]), X('a|c', [1], [6]), X('a|d', [1], [7]), X('a|e', [1], [8]), X('f|b', [2], [5])];
   const out = E.diversify(L, 8, 3);
-  // isto jezgro samo jednom; četvrti sa istim glavnim igračem (1) ide posle ostalih
   assert.deepStrictEqual(out.map(x => x.core), ['a|b', 'a|c', 'a|d', 'f|b', 'a|e']);
+  assert.deepStrictEqual(out.map(x => x.pg), [0, 0, 0, 0, 1]); // četvrti sa igračem 1 ide na sledeću stranu
+  assert.strictEqual(out[0].pgShort, true);                   // prva strana je kraća, uz razlog
+  assert.deepStrictEqual(E.pageItems(out, 0, 8).map(x => x.core), ['a|b', 'a|c', 'a|d', 'f|b']);
 });
 
 test('IR igrač ulazi u kombinacije samo ako je obeležen U trejd', () => {
@@ -134,27 +146,19 @@ test('IR igrač ulazi u kombinacije samo ako je obeležen U trejd', () => {
   assert.ok(E.search(inp).list.every(x => !x.g.includes(1)));
 });
 
-test('Dajem ako mora: ulazi u top 5 samo kad je korist jasno veća', () => {
-  const inp = base({ mine: bigTeam(1, 8, 1), theirs: bigTeam(100, 8, 5) });
+test('Dajem ako mora: trejdovi sa njim dolaze tek posle svih ostalih, uz kaznu u rangu', () => {
+  const inp = base({ mine: bigTeam(1, 5, 1), theirs: bigTeam(100, 5, 5) });
   inp.opps = [vec({ PTS: 110, REB: 40, AST: 22, TO: 12, FGM: 42, FGA: 90 }), vec({ PTS: 95, REB: 45, AST: 18, TO: 10, FGM: 38, FGA: 82 })];
   inp.limits = TF.SLIDERS.map(k => TF.LIMITS[k]);
   const plain = E.search(inp).list;
   const softId = plain[0].g[0];
   inp.mine.find(x => x.id === softId).mark = 'soft';
   const marked = E.search(inp).list;
-  const bestWithout = marked.filter(x => !x.soft)[0];
-  // trejd sa njim je u top 5 ispred trejda bez njega samo kad mu je korist veća bar za kaznu
-  const pen = z => TF.SIZE_PEN * Math.max(0, z.n - 2); // ocena bez kazne "Dajem ako mora" = korist − kazna za veličinu
-  const ranked = [...marked].sort(E.cmpRank); // čist rang (raznovrsnost i ograničenje 2 od 8 mogu da pomere predloge)
-  ranked.slice(0, 5).forEach((x, i) => { if (!x.soft) return; for (const y of ranked.slice(i + 1)) if (!y.soft && y.tier === x.tier) assert.ok(x.gain - pen(x) >= y.gain - pen(y) + TF.SOFT_PENALTY - 1e-9); });
-  assert.ok(bestWithout);
-  // trejd sa njim gubi kaznu u rangu
-  const withSoft = marked.find(x => x.soft);
+  const first = marked.findIndex(x => x.soft);
+  assert.ok(first > 0, 'trejd sa njim postoji, ali ne na prvom mestu');
+  assert.ok(marked.slice(first).every(x => x.soft), 'posle prvog trejda sa njim nema više ostalih');
+  const withSoft = marked[first];
   assert.ok(Math.abs(withSoft.s - (withSoft.gain - TF.SOFT_PENALTY - TF.SIZE_PEN * Math.max(0, withSoft.n - 2))) < 1e-9);
-  // ako je kazna ogromna, nijedan trejd sa njim nije ispred trejda bez njega
-  const huge = { ...inp, TF: { ...TF, SOFT_PENALTY: 99 } };
-  const top = E.search(huge).list.slice(0, 5);
-  assert.ok(top.every(x => !x.soft) || top.filter(x => !x.soft).length === top.length);
 });
 
 test('Konsolidacija daje samo trejdove gde dajem više igrača, Dubina obrnuto', () => {
@@ -218,7 +222,11 @@ test('broj igrača: razlika najviše 1, a u Konsolidaciji i Dubini do 2', () => 
   const cons = mk('cons'), depth = mk('depth');
   assert.ok(cons.length && cons.every(x => x.g.length > x.r.length && x.g.length - x.r.length <= 2));
   assert.ok(depth.length && depth.every(x => x.r.length > x.g.length && x.r.length - x.g.length <= 2));
-  assert.ok([...cons, ...depth].some(x => Math.abs(x.g.length - x.r.length) === 2), 'nema nijednog trejda sa razlikom 2');
+  // razlika 2 retko staje u usmerene granice na ovim podacima: proverava se sa širokom granicom (granice imaju svoj test)
+  const wide = st => E.search(base({ mine: bigTeam(1, 10, 1).map(x => ({ ...x, drop: true })), theirs: bigTeam(100, 10, 6).map(x => ({ ...x, drop: true })), band: [-1, 1], strategy: st })).list;
+  assert.ok(wide('cons').some(x => x.g.length - x.r.length === 2), 'Konsolidacija: nema trejda sa razlikom 2');
+  assert.ok(wide('depth').some(x => x.r.length - x.g.length === 2), 'Dubina: nema trejda sa razlikom 2');
+  for (const st of ['best', 'sell', 'buy']) assert.ok(wide(st).every(x => Math.abs(x.g.length - x.r.length) <= 1), st);
 });
 
 test('kazna za veličinu: kod iste koristi manji trejd ima prednost', () => {
@@ -320,14 +328,13 @@ test('Otvori u analizi: otpuštanja i slobodno mesto preneti, rezultat isti kao 
       fa: [P(900, 0.3, 10), P(901, 0.2, 9)], limits: TF.SLIDERS.map(k => TF.LIMITS[k]), strategy });
     const list = E.search(inp).list.slice(0, 8);
     for (const x of list) assert.strictEqual(analysis(inp, x), card(inp, x), `poeni ${strategy} ${x.shape}`);
-    // KORAK2: vrati proveru neravnomernog trejda (cons, depth) kad tim postane postava
   }
   for (const pts of [false]) {
     for (const strategy of ['best', 'cons', 'depth']) {
-      const inp = base({ pts, mine: withF(bigTeam(1, 9, 1), fp), theirs: withF(bigTeam(100, 9, 5), v => fp(v) * (pts ? 1.15 : 1)), fa: withF(base({}).fa, fp), limits: TF.SLIDERS.map(k => TF.LIMITS[k]), strategy });
+      const inp = base({ pts, mine: withF(bigTeam(1, 9, 1), fp), theirs: withF(bigTeam(100, 9, 5), v => fp(v) * (pts ? 1.15 : 1)), fa: withF(base({}).fa, fp), limits: TF.SLIDERS.map(k => TF.LIMITS[k]), strategy, lineupN: 7 });
       const list = E.search(inp).list.slice(0, 8);
       assert.ok(list.length > 0, `${pts} ${strategy}`);
-      if (strategy === 'depth') assert.ok(list.some(x => x.g.length !== x.r.length && (x.md.length || x.mf)), 'nema neravnomernog trejda sa otpuštanjem ili slobodnim mestom'); // KORAK2: vrati i cons
+      if (strategy !== 'best') assert.ok(list.some(x => x.g.length !== x.r.length && (x.md.length || x.mf)), `${strategy}: nema neravnomernog trejda sa otpuštanjem ili slobodnim mestom`);
       for (const x of list) assert.strictEqual(analysis(inp, x), card(inp, x), `${pts ? 'poeni' : 'kategorije'} ${strategy} ${x.shape}`);
     }
   }
@@ -439,17 +446,18 @@ test('slobodno mesto: prosek 3. do 5. zdravog slobodnog igrača, waiver sa umanj
   assert.deepStrictEqual([TF.SLOT_FROM, TF.SLOT_TO, TF.SLOT_WAIVER], [3, 5, 0.8]);
 });
 
-test('strana od 8: raznovrsnost i najviše 2 sa više dobijenih igrača važe zajedno', () => {
-  // rang: na vrhu mnogo trejdova sa istim glavnim igračem (1) i trejdovi gde dobijam više
-  const T = (i, top, kG, kR) => ({ core: `c${i}`, top, rtop: 100 + i, shape: `${kG}:${kR}`, g: Array(kG).fill(0), r: Array(kR).fill(0) });
+test('strana od 8: raznovrsnost po igraču i najviše 2 sa više dobijenih igrača važe zajedno', () => {
+  // rang: na vrhu mnogo trejdova sa istim mojim igračem (1) i trejdovi gde dobijam više
+  const T = (i, top, kG, kR) => ({ core: `c${i}`, s: 10 - i * 0.1, g: [top, ...Array.from({ length: kG - 1 }, (_, k) => 1000 + i * 10 + k)], r: Array.from({ length: kR }, (_, k) => 200 + i * 10 + k) });
   const L = [T(0, 1, 1, 2), T(1, 1, 1, 2), T(2, 1, 1, 2), T(3, 1, 1, 1), T(4, 1, 1, 1), T(5, 1, 2, 2), T(6, 1, 2, 2)];
   for (let i = 7; i < 30; i++) L.push(T(i, i, (i % 3) + 1, (i % 3) + 1));
-  const out = E.paginate(L, 8, 3, 2);
-  for (let p = 0; p * 8 < out.length; p++) {
-    const pg = out.slice(p * 8, p * 8 + 8);
-    if (pg.length < 8) break;
-    assert.ok(pg.filter(x => x.top === 1).length <= 3, `strana ${p + 1}: isti glavni igrač`);
-    assert.ok(pg.filter(x => x.r.length > x.g.length).length <= 2, `strana ${p + 1}: više dobijenih`);
+  const out = E.paginate(L, { per: 8, capG: 3, capR: 2, moreCap: 2 });
+  const pages = [...new Set(out.map(x => x.pg))];
+  for (const p of pages) {
+    const pg = E.pageItems(out, p, 8);
+    assert.ok(pg.length <= 8);
+    assert.ok(pg.filter(x => x.g.includes(1)).length <= 3, `strana ${p + 1}: isti moj igrač`);
+    if (pg.length === 8) assert.ok(pg.filter(x => x.r.length > x.g.length).length <= 2, `strana ${p + 1}: više dobijenih`);
   }
   assert.strictEqual(new Set(out.map(x => x.core)).size, L.length); // niko ne nestaje
 });
@@ -465,14 +473,6 @@ test('Sačuvaj ne duplira tab; Otvori u analizi za sačuvan trejd nalazi postoje
   assert.strictEqual(tfTabFor(tabs, [2], [10], null), null);    // drugi trejd: nov tab
 });
 
-test('bliže fer prvo: veće odstupanje tek kad fer opcija nema dovoljno', () => {
-  const mk = (tier, s) => ({ tier, s, ob: 0, n: 2 });
-  const many = Array.from({ length: 12 }, (_, i) => mk(0, 1 - i * 0.01));
-  const out = E.orderTiers([many, [mk(1, 5)]], 10, 100);
-  assert.ok(out.every(x => x.tier === 0)); // ima dovoljno fer trejdova
-  const few = E.orderTiers([[mk(0, 1)], [mk(1, 5)]], 10, 100);
-  assert.deepStrictEqual(few.map(x => x.tier), [0, 1]);
-});
 
 test('poenska liga: rangiranje po FPts po utakmici, protivnik ne sme mnogo da izgubi', () => {
   const P = (id, v, f, extra) => pl(id, v, { FPTS: f }, extra);
@@ -510,25 +510,25 @@ test('motor radi i kao tekst (Web Worker)', () => {
 
 test('brzina: 13 na 13 igrača bez oznaka', () => {
   const opps = Array.from({ length: 10 }, (_, i) => vec({ PTS: 100 + i * 2, REB: 40 + i, AST: 20 + (i % 4), TO: 12 + (i % 3), FGM: 40 + i * 0.5, FGA: 86 + i }));
-  const inp = base({ mine: bigTeam(1, 13, 1), theirs: bigTeam(100, 13, 4), opps, limits: [TF.LIMITS.fair] });
+  const inp = base({ mine: bigTeam(1, 13, 1), theirs: bigTeam(100, 13, 4), opps, limits: [TF.LIMITS.fair], TF }); // prava pravila, kao u aplikaciji
   const t0 = Date.now(); const r = E.search(inp); const ms = Date.now() - t0;
   console.log(`    13 na 13: ${ms} ms, parova posle odsecanja ${r.stats.pairs}, prošlo vrednost ${r.stats.value}, kategorije ${r.stats.cats}, korist ${r.stats.gain}`);
   assert.ok(ms < 5000);
 });
 
 test('strana od 8: najviše 2 gde dajem više i najviše 2 gde dobijam više, zajedno; bez dovoljno ravnomernih popunjava se po rangu', () => {
-  const T = (i, kG, kR) => ({ core: `c${i}`, top: i, rtop: 100 + i, shape: `${kG}:${kR}`, g: Array(kG).fill(0), r: Array(kR).fill(0) });
+  const T = (i, kG, kR) => ({ core: `c${i}`, s: 10 - i * 0.1, g: Array.from({ length: kG }, (_, k) => i * 10 + k), r: Array.from({ length: kR }, (_, k) => 500 + i * 10 + k) });
   // rang: na vrhu 5 gde dajem više i 4 gde dobijam više, pa ravnomerni
   const L = [T(0, 2, 1), T(1, 3, 2), T(2, 2, 1), T(3, 1, 2), T(4, 2, 1), T(5, 1, 2), T(6, 3, 2), T(7, 1, 2), T(8, 1, 2)];
   for (let i = 9; i < 25; i++) L.push(T(i, (i % 2) + 1, (i % 2) + 1));
-  const out = E.paginate(L, 8, 3, 2, Infinity, 2);
+  const out = E.paginate(L, { per: 8, moreCap: 2, lessCap: 2 });
   const less = x => x.g.length > x.r.length, more = x => x.r.length > x.g.length;
-  for (let p = 0; (p + 1) * 8 <= out.length - 9; p++) { const pg = out.slice(p * 8, p * 8 + 8); assert.ok(pg.filter(less).length <= 2 && pg.filter(more).length <= 2, `strana ${p + 1}`); }
+  for (let p = 0; (p + 1) * 8 <= out.length - 9; p++) { const pg = E.pageItems(out, p, 8); assert.ok(pg.filter(less).length <= 2 && pg.filter(more).length <= 2, `strana ${p + 1}`); }
   assert.deepStrictEqual(out.slice(0, 2).map(x => x.core), ['c0', 'c1']); // rang se čuva
   assert.strictEqual(new Set(out.map(x => x.core)).size, L.length);    // niko ne nestaje
   // samo neravnomerni: strana se ipak popunjava po rangu
   const U = [T(0, 2, 1), T(1, 3, 2), T(2, 2, 1), T(3, 1, 2), T(4, 2, 1), T(5, 1, 2), T(6, 3, 2), T(7, 1, 2)];
-  assert.strictEqual(E.paginate(U, 8, 3, 2, Infinity, 2).slice(0, 8).length, 8);
+  assert.strictEqual(E.pageItems(E.paginate(U, { per: 8, moreCap: 2, lessCap: 2 }), 0, 8).length, 8);
   assert.strictEqual(TF.GIVE_MORE_MAX, 2);
 });
 
@@ -543,9 +543,10 @@ test('motor: najviše 2 od 8 gde dajem više u Najbolje za mene; Konsolidacija b
 
 test('Trejd kandidat se ne otpušta: trejd prolazi samo kad pređe na drugu stranu', () => {
   // 21: cena 0.45 ispod moje zamene 0.5, pa se bez oznake otpušta (2:1); kao Trejd kandidat ne sme na waiver, nego prelazi na moju stranu (2:2)
-  const plain = E.search(convInp('best', 0.45, 8.2, 0.5)).list;
+  // 2:1 je 8,2 za 10 − 0,45 (−14%): šira granica, jer test proverava otpuštanje, ne fer granicu
+  const plain = E.search({ ...convInp('best', 0.45, 8.2, 0.5), band: [-0.2, 0.2] }).list;
   assert.ok(plain.some(x => x.od.includes(21) && !x.conv), 'bez oznake: otpust');
-  const inp = convInp('best', 0.45, 8.2, 0.5); inp.theirs[1] = { ...inp.theirs[1], tc: true, rv: -5 };
+  const inp = { ...convInp('best', 0.45, 8.2, 0.5), band: [-0.2, 0.2] }; inp.theirs[1] = { ...inp.theirs[1], tc: true, rv: -5 };
   const L = E.search(inp).list;
   assert.ok(!L.some(x => x.od.includes(21)), 'nema otpusta Trejd kandidata');
   assert.ok(L.length && L.every(x => !x.od.length) && L.some(x => x.r.includes(21)), 'prelazi na moju stranu');
@@ -672,6 +673,72 @@ test('Kupi jeftino: kratka povreda uz moje slobodno IR mesto je predlog i ima ja
   assert.strictEqual(E.search(injInp({ strategy: 'buy', myIrFree: 0, wk: 2 })).list.length, 0);
   const best = E.search(injInp({ myIrFree: 1, wk: 2 })).list.find(x => x.sit === 'myir');
   assert.ok(best && TF.INJ.B_BUY > TF.INJ.B_MY_IR);
+});
+
+// ===== korak 5: pravila po alatu =====
+test('kartica: kategorija se broji tek kad se promeni za bar 0,15 SD tima', () => {
+  const before = Float64Array.from([100, 40, 20, 10, 40, 85, 0]);
+  const after = Float64Array.from([100.5, 41, 20.2, 9, 40, 85, 0]); // PTS +0,5 (prag 0,75), REB +1 (prag 0,45), AST +0,2 (prag 0,3), TO −1 (prag 0,15)
+  const r = E.cardResult(before, after, cats, [0, 1, 2, 3, 4], [5, 3, 2, 1, 0.01], TF);
+  assert.deepStrictEqual([r.win, r.lose, Array.from(r.res)], [2, 0, [0, 1, 0, 1, 0]]);
+  assert.strictEqual(TF.CARD_SD, 0.15);
+});
+
+test('Najbolje za mene: korist bar 0,10, kartica bar +2; ostale strategije (osim Popravi kategorije) bar nerešeno', () => {
+  const mk = (strategy, T = TF) => E.search(base({ mine: bigTeam(1, 10, 1).map(x => ({ ...x, drop: true })), theirs: bigTeam(100, 10, 6).map(x => ({ ...x, drop: true })), band: [-0.10, 0.20], strategy, TF: T }));
+  const L0 = mk('best', TFL), B0 = mk('best', { ...TFL, BEST_GAIN: TF.BEST_GAIN, BEST_CARD: TF.BEST_CARD, CARD_SD: TF.CARD_SD }), best = B0.list;
+  assert.ok(best.length > 0 && B0.stats.gain < L0.stats.gain / 2, `pravilo ne odseca: ${B0.stats.gain} od ${L0.stats.gain}`);
+  assert.ok(best.every(x => x.gain >= TF.BEST_GAIN - 1e-9));
+  const sumIds = (ids, side) => { const o = new Float64Array(KEYS.length); for (const id of ids) side.find(y => y.id === id).vec.forEach((v, i) => { o[i] += v; }); return o; };
+  const inp = base({ mine: bigTeam(1, 10, 1).map(x => ({ ...x, drop: true })), theirs: bigTeam(100, 10, 6).map(x => ({ ...x, drop: true })) });
+  const all = [...inp.mine, ...inp.theirs];
+  for (const x of best.filter(y => !y.md.length)) {
+    const before = sumIds(inp.mine.map(y => y.id), all), after = Float64Array.from(before);
+    sumIds(x.g, all).forEach((v, i) => { after[i] -= v; }); sumIds(x.r, all).forEach((v, i) => { after[i] += v; });
+    const c = E.cardResult(before, after, cats, inp.myIdx, inp.sd, TF);
+    assert.ok(c.win - c.lose >= TF.BEST_CARD, `${x.g}→${x.r}: ${c.win}:${c.lose}`);
+  }
+});
+
+test('Konsolidacija: najbolji igrač u trejdu (stvarna vrednost) dolazi meni; Dubina: bar jedan igrač više ulazi u postavu', () => {
+  const inp = st => base({ mine: bigTeam(1, 10, 1).map(x => ({ ...x, rv: x.v, drop: true })), theirs: bigTeam(100, 10, 6).map(x => ({ ...x, rv: x.v, drop: true })), band: [-1, 1], strategy: st, lineupN: 6 });
+  const I = inp('cons'), cons = E.search(I).list, val = id => [...I.mine, ...I.theirs].find(y => y.id === id).v;
+  assert.ok(cons.length > 0);
+  for (const x of cons) assert.ok(Math.max(...x.r.map(val)) > Math.max(...x.g.map(val)), `${x.g}→${x.r}`);
+  const D = inp('depth'), depth = E.search(D).list;
+  assert.ok(depth.length > 0);
+  const top = ids => ids.slice().sort((a, b) => val(b) - val(a)).slice(0, 6);
+  for (const x of depth) {
+    const out = new Set([...x.g, ...x.md]), before = top(D.mine.map(y => y.id));
+    const after = top([...D.mine.map(y => y.id).filter(id => !out.has(id)), ...x.r]);
+    assert.ok(after.filter(id => x.r.includes(id)).length - before.filter(id => out.has(id)).length >= 1, `${x.g}→${x.r}`);
+  }
+});
+
+test('strana sa 4 igrača: samo kad korist pobedi najbolji manji trejd za 0,10; najviše 1 na strani od 8', () => {
+  const L = E.search(base({ mine: bigTeam(1, 10, 1).map(x => ({ ...x, drop: true })), theirs: bigTeam(100, 10, 6).map(x => ({ ...x, drop: true })), band: [-0.10, 0.20], strategy: 'cats', TF: { ...TFL, BIG_GAIN: TF.BIG_GAIN, BIG_PER_PAGE: TF.BIG_PER_PAGE } })).list;
+  const big = x => Math.max(x.g.length, x.r.length) >= 4;
+  const small = Math.max(...L.filter(x => !big(x)).map(x => x.gain));
+  assert.ok(L.filter(big).every(x => x.gain >= small + TF.BIG_GAIN - 1e-9));
+  for (const p of new Set(L.map(x => x.pg))) assert.ok(E.pageItems(L, p, 8).filter(big).length <= 1, `strana ${p + 1}`);
+  // straničenje samo: dva trejda sa 4 igrača na vrhu, drugi ide na sledeću stranu
+  const T = (i, kG, kR) => ({ core: `c${i}`, s: 10 - i, g: Array.from({ length: kG }, (_, k) => i * 10 + k), r: Array.from({ length: kR }, (_, k) => 500 + i * 10 + k) });
+  const P = E.paginate([T(0, 4, 4), T(1, 3, 4), T(2, 2, 2), T(3, 1, 1)], { per: 8, bigCap: 1 });
+  assert.deepStrictEqual(P.map(x => [x.core, x.pg]), [['c0', 0], ['c2', 0], ['c3', 0], ['c1', 1]]);
+});
+
+test('manji trejd ispred većeg kad je razlika u oceni manja od 0,07', () => {
+  const L = [{ id: 'a', n: 6, s: 1.00 }, { id: 'b', n: 2, s: 0.95 }, { id: 'c', n: 4, s: 0.80 }, { id: 'd', n: 2, s: 0.70 }];
+  assert.deepStrictEqual(E.sizeTie(L, TF.SIZE_TIE).map(x => x.id), ['b', 'a', 'c', 'd']); // d je 0,10 ispod c: ostaje iza
+  assert.strictEqual(TF.SIZE_TIE, 0.07);
+});
+
+test('raznovrsnost: njegov igrač najviše u 2 od 8; U trejd je izuzet', () => {
+  const X = (i, g, r) => ({ core: `c${i}`, s: 10 - i, g: [g], r: [r] });
+  const L = [X(0, 1, 50), X(1, 2, 50), X(2, 3, 50), X(3, 4, 51), X(4, 5, 50)];
+  assert.deepStrictEqual(E.paginate(L, { per: 8, capG: 3, capR: 2 }).map(x => [x.core, x.pg]), [['c0', 0], ['c1', 0], ['c3', 0], ['c2', 1], ['c4', 1]]);
+  assert.ok(E.paginate(L, { per: 8, capG: 3, capR: 2, exempt: new Set([50]) }).every(x => x.pg === 0));
+  assert.deepStrictEqual([TF.DIV_MINE, TF.DIV_THEIRS, TF.FLT_FEW], [3, 2, 3]);
 });
 
 console.log(`\n${n} testova prošlo`);

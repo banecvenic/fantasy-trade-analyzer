@@ -98,13 +98,14 @@ const KEYS = ['PTS', 'REB', 'AST', 'TO', 'FGM', 'FGA', 'FPTS'];
 const cats = [{ key: 'PTS', k: 0 }, { key: 'REB', k: 1 }, { key: 'AST', k: 2 }, { key: 'TO', k: 3, low: true }, { key: 'FGP', pct: true, m: 4, a: 5 }];
 const vec = o => KEYS.map(k => o[k] || 0);
 const pl = (id, v, o = {}, extra = {}) => ({ id, v, vec: vec(o), mark: null, ir: false, ...extra });
+const TFL = { ...TF, BEST_GAIN: -1e9, BEST_GAIN_PTS: -1e9, BEST_CARD: -99, CARD_SD: 0.01, DIV_MINE: 99, DIV_THEIRS: 99, BIG_GAIN: -1e9, BIG_GAIN_PTS: -1e9, BIG_PER_PAGE: 99 }; // pravila pre koraka 5: testovi mehanike (Lock, otpuštanje, IR, filteri) ne zavise od pravila za Najbolje, raznovrsnost i veličinu
 const inpFor = (ffIds = null) => {
   const theirs = [pl(20, 6, { PTS: 14, REB: 6, AST: 2, FGM: 5, FGA: 10 }), pl(21, 5.5, { PTS: 12, REB: 5, AST: 3, FGM: 4, FGA: 9 }),
     pl(22, 5, { PTS: 10, REB: 7, AST: 2, FGM: 4, FGA: 8 }), pl(23, 4, { PTS: 8, REB: 3, AST: 4, FGM: 3, FGA: 7 })];
   return {
     pts: false, n: KEYS.length, cats, myIdx: [0, 1, 2, 3, 4], oppIdx: [0, 1, 2, 3, 4], fIdx: 6,
     fa: [pl(900, 1, { PTS: 5, REB: 2, AST: 1, TO: 1, FGM: 2, FGA: 4.5 })], opps: [], sd: [5, 3, 2, 1, 0.05], w: null, oppW: [1, 1, 1, 1, 1],
-    limits: [TF.LIMITS.fair, TF.LIMITS.slight, TF.LIMITS.aggr], strategy: 'best', sell: [], buy: [], focus: [], TF,
+    limits: [TF.LIMITS.fair, TF.LIMITS.slight, TF.LIMITS.aggr], strategy: 'best', sell: [], buy: [], focus: [], TF: TFL,
     mine: [pl(1, 6, { PTS: 15, REB: 2, AST: 6, TO: 2, FGM: 6, FGA: 13 }), pl(2, 5.5, { PTS: 13, REB: 2, AST: 5, TO: 2, FGM: 5, FGA: 11 }),
       pl(3, 5, { PTS: 11, REB: 3, AST: 4, TO: 1, FGM: 4, FGA: 9 }), pl(4, 4, { PTS: 9, REB: 2, AST: 3, TO: 1, FGM: 3, FGA: 7 })],
     theirs: ffIds ? theirs.map(x => ({ ...x, ff: ffIds.includes(x.id) })) : theirs, fltOn: !!ffIds,
