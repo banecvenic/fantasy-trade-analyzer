@@ -12,7 +12,7 @@ Grana `tuning-v2`, od `main` (2fe7f4c). Ništa nije objavljeno.
 | 3 | 8c1ce26 | Svi timovi u ligi, filter tipa trejda; usput: predlozi posle osvežavanja |
 | 4 | 40f16ac | Mete za trejd, Biram kategorije: redosled, prag 0,15 SD, tekst |
 | 5 | a15edf7 | Provera iz ugla 12 timova i u 2 druga formata, uzorak od 30 predloga; Popravi kategorije samo u ligama sa kategorijama |
-| 6 | (ovaj) | Odgovori: TO po ligi, Fer bliže nuli, Zašto bi prihvatio bez kategorija iz prva 3, otpuštanje u trejdu (Dubina u dubokim ligama) |
+| 6 | af091ab | Odgovori: TO po ligi, Fer bliže nuli, Zašto bi prihvatio bez kategorija iz prva 3, otpuštanje u trejdu (Dubina u dubokim ligama) |
 
 **Pravila 1 do 7 posle svakog koraka:**
 
