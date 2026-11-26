@@ -1535,6 +1535,8 @@ function tfVetoShown(picks, max) {
 const TT = {
   REFINE: 40,            // posle grubog rangiranja (ponderi 1 i 2) toliko kandidata dobija ostale pondere
   TRADE_MAX_SIDE: 2,     // mogući trejd u izveštaju: najviše 2 igrača sa svake strane
+  TRADE_BEST_CARD: 0,    // mogući trejd za izabranu metu: kartica bar nerešena (kao ostale strategije), ne +2 kao Najbolje za mene
+  TRADE_BEST_GAIN: 0,    // i korist samo iznad nule (igrača je korisnik već izabrao)
   PER_PAGE: 9,           // kartica po stranici na računaru (3 reda po 3)
   PER_PAGE_PHONE: 8,     // kartica po stranici na telefonu
   MAX_OWNER: 2,          // najviše igrača istog vlasnika na jednoj stranici
@@ -1641,9 +1643,10 @@ function ttWishOrder(ids, nameOf, dir = 'asc') {
   const sg = dir === 'asc' ? 1 : -1;
   return ids.map((id, i) => ({ id, i, n: nameOf(id) || '' })).sort((a, b) => (!a.n) - (!b.n) || a.n.localeCompare(b.n) * sg || a.i - b.i).map(x => x.id);
 }
-/** Ulaz za mogući trejd: isti kao Pronađi trejd (Najbolje za mene, Fer), sa ovim igračem obeleženim U trejd */
+/** Ulaz za mogući trejd: isti kao Pronađi trejd (Najbolje za mene, Fer), sa ovim igračem obeleženim U trejd; pravilo za Najbolje blaže (TT.TRADE_BEST_*) */
 function ttTradeInput(inp, id, mk = {}, T = TF) {
-  return { ...inp, theirs: inp.theirs.map(x => ({ ...x, mark: x.id === id ? 'trade' : x.mark, mk: mk[x.id] ?? x.mk })), strategy: 'best', band: T.LIMITS.fair, limits: [T.LIMITS.fair], focus: [], w: null,
+  const R = { ...(inp.TF || T), BEST_CARD: TT.TRADE_BEST_CARD, BEST_GAIN: TT.TRADE_BEST_GAIN, BEST_GAIN_PTS: TT.TRADE_BEST_GAIN };
+  return { ...inp, TF: R, theirs: inp.theirs.map(x => ({ ...x, mark: x.id === id ? 'trade' : x.mark, mk: mk[x.id] ?? x.mk })), strategy: 'best', band: T.LIMITS.fair, limits: [T.LIMITS.fair], focus: [], w: null,
     maxSide: TT.TRADE_MAX_SIDE, topId: id };
 }
 /** Samo moj tim (bez drugih timova): korist = zbir razlika z po kategoriji (ulazi umesto mog najslabijeg), slabe kategorije veća težina */
