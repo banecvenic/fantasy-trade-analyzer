@@ -814,4 +814,10 @@ test('tip trejda: 1 za 1, 2 za 1 (dajem 2), 1 za 2, 2 za 2, 3+; ponovno slaganje
   assert.strictEqual(L[0].pg, 5); // original se ne menja
 });
 
+test('Fer: kod približno iste ocene (razlika do FAIR_D_TIE) ispred je trejd sa d bližim nuli', () => {
+  const L = [{ id: 'a', s: 1.00, d: 0.09 }, { id: 'b', s: 0.97, d: 0.01 }, { id: 'c', s: 0.96, d: -0.04 }, { id: 'd', s: 0.80, d: 0 }];
+  assert.deepStrictEqual(E.dTie(L.map(x => ({ ...x })), TF.FAIR_D_TIE).map(x => x.id), ['b', 'c', 'a', 'd']); // d je 0,16 ispod: ostaje iza
+  assert.deepStrictEqual(E.dTie(L.map(x => ({ ...x })), 0).map(x => x.id), ['a', 'b', 'c', 'd']); // bez praga ništa se ne menja
+});
+
 console.log(`\n${n} testova prošlo`);

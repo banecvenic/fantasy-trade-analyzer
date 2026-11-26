@@ -12,6 +12,7 @@ Grana `tuning-v2`, od `main` (2fe7f4c). Ništa nije objavljeno.
 | 3 | 8c1ce26 | Svi timovi u ligi, filter tipa trejda; usput: predlozi posle osvežavanja |
 | 4 | 40f16ac | Mete za trejd, Biram kategorije: redosled, prag 0,15 SD, tekst |
 | 5 | a15edf7 | Provera iz ugla 12 timova i u 2 druga formata, uzorak od 30 predloga; Popravi kategorije samo u ligama sa kategorijama |
+| 6 | (ovaj) | Odgovori: TO po ligi, Fer bliže nuli, Zašto bi prihvatio bez kategorija iz prva 3, otpuštanje u trejdu (Dubina u dubokim ligama) |
 
 **Pravila 1 do 7 posle svakog koraka:**
 
@@ -280,3 +281,86 @@ Raspodela prve strane: 1: 138, 2: 29, 3: 246, 4: 117, 5: 213, 6: 680, 7: 394, 8:
 - Svih 30 ima korist iznad nule. Kartice su 5:3, 4:4, 4:3, 3:2, 3:3 (najčešće).
 - U 27 od 30 tim koji traži dobija veću tržišnu vrednost nego što daje (pragovi Fer, Malo u moju korist i Agresivno to dozvoljavaju, a dopuna za zvezde i slobodno mesto ulaze u fer granicu). To nije pravilo iz provere, ali je vredno pažnje ako predlozi deluju previše u tvoju korist.
 - „Zašto bi prihvatio” ponekad navodi kategoriju u kojoj je protivnik već jak (npr. „Najviše mu raste FG%, gde je 3. u ligi”). Tekst bira kategoriju koja mu najviše raste, ne onu koja mu najviše treba. Nije menjano.
+
+## Odgovori na otvorena pitanja (posle koraka 5)
+
+Pravila 1 do 7 posle svih izmena: **0** u 13.125 predloga (NBA tviter iz ugla svih 12 timova, Moja liga, Test paste, Sleeper poeni i Fantrax Roto).
+
+### 1. TO: puna težina gde je kategorija, nula gde nije
+
+- Stvarna vrednost je već radila tako: računa se samo iz kategorija lige, pa TO ima punu težinu u 9-cat ligama i ne postoji u ligama bez TO. Ništa nije smanjeno.
+- Ispravljen je jedan ostatak: produkcija u tržišnoj ceni je uvek brojala TO, i u ligama bez TO. Sada ga broji samo ako ga liga boduje.
+- NBA tviter (9-cat, ima TO): Malo u moju korist i Agresivno daju potpuno iste rezultate kao pre (357 od 391 i 393 od 395 predloga u moju korist, ista prosečna razlika). Izmena deluje samo u ligama bez TO.
+
+### 2. Fer: kod približno iste koristi ispred je trejd sa d bližim nuli
+
+- **Pravilo:** u režimu Fer, kad je razlika u oceni dva susedna predloga manja od 0,05 (u poen ligama 0,5 FPts), ispred je onaj čija je razlika u vrednosti `d` bliža nuli (`TF.FAIR_D_TIE`, `dTie` u motoru, isto i za Svi timovi). Malo u moju korist i Agresivno se ne menjaju.
+- `d` = (vrednost koju dobijam − vrednost koju dajem) / veća od te dve; d > 0 znači da dobijam više.
+
+NBA tviter, Red Galaxy, sve strategije, prve strane:
+
+| Fer | Pre | Posle |
+|---|---|---|
+| Prosečan d | +0,027 | +0,021 |
+| Prosečan \|d\| | 0,055 | 0,048 |
+| Udeo gde dobijam više (d > 0) | 71% | 68% |
+| Udeo sa \|d\| < 0,05 | 43% | 52% |
+| Udeo gde dobijam veću tržišnu cenu | 63% | 61% |
+
+Raspodela d za Fer (koraci od 0,05): pre −0,10..−0,05: 52, −0,05..0: 63, 0..0,05: 108, 0,05..0,10: 173; posle 46, 80, 125, 146.
+
+Iz ugla svih 12 timova (posle): Fer prosečan d +0,024, d > 0 u 68%, \|d\| < 0,05 u 50%.
+
+**Da li se režimi razlikuju kako treba:**
+
+| Režim | Prosečan d | d > 0 | \|d\| < 0,05 | Granica |
+|---|---|---|---|---|
+| Fer | +0,024 | 68% | 50% | −0,10 do +0,10 |
+| Malo u moju korist | +0,075 | 100% | 26% | 0 do +0,125 |
+| Agresivno | +0,140 | 100% | 0% | +0,05 do +0,20 |
+
+Da. Svaki sledeći režim ima veći d, Malo u moju korist i Agresivno su uvek u moju korist, a Agresivno nikad nije blizu nule. Fer je i dalje malo u moju korist (68%), jer pretraga traži najveću korist za mene, a ona raste sa d. Tie-break pomera samo predloge sa skoro istom koristi, pa je pomak umeren (+0,027 → +0,021). Jači pomak bi tražio veći prag ili težinu za d u samoj oceni. To nije rađeno, jer bi Fer počeo da gura predloge sa manjom koristi.
+
+### 3. Zašto bi prihvatio: samo kategorija gde je protivnik slab ili srednji
+
+- **Pravilo:** navodi se kategorija sa najvećim rastom među onima gde protivnik nije među prva 3 u ligi (`TF.WHY_TOP = 3`, `tfWhyCat`). Ako dobija samo tamo gde je već među prva 3, navodi se situacija (povrede, plasman) kad postoji, inače ništa (red se ne prikazuje). Najbolji igrač u trejdu ostaje ispred kategorije, kao i do sada. Bez plasmana iz lige ostaje najveći rast.
+- Motor sada čuva sve kategorije u kojima protivnik dobija, poređane po rastu (`ups`), a ne samo jednu.
+
+| Iz ugla svih 12 timova + 4 lige | Broj |
+|---|---|
+| Predlozi gde se navodi kategorija (sa plasmanom) | 6.009 |
+| Stara logika bi navela kategoriju gde je među prva 3 | 642 (11%) |
+| Nova logika: kategorija među prva 3 | **0** |
+| Nova logika: navodi drugu, slabiju kategoriju | 5.847 |
+| Nova logika: ništa (dobija samo gde je jak, bez situacije) | 155 (2,6%) |
+
+**Uzorak od 30** (isto seme 20261126, iz ugla svih 12 timova; 6 od 30 predloga isto kao u prvom uzorku, ostali su se promenili zbog koraka 4 i 5): stara logika bi u 5 navela kategoriju gde je protivnik među prva 3, nova ni u jednom:
+
+| # | Trejd | Staro | Novo |
+|---|---|---|---|
+| 2 | Red Galaxy → Fruskogorski Bizoni | FG%, 3. u ligi | BLK, 4. u ligi |
+| 5 | Red Galaxy → Hakijevi bogalji | AST, 2. | PTS, 4. |
+| 6 | Fruskogorski Bizoni → Hakijevi bogalji | AST, 2. | BLK, 10. |
+| 17 | Rasini rakuni → Lajkovacka pruga | BLK, 2. | AST, 10. |
+| 22 | Lajkovacka pruga → Etoile rouge | BLK, 3. | FG%, 4. |
+
+U dva predloga (19 i 21) protivnik dobija samo u kategorijama gde je 1. ili 2, ali se navodi najbolji igrač u trejdu, pa red ostaje. U uzorku nijedan predlog nije ostao bez razloga.
+
+### 4. Prazne strategije u Sleeper i Fantrax ligama
+
+Obe lige su ponovo uvezene (moj tim = prvi tim), za svaki par igrača izbrojano je na kom pravilu pretraga staje, a lige su posle obrisane.
+
+**Fantrax Roto: Dubina (prazna protiv svih 11) i Konsolidacija (prazna protiv 1)**
+- **Pravilo koje ih gasi:** u trejdu je smeo da se otpusti samo igrač slabiji od realne zamene sa waivera. U ovoj ligi (16 mesta, najbolji slobodan igrač vredi 1,6) niko na mom rosteru nije toliko slab. Mogli su da se otpuste samo 3 Trejd kandidata, a oni se po pravilu ne otpuštaju. Zato nijedan trejd u kom dobijam više igrača nije mogao da prođe: 0 od oko 1.000.000 parova.
+- **Nije opravdano:** kad dobijem dva igrača za jednog, prirodno je da otpustim najslabijeg sa rostera (npr. Queta, vrednost 7) čak i kad je bolji od waivera. Njegova vrednost se ionako oduzima u fer granici i u koristi.
+- **Izmena (`TF.DROP_ANY`):** u trejdu sme da se otpusti najslabiji igrač bez oznake Zaključaj i van IR-a. Ostaje sve ostalo: Trejd kandidat se ne otpušta, igrač koji tek dolazi se ne otpušta (trejd se odbacuje), „Ne otpuštam nikoga” i dalje važi.
+- **Posle:** Fantrax Dubina ima predloge protiv svih 11 protivnika (oko 50 na prvim stranama po režimu), Konsolidacija protiv svih 11. Iz ugla 12 timova u NBA tviter prazna Dubina 66 → 10, Konsolidacija 163 → 158. Pravila 1 do 7: 0.
+
+**Sleeper poeni: Prodaj skupo (prazna protiv svih 11)**
+- **Opravdano.** Prodaj skupo traži mog igrača čija je cena na tržištu bar 15 mesta iznad stvarne vrednosti. U ligi takvih ima 18, ali nijedan nije na mom rosteru (najveća razlika kod mene je oko 10 mesta). Realnih trejdova te vrste za ovaj tim nema.
+
+**Sleeper poeni: Konsolidacija i Dubina (prazne protiv svih 11), nije menjano**
+- **Pravilo koje ih gasi:** slobodno mesto se ne računa (tuning-v1, korak 1). Svi parovi koji prođu granicu vrednosti i prihvatanje padaju na koristi. Najbolja Konsolidacija je −4,4 FPts po utakmici, a najbolja Dubina −7,1.
+- **Zašto baš ovde:** u poen ligi sa dnevnom postavom i igrači sa klupe startuju 50 do 93% svojih utakmica. Ko da dva igrača za jednog gubi skoro sve njihove poene, a slobodno mesto mu se ne računa. Kod Dubine se isto dešava protivniku, pa on ne prihvata. U ligama sa kategorijama korist nije linearna, pa tamo obe strategije rade.
+- **Za ovu ligu pravilo nije sasvim opravdano:** najbolji slobodan igrač ima 14,7 FPts, koliko i moj 15. igrač (14,0). Ako bi se slobodno mesto računalo kao najbolji slobodan igrač puta njegov udeo starta (oko 0,5), Konsolidacija bi bila oko +3 FPts.
+- Nisam ga menjao, jer je to tvoja odluka iz tuning-v1. Predlog: samo u poen ligama računati slobodno mesto po najboljem slobodnom igraču i njegovom udelu starta.

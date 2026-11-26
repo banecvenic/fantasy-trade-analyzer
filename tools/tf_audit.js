@@ -86,7 +86,7 @@
     if (mkCache?.key === B.key) return mkCache;
     const pts = B.pts, lineRaw = p => { const w = blendWeights(B.gpOf(p)); const per = { proj: valueLine(p, 'proj', B.vcats), season: statOf(p, 'season'), l15: statOf(p, 'l15'), l7: statOf(p, 'l7') }; return blendLine(per, w); };
     const ownOf = p => p.own?.pct ?? 0, ownRank = new Map([...state.players].sort((a, b) => ownOf(b) - ownOf(a)).map((p, i) => [p.id, i + 1]));
-    const rows = state.players.filter(p => B.genRaw.has(p.id)).map(p => { const l = lineRaw(p); return { id: p.id, gen: B.genRaw.get(p.id), prod: l ? (pts ? +l.FPTS || 0 : tfProd(l, TF.PROD_W)) : 0, min: +(l?.MIN ?? statOf(p, 'season')?.MIN ?? 0) || 0, own: ownOf(p), rank: ownRank.get(p.id) }; });
+    const rows = state.players.filter(p => B.genRaw.has(p.id)).map(p => { const l = lineRaw(p); return { id: p.id, gen: B.genRaw.get(p.id), prod: l ? (pts ? +l.FPTS || 0 : tfProd(l, B.LV.proj.cats.some(c => c.key === 'TO') ? TF.PROD_W : { ...TF.PROD_W, TO: 0 })) : 0, min: +(l?.MIN ?? statOf(p, 'season')?.MIN ?? 0) || 0, own: ownOf(p), rank: ownRank.get(p.id) }; });
     const comp = r => [r.gen || 0, r.prod || 0, r.min || 0, r.own || 0, -Math.log(r.rank || 9999)];
     const pool = [...rows].sort((a, b) => (b.own || 0) - (a.own || 0)).slice(0, B.pool.n).map(comp);
     const K = [0, 1, 2, 3, 4], W = TF.MARKET, wv = [W.GEN, W.PROD, W.MIN, W.OWN, W.RANK];
@@ -329,12 +329,15 @@
             const ac = out.acc || (out.acc = { n: 0, olose: 0, sit: 0, dec: 0, why: {}, ex: [] }); ac.n++;
             if (x.sit) ac.sit++; if (x.sitDec) ac.dec++;
             if (x.olose) { ac.olose++; if (ac.ex.length < 6) ac.ex.push(desc.txt); }
-            try { const w = typeof tfWhy === 'function' ? tfWhy(M, x) : ''; const kind = x.sitDec ? 'sit' : /najboljeg|best player/i.test(w) ? 'best' : /raste|biggest/i.test(w) ? 'cat' : 'other'; ac.why[kind] = (ac.why[kind] || 0) + 1; } catch (e) { ac.why.err = (ac.why.err || 0) + 1; }
+            try { const w = typeof tfWhy === 'function' ? tfWhy(M, x) : ''; const kind = x.sitDec ? 'sit' : /najboljeg|best player/i.test(w) ? 'best' : /raste|biggest/i.test(w) ? 'cat' : 'other'; ac.why[kind] = (ac.why[kind] || 0) + 1;
+              // "Zašto bi prihvatio" (tuning-v2, stavka 3): plasman protivnika u kategoriji koju bi navela stara logika (x.up) i nova (tfWhyCat)
+              if (!x.sitDec && kind !== 'best' && M.hasOppRanks) { const rk = i => i == null ? null : M.oppRanks[M.cats[i]?.key]?.rank ?? null, ro = rk(x.up), rn = typeof tfWhyCat === 'function' ? rk(tfWhyCat(M, x)) : ro, wr = ac.whyRank || (ac.whyRank = { n: 0, oldTop3: 0, newTop3: 0, newCat: 0, newSit: 0, newNone: 0, newEq: 0 }); wr.n++; if (ro != null && ro <= 3) wr.oldTop3++; if (rn != null && rn <= 3 && kind === 'cat') wr.newTop3++; if (kind === 'cat') wr.newCat++; else if (!w) wr.newNone++; else if (/raste|biggest/i.test(w) === false && /ravnopravan|even/i.test(w)) wr.newEq++; else wr.newSit++; }
+            } catch (e) { ac.why.err = (ac.why.err || 0) + 1; }
             out.total++; if (v.length) out.anyViol++; if (v.some(k2 => k2 !== 5)) out.anyNo5 = (out.anyNo5 || 0) + 1;
             ps.n++; if (v.length) ps.any++;
             for (const k2 of new Set(v)) { out.viol[k2] = (out.viol[k2] || 0) + 1; ps.rules[k2] = (ps.rules[k2] || 0) + 1; }
             out.sizes[x.shape] = (out.sizes[x.shape] || 0) + 1; ps.sizes[x.shape] = (ps.sizes[x.shape] || 0) + 1;
-            const mf = out.myFavor[slider] || (out.myFavor[slider] = { n: 0, mine: 0, gapSum: 0 }); mf.n++; if (J.mA > J.mB) mf.mine++; mf.gapSum += (J.mA - J.mB) / Math.max(Math.abs(J.mA), Math.abs(J.mB), 1e-9);
+            const mf = out.myFavor[slider] || (out.myFavor[slider] = { n: 0, mine: 0, gapSum: 0 }); mf.n++; if (J.mA > J.mB) mf.mine++; mf.gapSum += (J.mA - J.mB) / Math.max(Math.abs(J.mA), Math.abs(J.mB), 1e-9); mf.dN = (mf.dN || 0) + (x.d != null ? 1 : 0); mf.dSum = (mf.dSum || 0) + (x.d || 0); mf.dAbs = (mf.dAbs || 0) + Math.abs(x.d || 0); if (x.d > 1e-9) mf.dPos = (mf.dPos || 0) + 1; (mf.dH || (mf.dH = {}))[Math.max(-4, Math.min(4, Math.floor((x.d || 0) * 20)))] = ((mf.dH || {})[Math.max(-4, Math.min(4, Math.floor((x.d || 0) * 20)))] || 0) + 1;
           }
         }
         for (const s of stratsL) { out.sliderSame.n++; if (pages[`${s}/fair`] === pages[`${s}/slight`]) out.sliderSame.fairSlight++; if (pages[`${s}/fair`] === pages[`${s}/aggr`]) out.sliderSame.fairAggr++; }
