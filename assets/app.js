@@ -6019,7 +6019,10 @@ function renderScore(totals, cmp) {
     el.innerHTML = `<div class="score-empty">${state.players.length || !state.loading ? t('Dodaj igrače u Daješ i Dobijaš da vidiš poređenje.') : '<div class="skeleton" style="height:48px"></div>'}</div>`;
     return;
   }
-  const win = cmp.score[GET], lose = cmp.score[GIVE];
+  // u ligi: ista kartica kao u Pronađi trejd i u zaglavljima tabela (moj tim pre i posle, prag 0,15 SD); bez lige poređenje strana
+  const card = cmp.points ? null : analyzerCard();
+  const win = card ? card.win : cmp.score[GET], lose = card ? card.lose : cmp.score[GIVE];
+  const ties = card ? Math.max(0, card.n - win - lose) : cmp.ties;
   const verdict = win > lose ? 'good' : win < lose ? 'bad' : '';
   const per = mixOn() ? t('Mešavina kao na kartici u Pronađi trejd (sezona, 15 i 7 dana i projekcija)') : PERIODS.find(p => p.key === state.period).label;
   const pts = cmp.points;
@@ -6030,13 +6033,13 @@ function renderScore(totals, cmp) {
     : FMT_ACTIVE.scoringType === 'roto'
       ? `<div class="score-row"><div class="score-team get"><span class="pts">${win}</span><span class="nm">${t('bolje')}</span></div><span class="score-sep">:</span>
           <div class="score-team give"><span class="pts">${lose}</span><span class="nm">${t('lošije')}</span></div></div>
-        <div class="score-verdict ${verdict}">${t('Popravljaš se u {w} {kat}, slabiš u {l}', { w: win, kat: katU(win), l: lose })}${cmp.ties ? ` · ${t('{n} nerešeno', { n: cmp.ties })}` : ''}</div>`
+        <div class="score-verdict ${verdict}">${t('Popravljaš se u {w} {kat}, slabiš u {l}', { w: win, kat: katU(win), l: lose })}${ties ? ` · ${t('{n} nerešeno', { n: ties })}` : ''}</div>`
       : `<div class="score-row">
       <div class="score-team get"><span class="pts">${win}</span><span class="nm">${SIDES[GET].name}</span></div>
       <span class="score-sep">:</span>
       <div class="score-team give"><span class="pts">${lose}</span><span class="nm">${SIDES[GIVE].name}</span></div>
     </div>
-    <div class="score-verdict ${verdict}">${t('Trejd ti donosi {w} {kat}, gubiš {l}', { w: win, kat: kat(win), l: lose })}${cmp.ties ? ` · ${t('{n} nerešeno', { n: cmp.ties })}` : ''}</div>`;
+    <div class="score-verdict ${verdict}">${t('Trejd ti donosi {w} {kat}, gubiš {l}', { w: win, kat: kat(win), l: lose })}${ties ? ` · ${t('{n} nerešeno', { n: ties })}` : ''}</div>`;
   el.innerHTML = `${head}
     <div class="score-note">${per} · ${esc(formatShort(FMT_ACTIVE))}${puntNote()}</div>${formatNoteHTML()}${notCountedHTML()}
     ${state.scope === 'quick'
@@ -6360,7 +6363,7 @@ function analyzerCard(lg = currentLeague()) {
   const oppIr = new Set(Object.values(lg.opps || {}).flatMap(o => (o?.players || []).filter(x => x.ir).map(x => x.id)));
   const act = lg.roster.players.filter(x => !x.ir).map(x => x.id), out = new Set([...giveIds(), ...sp.drops]);
   const after = [...act.filter(id => !out.has(id)), ...getIds().filter(id => !oppIr.has(id)), ...ff.permIds];
-  return B.cardOf(act, after);
+  return { ...B.cardOf(act, after), n: B.cats.filter(c => !state.punt.has(c.key)).length }; // n: kategorije koje se broje (bez punta)
 }
 function renderTeams(totals, cmp) {
   const card = analyzerCard();
