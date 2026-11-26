@@ -13,7 +13,7 @@ Grana `tuning-v2`, od `main` (2fe7f4c). Ništa nije objavljeno.
 | 4 | 40f16ac | Mete za trejd, Biram kategorije: redosled, prag 0,15 SD, tekst |
 | 5 | a15edf7 | Provera iz ugla 12 timova i u 2 druga formata, uzorak od 30 predloga; Popravi kategorije samo u ligama sa kategorijama |
 | 6 | af091ab | Odgovori: TO po ligi, Fer bliže nuli, Zašto bi prihvatio bez kategorija iz prva 3, otpuštanje u trejdu (Dubina u dubokim ligama) |
-| 7 | (ovaj) | Slobodno mesto u ligama na poene: realni slobodan igrač × udeo starta, u koristi i u fer granici (tvoja odluka) |
+| 7 | 15e2d46 | Slobodno mesto u ligama na poene: realni slobodan igrač × udeo starta, u koristi i u fer granici (tvoja odluka) |
 
 **Pravila 1 do 7 posle svakog koraka:**
 
