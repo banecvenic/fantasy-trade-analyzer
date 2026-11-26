@@ -9,7 +9,7 @@ const assert = require('assert');
 const src = fs.readFileSync(path.join(__dirname, '..', 'assets', 'app.js'), 'utf8');
 const grab = (a, b) => { const i = src.indexOf(a), j = src.indexOf(b, i); if (i < 0 || j < 0) throw new Error(`Nije nađeno: ${a}`); return src.slice(i, j); };
 const F = new Function(`${grab('/* ==== Filteri: čista logika ==== */', '/* ==== kraj: Filteri čista logika ==== */')}
-return { FLT_DEF, FLT_POS, fltFields, fltParse, fltNorm, fltItems, fltPassOne, fltPass, fltSuggest, fltWithout, fltVals };`)();
+return { FLT_DEF, FLT_POS, TF_SHAPES, fltFields, fltParse, fltNorm, fltItems, fltPassOne, fltPass, fltSuggest, fltWithout, fltVals, fltHasPlayer };`)();
 const fin = src.indexOf('   Fer trejd: čiste funkcije'), finEnd = src.indexOf('/* ==== kraj: Fer trejd, čiste funkcije ==== */');
 const engCode = src.slice(src.lastIndexOf('/*', fin), finEnd);
 const { TF, E } = new Function(`${engCode}\nreturn { TF, E: tfEngine() };`)();
@@ -137,6 +137,20 @@ test('povezivanje: filter ide u Worker kao deo ulaza, Mete i Pronađi trejd imaj
   assert.ok(src.includes("state.page === 'fa' && isSynced(currentLeague()) ? 'fa'"));
   // Mete za trejd (mogući trejd u izveštaju) ne šalju filter
   assert.ok(src.includes('m = { TM, inp: tfInput(TM) }'));
+});
+
+test('tip trejda u filterima: čuva se samo poznat tip, nije filter igrača, skida se kao jedan filter', () => {
+  const fields = F.fltFields(false, keys(['PTS']));
+  const G = F.fltNorm({ shapes: ['2:1', 'x', '3+'] }, fields);
+  assert.deepStrictEqual(G.shapes, ['2:1', '3+']);
+  const items = F.fltItems(G);
+  assert.deepStrictEqual(items, [{ kind: 'shape' }]);
+  assert.strictEqual(F.fltHasPlayer({ items }), false);
+  assert.strictEqual(F.fltHasPlayer({ items: [...items, { kind: 'healthy' }] }), true);
+  assert.ok(F.fltPass({ v: {}, pos: [], ok: false }, G, items)); // igrač uvek prolazi
+  assert.deepStrictEqual(F.fltWithout(G, { kind: 'shape' }).shapes, []);
+  assert.strictEqual(F.fltSuggest([{ v: {}, pos: [], ok: true }], G), null); // tip trejda se ne predlaže kao filter za sklanjanje
+  assert.deepStrictEqual(F.TF_SHAPES, ['1:1', '2:1', '1:2', '2:2', '3+']);
 });
 
 console.log(`\n${n} testova prošlo`);

@@ -54,7 +54,7 @@
           const tier = x.tier;`);
     rep('if (found.length > 12000) {', 'if (found.length > 12000) { if (D) D.trunc++;');
     rep('sizeTie(ord, T.SIZE_TIE);', 'sizeTie(ord, T.SIZE_TIE); if (D) { D.tierN = [found.length]; D.ordN = ord.length; if (C.ordered) D.ordered = ord; }');
-    rep('return { list: list.slice(0, T.KEEP), stats, hasTrade };', 'return { list: list.slice(0, T.KEEP), stats, hasTrade, dbg: D };');
+    rep('return { list: list.slice(0, T.KEEP), stats, hasTrade, popt: { ...popt, exempt: [...exempt] } };', 'return { list: list.slice(0, T.KEEP), stats, hasTrade, popt: { ...popt, exempt: [...exempt] }, dbg: D };');
     return s;
   }
   A.src = patchedSrc();

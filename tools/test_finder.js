@@ -12,7 +12,7 @@ const start = src.indexOf('   Fer trejd: čiste funkcije');
 const end = src.indexOf('/* ==== kraj: Fer trejd, čiste funkcije ==== */');
 if (start < 0 || end < 0) throw new Error('Nije nađen modul Fer trejd u app.js');
 const code = src.slice(src.lastIndexOf('/*', start), end);
-const { TF, E, tfMarket, tfVetoPick, tfVetoShown, tfDropOk, tfTabFor, tfSlotValue, tfProd, tfRateKey, tfRateApply, tfInjury, tfInjFrac, tfNewsWeeks, tfLate, tfVetoSizeOk } = new Function(`${code}\nreturn { TF, E: tfEngine(), tfMarket, tfVetoPick, tfVetoShown, tfVetoSizeOk, tfDropOk, tfTabFor, tfSlotValue, tfProd, tfRateKey, tfRateApply, tfInjury, tfInjFrac, tfNewsWeeks, tfLate };`)();
+const { TF, E, tfMarket, tfVetoPick, tfVetoShown, tfDropOk, tfTabFor, tfSlotValue, tfProd, tfRateKey, tfRateApply, tfInjury, tfInjFrac, tfNewsWeeks, tfLate, tfVetoSizeOk, tfShapeOf, tfShapeOk } = new Function(`${code}\nreturn { TF, E: tfEngine(), tfMarket, tfVetoPick, tfVetoShown, tfVetoSizeOk, tfDropOk, tfTabFor, tfSlotValue, tfProd, tfRateKey, tfRateApply, tfInjury, tfInjFrac, tfNewsWeeks, tfLate, tfShapeOf, tfShapeOk };`)();
 // i motor kao tekst (kako ga dobija Web Worker) mora da radi samostalno
 const E2 = new Function(`return (${new Function(`${code}\nreturn tfEngine;`)().toString()})();`)();
 
@@ -775,6 +775,43 @@ test('srednje rešenje: njegov igrač 2 od 8, a 3 kad bi strana imala manje od 6
   const G = [0, 1, 2, 3, 4, 5].map(i => X(i, [300 + i], 9));
   assert.strictEqual(E.paginate(G, o).filter(x => x.pg === 0).length, 3);
   assert.deepStrictEqual([TF.DIV_THEIRS_HI, TF.DIV_MIN_FILL], [3, 6]);
+});
+
+test('Svi timovi: spajanje po rangu, najviše 2 predloga istog protivnika na strani, moj igrač najviše 3 u celoj ligi', () => {
+  const T = { ...TF, ALL_OPP_PER_PAGE: 2 };
+  const X = (k, i, g, s) => ({ core: `${k}${i}`, s, ob: 0, n: 2, g: [g], r: [`${k}r${i}`], md: [], od: [] });
+  // protivnik a ima 5 najboljih predloga, b i c po 3 slabija
+  const res = (k, list) => ({ list, stats: { pairs: list.length }, hasTrade: true, popt: { per: 8, capG: 3, capR: 2, capRHi: 3, minFill: 6, bigCap: 1, keep: 400, exempt: [] } });
+  const outs = [
+    { k: 'a', res: res('a', [0, 1, 2, 3, 4].map(i => X('a', i, 100 + i, 10 - i))) },
+    { k: 'b', res: res('b', [0, 1, 2].map(i => X('b', i, 200 + i, 5 - i))) },
+    { k: 'c', res: res('c', [0, 1, 2].map(i => X('c', i, 300 + i, 4.5 - i))) },
+  ];
+  const R = E.mergeOpps(outs, T), p0 = R.list.filter(x => x.pg === 0);
+  for (const k of ['a', 'b', 'c']) assert.ok(p0.filter(x => x.ok === k).length <= 2, k);
+  assert.strictEqual(p0.length, 6); // 3 protivnika x 2
+  assert.deepStrictEqual(p0.slice(0, 2).map(x => x.ok), ['a', 'a']); // najbolji ostaju prvi
+  assert.strictEqual(R.list.length, 11);
+  assert.strictEqual(R.stats.pairs, 11);
+  assert.strictEqual(R.popt.capOpp, 2);
+  // moj igrač 9 u svim predlozima: najviše 3 na strani, bez obzira na protivnika
+  const outs2 = ['a', 'b', 'c', 'd'].map(k => ({ k, res: res(k, [0, 1].map(i => X(k, i, 9, 10 - i))) }));
+  const q0 = E.mergeOpps(outs2, T).list.filter(x => x.pg === 0);
+  assert.strictEqual(q0.length, 3);
+  // isto u Workeru (motor kao tekst)
+  assert.strictEqual(E2.mergeOpps(outs, T).list.filter(x => x.pg === 0).length, 6);
+});
+
+test('tip trejda: 1 za 1, 2 za 1 (dajem 2), 1 za 2, 2 za 2, 3+; ponovno slaganje strana po rangu', () => {
+  const x = (g, r) => ({ g: Array(g).fill(1), r: Array(r).fill(2) });
+  assert.deepStrictEqual([x(1, 1), x(2, 1), x(1, 2), x(2, 2), x(3, 2), x(1, 3), x(3, 3)].map(tfShapeOf), ['1:1', '2:1', '1:2', '2:2', '3+', '3+', '3+']);
+  assert.ok(tfShapeOk(x(2, 1), ['2:1', '1:1']) && !tfShapeOk(x(1, 2), ['2:1']) && tfShapeOk(x(1, 2), []));
+  // regroup: isti redosled po rangu (ri), strane od 8 iznova
+  const L = Array.from({ length: 12 }, (_, i) => ({ core: `c${i}`, s: 12 - i, ri: i, g: [100 + i], r: [200 + i], pg: 5 }));
+  const V = E.regroup(L.filter((y, i) => i % 2 === 0).reverse(), { per: 8, capG: 3, capR: 2, exempt: [] });
+  assert.deepStrictEqual(V.map(y => y.ri), [0, 2, 4, 6, 8, 10]);
+  assert.ok(V.every(y => y.pg === 0));
+  assert.strictEqual(L[0].pg, 5); // original se ne menja
 });
 
 console.log(`\n${n} testova prošlo`);

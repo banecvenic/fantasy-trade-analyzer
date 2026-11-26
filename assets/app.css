@@ -1235,6 +1235,14 @@ td.fa-notes{display:table-cell}td.fa-notes span{display:block}
 .tf-mk.on.mk-trade{color:var(--info);border-color:var(--info);background:var(--info-bg)}
 .tf-rm{background:none;border:0;color:var(--dim);cursor:pointer;padding:2px 6px;font:inherit}
 .tf-empty{padding:12px}
+.tf-all-list{list-style:none;margin:0;padding:0 12px 12px;display:grid;gap:4px}
+.tf-all-list li{display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:6px 8px;border:1px solid var(--line);border-radius:8px}
+.tf-all-list small{color:var(--muted)}
+.tf-card-opp{margin:0 0 8px;font-size:12px;color:var(--muted)}
+.tf-card-opp b{color:var(--text)}
+.tf-all-ms{font-size:12px}
+.flt-shapes{display:flex;flex-wrap:wrap;gap:6px}
+.flt-shape-n{display:block;margin-top:6px}
 .tf-team .search{padding:8px 12px 12px}
 .tf-ctrl{margin-top:12px;display:flex;flex-direction:column;gap:10px}
 .tf-strats{display:flex;flex-wrap:wrap;gap:6px}

@@ -964,6 +964,7 @@ const TF = {
   CARD_SD: 0.15,          // kartica i pravilo za protivnika: kategorija se broji tek kad se promeni bar ovoliko SD timova lige
   BEST_GAIN: 0.10, BEST_GAIN_PTS: 1.0, BEST_CARD: 2, // Najbolje za mene: korist bar ovoliko i kartica bar +2
   RANK_GAP: 15,           // Prodaj skupo / Kupi jeftino: rang po ceni na tržištu bolji (lošiji) od ranga po stvarnoj vrednosti za bar ovoliko mesta
+  ALL_OPP_PER_PAGE: 2,    // Svi timovi u ligi: najviše 2 predloga istog protivnika na strani od 8
   DIV_MINE: 3, DIV_THEIRS: 2, // na strani od 8: isti moj igrač najviše u 3 predloga, isti njegov u 2 (osim U trejd i retkih igrača koji prolaze filtere)
   DIV_THEIRS_HI: 3, DIV_MIN_FILL: 6, // ako bi strana imala manje od 6 predloga, njegov igrač sme u 3 (nikad više); i dalje manje od 6: napomena
   FLT_FEW: 3,             // "retki": najviše ovoliko njegovih igrača prolazi filtere
@@ -1401,8 +1402,10 @@ function tfEngine() {
     const exempt = new Set([...mReq.map(i => mine[i].id), ...tReq.map(i => theirs[i].id), ...(ffIds.length && ffIds.length <= T.FLT_FEW ? ffIds : [])]);
     // strane od 8: raznovrsnost po igraču, najviše 1 sa 4 igrača, najviše 2 trejda gde dobijam (dajem) više igrača; "Dajem ako mora" tek posle svih ostalih
     const more = T.GET_MORE_STRATS.includes(strat);
-    const list = paginate(ord, { per: T.PER_PAGE, capG: T.DIV_MINE, capR: T.DIV_THEIRS, capRHi: T.DIV_THEIRS_HI, minFill: T.DIV_MIN_FILL, exempt, moreCap: more ? T.GET_MORE_MAX : null, lessCap: more ? T.GIVE_MORE_MAX : null, bigCap: T.BIG_PER_PAGE, keep: T.KEEP });
-    return { list: list.slice(0, T.KEEP), stats, hasTrade };
+    ord.forEach((x, i) => { x.ri = i; }); // rang (za ponovno slaganje strana kad se sakriju neki tipovi trejda)
+    const popt = { per: T.PER_PAGE, capG: T.DIV_MINE, capR: T.DIV_THEIRS, capRHi: T.DIV_THEIRS_HI, minFill: T.DIV_MIN_FILL, moreCap: more ? T.GET_MORE_MAX : null, lessCap: more ? T.GIVE_MORE_MAX : null, bigCap: T.BIG_PER_PAGE, keep: T.KEEP };
+    const list = paginate(ord, { ...popt, exempt });
+    return { list: list.slice(0, T.KEEP), stats, hasTrade, popt: { ...popt, exempt: [...exempt] } };
   }
   /** Jezgro trejda: igrači koji nešto vrede (ili su označeni za trejd); dodaci bez vrednosti ne prave novi predlog */
   const core = (idx, side) => idx.filter(i => side[i].v > 0 || side[i].mark === 'trade').map(i => side[i].id).sort().join(',');
@@ -1416,7 +1419,8 @@ function tfEngine() {
       najviše moreCap (lessCap) trejdova gde dobijam (dajem) više igrača. Strana se popunjava do per kad ima još predloga:
       popušta samo više/manje igrača. Najviše bigCap sa 4 igrača nikad ne popušta. Njegov igrač: najviše capR, a kad bi strana imala manje od
       minFill predloga, najviše capRHi (tuning-v2, srednje rešenje); moj igrač uvek najviše capG. Predlog koji bi prekršio granice čeka
-      sledeću stranu; strana kraća od minFill (a ima još predloga) dobija x.pgShort na prvom predlogu.
+      sledeću stranu; strana kraća od minFill (a ima još predloga) dobija x.pgShort na prvom predlogu. capOpp (Svi timovi u ligi):
+      najviše toliko predloga istog protivnika (x.ok) na strani, nikad ne popušta.
       "Dajem ako mora" (x.soft) dolazi tek kad nema više ostalih. Svaki predlog dobija broj strane (x.pg). keep: koliko predloga ukupno. */
   function paginate(list, o = {}) {
     const per = o.per || 8, capG = o.capG ?? 3, capR = o.capR ?? 2, capRHi = Math.max(capR, o.capRHi ?? capR), minFill = o.minFill ?? 0;
@@ -1433,7 +1437,7 @@ function tfEngine() {
     let first = 0, pg = 0;
     /** Jedna strana sa granicom cr za njegovog igrača -> indeksi (bez upisa u used) */
     const build = cr => {
-      const page = [], taken = new Set(), cG = new Map(), cR = new Map(); let nm = 0, nl = 0, nb = 0, rest = restNS;
+      const page = [], taken = new Set(), cG = new Map(), cR = new Map(), cO = new Map(); let nm = 0, nl = 0, nb = 0, rest = restNS;
       for (const mc of STAGES) {
         for (let i = first; i < ordered.length && page.length < per; i++) {
           if (used[i] || taken.has(i)) continue;
@@ -1443,7 +1447,9 @@ function tfEngine() {
           if (mc && o.lessCap != null && less(x) && nl >= o.lessCap) continue;
           if (o.bigCap != null && big(x) && nb >= o.bigCap) continue;
           if (x.g.some(id => !ex.has(id) && (cG.get(id) || 0) >= capG) || x.r.some(id => !ex.has(id) && (cR.get(id) || 0) >= cr)) continue;
+          if (o.capOpp != null && x.ok != null && (cO.get(x.ok) || 0) >= o.capOpp) continue; // Svi timovi: najviše capOpp predloga istog protivnika na strani
           taken.add(i); page.push(i); if (!x.soft) rest--; if (more(x)) nm++; if (less(x)) nl++; if (big(x)) nb++;
+          if (x.ok != null) cO.set(x.ok, (cO.get(x.ok) || 0) + 1);
           for (const id of x.g) cG.set(id, (cG.get(id) || 0) + 1);
           for (const id of x.r) cR.set(id, (cR.get(id) || 0) + 1);
         }
@@ -1466,12 +1472,35 @@ function tfEngine() {
     }
     return out;
   }
+  /** Svi timovi u ligi: spoji rezultate pretraga protiv svakog protivnika ([{ k, res }]) u jednu listu po rangu i složi strane
+      (raznovrsnost mojih igrača važi za celu ligu, najviše T.ALL_OPP_PER_PAGE predloga istog protivnika na strani). Svaki predlog dobija x.ok. */
+  function mergeOpps(outs, T) {
+    const all = [], ex = new Set(), stats = {}; let hasTrade = false, base = null;
+    for (const { k, res } of outs) {
+      if (!res) continue;
+      base = base || res.popt;
+      for (const x of res.list) all.push({ ...x, ok: k });
+      for (const id of res.popt?.exempt || []) ex.add(id);
+      hasTrade = hasTrade || !!res.hasTrade;
+      for (const [s, v] of Object.entries(res.stats || {})) stats[s] = typeof v === 'number' ? (stats[s] || 0) + v : stats[s] || v;
+    }
+    all.sort(cmpRank); sizeTie(all, T.SIZE_TIE);
+    all.forEach((x, i) => { x.ri = i; delete x.pg; delete x.pgShort; });
+    const popt = { ...(base || { per: T.PER_PAGE, capG: T.DIV_MINE, capR: T.DIV_THEIRS, capRHi: T.DIV_THEIRS_HI, minFill: T.DIV_MIN_FILL, bigCap: T.BIG_PER_PAGE, keep: T.KEEP }), capOpp: T.ALL_OPP_PER_PAGE, exempt: [...ex] };
+    const list = paginate(all, { ...popt, exempt: ex });
+    return { list: list.slice(0, popt.keep ?? T.KEEP), stats, hasTrade, popt };
+  }
+  /** Ponovo složi strane za deo liste (npr. samo izabrani tipovi trejda): isti redosled po rangu (x.ri) i ista pravila (popt) */
+  function regroup(list, popt) {
+    const xs = list.map(x => { const y = { ...x }; delete y.pg; delete y.pgShort; return y; }).sort((a, b) => (a.ri ?? 0) - (b.ri ?? 0));
+    return paginate(xs, { ...(popt || {}), exempt: new Set(popt?.exempt || []) });
+  }
   /** Raznovrsnost (bez ograničenja za neravnomerne trejdove) i samo ograničenje 2 od 8 za više dobijenih igrača: za testove */
   const diversify = (list, per = 8, cap = 3) => paginate(list, { per, capG: cap, capR: cap });
   const capGetMore = (list, per = 8, cap = 2) => paginate(list, { per, capG: Infinity, capR: Infinity, moreCap: cap });
   /** Stranica rezultata (8 po 8, bez ponavljanja) */
   const pageItems = (list, page, per) => (list.length && list[0].pg != null ? list.filter(x => x.pg === page) : list.slice(page * per, page * per + per));
-  return { star, accept, cardResult, sizeTie, sideResult, catFilterOk, expWins, valueGap, weakest, combos, cmpRank, search, pageItems, normCdf, diversify, capGetMore, paginate, lineupOf, lineupW };
+  return { star, accept, cardResult, sizeTie, sideResult, catFilterOk, expWins, valueGap, weakest, combos, cmpRank, search, pageItems, normCdf, diversify, capGetMore, paginate, mergeOpps, regroup, lineupOf, lineupW };
 }
 /** Tržišna vrednost po utakmici: z-score-ovi u bazenu (poolN igrača sa najvećim vlasništvom), težine W { GEN, PROD, MIN, OWN, RANK }.
     rows [{ id, gen (opšta vrednost), prod (PTS + REB + AST ili FPts), min, own (% vlasništva), rank (po vlasništvu) }]
@@ -1553,6 +1582,9 @@ function tfVetoPick(side, used, bar, maxOwn) {
   return side.filter(e => !used.has(e.id) && !e.ir && e.mark !== 'lock' && (e.own ?? 0) < maxOwn && (e.v ?? 0) < bar && (e.v ?? 0) < 0).sort((a, b) => a.v - b.v)[0] || null;
 }
 /** Oblik za savet za veto: razlika tačno 1 igrač, a posle dopune (obe strane imaju max(nG, nR)) najviše TF.VETO_SIDE_MAX po strani */
+/** Tip trejda za filter u Pronađi trejd: '1:1', '2:1' (dajem 2, dobijam 1), '1:2', '2:2' ili '3+' (3 ili više igrača na nekoj strani) */
+const tfShapeOf = x => (Math.max(x.g.length, x.r.length) >= 3 ? '3+' : `${x.g.length}:${x.r.length}`);
+const tfShapeOk = (x, shapes) => !shapes?.length || shapes.includes(tfShapeOf(x));
 const tfVetoSizeOk = (nG, nR) => Math.abs(nG - nR) === 1 && Math.max(nG, nR) <= TF.VETO_SIDE_MAX;
 /** Savet za veto na stranici: picks [igrač za dopunu | null] po kartici -> Set indeksa kartica sa savetom
     (najviše max, gde je dopuna najočiglednija: najniža tržišna vrednost) */
@@ -1956,6 +1988,21 @@ const EN = {
   "Otvori u analizi": "Open in Trade analyzer",
   "Otvori trejd": "Open in Trade analyzer",
   "Na ovoj strani je {n} predloga. Ostali bi ponovili istog igrača više puta nego što je dozvoljeno (tvoj najviše u 3 predloga, njegov u 2, a kad bi strana bila kraća od 6, u 3).": "This page has {n} proposals. The others would repeat the same player more often than allowed (yours in at most 3 proposals, theirs in 2, or 3 when the page would have fewer than 6).",
+  "Svi timovi u ligi": "All teams in the league",
+  "Tražim trejdove sa svih {n} timova i prikazujem najbolje. Na strani od 8 su najviše 2 predloga istog tima.": "Searching trades with all {n} teams and showing the best. A page of 8 has at most 2 proposals with the same team.",
+  "Oznake za igrače drugih timova (Ne želim, U trejd) postavljaš kad izabereš taj tim. Važe i ovde.": "Marks for other teams' players (Exclude, In trade) are set when you pick that team. They apply here too.",
+  "Nijedan predlog nije izabranog tipa trejda": "No proposal matches the selected trade type",
+  "Ima {n} predloga drugih tipova. Izaberi još tipova trejda ili skloni ovaj filter.": "There are {n} proposals of other types. Pick more trade types or remove this filter.",
+  "Pretraga sa {n} timova je trajala {s} s.": "The search with {n} teams took {s} s.",
+  "Trejd sa timom": "Trade with",
+  "Nijedan trejd ne prolazi pravila fer trejda ni sa jednim timom u ligi.": "No trade passes the fair trade rules with any team in the league.",
+  "3+ igrača": "3+ players",
+  "{a} za {b}": "{a} for {b}",
+  "Tip trejda": "Trade type",
+  "daješ za dobijaš": "you give for you get",
+  "Ostaje {n} od {m} predloga": "{n} of {m} proposals remain",
+  "Svi tipovi: {m} predloga": "All types: {m} proposals",
+  "Važi za predloge posle pretrage.": "Applies to proposals after a search.",
   "Bez utakmica ove sezone": "No games this season",
   "Vrednost je iz ESPN projekcije, uz popust za neizvesnu ulogu.": "The value comes from the ESPN projection, with a discount for the uncertain role.",
   "Vrednost je iz prošle sezone, uz popust za neizvesnu ulogu.": "The value comes from last season, with a discount for the uncertain role.",
@@ -10203,6 +10250,8 @@ const FLT_DEF = [
   { k: 'TO', sr: 'TO', max: true },
 ];
 const FLT_POS = ['PG', 'SG', 'SF', 'PF', 'C'];
+/** Tip trejda za filter u Pronađi trejd (dajem:dobijam), redom kao čipovi; '3+' = 3 ili više igrača na nekoj strani (tfShapeOf) */
+const TF_SHAPES = ['1:1', '2:1', '1:2', '2:2', '3+'];
 /** Polja za ligu: pts = liga na poene, keys = ključevi kategorija lige (Set) */
 const fltFields = (pts, keys) => FLT_DEF.filter(d => (d.pts ? pts : d.always || keys.has(d.k)));
 /** Unos u polje -> broj ili null. Samo brojevi (tačka ili zarez); procenat: 47 i .470 su isto (47%) */
@@ -10216,7 +10265,7 @@ function fltParse(s, pct = false) {
 }
 /** Sačuvan filter -> važeći filter za polja lige (kategorija koje liga nema se ignoriše) */
 function fltNorm(raw, fields) {
-  const F = { min: {}, max: {}, pos: [], healthy: false };
+  const F = { min: {}, max: {}, pos: [], healthy: false, shapes: [] };
   if (!raw) return F;
   for (const d of fields) {
     const v = (d.max ? raw.max : raw.min)?.[d.k];
@@ -10224,13 +10273,17 @@ function fltNorm(raw, fields) {
   }
   F.pos = FLT_POS.filter(p => (raw.pos || []).includes(p));
   F.healthy = !!raw.healthy;
+  F.shapes = TF_SHAPES.filter(x => (raw.shapes || []).includes(x)); // tip trejda (samo Pronađi trejd)
   return F;
 }
 /** Aktivni filteri redom (svako polje, izbor pozicija i Samo zdravi se broje kao po jedan) */
 const fltItems = F => [...Object.keys(F.min).map(k => ({ kind: 'min', k })), ...Object.keys(F.max).map(k => ({ kind: 'max', k })),
-  ...(F.pos.length ? [{ kind: 'pos' }] : []), ...(F.healthy ? [{ kind: 'healthy' }] : [])];
+  ...(F.pos.length ? [{ kind: 'pos' }] : []), ...(F.healthy ? [{ kind: 'healthy' }] : []), ...(F.shapes?.length ? [{ kind: 'shape' }] : [])];
+/** Ima li filtera za igrače (tip trejda nije filter igrača: ne menja pretragu, samo sakriva predloge) */
+const fltHasPlayer = e => !!e?.items.some(it => it.kind !== 'shape');
 /** Prolazi li igrač jedan filter. row: { v: { ključ: vrednost po utakmici }, pos: [pozicije], ok: zdrav } */
 function fltPassOne(row, F, it) {
+  if (it.kind === 'shape') return true;
   if (it.kind === 'pos') return F.pos.some(p => row.pos.includes(p));
   if (it.kind === 'healthy') return !!row.ok;
   const v = row.v?.[it.k];
@@ -10243,13 +10296,13 @@ const fltPass = (row, F, items = fltItems(F), skip = -1) => items.every((it, i) 
 function fltSuggest(rows, F) {
   const items = fltItems(F);
   let best = null;
-  items.forEach((it, i) => { const n = rows.filter(r => fltPass(r, F, items, i)).length; if (!best || n > best.n) best = { it, n }; });
+  items.forEach((it, i) => { if (it.kind === 'shape') return; const n = rows.filter(r => fltPass(r, F, items, i)).length; if (!best || n > best.n) best = { it, n }; });
   return best;
 }
 /** Filter bez jednog aktivnog filtera (radi i nad sačuvanim, nenormalizovanim filterom) */
 function fltWithout(F, it) {
-  const G = { min: { ...(F.min || {}) }, max: { ...(F.max || {}) }, pos: [...(F.pos || [])], healthy: !!F.healthy };
-  if (it.kind === 'min') delete G.min[it.k]; else if (it.kind === 'max') delete G.max[it.k]; else if (it.kind === 'pos') G.pos = []; else G.healthy = false;
+  const G = { min: { ...(F.min || {}) }, max: { ...(F.max || {}) }, pos: [...(F.pos || [])], healthy: !!F.healthy, shapes: [...(F.shapes || [])] };
+  if (it.kind === 'min') delete G.min[it.k]; else if (it.kind === 'max') delete G.max[it.k]; else if (it.kind === 'pos') G.pos = []; else if (it.kind === 'shape') G.shapes = []; else G.healthy = false;
   return G;
 }
 /** Vrednosti igrača kao na ekranu (zaokružene), da 34.96 minuta, prikazano kao 35.0, prođe MIN 35 */
@@ -10273,8 +10326,8 @@ const fltLeagueFields = () => fltFields(isPointsFmt(), new Set(CATS.filter(c => 
 const fltRaw = (tool, scope = fltScope()) => (lsGet(FLT_KEY) || {})[tool]?.[scope] || null;
 function fltSave(tool, raw, scope = fltScope()) {
   const all = lsGet(FLT_KEY) || {}, byTool = all[tool] || (all[tool] = {});
-  const keep = raw && (Object.keys(raw.min || {}).length || Object.keys(raw.max || {}).length || raw.pos?.length || raw.healthy);
-  if (keep) byTool[scope] = { min: { ...raw.min }, max: { ...raw.max }, pos: [...(raw.pos || [])], healthy: !!raw.healthy }; else delete byTool[scope];
+  const keep = raw && (Object.keys(raw.min || {}).length || Object.keys(raw.max || {}).length || raw.pos?.length || raw.healthy || raw.shapes?.length);
+  if (keep) byTool[scope] = { min: { ...raw.min }, max: { ...raw.max }, pos: [...(raw.pos || [])], healthy: !!raw.healthy, ...(raw.shapes?.length ? { shapes: [...raw.shapes] } : {}) }; else delete byTool[scope];
   if (!Object.keys(byTool).length) delete all[tool];
   lsSet(FLT_KEY, all);
 }
@@ -10284,7 +10337,7 @@ function fltEff(tool, scope = fltScope()) {
   return items.length ? { F, items, fields } : null;
 }
 /** Deo potpisa: rezultat zavisi od filtera i perioda samo kad je filter uključen */
-const fltSig = (tool, scope = fltScope()) => { const e = fltEff(tool, scope); return e ? JSON.stringify([e.F, state.period]) : ''; };
+const fltSig = (tool, scope = fltScope()) => { const e = fltEff(tool, scope); return fltHasPlayer(e) ? JSON.stringify([{ ...e.F, shapes: [] }, state.period]) : ''; }; // tip trejda ne menja pretragu
 /** Red za filter: vrednosti po utakmici za period, pozicije, zdrav (OUT, IR i suspendovani nisu; DTD i GTD jesu; status kao svuda na sajtu) */
 function fltRow(p, per = state.period, lg = currentLeague()) {
   const st = statOf(p, per), g = playerStatus(p, lg).g;
@@ -10295,14 +10348,19 @@ const fltRows = (ids, per = state.period) => ids.map(id => state.byId.get(id)).f
 function fltPool(tool) {
   if (tool === 'fa') { try { return faModel(currentLeague()).fltPool || []; } catch { return []; } }
   if (tool === 'tt') { try { return ttGet(currentLeague()).fltPool || []; } catch { return []; } }
-  const ctx = tfCtx(), mk = tfMarks(ctx).theirs;
-  return ctx.opp.filter(x => mk[x.id] !== 'lock' && (!x.ir || mk[x.id] === 'trade')).map(x => x.id);
+  const ctx = tfCtx();
+  const pool = (c, list) => { const mk = tfMarks(c).theirs; return list.filter(x => mk[x.id] !== 'lock' && (!x.ir || mk[x.id] === 'trade')).map(x => x.id); };
+  return ctx.all ? ctx.allOpps.flatMap(o => pool(tfOppCtx(ctx, o.k), o.players)) : pool(ctx, ctx.opp);
 }
+/** "1 za 1, 2 za 2, 3+" (tip trejda: dajem za dobijam) */
+const fltShapeLabel = x => (x === '3+' ? t('3+ igrača') : t('{a} za {b}', { a: x[0], b: x[2] }));
+const fltShapeTxt = shapes => (shapes || []).map(fltShapeLabel).join(', ');
 const fltNumTxt = (d, v) => (d.pct ? fmtPct(v) : String(Math.round(v * 10) / 10));
 /** Tekst jednog filtera: "MIN 35+", "FG% .470+", "TO najviše 2", "PG/SG", "samo zdravi" */
 function fltItemText(it, F, fields = FLT_DEF) {
   if (it.kind === 'pos') return F.pos.join('/');
   if (it.kind === 'healthy') return t('samo zdravi');
+  if (it.kind === 'shape') return fltShapeTxt(F.shapes);
   const d = fields.find(x => x.k === it.k) || FLT_DEF.find(x => x.k === it.k), lb = fltLabel(d);
   return it.kind === 'min' ? `${lb} ${fltNumTxt(d, F.min[it.k])}+` : t('{c} najviše {v}', { c: lb, v: fltNumTxt(d, F.max[it.k]) });
 }
@@ -10355,6 +10413,7 @@ function fltModalHTML() {
       <hr class="flt-hr">
       <div class="flt-row2"><div class="flt-pos" role="group" aria-label="${esc(t('Pozicija'))}">${pos}</div>
         <button type="button" class="flt-healthy" role="switch" data-flt-healthy aria-checked="${!!D.raw.healthy}"><span class="flt-sw" aria-hidden="true"></span>${t('Samo zdravi')}</button></div>
+      ${D.tool === 'tf' ? `<hr class="flt-hr"><div class="flt-sec">${t('Tip trejda')} <small class="flt-maxl">${t('daješ za dobijaš')}</small></div><div class="flt-shapes" role="group" aria-label="${esc(t('Tip trejda'))}">${TF_SHAPES.map(x => `<button type="button" class="flt-pos-b" data-flt-shape="${x}" aria-pressed="${(D.raw.shapes || []).includes(x)}">${esc(fltShapeLabel(x))}</button>`).join('')}</div><small class="flt-n flt-shape-n" aria-live="polite"></small>` : ''}
     </div>
     <div class="flt-foot"><span class="flt-total" aria-live="polite"></span>
       <div class="flt-acts"><button type="button" class="btn sec" data-flt-reset>${t('Poništi')}</button><button type="button" class="btn flt-apply" data-flt-apply><span class="flt-ap-d">${t('Primeni')}</span><span class="flt-ap-m"></span></button></div></div>
@@ -10371,6 +10430,9 @@ function fltCounts(m) {
   }
   const items = fltItems(F), n = rows.filter(r => fltPass(r, F, items)).length;
   const tot = m.querySelector('.flt-total'), ap = m.querySelector('.flt-ap-m');
+  // tip trejda: koliko predloga iz poslednje pretrage ostaje (bez nove pretrage)
+  const shN = m.querySelector('.flt-shape-n'), res = state.tf.res;
+  if (shN) shN.textContent = res?.list && res.sig === tfSig(tfCtx()) ? (F.shapes.length ? t('Ostaje {n} od {m} predloga', { n: res.list.filter(x => tfShapeOk(x, F.shapes)).length, m: res.list.length }) : t('Svi tipovi: {m} predloga', { m: res.list.length })) : t('Važi za predloge posle pretrage.');
   if (!rows.length && D.tool === 'tf') { tot.textContent = t('Izaberi protivnika da vidiš koliko igrača prolazi.'); ap.textContent = t('Primeni'); return; }
   tot.innerHTML = items.length ? t('Prolazi {n} od {m}', { n: `<b>${fltPlayers(n)}</b>`, m: rows.length }) : t('Bez filtera: {n}', { n: fltPlayers(rows.length) });
   ap.textContent = t('Prikaži {n}', { n: fltPlayers(items.length ? n : rows.length) });
@@ -10378,7 +10440,7 @@ function fltCounts(m) {
 function fltOpen(tool, per = null, card = '') {
   closeModal();
   const raw = fltRaw(tool) || {}, P = per || state.period;
-  fltDraft = { tool, per: P, raw: { min: { ...(raw.min || {}) }, max: { ...(raw.max || {}) }, pos: [...(raw.pos || [])], healthy: !!raw.healthy }, fields: fltLeagueFields(), rows: fltRows(fltPool(tool), P) };
+  fltDraft = { tool, per: P, raw: { min: { ...(raw.min || {}) }, max: { ...(raw.max || {}) }, pos: [...(raw.pos || [])], healthy: !!raw.healthy, shapes: [...(raw.shapes || [])] }, fields: fltLeagueFields(), rows: fltRows(fltPool(tool), P) };
   const m = document.createElement('div');
   m.id = 'modal'; m.className = 'flt-modal';
   m.innerHTML = fltModalHTML();
@@ -10397,10 +10459,13 @@ function fltOpen(tool, per = null, card = '') {
   m.addEventListener('click', e => {
     const pb = e.target.closest('[data-flt-pos]');
     if (pb) { const p = pb.dataset.fltPos, cur = fltDraft.raw.pos; fltDraft.raw.pos = cur.includes(p) ? cur.filter(x => x !== p) : [...cur, p]; pb.setAttribute('aria-pressed', fltDraft.raw.pos.includes(p)); fltCounts(m); return; }
+    const sb = e.target.closest('[data-flt-shape]');
+    if (sb) { const x = sb.dataset.fltShape, cur = fltDraft.raw.shapes || []; fltDraft.raw.shapes = cur.includes(x) ? cur.filter(y => y !== x) : [...cur, x]; sb.setAttribute('aria-pressed', fltDraft.raw.shapes.includes(x)); fltCounts(m); return; }
     const hb = e.target.closest('[data-flt-healthy]');
     if (hb) { fltDraft.raw.healthy = !fltDraft.raw.healthy; hb.setAttribute('aria-checked', fltDraft.raw.healthy); fltCounts(m); return; }
     if (e.target.closest('[data-flt-reset]')) { // briše sve u modalu; primenjuje se tek na Primeni
-      fltDraft.raw = { min: {}, max: {}, pos: [], healthy: false };
+      fltDraft.raw = { min: {}, max: {}, pos: [], healthy: false, shapes: [] };
+      m.querySelectorAll('[data-flt-shape]').forEach(b => b.setAttribute('aria-pressed', 'false'));
       m.querySelectorAll('[data-flt-k]').forEach(i => { i.value = ''; });
       m.querySelectorAll('[data-flt-pos]').forEach(b => b.setAttribute('aria-pressed', 'false'));
       m.querySelector('[data-flt-healthy]').setAttribute('aria-checked', 'false');
@@ -10420,9 +10485,11 @@ function fltOpen(tool, per = null, card = '') {
 }
 /** Sačuvaj i primeni: Mete za trejd se odmah preračunaju; Pronađi trejd ponovo traži ako su predlozi već bili prikazani */
 function fltCommit(tool, raw, rerun = false) {
+  const was = fltSig(tool);
   fltSave(tool, raw);
   const open = document.getElementById('modal')?.classList.contains('flt-modal');
-  if (tool === 'tf') { const ctx = tfCtx(); if ((rerun || state.tf.res) && state.players.length && ctx.my.length && ctx.opp.length) tfRun(); }
+  // Pronađi trejd: nova pretraga samo kad se promene filteri igrača; tip trejda samo sakriva predloge (bez nove pretrage)
+  if (tool === 'tf') { const ctx = tfCtx(); if ((rerun || (state.tf.res && fltSig(tool) !== was)) && tfReady(ctx)) tfRun(); else { state.tf.page = 0; tfSessSave(ctx); } }
   render();
   if (open) closeModal(); else document.querySelector(`.flt-btn[data-tool="${tool}"]`)?.focus();
 }
@@ -10433,7 +10500,7 @@ function fltAction(a, el) {
     case 'flt-clear': fltCommit(tool, null); return true;
     case 'flt-drop': { // skloni filter iz predloga i primeni (Pronađi trejd: i ponovo generiši)
       const it = el.dataset.kind === 'min' || el.dataset.kind === 'max' ? { kind: el.dataset.kind, k: el.dataset.k } : { kind: el.dataset.kind };
-      fltCommit(tool, fltWithout(fltRaw(tool) || {}, it), tool === 'tf');
+      fltCommit(tool, fltWithout(fltRaw(tool) || {}, it), tool === 'tf' && it.kind !== 'shape');
       return true;
     }
     case 'flt-tip': return true; // značka i oznaka na kartici: samo tooltip (ne otvara karticu)
@@ -10464,6 +10531,7 @@ function roleTagHTML(p, lg = currentLeague()) {
   return ` <span class="slot-tag tag-role" data-tip="${esc(tip)}" title="${esc(tip)}">↗ ${t('Uloga raste')}</span>`;
 }
 function fltTagHTML(e) {
+  e = { ...e, items: e.items.filter(it => it.kind !== 'shape') };
   const txt = e.items.map(it => fltItemText(it, e.F, e.fields)), tip = fltSummary(e);
   return `<span class="slot-tag flt-tag" data-action="flt-tip" data-tip="${esc(tip)}" aria-label="${esc(t('Prolazi filtere: {f}', { f: tip }))}">✓ ${esc(txt[0])}${txt.length > 1 ? ` +${txt.length - 1}` : ''}</span>`;
 }
@@ -10503,10 +10571,25 @@ function tfCtx() {
   const opps = Object.entries(lg.opps || {}).sort((a, b) => a[1].name.localeCompare(b[1].name, 'sr'));
   // protivnik nije izabran dok ga korisnik ne izabere (ili dok alat ne otvori veza sa izabranim timom)
   let oppKey = state.tf.oppBy[lg.id] || null;
+  // Svi timovi u ligi: pretraga protiv svakog protivnika sa unetim rosterom, rezultati spojeni u jednu listu
+  if (oppKey === TF_ALL) {
+    const allOpps = opps.filter(([, o]) => o.players?.length).map(([k, o]) => ({ k, name: o.name, players: o.players }));
+    if (opps.length >= 2 && allOpps.length) return { lg, scopeKey: lg.id, oppKey, all: true, opps, allOpps, my: lg.roster?.players || [], opp: [], oppName: t('Svi timovi u ligi') };
+    oppKey = null;
+  }
   if (oppKey && !lg.opps[oppKey]) oppKey = null;
   const o = oppKey ? lg.opps[oppKey] : null;
   return { lg, scopeKey: lg.id, oppKey, opps, my: lg.roster?.players || [], opp: o?.players || [], oppName: o?.name || '' };
 }
+const TF_ALL = '@all';
+/** Kontekst jednog protivnika u pretrazi Svi timovi: moje oznake U trejd iz izbora Svi timovi, njegove oznake kao kad je izabran sam */
+const tfOppCtx = (ctx, k) => ({ lg: ctx.lg, scopeKey: ctx.scopeKey, oppKey: k, opps: ctx.opps, my: ctx.my, opp: ctx.lg.opps[k]?.players || [], oppName: ctx.lg.opps[k]?.name || '', allMine: true });
+/** Kontekst predloga: kod Svi timovi protivnik iz predloga (x.ok), inače isti */
+const tfItemCtx = (ctx, x) => (ctx.all && x?.ok ? tfOppCtx(ctx, x.ok) : ctx);
+/** Spremno za pretragu: igrači učitani, moj tim i protivnik (ili bar jedan protivnik kod Svi timovi) */
+const tfReady = ctx => !!(state.players.length && ctx.my.length && (ctx.all ? ctx.allOpps.length : ctx.opp.length));
+/** Rosteri protivnika za potpis rezultata (Svi timovi: svi protivnici i njihove oznake) */
+const tfOppSig = ctx => (ctx.all ? ctx.allOpps.map(o => [o.k, o.players, tfMarks(tfOppCtx(ctx, o.k)).theirs]) : ctx.opp);
 /** Zaključaj i "Dajem ako mora" mojih igrača važe za celu ligu (svi protivnici): čuvaju se pod ključem TF_LOCK_K ({ pid: 'lock' | 'soft' }).
     "U trejd" i oznake protivničkih igrača ostaju po protivniku. */
 const TF_LOCK_K = '@lock';
@@ -10529,7 +10612,7 @@ function tfMarksAll() {
 const tfLocks = scopeKey => Object.fromEntries(Object.entries(tfMarksAll()[scopeKey]?.[TF_LOCK_K] || {}).filter(([, v]) => v === 'lock'));
 function tfMarks(ctx) {
   const sc = tfMarksAll()[ctx.scopeKey] || {}, m = sc[ctx.oppKey || '-'];
-  const mine = { ...(m?.mine || {}) };
+  const mine = { ...((ctx.allMine ? sc[TF_ALL] : m)?.mine || {}) }; // Svi timovi: moje oznake U trejd iz izbora Svi timovi važe za svakog protivnika
   for (const [id, v] of Object.entries(sc[TF_LOCK_K] || {})) mine[id] = v === 'soft' ? 'soft' : 'lock';
   return { mine, theirs: m?.theirs || {} };
 }
@@ -10887,7 +10970,7 @@ function tfWeakIdx(M, n = 3) {
   return [...M.myIdx].sort((a, b) => by[a] - by[b]).slice(0, n);
 }
 /** Potpis ulaza: rezultat važi dok se ništa od ovoga ne promeni */
-const tfSig = (ctx) => JSON.stringify([ctx.scopeKey, ctx.oppKey, ctx.my, ctx.opp, tfMarks(ctx), state.tf.strat, state.tf.focus, state.tf.slider, tfNoDrop(ctx), fltSig('tf', ctx.scopeKey), fmtKeyNow(), state.loadedAt, [...(state.punt || [])], +tfBase(ctx.lg).slot.v.toFixed(3), +(tfBase(ctx.lg).slot.rv ?? 0).toFixed(3)]); // slobodno mesto se menja kad stigne waiver lista
+const tfSig = (ctx) => JSON.stringify([ctx.scopeKey, ctx.oppKey, ctx.my, tfOppSig(ctx), tfMarks(ctx), state.tf.strat, state.tf.focus, state.tf.slider, tfNoDrop(ctx), fltSig('tf', ctx.scopeKey), fmtKeyNow(), state.loadedAt, [...(state.punt || [])], +tfBase(ctx.lg).slot.v.toFixed(3), +(tfBase(ctx.lg).slot.rv ?? 0).toFixed(3)]); // slobodno mesto se menja kad stigne waiver lista
 /** "Ne otpuštam nikoga": lični izbor po ligi (trajno) */
 const TF_NODROP_KEY = 'fbaTrade.tfNoDrop.v1';
 const tfNoDrop = ctx => !!(lsGet(TF_NODROP_KEY) || {})[ctx.scopeKey];
@@ -10900,12 +10983,13 @@ function tfWorker() {
 function tfStop() { const S = state.tf; if (S.worker) { S.worker.terminate(); S.worker = null; } S.busy = false; S.prog = 0; }
 function tfRun() {
   const ctx = tfCtx(); tfStop();
-  if (!state.players.length || !ctx.my.length || !ctx.opp.length) return;
+  if (!tfReady(ctx)) return;
+  if (ctx.all) return tfRunAll(ctx);
   const M = tfModel(ctx), fe = fltEff('tf', ctx.scopeKey), sig = tfSig(ctx), S = state.tf, searchNo = tfNextSearchNo();
-  const inp = tfInput(M, { ff: fe ? tfFltHits(M, fe) : null });
+  const inp = tfInput(M, { ff: fltHasPlayer(fe) ? tfFltHits(M, fe) : null });
   S.busy = true; S.prog = 0; S.res = null; S.page = 0;
   const t0 = performance.now();
-  const done = (r, ms) => { S.busy = false; S.worker = null; S.res = { ...r, sig, ms: ms ?? performance.now() - t0, searchNo }; S.ms = S.res.ms; S.saved = {}; S.resKey = tfSessKey(ctx); S.notice = null; tfSessSave(ctx); renderTfAll(); };
+  const done = (r, ms) => tfDone(ctx, r, sig, searchNo, ms ?? performance.now() - t0);
   try {
     const w = tfWorker(); S.worker = w;
     w.onmessage = e => { if (e.data.done) { w.terminate(); done(e.data.done, e.data.ms); } else { S.prog = e.data.p; const b = document.getElementById('tf-prog-bar'); if (b) b.style.width = `${Math.round(S.prog * 100)}%`; } };
@@ -10915,6 +10999,57 @@ function tfRun() {
     setTimeout(() => done(tfEngineLocal().search(inp)), 30); // bez Workera: isto računanje na stranici
   }
   renderTfAll();
+}
+/** Kraj pretrage: rezultat, sesija, prikaz */
+function tfDone(ctx, r, sig, searchNo, ms) {
+  const S = state.tf;
+  S.busy = false; S.worker = null; S.res = { ...r, sig, ms, searchNo }; S.ms = ms; S.saved = {}; S.resKey = tfSessKey(ctx); S.notice = null; S.mc = null;
+  tfSessSave(ctx); renderTfAll();
+}
+/** Svi timovi u ligi: pretraga protiv svakog protivnika redom (jedan Worker), pa spajanje (najviše 2 predloga istog protivnika na strani) */
+function tfRunAll(ctx) {
+  const S = state.tf, fe = fltEff('tf', ctx.scopeKey), ff = fltHasPlayer(fe), sig = tfSig(ctx), searchNo = tfNextSearchNo();
+  const jobs = ctx.allOpps.map(o => { const M = tfModel(tfOppCtx(ctx, o.k)); return { k: o.k, inp: tfInput(M, { ff: ff ? tfFltHits(M, fe) : null }) }; });
+  S.busy = true; S.prog = 0; S.res = null; S.page = 0;
+  const t0 = performance.now(), outs = [], n = jobs.length;
+  const finish = () => { S.allMs = outs.map(o => ({ k: o.k, ms: o.ms })); tfDone(ctx, tfEngineLocal().mergeOpps(outs, TF), sig, searchNo, performance.now() - t0); };
+  const local = i => { // bez Workera: isto računanje na stranici, protivnik po protivnik
+    if (!S.busy) return;
+    if (i >= n) { finish(); return; }
+    const a = performance.now(); outs.push({ k: jobs[i].k, res: tfEngineLocal().search(jobs[i].inp), ms: performance.now() - a }); S.prog = (i + 1) / n;
+    const b = document.getElementById('tf-prog-bar'); if (b) b.style.width = `${Math.round(S.prog * 100)}%`;
+    setTimeout(() => local(i + 1), 0);
+  };
+  try {
+    const w = tfWorker(); S.worker = w; let i = 0;
+    w.onmessage = e => {
+      if (e.data.done) { outs.push({ k: jobs[i].k, res: e.data.done, ms: e.data.ms }); i++; if (i < n) w.postMessage(jobs[i].inp); else { w.terminate(); S.worker = null; finish(); } }
+      else { S.prog = (i + e.data.p) / n; const b = document.getElementById('tf-prog-bar'); if (b) b.style.width = `${Math.round(S.prog * 100)}%`; }
+    };
+    w.onerror = () => { w.terminate(); S.worker = null; setTimeout(() => local(i), 0); };
+    w.postMessage(jobs[0].inp);
+  } catch {
+    setTimeout(() => local(0), 30);
+  }
+  renderTfAll();
+}
+/** Predlozi koji se prikazuju: svi, ili samo izabrani tipovi trejda (filter), ponovo složeni u strane po istim pravilima */
+function tfView(res = state.tf.res) {
+  if (!res?.list) return [];
+  const sh = fltEff('tf', tfCtx().scopeKey)?.F.shapes || [];
+  if (!sh.length) return res.list;
+  const key = sh.join(',');
+  if (res._vk !== key) { res._view = tfEngineLocal().regroup(res.list.filter(x => tfShapeOk(x, sh)), res.popt || tfPoptDefault()); res._vk = key; }
+  return res._view;
+}
+/** Pravila strana za stare sačuvane rezultate (bez popt) */
+const tfPoptDefault = () => ({ per: TF.PER_PAGE, capG: TF.DIV_MINE, capR: TF.DIV_THEIRS, capRHi: TF.DIV_THEIRS_HI, minFill: TF.DIV_MIN_FILL, bigCap: TF.BIG_PER_PAGE, keep: TF.KEEP, exempt: [] });
+/** Model za karticu predloga: kod Svi timovi model protivnika iz predloga (keš dok važi rezultat) */
+function tfItemModel(ctx, x, M) {
+  if (!ctx.all || !x?.ok) return M;
+  const S = state.tf, sig = S.res?.sig;
+  if (!S.mc || S.mc.sig !== sig) S.mc = { sig, m: {} };
+  return S.mc.m[x.ok] || (S.mc.m[x.ok] = tfModel(tfOppCtx(ctx, x.ok)));
 }
 const renderTfAll = () => { if (EMBED?.finder) renderFinderEmbed(); else if (state.page === 'finder') render(); else if (ttVisible()) ttRender(); };
 
@@ -10927,15 +11062,15 @@ const tfSessPut = v => { // pun sessionStorage: izbaci najstarije protivnike dok
   }
 };
 const tfSessKey = ctx => `${ctx.scopeKey}|${ctx.oppKey || '-'}`;
-const tfRosterSig = ctx => JSON.stringify([ctx.my.map(x => [x.id, !!x.ir]), ctx.opp.map(x => [x.id, !!x.ir])]);
+const tfRosterSig = ctx => JSON.stringify([ctx.my.map(x => [x.id, !!x.ir]), ctx.all ? ctx.allOpps.map(o => [o.k, o.players.map(x => [x.id, !!x.ir])]) : ctx.opp.map(x => [x.id, !!x.ir])]);
 /** Izbor koji određuje predloge (bez vremena učitavanja podataka) */
-const tfChoiceSig = ctx => JSON.stringify([tfMarks(ctx), state.tf.strat, state.tf.focus, state.tf.slider, tfNoDrop(ctx), fltSig('tf', ctx.scopeKey), fmtKeyNow(), [...(state.punt || [])]]);
+const tfChoiceSig = ctx => JSON.stringify([tfMarks(ctx), ctx.all ? ctx.allOpps.map(o => tfMarks(tfOppCtx(ctx, o.k)).theirs) : null, state.tf.strat, state.tf.focus, state.tf.slider, tfNoDrop(ctx), fltSig('tf', ctx.scopeKey), fmtKeyNow(), [...(state.punt || [])]]);
 const tfTradeKey = x => `${[...x.g].sort().join(',')}|${[...x.r].sort().join(',')}`;
 function tfSessSave(ctx) {
   const S = state.tf; if (!S.res || S.resKey !== tfSessKey(ctx)) return;
   const all = tfSessAll(); all.e = all.e || {}; all.last = all.last || {};
   const k = tfSessKey(ctx); delete all.e[k]; // poslednji korišćen ide na kraj (najstariji se prvi izbacuje)
-  all.e[k] = { rs: tfRosterSig(ctx), cs: tfChoiceSig(ctx), res: { list: S.res.list, stats: S.res.stats, hasTrade: S.res.hasTrade, ms: S.res.ms }, page: S.page, strat: S.strat, focus: S.focus, slider: S.slider, saved: S.saved || {} };
+  all.e[k] = { rs: tfRosterSig(ctx), cs: tfChoiceSig(ctx), res: { list: S.res.list, stats: S.res.stats, hasTrade: S.res.hasTrade, ms: S.res.ms, popt: S.res.popt }, page: S.page, strat: S.strat, focus: S.focus, slider: S.slider, saved: S.saved || {} };
   all.last[ctx.scopeKey] = ctx.oppKey || null;
   tfSessPut(all);
 }
@@ -10943,15 +11078,19 @@ function tfSessSave(ctx) {
 function tfSessRestore() {
   const S = state.tf; if (S.busy) return;
   const lg = currentLeague(), all = tfSessAll();
-  if (lg && !state.tf.oppBy[lg.id] && all.last?.[lg.id] && lg.opps?.[all.last[lg.id]]) state.tf.oppBy[lg.id] = all.last[lg.id];
+  if (lg && !state.tf.oppBy[lg.id] && all.last?.[lg.id] && (lg.opps?.[all.last[lg.id]] || all.last[lg.id] === TF_ALL)) state.tf.oppBy[lg.id] = all.last[lg.id];
   const ctx = tfCtx(), key = tfSessKey(ctx);
   const en = all.e?.[key];
-  if (S.res && S.resKey === key && (!en || en.rs === tfRosterSig(ctx))) return; // već u memoriji, rosteri isti
+  if (S.res && S.resKey === key && (!en || en.rs === tfRosterSig(ctx))) { // već u memoriji, rosteri isti
+    // vraćen iz sesije pre nego što je stigla lista slobodnih igrača (slobodno mesto u potpisu): izbor je isti, pa rezultat i dalje važi
+    if (S.res.cs && S.res.cs === tfChoiceSig(ctx)) S.res.sig = tfSig(ctx);
+    return;
+  }
   if (!en) { if (S.resKey !== key) { S.res = null; S.resKey = null; S.notice = null; } return; }
   if (en.rs !== tfRosterSig(ctx)) { delete all.e[key]; tfSessPut(all); S.res = null; S.resKey = null; S.notice = 'rosters'; return; }
   S.strat = en.strat; S.focus = en.focus || []; S.slider = en.slider; S.page = en.page || 0; S.saved = en.saved || {}; S.notice = null;
   // oznake ili prekidač promenjeni u međuvremenu: predlozi ostaju, uz poruku da je izbor promenjen
-  S.res = { ...en.res, sig: en.cs === tfChoiceSig(ctx) ? tfSig(ctx) : 'stale' }; S.resKey = key;
+  S.res = { ...en.res, sig: en.cs === tfChoiceSig(ctx) ? tfSig(ctx) : 'stale', cs: en.cs }; S.resKey = key;
 }
 /* ---------- Ocene predloga (👍 / 👎): samo u ovom browseru, ne utiču na predloge; služe za kasnije podešavanje konstanti ---------- */
 const RATE_KEY = 'fbaTrade.tfRatings.v1', RATE_MAX = 500;
@@ -10986,7 +11125,7 @@ function rateSave(entry, el) {
   if (rating) toast(t('Ocena sačuvana'), 2000);
 }
 function tfRate(i, rating, el) {
-  const S = state.tf, x = S.res?.list[i], ctx = tfCtx(); if (!x) return;
+  const S = state.tf, x = tfView()[i], ctx = tfItemCtx(tfCtx(), x); if (!x) return;
   const M = tfModel(ctx), B = tfBase(ctx.lg), pl = id => ratePlayer(B, id), sum = ids => r2(ids.reduce((a, id) => a + B.ros(state.byId.get(id) || {}), 0));
   rateSave({ k: tfRateKey('finder', ctx.lg?.id, x.g, x.r), ts: new Date().toISOString(), tool: 'finder', rating,
     league: rateLeague(ctx.lg, M.cats), strategy: S.strat, slider: S.slider, focus: [...(S.focus || [])],
@@ -11025,7 +11164,7 @@ function rateWipe() {
 }
 /** Sačuvaj predlog kao nov tab Analize trejda (otpuštanja, slobodno mesto i mešavina perioda), bez prelaska na Analizu */
 function tfSaveTrade(i) {
-  const S = state.tf, x = S.res?.list[i], ctx = tfCtx(); if (!x || ctx.quick) return;
+  const S = state.tf, x = tfView()[i], all = tfCtx(), ctx = tfItemCtx(all, x); if (!x || ctx.quick) return;
   const k = tfTradeKey(x);
   const s = scopeTabs();
   let tab = tfTabFor(s.tabs, x.g, x.r, S.saved?.[k]); // isti trejd se ne čuva dvaput
@@ -11033,7 +11172,7 @@ function tfSaveTrade(i) {
     tab = { ...newTab([x.g, x.r], { ...emptyBalance(), my: { drops: [...x.md], waivers: [] }, opp: { drops: [...x.od], waivers: [] } }), mix: true, opp: ctx.oppKey };
     s.tabs.push(tab); persistTrades(); // aktivan tab Analize se ne menja
   }
-  S.saved = { ...(S.saved || {}), [k]: tab.id }; tfSessSave(ctx);
+  S.saved = { ...(S.saved || {}), [k]: tab.id }; tfSessSave(all);
   renderTfAll();
   toast(t('Sačuvano u Analizi trejda'), 5000, { label: t('Otvori'), on: () => tfOpen(i) });
 }
@@ -11058,10 +11197,12 @@ function tfTeamHTML(ctx, side, marks) {
       <button type="button" class="linkbtn" data-action="tf-reset">${t('Poništi sve')}</button></div>
       ${rows ? `<ul class="tf-list">${rows}</ul>` : `<p class="pnote tf-empty">${ctx.quick ? t('Dodaj igrače svog tima.') : t('Tvoj tim u ovoj ligi nema igrača. Izaberi svoj tim u podešavanjima lige.')}</p>`}${search}</section>`;
   }
+  const allOpt = ctx.opps?.length >= 2 ? `<option value="${TF_ALL}" ${ctx.all ? 'selected' : ''}>${t('Svi timovi u ligi')}</option>` : '';
   const sel = ctx.quick ? `<b>${t('Protivnik')}</b>` : ctx.opps.length
-    ? `<select data-tf-opp aria-label="${esc(t('Izaberi protivnika'))}"><option value="" ${ctx.oppKey ? '' : 'selected'}>${t('Izaberi protivnika')}</option>${ctx.opps.map(([k, o]) => `<option value="${k}" ${k === ctx.oppKey ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select>` : `<b>${t('Protivnik')}</b>`;
+    ? `<select data-tf-opp aria-label="${esc(t('Izaberi protivnika'))}"><option value="" ${ctx.oppKey ? '' : 'selected'}>${t('Izaberi protivnika')}</option>${allOpt}${ctx.opps.map(([k, o]) => `<option value="${k}" ${k === ctx.oppKey ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select>` : `<b>${t('Protivnik')}</b>`;
   let body;
-  if (rows) body = `<ul class="tf-list">${rows}</ul>`;
+  if (ctx.all) body = `<p class="pnote tf-empty">${t('Tražim trejdove sa svih {n} timova i prikazujem najbolje. Na strani od 8 su najviše 2 predloga istog tima.', { n: ctx.allOpps.length })}</p><p class="pnote">${t('Oznake za igrače drugih timova (Ne želim, U trejd) postavljaš kad izabereš taj tim. Važe i ovde.')}</p><ul class="tf-all-list">${ctx.allOpps.map(o => `<li>${esc(o.name)} <small>${t('{n} igrača', { n: o.players.length })}</small></li>`).join('')}</ul>`;
+  else if (rows) body = `<ul class="tf-list">${rows}</ul>`;
   else if (ctx.quick) body = `<p class="pnote tf-empty">${t('Dodaj igrače protivnika.')}</p>`;
   else if (ctx.opps.length && !ctx.oppKey) body = `<p class="pnote tf-empty">${t('Izaberi tim sa kojim tražiš trejd.')}</p>`;
   else if (!ctx.opps.length) body = `<p class="pnote tf-empty">${t('U ovoj ligi još nema protivnika.')} <button type="button" class="btn small" data-action="tf-add-opp">${t('Dodaj protivnika')}</button></p>`;
@@ -11152,7 +11293,7 @@ function tfDropText(M, x) {
     x.mdl ? t('Kad se {ir} vrati sa IR-a, otpuštaš: {n}', { ir: irN, n: nmL(x.md.slice(mdNow)) }) : '',
     mfP ? t('Ostaje ti slobodno mesto. Ne računa se u trejd: trejd je dobar i bez igrača sa waivera.') : ''].filter(Boolean).join(' ');
 }
-function tfCardHTML(M, x, i, veto = null) {
+function tfCardHTML(M, x, i, veto = null, oppName = null) {
   const v = tfCardView(M, x);
   // povređeni: status (sa "(ESPN)" kad liga ne daje status) i procena povratka; "ide na IR" kad ide na slobodno IR mesto primaoca
   const injTxt = p => (M.injOfP(p) ? `<span class="tf-inj">${esc(stLabel(playerStatus(p, M.ctx.lg)))}, ${esc(injRetText(p, M.ctx.lg))}</span>` : '');
@@ -11164,7 +11305,7 @@ function tfCardHTML(M, x, i, veto = null) {
   // Sačuvaj: nov tab u Analizi trejda bez prelaska; bez lige nema tabova lige, pa ni dugmeta
   const saved = !!state.tf.saved?.[tfTradeKey(x)];
   const saveBtn = M.ctx.quick ? '' : saved ? `<span class="slot-tag tag-in tf-saved">✓ ${t('Sačuvano')}</span><button type="button" class="btn small sec" disabled>${t('Sačuvaj')}</button>` : `<button type="button" class="btn small sec" data-action="tf-save" data-i="${i}">${t('Sačuvaj')}</button>`;
-  return `<article class="tf-card${saved ? ' saved' : ''}" data-action="tf-open" data-i="${i}">
+  return `<article class="tf-card${saved ? ' saved' : ''}" data-action="tf-open" data-i="${i}">${oppName != null ? `<p class="tf-card-opp">${t('Trejd sa timom')} <b>${esc(oppName)}</b></p>` : ''}
     <div class="tf-sides"><div><span class="slot-tag tag-out">${t('Daješ')}</span><ul>${x.g.map(id => pl(id, soft(id))).join('')}</ul></div>
       <div><span class="slot-tag tag-in">${t('Dobijaš')}</span><ul>${x.r.map(id => pl(id, false)).join('')}</ul></div></div>
     ${drop ? `<p class="pnote tf-drop">${drop}</p>` : ''}${toIr.size && M.irEst ? `<p class="pnote tf-drop">${t('Broj IR mesta je procena. Proveri u podešavanjima lige.')}</p>` : ''}
@@ -11187,16 +11328,21 @@ function tfEmptyHTML(M, res) {
   const tips = [S.slider !== 'aggr' ? t('probaj Agresivno') : '', Object.values(M.marks.mine).some(m => m === 'lock') ? t('zaključaj manje igrača') : '', Object.values(M.marks.theirs).some(m => m === 'lock') ? t('isključi manje igrača (Ne želim)') : '', t('izaberi drugu strategiju'), !M.ctx.quick ? t('ili drugog protivnika') : ''].filter(Boolean);
   return `<div class="pcard fa-none tf-none"><b>${t('Nema trejdova koji prolaze')}</b><p class="pnote">${why.join(' ')}</p><p class="pnote">${t('Šta možeš da promeniš')}: ${tips.join(', ')}.</p></div>`;
 }
+/** Svi timovi u ligi: nijedan trejd ni sa jednim timom */
+function tfEmptyAllHTML() {
+  const S = state.tf, tips = [S.slider !== 'aggr' ? t('probaj Agresivno') : '', t('zaključaj manje igrača'), t('izaberi drugu strategiju')].filter(Boolean);
+  return `<div class="pcard fa-none tf-none"><b>${t('Nema trejdova koji prolaze')}</b><p class="pnote">${t('Nijedan trejd ne prolazi pravila fer trejda ni sa jednim timom u ligi.')}</p><p class="pnote">${t('Šta možeš da promeniš')}: ${tips.join(', ')}.</p></div>`;
+}
 /** Igrači protivnika koji prolaze filtere (Set id-jeva) */
 const tfFltHits = (M, e) => new Set(M.theirs.filter(x => fltPass(fltRow(x.p, state.period, M.ctx.lg), e.F, e.items)).map(x => x.id));
 /** Filteri u Pronađi trejd: prazno stanje kad niko kod protivnika ne prolazi, ili "6 od 8 ideja" kad filteri smanje broj predloga */
-function tfFltNoteHTML(M, res) {
-  const e = fltEff('tf', M.ctx.scopeKey); if (!e) return '';
+function tfFltNoteHTML(M, res, view = res.list) {
+  const e = fltEff('tf', M.ctx.scopeKey); if (!fltHasPlayer(e)) return '';
   const pool = fltPool('tf'), rows = fltRows(pool);
   if (!rows.some(r => fltPass(r, e.F, e.items))) return fltEmptyHTML('tf', e, rows);
-  if (res.list.length >= TF.PER_PAGE) return '';
+  if (view.length >= TF.PER_PAGE || !view.length) return '';
   const link = fltSuggestHTML('tf', e, rows, { link: true });
-  return `<p class="pnote flt-note">${t('{n} od {m} ideja. Filteri su strogi, {f} za više.', { n: res.list.length, m: TF.PER_PAGE, f: link })}</p>`;
+  return `<p class="pnote flt-note">${t('{n} od {m} ideja. Filteri su strogi, {f} za više.', { n: view.length, m: TF.PER_PAGE, f: link })}</p>`;
 }
 function tfResultsHTML(M, ctx) {
   const S = state.tf, res = S.res;
@@ -11204,23 +11350,27 @@ function tfResultsHTML(M, ctx) {
   if (!res && S.notice === 'rosters') return `<p class="pnote tf-hint">${t('Rosteri su se promenili, pokreni pretragu ponovo.')}</p>`;
   if (!res) return `<p class="pnote tf-hint">${t('Obeleži igrače ako želiš, izaberi strategiju i klikni Pronađi trejdove.')}</p>`;
   if (res.sig !== tfSig(ctx)) return `<p class="pnote tf-hint">${t('Promenio si izbor. Klikni Pronađi trejdove za nove predloge.')}</p>`;
-  const fNote = tfFltNoteHTML(M, res);
-  if (!res.list.length) return fNote.includes('flt-none') ? fNote : fNote + tfEmptyHTML(M, res);
-  const fe = fltEff('tf', ctx.scopeKey);
-  M.flt = fe; M.fltHit = fe ? tfFltHits(M, fe) : null; // oznaka na kartici za igrače koji prolaze filtere
-  const items = tfEngineLocal().pageItems(res.list, S.page, TF.PER_PAGE);
+  const view = tfView(res), fNote = tfFltNoteHTML(M, res, view);
+  if (!res.list.length) return fNote.includes('flt-none') ? fNote : fNote + (ctx.all ? tfEmptyAllHTML() : tfEmptyHTML(M, res));
+  const fe = fltEff('tf', ctx.scopeKey), sh = fe?.F.shapes || [];
+  if (!view.length) return `${fNote}<div class="pcard fa-none tf-none"><b>${t('Nijedan predlog nije izabranog tipa trejda')}</b><p class="pnote">${t('Ima {n} predloga drugih tipova. Izaberi još tipova trejda ili skloni ovaj filter.', { n: res.list.length })}</p><div class="flt-none-acts"><button type="button" class="btn small" data-action="flt-drop" data-tool="tf" data-kind="shape">${t('Skloni {f}', { f: esc(fltShapeTxt(sh)) })}</button></div></div>`;
+  const fp = fltHasPlayer(fe);
+  const mOf = x => { const Mx = tfItemModel(ctx, x, M); if (!Mx.fltSet) { Mx.flt = fp ? fe : null; Mx.fltHit = fp ? tfFltHits(Mx, fe) : null; Mx.fltSet = true; } return Mx; }; // oznaka na kartici za igrače koji prolaze filtere
+  if (!ctx.all) M.fltSet = false;
+  const items = tfEngineLocal().pageItems(view, S.page, TF.PER_PAGE);
   const short = items[0]?.pgShort ? `<p class="pnote">${t('Na ovoj strani je {n} predloga. Ostali bi ponovili istog igrača više puta nego što je dozvoljeno (tvoj najviše u 3 predloga, njegov u 2, a kad bi strana bila kraća od 6, u 3).', { n: items.length })}</p>` : '';
-  const more = res.list[0]?.pg != null ? res.list.some(x => x.pg > S.page) : (S.page + 1) * TF.PER_PAGE < res.list.length;
-  const picks = items.map(x => tfVetoCand(M, x)), shown = tfVetoShown(picks, TF.VETO_MAX); // savet samo gde je dopuna najočiglednija
-  return `<h3 class="fa-h">${t('Predlozi')}</h3>${fNote}${short}<div class="tf-cards">${items.map((x, k) => tfCardHTML(M, x, S.page * TF.PER_PAGE + k, shown.has(k) ? picks[k] : null)).join('')}</div>
+  const more = view[0]?.pg != null ? view.some(x => x.pg > S.page) : (S.page + 1) * TF.PER_PAGE < view.length;
+  const picks = items.map(x => tfVetoCand(mOf(x), x)), shown = tfVetoShown(picks, TF.VETO_MAX); // savet samo gde je dopuna najočiglednija
+  const allMs = ctx.all && res.ms ? `<p class="pnote tf-all-ms">${t('Pretraga sa {n} timova je trajala {s} s.', { n: ctx.allOpps.length, s: (res.ms / 1000).toFixed(1) })}</p>` : '';
+  return `<h3 class="fa-h">${t('Predlozi')}</h3>${fNote}${short}${allMs}<div class="tf-cards">${items.map((x, k) => tfCardHTML(mOf(x), x, S.page * TF.PER_PAGE + k, shown.has(k) ? picks[k] : null, ctx.all ? (ctx.lg.opps[x.ok]?.name || '') : null)).join('')}</div>
     <div class="tf-more">${more ? `<button type="button" class="btn sec" data-action="tf-more">${t('Generiši novih 8')}</button>` : `<span class="tf-more-tip" tabindex="0" data-tip="${esc(t('To su svi predlozi za ovaj izbor.'))}"><button type="button" class="btn sec" disabled>${t('Generiši novih 8')}</button></span>`}</div>`;
 }
 /** Telo alata (liga i javna stranica) */
 function tfBodyHTML() {
   if (state.players.length) tfSessRestore();
   const ctx = tfCtx(), marks = tfMarks(ctx);
-  const ready = state.players.length && ctx.my.length && ctx.opp.length;
-  const M = ready ? tfModel(ctx) : null;
+  // Svi timovi: kontrole (kategorije, punt) i prazno stanje koriste model prvog protivnika; kartice model svog protivnika
+  const M = tfReady(ctx) ? tfModel(ctx.all ? { ...tfOppCtx(ctx, ctx.allOpps[0].k), all: true } : ctx) : null;
   return `<div class="tf-split">${tfTeamHTML(ctx, 'mine', marks)}${tfTeamHTML(ctx, 'theirs', marks)}</div>
     ${tfControlsHTML(M)}<div id="tf-results">${M ? tfResultsHTML(M, ctx) : ''}</div>`;
 }
@@ -11269,7 +11419,7 @@ function openFinder({ opp = null, want = null, give = null, run = false, back = 
   if (run) tfRun();
 }
 window.openFinder = openFinder;
-function tfOpen(i) { const x = state.tf.res?.list[i]; if (x) tfOpenX(x, tfCtx()); }
+function tfOpen(i) { const x = tfView()[i]; if (x) tfOpenX(x, tfItemCtx(tfCtx(), x)); }
 /** Otvori predlog u Analizi trejda (Pronađi trejd i Mete za trejd): otpuštanja, slobodno mesto, mešavina perioda */
 function tfOpenX(x, ctx) {
   // analiza dobija i otpuštanja, slobodno mesto računa sama (najbolji slobodan ili nivo zamene), a rezultat je za istu mešavinu perioda kao kartica

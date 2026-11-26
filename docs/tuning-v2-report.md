@@ -165,3 +165,27 @@ Rang tržišta se takođe malo menja, jer i tržište koristi istu težinu kratk
 Slobodno mesto je niže jer najbolji slobodni igrači više ne dobijaju vrednost od nekoliko vrućih utakmica. Prag za otpuštanje je na istoj skali kao vrednost igrača, jer obe idu kroz istu funkciju.
 
 **Dodatna provera (ne podešava se prema njoj):** tvojih 98 ocena (36 👍, 62 👎), korist ponovo izračunata za iste trejdove na istim sastavima. Koliko često 👍 trejd ima veću korist od 👎 trejda: pre izmene 53%, posle **61%** (prosečna korist 👍 0,30 → 0,20, 👎 0,27 → 0,09). Korist zabeležena u trenutku ocene (stariji model): 57%.
+
+## Korak 3: nove opcije u Pronađi trejd
+
+### 3.1 Svi timovi u ligi
+
+- U izboru protivnika je nova opcija „Svi timovi u ligi” (EN „All teams in the league”), kad liga ima bar 2 protivnika.
+- Pretraga ide protiv svakog protivnika sa unetim rosterom, redom u istom Workeru (traka napretka ide preko svih). Rezultati se spajaju u jednu listu po rangu (`tfEngine().mergeOpps`), uz ista pravila strane i još jedno: **najviše 2 predloga istog protivnika na strani od 8** (`TF.ALL_OPP_PER_PAGE = 2`, ne popušta). Raznovrsnost mog igrača (najviše 3 na strani) važi za celu ligu.
+- Kartica ima red „Trejd sa timom X”. Otvori trejd, Sačuvaj i ocena idu sa pravim protivnikom.
+- Oznake: Zaključaj i Dajem ako mora su ionako za celu ligu. Moje „U trejd” postavljeno u izboru Svi timovi važi za sve protivnike. Oznake igrača drugih timova (Ne želim, U trejd) se postavljaju kad se izabere taj tim i važe i u Svi timovi. Panel protivnika u ovom izboru pokazuje spisak timova i to objašnjenje.
+- Provera 7 pravila za jednog protivnika posle koraka 3 (3 lige, 234 pretrage): sve 0, isti brojevi kao posle koraka 2 (1.182 predloga). Provera Svi timovi (NBA tviter, 11 protivnika, 6 strategija × 3 režima): pravila na svim stranama 0 (protivnik najviše 2, moj igrač najviše 3, njegov najviše 3, najviše 1 trejd sa 4 igrača). Prva strana ima 8 predloga u 16 od 18 pretraga, 7 u dve pretrage Konsolidacija. Na prvoj strani je 4 do 6 različitih timova.
+- **Trajanje:** računanje svih 11 pretraga na glavnoj niti je 0,3 do 0,4 s (Konsolidacija), 0,6 do 0,7 s (Dubina) i 1,4 do 2,9 s (ostale strategije). U Workeru u skrivenom panelu test browsera izmereno je 11,6 do 12,5 s, jer browser usporava pozadinske kartice. Na vidljivoj stranici očekujem blizu prve brojke. Stranica prikazuje koliko je pretraga trajala.
+- Konsolidacija ima malo predloga, pa su posle prve strane strane kraće (pravilo 2 po timu ne popušta).
+
+### 3.2 Tip trejda
+
+- U modalu Filteri (samo Pronađi trejd) je nov red „Tip trejda”: 1 za 1, 2 za 1, 1 za 2, 2 za 2, 3+ (daješ za dobijaš; 3+ = 3 ili više igrača na nekoj strani). Može više tipova odjednom.
+- Ne pokreće novu pretragu: predlozi drugih tipova se sakrivaju, a ostali se ponovo slažu u strane od 8 po istom redu i istim pravilima (`tfEngine().regroup`, rang se čuva kao `x.ri`). Brojač u modalu odmah pokazuje „Ostaje N od M predloga”. Važi i za Svi timovi.
+- Kad nijedan predlog nije izabranog tipa, poruka kaže koliko ima drugih tipova i nudi da se filter skloni.
+- Tip trejda se broji u znački Filteri i čuva se po ligi kao ostali filteri. Ne ulazi u potpis pretrage, pa izmena tipa ne briše predloge.
+- Merenje: u Svi timovi (Najbolje za mene, Fer) od 400 predloga je 1 za 1: 5, 1 za 2: 5, 2 za 2: 77, 3+: 313. Probao sam da čuvam 1.200 spojenih predloga, ali 1 za 1 ostaje 5, pa je vraćeno na 400 (manje memorije u sesiji).
+
+### Usput: rezultat posle ponovnog učitavanja
+
+Posle osvežavanja stranice sačuvani predlozi su pokazivali „Promenio si izbor”, i za jednog protivnika (stara greška, ne iz ovog koraka). Uzrok: potpis rezultata uključuje slobodno mesto, a ono se promeni kad stigne lista slobodnih igrača, posle vraćanja iz sesije. Sada se potpis osveži kad je izbor isti. Provereno: posle osvežavanja 8 kartica, a izmena oznake i dalje daje „Promenio si izbor”.
