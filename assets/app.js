@@ -612,6 +612,8 @@ const VALUE = {
   // a umesto dostupnosti iz utakmica (koja bi bila 0) množi se ovim popustom za neizvesnu ulogu. Kad počne da igra, sezona preuzima.
   NO_GAMES_DISC: 0.7,
 };
+/** Utakmice po periodu za mešavinu (blendWeights) i odigrani minuti u kratkim periodima (FA.SHORT_MIN_K) */
+const periodGp = p => { const s = k => statOf(p, k); return { proj: s('proj') ? 1 : 0, season: s('season')?.GP || 0, l15: s('l15')?.GP || 0, l7: s('l7')?.GP || 0, min: { l15: (s('l15')?.GP || 0) * (s('l15')?.MIN || 0), l7: (s('l7')?.GP || 0) * (s('l7')?.MIN || 0) } }; };
 /** Igrač na NBA timu bez ijedne utakmice u ovoj sezoni */
 const noSeasonGames = p => !!p?.tid && !(p.stats?.[`00${CONFIG.SEASON}`]?.GP > 0);
 /** Doprinos igrača u jednoj kategoriji po utakmici. Procenti (i odnosi): uticaj = pogoci − procenat bazena × pokušaji
@@ -694,10 +696,15 @@ const weightedValue = (by, weights) => Object.entries(by).reduce((s, [k, z]) => 
 const FA = {
   BLEND: { proj: 0.5, season: 0.35, l15: 0.3, l7: 0.2 },  // mešavina perioda za vrednost igrača (FA alat, Pronađi trejd)
   BLEND_FULL_GP: { season: 20, l15: 6, l7: 3 },           // ispod ovoliko utakmica period dobija srazmerno manju težinu
+  // kratki periodi (15 i 7 dana): težina × M / (M + SHORT_MIN_K), M = odigrani minuti u periodu (utakmice × minuti). Vruć niz od par
+  // utakmica ne naduvava vrednost, a period sa punom ulogom (mnogo minuta) zadržava veći deo težine (tuning-v2, korak 2)
+  SHORT_MIN_K: 300,
   PROJ_FADE_GP: 25,     // projekcija pre sezone gubi težinu kako igrač igra: × (1 − utakmice u sezoni / 25), ali najmanje PROJ_FLOOR
   PROJ_FLOOR: 0.25,
-  REAL_PROJ_FADE_GP: 15, // stvarna vrednost (otpuštanje, slobodno mesto): projekcija nestaje linearno do 15 utakmica u sezoni,
-  REAL_PROJ_FLOOR: 0,    // bez donje granice; cena na tržištu zadržava PROJ_FADE_GP i PROJ_FLOOR
+  // stvarna vrednost: projekcija kao i kod cene na tržištu (tuning-v2, korak 2). Ranije je nestajala do 15 utakmica bez donje granice,
+  // pa je 15 do 20 utakmica sezone (ukradene lopte, procenti) računato kao konačno, a vruć početak sezone je naduvavao vrednost
+  REAL_PROJ_FADE_GP: 25,
+  REAL_PROJ_FLOOR: 0.25,
   DROP_PRICE_MARGIN: 0, // otpuštanje: cena mora biti ispod cene realne zamene + ovoliko (inače je igrač Trejd kandidat)
   MIN_GAIN: 0.05,       // kategorije: najmanje koliko kategorija više u proseku protiv ostalih timova da bi se predlog prikazao
   MIN_GAIN_PTS: 1.5,    // poeni: najmanja razlika FPts po utakmici
@@ -725,6 +732,8 @@ function blendWeights(gp, B = FA.BLEND, FULL = FA.BLEND_FULL_GP, floor = FA.PROJ
     const g = gp[k];
     if (!(g > 0)) continue;
     w[k] = FULL[k] ? base * Math.min(1, g / FULL[k]) : base;
+    const m = gp.min?.[k]; // minuti u kratkom periodu (ako ih pozivalac da)
+    if (m != null && FA.SHORT_MIN_K > 0) w[k] *= m / (m + FA.SHORT_MIN_K);
   }
   // projekcija pre sezone: što više odigranih utakmica, to manje vredi (sezona i poslednji dani pokazuju stvarnu ulogu)
   if (w.proj && gp.season > 0 && B.season) w.proj *= Math.max(floor, 1 - gp.season / fadeGp);
@@ -9779,7 +9788,7 @@ function faModel(lg = currentLeague()) {
   const allCats = pts ? [] : LV.proj.cats.map(c => ({ ...c, ratio: !!CATS.find(k => k.key === c.key)?.ratio }));
   const cats = allCats.filter(c => !isPunt({ key: c.key }));
   const weights = !pts && ui.need === 'manual' && ui.cats.length ? Object.fromEntries(cats.map(c => [c.key, ui.cats.includes(c.key) ? 1 : FA.MANUAL_OFF])) : null;
-  const gpOf = p => ({ proj: statOf(p, 'proj') ? 1 : 0, season: statOf(p, 'season')?.GP || 0, l15: statOf(p, 'l15')?.GP || 0, l7: statOf(p, 'l7')?.GP || 0 });
+  const gpOf = periodGp;
   // linija po utakmici: zajednička osnova (tfBase: mešavina perioda, povređenom samo utakmice posle povratka), kao u Pronađi trejd i Metama za trejd
   const lineOf = p => MB.lineOf(p);
   const generalOf = p => blendValue({ proj: LV.proj.values.get(p.id), season: LV.season.values.get(p.id), l15: LV.l15.values.get(p.id), l7: LV.l7.values.get(p.id) }, blendWeights(gpOf(p)))?.total ?? null;
@@ -10547,14 +10556,14 @@ function tfResetMarks(ctx, locks = false) {
     opšta i tržišna vrednost, granica otpuštanja, slobodni igrači i nivo zamene. Keš po ligi i podacima. */
 let tfBaseCache = null;
 function tfBase(lg = currentLeague()) {
-  const key = [lg?.id || 'quick', JSON.stringify(TF.ROLE), tfLineupN(lg), lg?.slots?.active || '', lg?.slots?.weekly ? 'w' : 'd', lg?.slots?.gpCap || '', fmtKeyNow(), state.loadedAt, state.players.length, lg?.import?.syncedAt || '', Object.keys(state.schedule || {}).length, lg && isSynced(lg) ? faWaivers(lg).map?.size ?? -1 : '', state.injVer || 0, state.news?.size || 0].join('|');
+  const key = [lg?.id || 'quick', JSON.stringify(TF.ROLE), FA.SHORT_MIN_K, FA.REAL_PROJ_FADE_GP, FA.REAL_PROJ_FLOOR, tfLineupN(lg), lg?.slots?.active || '', lg?.slots?.weekly ? 'w' : 'd', lg?.slots?.gpCap || '', fmtKeyNow(), state.loadedAt, state.players.length, lg?.import?.syncedAt || '', Object.keys(state.schedule || {}).length, lg && isSynced(lg) ? faWaivers(lg).map?.size ?? -1 : '', state.injVer || 0, state.news?.size || 0].join('|');
   if (tfBaseCache?.key === key) return tfBaseCache;
   const pts = isPointsFmt();
   const LV = { proj: leagueValues(lg, 'proj'), season: leagueValues(lg, 'season'), l15: leagueValues(lg, 'l15'), l7: leagueValues(lg, 'l7') };
   const vcats = pts ? [] : LV.proj.cats.map(c => ({ ...c, ratio: !!CATS.find(k => k.key === c.key)?.ratio }));
   const keys = [...new Set([...vcats.flatMap(c => (c.pct ? [c.made, c.att] : [c.key])), 'FPTS'])], ki = Object.fromEntries(keys.map((k, i) => [k, i]));
   const cats = vcats.map(c => ({ key: c.key, label: c.label, pct: c.pct, low: c.low, ratio: c.ratio, k: c.pct ? null : ki[c.key], m: c.pct ? ki[c.made] : null, a: c.pct ? ki[c.att] : null }));
-  const gpOf = p => ({ proj: statOf(p, 'proj') ? 1 : 0, season: statOf(p, 'season')?.GP || 0, l15: statOf(p, 'l15')?.GP || 0, l7: statOf(p, 'l7')?.GP || 0 });
+  const gpOf = periodGp;
   // povređeni (OUT): očekivani povratak (ESPN, pa vesti, pa oprezna procena) i udeo preostalih utakmica koje igra posle povratka
   const now = Date.now(), injMap = state.injRet || {}, injCache = new Map();
   const injOfP = p => {

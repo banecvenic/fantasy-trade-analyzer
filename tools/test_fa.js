@@ -191,7 +191,7 @@ test('otpuštanje po obe vrednosti: obe ispod realne zamene = otpust; niska stva
   assert.strictEqual(F.dropVerdict({ rv: -39, mv: -18, own: 10, ir: true }, slot), 'keep');
   assert.strictEqual(F.dropVerdict({ rv: -66.8, mv: -1.4, own: 30 }, slot, { margin: 3 }), 'drop'); // DROP_PRICE_MARGIN
   assert.strictEqual(F.dropVerdict({ rv: null, mv: -20, own: 10 }, slot), 'keep');                  // bez stvarne vrednosti
-  assert.deepStrictEqual([F.FA.DROP_PRICE_MARGIN, F.FA.REAL_PROJ_FADE_GP, F.FA.REAL_PROJ_FLOOR], [0, 15, 0]);
+  assert.deepStrictEqual([F.FA.DROP_PRICE_MARGIN, F.FA.REAL_PROJ_FADE_GP, F.FA.REAL_PROJ_FLOOR], [0, F.FA.PROJ_FADE_GP, F.FA.PROJ_FLOOR]); // tuning-v2: ista projekcija kao cena
 });
 
 test('FA alat uz realnu zamenu: Trejd kandidat nije otpust; bez ijednog otpusta nema predloga', () => {
@@ -205,13 +205,18 @@ test('FA alat uz realnu zamenu: Trejd kandidat nije otpust; bez ijednog otpusta 
   assert.strictEqual(r2.list[0].drop, 4);
 });
 
-test('stvarna vrednost: projekcija nestaje do 15 utakmica, bez donje granice; cena zadržava 25 i 0,25', () => {
-  const gp = { proj: 1, season: 15, l15: 6, l7: 3 };
+test('stvarna vrednost: projekcija kao kod cene (25 utakmica, najmanje 0,25); kratki periodi po odigranim minutima', () => {
+  const gp = { proj: 1, season: 30, l15: 6, l7: 3 };
   const real = F.blendWeights(gp, F.FA.BLEND, F.FA.BLEND_FULL_GP, F.FA.REAL_PROJ_FLOOR, F.FA.REAL_PROJ_FADE_GP);
-  assert.strictEqual(real.proj, undefined);
-  const half = F.blendWeights({ ...gp, season: 7.5 }, F.FA.BLEND, F.FA.BLEND_FULL_GP, 0, 15), full = F.blendWeights({ ...gp, season: 7.5 }, F.FA.BLEND, F.FA.BLEND_FULL_GP, 0, 1e9);
-  assert.ok(half.proj > 0 && half.proj < full.proj);
-  assert.ok(F.blendWeights(gp).proj > 0); // cena (podrazumevano): projekcija i dalje ima težinu
+  assert.deepStrictEqual(real, F.blendWeights(gp)); // ista mešavina kao cena na tržištu
+  assert.ok(real.proj > 0);
+  // vruć niz: 3 utakmice po 30 minuta u 7 dana vrede manje nego 4 utakmice po 36 minuta
+  const K = F.FA.SHORT_MIN_K; assert.strictEqual(K, 300);
+  const short = F.blendWeights({ ...gp, min: { l15: 6 * 30, l7: 3 * 30 } }), long = F.blendWeights({ ...gp, min: { l15: 7 * 36, l7: 4 * 36 } });
+  assert.ok(short.l7 < long.l7 && short.l15 < long.l15);
+  const none = F.blendWeights(gp); // bez minuta (stari pozivi): bez umanjenja
+  assert.ok(none.l7 > long.l7);
+  assert.ok(Math.abs(Object.values(short).reduce((a, b) => a + b, 0) - 1) < 1e-9);
 });
 
 test('udeo startova po rangu: nedeljna = prvih N, pun raspored = prvih N, redak raspored daje klupi utakmice, ograničenje seče od dna', () => {

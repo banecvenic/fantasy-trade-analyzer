@@ -383,6 +383,33 @@
   /** Prva strana za jednog protivnika (imena, korist, kartica) */
   A.page = (oppKey, opt = {}, marks = {}) => { const M = A.model(oppKey, marks), res = A.run(M, opt); return { ms: Math.round(res.ms), n: res.list.length, note: res.note || null, top: pg0(res.list).map(x => { const J = A.judge(M, res.inp, x); return { g: x.g.map(nm), r: x.r.map(nm), md: x.md.map(nm), od: x.od.map(nm), mf: x.mf, of: x.of, shape: x.shape, s: r3(x.s), gain: r3(x.gain), card: J.card ? `${J.card.win}:${J.card.lose}` : null, why: x.why || null, sit: x.sit || null }; }) }; };
   /** Sve odjednom: provera, FA, Mete, slučaj Lajkovacka pruga; rezultat ide na lokalni sink (port 5181) */
+
+  /* ---------- Vrednost igrača (tuning-v2, korak 2): komponente stvarne vrednosti i slaganje sa tržištem i vlasništvom ---------- */
+  A.valueDiag = () => {
+    const lg = currentLeague(); tfBaseCache = null; const B = tfBase(lg), LV = B.LV, E = tfEngineLocal(); const pers = ['proj', 'season', 'l15', 'l7'];
+    const wReal = p => blendWeights(B.gpOf(p), FA.BLEND, FA.BLEND_FULL_GP, FA.REAL_PROJ_FLOOR, FA.REAL_PROJ_FADE_GP), wMkt = p => blendWeights(B.gpOf(p));
+    const realPG = new Map(); for (const p of state.players) { const v = blendValue(Object.fromEntries(pers.map(k => [k, LV[k].values.get(p.id)])), wReal(p)); if (v) realPG.set(p.id, v); }
+    const pool = LV.proj.pool, rS = [...realPG.values()].map(v => v.total).sort((a, b) => b - a), rBand = rS.slice(pool.n, pool.n + pool.teams), replR = rBand.reduce((a, b) => a + b, 0) / rBand.length;
+    const rPos = rS.slice(0, pool.n).map(v => v - replR).filter(v => v > 0), SR = rPos.reduce((a, b) => a + b, 0) / rPos.length;
+    const all = state.players.filter(p => B.real(p) != null && B.market(p) != null && p.tid);
+    const rk = f => new Map([...all].sort((a, b) => f(b) - f(a)).map((p, i) => [p.id, i + 1]));
+    const rvRank = rk(p => B.real(p)), mvRank = rk(p => B.ros(p)), ownRank = rk(p => p.own?.pct || 0), R2 = v => (v == null ? null : Math.round(v * 100) / 100);
+    const row = p => { const v = realPG.get(p.id); const per = {}; for (const k of pers) { const st = statOf(p, k), z = LV[k].values.get(p.id); per[k] = { gp: st?.GP ?? 0, min: R2(st?.MIN), pts: R2(st?.PTS), fga: R2(st?.FGA), total: R2(z?.total), by: z?.by && Object.fromEntries(Object.entries(z.by).map(([c, x]) => [c, R2(x)])) }; }
+      const g = gamesLeft(p.tid), st = E.star(v.total - replR, SR, TF.STAR_POW);
+      return { id: p.id, name: p.name, team: p.team, own: p.own?.pct, wReal: Object.fromEntries(Object.entries(wReal(p)).map(([k, x]) => [k, R2(x)])), wMkt: Object.fromEntries(Object.entries(wMkt(p)).map(([k, x]) => [k, R2(x)])), per, realPG: R2(v.total), realBy: Object.fromEntries(Object.entries(v.by || {}).map(([c, x]) => [c, R2(x)])), replR: R2(replR), star: R2(st), gamesLeft: g, avail: R2(B.real(p) / (st * g)), rv: R2(B.real(p)), v: R2(B.ros(p)), rvRank: rvRank.get(p.id), mvRank: mvRank.get(p.id), ownRank: ownRank.get(p.id) }; };
+    const names = ['Christian Braun', 'Matisse Thybulle', 'Ausar Thompson', "Day'Ron Sharpe", 'Aday Mara', 'Devin Booker', 'Jalen Brunson', 'Andrew Nembhard', 'Daniel Gafford'];
+    return { cats: LV.proj.cats.map(c => c.key), pool: { n: pool.n, teams: pool.teams }, replR: R2(replR), SR: R2(SR), focus: names.map(n => state.players.find(p => p.name === n)).filter(Boolean).map(row), top: all.filter(p => rvRank.get(p.id) <= 300 || mvRank.get(p.id) <= 300).map(row) };
+  };
+  A.agree = () => {
+    const lg = currentLeague(); tfBaseCache = null; const B = tfBase(lg);
+    const all = state.players.filter(p => p.tid && B.real(p) != null && B.market(p) != null);
+    const rk = (arr, f) => new Map([...arr].sort((a, b) => f(b) - f(a)).map((p, i) => [p.id, i + 1]));
+    const rvR = rk(all, p => B.real(p)), mvR = rk(all, p => B.ros(p)), owR = rk(all, p => p.own?.pct || 0);
+    const spear = (ids, X, Y) => { const ra = rk(ids.map(id => ({ id })), x => -X.get(x.id)), rb = rk(ids.map(id => ({ id })), x => -Y.get(x.id)); const n = ids.length; let d2 = 0; for (const id of ids) d2 += (ra.get(id) - rb.get(id)) ** 2; return +(1 - 6 * d2 / (n * (n * n - 1))).toFixed(3); };
+    const out = {};
+    for (const N of [50, 150]) { const ids = all.filter(p => rvR.get(p.id) <= N).map(p => p.id); const gaps = ids.map(id => Math.abs(rvR.get(id) - mvR.get(id))).sort((a, b) => a - b); out['top' + N] = { vsMarket: spear(ids, rvR, mvR), vsOwn: spear(ids, rvR, owR), inMarketTopN: ids.filter(id => mvR.get(id) <= N).length, inOwnTopN: ids.filter(id => owR.get(id) <= N).length, medianAbsGap: gaps[gaps.length >> 1] }; }
+    return out;
+  };
   A.snapshot = async (tag, { leagues = null, workers = 4 } = {}) => {
     const t0 = performance.now(), out = { tag, at: new Date().toISOString() };
     const espn = JSON.parse(localStorage.getItem('fbaTrade.profile.v2')).leagues.find(l => l.import?.source === 'espn' && l.import?.extId === '2069440345');

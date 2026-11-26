@@ -70,3 +70,98 @@ Napomena: strogo pravilo sam merio samo na NBA tviter ligi (13 protivnika × 6 s
 - Napomena: Porter sada ima stvarnu vrednost znatno iznad cene, pa se često javlja u predlozima protiv Fruškogorskih Bizona (raznovrsnost ga drži na najviše 2 po strani). To je isti obrazac kao u koraku 2.
 
 **1.8 Izvoz ocena.** Svaka nova ocena ima `ctx`: `app` (oznaka verzije app.js iz `app.js?v=…`, ista kao u build_pages.py; lokalno „dev”), `filters` (aktivni filteri i period, ili null), `marks` (lock, soft, trade za moje igrače; excl, want za njegove; imena i ID), `page` (stvarni broj strane) i `searchNo` (redni broj pretrage u ovom browseru). Važi za Pronađi trejd, Mete za trejd (bez rednog broja pretrage) i Pojačanja sa FA (oznake = zaključani igrači u FA). `result` u Pronađi trejd dobija i `soft`. Tekst u profilu sada pominje i Mete za trejd.
+
+## Korak 2: vrednost igrača
+
+### 2a. Dijagnoza (NBA tviter, pre izmene)
+
+Stvarna vrednost = zbir z-vrednosti po kategorijama po utakmici, mešavina perioda (projekcija, sezona, poslednjih 15, poslednjih 7 dana), minus nivo zamene, puta preostale utakmice i dostupnost. Tržišna vrednost je posebna mešavina (ESPN projekcija, produkcija, minuti, vlasništvo, rang).
+
+| Igrač | rang stvarna / tržište pre | udeo poslednjih 15 + 7 dana |
+|---|---|---|
+| Christian Braun | 8 / 39 | 64% |
+| Ausar Thompson | 9 / 30 | 64% |
+| Matisse Thybulle | 30 / 103 | 58% |
+| Day'Ron Sharpe | 31 / 82 | 63% |
+| Aday Mara | 83 / 108 | 53% |
+| Devin Booker | 39 / 21 | 63% |
+| Jalen Brunson | 51 / 25 | 62% |
+| Andrew Nembhard | 260 / 116 | 61% |
+
+- Braun: sezona z 1,68 (16 utakmica), poslednjih 15 dana 3,52 (7), poslednjih 7 dana 5,07 (3 utakmice). Tri utakmice nosile su oko pola vrednosti.
+- Booker (sezona 1,95) i Brunson (−0,02) su dosledni u 9 kategorija: niži su od tržišta zbog procenata i TO, ne zbog greške.
+- 20 najvećih odstupanja u oba smera (prvih 150 po bilo kojoj vrednosti): precenjeni u proseku 21 minut, 6,7 šuteva, „vrući” (+0,97 z u kratkim periodima iznad sezone). Potcenjeni: 31 minut, 12,8 šuteva, „hladni” (−0,65).
+- Korelacija razlike u rangu sa: minutima 0,53, TO −0,46, FG% −0,38, vrućinom −0,30.
+
+**Uzroci, po veličini:**
+1. Kratki periodi (7 i 15 dana) imali su istu težinu bez obzira na broj odigranih minuta: 3 utakmice od 20 minuta vredele su kao 3 od 36.
+2. Projekcija je u stvarnoj vrednosti padala na 0 posle 15 utakmica, a u tržišnoj ostaje 25% do kraja. Stvarna vrednost je zato skoro sasvim zavisila od tekuće forme.
+3. Procenti i TO: deo odstupanja je stvarna razlika u 9 kategorija (Gobert FT z −4,85, Booker, Brunson). To nije greška nego pravilo lige.
+
+### 2b. Izmena (samo prva dva uzroka)
+
+- Kratki periodi dobijaju težinu srazmerno odigranim minutima: težina × m / (m + 300), gde je m = utakmice × minuti u periodu (`FA.SHORT_MIN_K = 300`). Primer: 3 utakmice po 20 minuta = 60 minuta, težina ×0,17; 7 utakmica po 34 = 238, ×0,44.
+- Projekcija u stvarnoj vrednosti bledi do 25 utakmica i ostaje 25% (`REAL_PROJ_FADE_GP = 25`, `REAL_PROJ_FLOOR = 0,25`), isto kao u tržišnoj.
+- Obe vrednosti, FA i Mete koriste istu funkciju (`periodGp`), pa prag za otpuštanje, slobodno mesto i FA ostaju na istoj skali.
+- Bez faktora uloge: posle izmene korelacija sa minutima pada na 0,43, a ostatak dolazi od toga što tržište namerno uključuje minute (15%). Faktor uloge bi stvarnu vrednost samo približio tržištu, bez dokaza da je pogrešna.
+- Bez ograničenja procenata i bez manje težine TO. Izmereno (simulacija na istim podacima):
+
+| Varijanta | prvih 50: tržište / vlasništvo | prvih 150: tržište / vlasništvo |
+|---|---|---|
+| Usvojeno | 0,80 / 0,63 | 0,90 / 0,75 |
+| Procenti ograničeni na ±3 z | 0,80 / 0,63 | 0,90 / 0,75 |
+| Procenti ograničeni na ±2 z | 0,81 / 0,62 | 0,90 / 0,75 |
+| TO težina 0,5 | 0,89 / 0,68 | 0,92 / 0,77 |
+| TO težina 0,25 | 0,91 / 0,70 | 0,94 / 0,79 |
+
+  Ograničenje procenata menja samo Goberta (rang 308 → 252 sa ±3) i ne popravlja slaganje. Manja težina TO popravlja slaganje, ali samo zato što tržište (ESPN) ne broji TO kao punu kategoriju: TO je jedna od 9 kategorija u ligi i vredi isto koliko i ostale. To bi bilo podešavanje prema tržištu, a ne ispravka. **Odluka je tvoja**, ako želiš da TO ima manju težinu.
+
+### 2c. Merenje
+
+Spearman korelacija ranga po stvarnoj vrednosti sa tržištem i sa ESPN vlasništvom (NBA tviter, svi igrači na NBA timovima sa procenom):
+
+| | Pre | Posle |
+|---|---|---|
+| Prvih 50: tržište | 0,697 | **0,800** |
+| Prvih 50: vlasništvo | 0,377 | **0,624** |
+| Prvih 150: tržište | 0,832 | **0,896** |
+| Prvih 150: vlasništvo | 0,600 | **0,750** |
+| Samo kratki periodi (K = 300), bez projekcije | 0,704 / 0,506 | 0,846 / 0,691 |
+
+| Igrač | stvarna / tržište pre | posle |
+|---|---|---|
+| Christian Braun | 8 / 39 | 32 / 57 |
+| Ausar Thompson | 9 / 30 | 21 / 39 |
+| Matisse Thybulle | 30 / 103 | 51 / 135 |
+| Day'Ron Sharpe | 31 / 82 | 60 / 107 |
+| Aday Mara | 83 / 108 | 123 / 150 |
+| Devin Booker | 39 / 21 | 26 / 17 |
+| Jalen Brunson | 51 / 25 | 44 / 20 |
+| Andrew Nembhard | 260 / 116 | 197 / 114 |
+
+Rang tržišta se takođe malo menja, jer i tržište koristi istu težinu kratkih perioda.
+
+**20 najvećih odstupanja** (10 u svakom smeru, rang stvarna / tržište):
+- Pre, stvarna mnogo bolja: Bennett Stirtz 133/260, Charles Bassey 125/249, Christian Anderson 132/250, Jalen Slawson 102/209, Robert Williams III 142/240, Caleb Martin 55/150, Kenrich Williams 73/159, Jaylen Wells 121/201, Buddy Hield 81/156, Matisse Thybulle 30/103.
+- Pre, stvarna mnogo lošija: Rudy Gobert 384/148, Darius Acuff Jr. 280/73, Naz Reid 231/65, Anthony Black 258/111, Andrew Nembhard 260/116, Payton Pritchard 249/132, Ajay Mitchell 225/112, De'Aaron Fox 213/104, RJ Barrett 210/105, Mikal Bridges 220/122.
+- Posle, stvarna mnogo bolja: Kenrich Williams 150/268, Kris Dunn 138/235, Matisse Thybulle 51/135, Robert Williams III 113/192, Meleek Thomas 139/206, Jordan Goodwin 122/185, De'Anthony Melton 129/187, Cam Spencer 42/97, Alex Caruso 102/155, Mo Bamba 118/166.
+- Posle, stvarna mnogo lošija: Rudy Gobert 336/149, Darius Acuff Jr. 222/70, RJ Barrett 216/98, Jonathan Kuminga 231/123, Jalen Green 226/118, Andrew Nembhard 197/114, AJ Dybantsa 152/80, Aaron Gordon 212/143, Naz Reid 134/66, Anthony Black 164/106.
+- Prosečna razlika 20 najvećih: precenjeni 81 → 56 mesta, potcenjeni 105 → 72. Igrača sa razlikom od 50 i više mesta: 42 → 21.
+- Šta je zajedničko posle: precenjeni su igrači uloge sa malo TO (prosek TO z +0,85) i dobrim STL/BLK, uglavnom oko granice zamene (rang 100 do 150), gde razlika u rangu malo znači u vrednosti. Potcenjeni imaju mnogo šuteva i TO (TO −0,50, FG −0,76). Korelacija sa vrućinom je nestala (−0,30 → 0,08).
+
+**Pravila i alati posle izmene** (3 lige, 234 pretrage):
+
+| | Srednje rešenje (pre koraka 2) | Korak 2 |
+|---|---|---|
+| Pravila 1 do 7 | 0 | **0** |
+| Predloga na prvim stranama | 1.210 | 1.182 |
+| Pune prve strane | 52 / 202 | 59 / 201 |
+| Prva strana, prosečno / sve strane | 5,99 / 5,46 | 5,88 / 5,24 |
+| Mali trejdovi | 52% | 55% |
+| Pojačanja sa FA (Red Galaxy) | 8 predloga | 8 predloga, sve korist > 0 |
+| Mete za trejd | 8 meta, 5 sa trejdom | 8 meta, 5 sa trejdom |
+| Slobodno mesto (tržište / stvarna) | 9,5 / 79,1 | 4,7 / 30,2 |
+
+Slobodno mesto je niže jer najbolji slobodni igrači više ne dobijaju vrednost od nekoliko vrućih utakmica. Prag za otpuštanje je na istoj skali kao vrednost igrača, jer obe idu kroz istu funkciju.
+
+**Dodatna provera (ne podešava se prema njoj):** tvojih 98 ocena (36 👍, 62 👎), korist ponovo izračunata za iste trejdove na istim sastavima. Koliko često 👍 trejd ima veću korist od 👎 trejda: pre izmene 53%, posle **61%** (prosečna korist 👍 0,30 → 0,20, 👎 0,27 → 0,09). Korist zabeležena u trenutku ocene (stariji model): 57%.
