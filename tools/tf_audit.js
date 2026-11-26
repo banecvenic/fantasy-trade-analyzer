@@ -280,7 +280,8 @@
         if (!lg.opps[oppKey].players?.length) continue;
         const M = A.model(oppKey), weak = M.pts ? [] : A.weakCats(M);
         const jobs = [];
-        for (const strat of STRATS) for (const slider of SLIDERS) {
+        const stratsL = M.pts ? STRATS.filter(s2 => s2 !== 'cats') : STRATS; // poen liga nema Popravi kategorije
+        for (const strat of stratsL) for (const slider of SLIDERS) {
           const focus = strat === 'cats' && !M.pts ? weak.map(w => w.key) : [];
           const inp = A.input(M, { strat, slider, focus }); inp.__dbg = { ordered: true }; // pravi redosled po rangu (provera pravila 5)
           jobs.push(P0.run(inp).then(d => ({ strat, slider, inp, d })));
@@ -336,7 +337,7 @@
             const mf = out.myFavor[slider] || (out.myFavor[slider] = { n: 0, mine: 0, gapSum: 0 }); mf.n++; if (J.mA > J.mB) mf.mine++; mf.gapSum += (J.mA - J.mB) / Math.max(Math.abs(J.mA), Math.abs(J.mB), 1e-9);
           }
         }
-        for (const s of STRATS) { out.sliderSame.n++; if (pages[`${s}/fair`] === pages[`${s}/slight`]) out.sliderSame.fairSlight++; if (pages[`${s}/fair`] === pages[`${s}/aggr`]) out.sliderSame.fairAggr++; }
+        for (const s of stratsL) { out.sliderSame.n++; if (pages[`${s}/fair`] === pages[`${s}/slight`]) out.sliderSame.fairSlight++; if (pages[`${s}/fair`] === pages[`${s}/aggr`]) out.sliderSame.fairAggr++; }
         // 6. "Dajem ako mora": moj igrač koji je najčešće u predlozima (Najbolje za mene, Fer) dobija oznaku; da li i dalje ulazi iako ima dovoljno predloga bez njega
         if (softRun) {
           const base = pg0(got.find(o => o.strat === 'best' && o.slider === 'fair').d.r.list), c = new Map();

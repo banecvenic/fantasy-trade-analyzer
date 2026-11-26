@@ -10551,6 +10551,10 @@ const TF_STRATS = [
   { id: 'cons', sr: 'Konsolidacija', tip: 'Daješ više igrača nego što dobijaš, a najbolji igrač u trejdu dolazi tebi.' },
   { id: 'depth', sr: 'Dubina', tip: 'Dobijaš više igrača nego što daješ, a bar jedan dodatni ulazi u tvoju postavu.' },
 ];
+/** Strategije za ligu: Popravi kategorije samo u ligi sa kategorijama (u poen ligi nema šta da se izabere) */
+const tfStrats = () => (isPointsFmt() ? TF_STRATS.filter(s => s.id !== 'cats') : TF_STRATS);
+/** Izabrana strategija koje u ovom formatu nema (Popravi kategorije u poen ligi) postaje Najbolje za mene */
+const tfStratFix = () => { if (!tfStrats().some(s => s.id === state.tf.strat)) state.tf.strat = 'best'; };
 const TF_SLIDER = [{ id: 'fair', sr: 'Fer' }, { id: 'slight', sr: 'Malo u moju korist' }, { id: 'aggr', sr: 'Agresivno' }];
 const TF_MARKS = {
   lock: { sr: 'Zaključaj', ic: '🔒', tipMine: 'Igrač nikad ne ide u trejd.' },
@@ -10982,7 +10986,7 @@ function tfWorker() {
 }
 function tfStop() { const S = state.tf; if (S.worker) { S.worker.terminate(); S.worker = null; } S.busy = false; S.prog = 0; }
 function tfRun() {
-  const ctx = tfCtx(); tfStop();
+  const ctx = tfCtx(); tfStop(); tfStratFix();
   if (!tfReady(ctx)) return;
   if (ctx.all) return tfRunAll(ctx);
   const M = tfModel(ctx), fe = fltEff('tf', ctx.scopeKey), sig = tfSig(ctx), S = state.tf, searchNo = tfNextSearchNo();
@@ -11211,7 +11215,7 @@ function tfTeamHTML(ctx, side, marks) {
 }
 function tfControlsHTML(M) {
   const S = state.tf;
-  const strats = TF_STRATS.map(s => `<button type="button" class="tf-strat ${S.strat === s.id ? 'on' : ''}" data-action="tf-strat" data-v="${s.id}" aria-pressed="${S.strat === s.id}" data-tip="${esc(t(s.tip))}">${t(s.sr)}</button>`).join('');
+  const strats = tfStrats().map(s => `<button type="button" class="tf-strat ${S.strat === s.id ? 'on' : ''}" data-action="tf-strat" data-v="${s.id}" aria-pressed="${S.strat === s.id}" data-tip="${esc(t(s.tip))}">${t(s.sr)}</button>`).join('');
   const cats = S.strat === 'cats' && M && !M.pts ? `<div class="tf-focus">${M.cats.map(c => { const on = S.focus.includes(c.key), punt = !M.myIdx.includes(M.cats.indexOf(c)); return `<button type="button" class="fa-need ${punt ? 'punt' : on ? 'on' : ''}" data-action="tf-focus" data-k="${c.key}" aria-pressed="${on}" ${punt ? 'disabled' : ''}>${esc(c.label)}</button>`; }).join('')}</div>` : '';
   const slider = `<div class="seg small tf-slider" role="group" aria-label="${esc(t('Koliko u tvoju korist'))}">${TF_SLIDER.map(x => `<button type="button" data-action="tf-slider" data-v="${x.id}" aria-pressed="${S.slider === x.id}">${t(x.sr)}</button>`).join('')}</div>`;
   const nd = tfNoDrop(tfCtx());
@@ -11368,6 +11372,7 @@ function tfResultsHTML(M, ctx) {
 /** Telo alata (liga i javna stranica) */
 function tfBodyHTML() {
   if (state.players.length) tfSessRestore();
+  tfStratFix();
   const ctx = tfCtx(), marks = tfMarks(ctx);
   // Svi timovi: kontrole (kategorije, punt) i prazno stanje koriste model prvog protivnika; kartice model svog protivnika
   const M = tfReady(ctx) ? tfModel(ctx.all ? { ...tfOppCtx(ctx, ctx.allOpps[0].k), all: true } : ctx) : null;

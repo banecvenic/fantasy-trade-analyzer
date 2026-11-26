@@ -206,3 +206,37 @@ Posle osvežavanja stranice sačuvani predlozi su pokazivali „Promenio si izbo
 
   Nijedan tekst ne pominje kategoriju koja nije izabrana. Prag izbacuje slabe kandidate (5 do 29), koji ionako nisu među 40 prikazanih, pa je njegova uloga zaštita kad izabranih kategorija ima malo.
 - **Proceni sam posle koraka 2:** 152 kandidata, 40 posle grubog ranga. Prvih 8: Kawhi Leonard, Ausar Thompson, Christian Braun, Jalen Smith, Day'Ron Sharpe, Myles Turner, Donovan Clingan, Tyrese Haliburton. Tvoje slabe kategorije po proceni: FT%, REB, STL, TO, FG%. Tekstovi navode te kategorije. U proveri pravila: 8 meta, 5 sa mogućim trejdom (isto kao pre koraka 2).
+
+## Korak 5: šira provera
+
+### Iz ugla svih 12 timova (NBA tviter)
+
+Za svaki tim napravljena je privremena kopija lige u kojoj je taj tim „moj” (ostalih 11 su protivnici, uključujući Red Galaxy), pa je pokrenuta ista provera: 12 timova × 11 protivnika × 6 strategija × 3 režima = **2.376 pretraga**. Kopije su posle obrisane.
+
+| | Vrednost |
+|---|---|
+| Predloga na prvim stranama | 11.441 |
+| **Pravila 1 do 7** | **0** |
+| Prazne prve strane | 292 (Konsolidacija 163, Kupi jeftino 66, Dubina 63) |
+| Pune prve strane (8) | 267 od 2.084 |
+| Prva strana, prosečno / sve strane | 5,5 / 4,7 |
+| Granica njegovog igrača podignuta na 3 | 1.174 pretrage |
+| Mali trejdovi | 51% |
+| Trejdovi sa 4 igrača na nekoj strani | 472 (najviše 1 na strani) |
+| Trajanje celog prolaza | 118 s (4 Workera, skriven panel) |
+
+Raspodela prve strane: 1: 138, 2: 29, 3: 246, 4: 117, 5: 213, 6: 680, 7: 394, 8: 267. Iz ugla drugih timova strane su kraće nego iz ugla Red Galaxy (5,9), jer neki timovi imaju manje igrača koji vrede za trejd.
+
+### Druga dva formata (javne lige)
+
+- Sleeper „NBA JAM 2026-2027” (H2H poeni) i Fantrax „Industry Pickup Roto” (Roto, 8 kategorija), po 12 timova, moj tim = prvi tim u ligi. Posle provere obe lige su obrisane iz test browsera.
+- Prva provera je našla **254 kršenja pravila 7** u poen ligi, sva u strategiji Popravi kategorije: u poen ligi nema kategorija za izbor, pa je strategija radila kao obična pretraga, a dugme je bilo prikazano. **Ispravka:** u ligi na poene Popravi kategorije se ne prikazuje, a ako je bila izabrana, izbor prelazi na Najbolje za mene. Provera to isto preskače u poen ligama.
+- Posle ispravke: 1.325 predloga, **pravila 1 do 7 = 0**, mali trejdovi 55%, pune prve strane 50 od 219.
+- **Nalaz za posebnu proveru (nije menjano):** u obe lige Dubina nema nijedan predlog ni protiv jednog protivnika. U Roto ligi nijedan par ne prolazi granicu vrednosti (0 od oko 100.000), u poen ligi prolazi vrednost, ali ne i korist. U poen ligi su prazne i Prodaj skupo (nema igrača sa razlikom ranga 15+) i Konsolidacija. U ESPN ligi iste strategije rade. Moguć uzrok su podaci koje Fantrax i Sleeper ne daju (veličina rostera, IR mesta, otpuštanje), ali to traži posebnu analizu, a nije deo ovog plana.
+
+### Uzorak od 30 predloga
+
+[docs/tuning-v2-uzorak.md](tuning-v2-uzorak.md): nasumično izabrani tim, protivnik, strategija, režim i predlog sa prve strane, iz ugla svih 12 timova. Šta se vidi:
+- Svih 30 ima korist iznad nule. Kartice su 5:3, 4:4, 4:3, 3:2, 3:3 (najčešće).
+- U 27 od 30 tim koji traži dobija veću tržišnu vrednost nego što daje (pragovi Fer, Malo u moju korist i Agresivno to dozvoljavaju, a dopuna za zvezde i slobodno mesto ulaze u fer granicu). To nije pravilo iz provere, ali je vredno pažnje ako predlozi deluju previše u tvoju korist.
+- „Zašto bi prihvatio” ponekad navodi kategoriju u kojoj je protivnik već jak (npr. „Najviše mu raste FG%, gde je 3. u ligi”). Tekst bira kategoriju koja mu najviše raste, ne onu koja mu najviše treba. Nije menjano.
