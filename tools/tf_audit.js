@@ -170,8 +170,10 @@
     const B = tfBase(M.ctx.lg); if (!B.lineupIds) return null;
     const E = A.E, vec = id => M.vecOf(M.lineOf(state.byId.get(id)));
     const irSet = new Set([...M.ctx.my, ...M.ctx.opp].filter(y => y.ir).map(y => y.id)), myIds = M.ctx.my.filter(y => !y.ir).map(y => y.id), out = new Set([...x.g, ...x.md]);
-    const sum = ids => { const o = new Float64Array(M.keys.length); for (const id of ids) vec(id).forEach((v, i) => { o[i] += v; }); return o; };
-    const before = sum(B.lineupIds(myIds)), after = sum(B.lineupIds([...myIds.filter(id => !out.has(id)), ...x.r.filter(id => !irSet.has(id))]));
+    // postava sa udelom startova (dnevna postava); stara osnova bez lineupW = prvih N
+    const LW = ids => (B.lineupW ? B.lineupW(ids) : B.lineupIds(ids).map(id => ({ id, w: 1 })));
+    const sum = list => { const o = new Float64Array(M.keys.length); for (const { id, w } of list) vec(id).forEach((v, i) => { o[i] += v * w; }); return o; };
+    const before = sum(LW(myIds)), after = sum(LW([...myIds.filter(id => !out.has(id)), ...x.r.filter(id => !irSet.has(id))]));
     const gain = M.pts ? after[M.ki.FPTS] - before[M.ki.FPTS] : E.expWins(after, inp.opps, M.cats, M.myIdx, M.sd, inp.w).total - E.expWins(before, inp.opps, M.cats, M.myIdx, M.sd, inp.w).total;
     const card = M.pts ? null : (E.cardResult ? E.cardResult(before, after, M.cats, M.myIdx, M.sd, TF) : E.sideResult(before, after, M.cats, M.myIdx, TF.TIE));
     return { gain, card, gainNo: gain, cardNo: card };

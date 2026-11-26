@@ -160,7 +160,13 @@ test('ESPN liga 411647: naziv, mesta (klupa i IR), rok, format, timovi, IR igra�
   const r = espn.parseEspnLeague(FIX, '411647', 2019);
   assert.strictEqual(r.name, 'Back from the Future');
   assert.strictEqual(r.size, 12);
-  assert.deepStrictEqual(r.slots, { active: 16, ir: 2, start: 11 }); // 11 startnih (postava) (PG…C, G, F, PF/C, 2× UT) + 5 klupa (slot 12) = 16; slot 13 = 2 IR
+  assert.deepStrictEqual(r.slots, { active: 16, ir: 2, start: 11, weekly: false, gpCap: null }); // 11 startnih (postava) (PG…C, G, F, PF/C, 2× UT) + 5 klupa (slot 12) = 16; slot 13 = 2 IR
+  // postava: zaključavanje po meču = nedeljna; ograničenje utakmica = zbir po startnim mestima (bez klupe i IR-a)
+  const W = JSON.parse(JSON.stringify(FIX));
+  W.settings.rosterSettings = { ...W.settings.rosterSettings, rosterLocktimeType: 'FIRSTGAME_MATCHUPPERIOD', lineupSlotStatLimits: { 0: { statId: 42, limitValue: 82 }, 1: { statId: 42, limitValue: 82 }, 12: { statId: 42, limitValue: 82 } } };
+  const rw = espn.parseEspnLeague(W, '411647', 2019);
+  assert.strictEqual(rw.slots.weekly, true);
+  assert.strictEqual(rw.slots.gpCap, 164);
   assert.strictEqual(r.deadline, 1550340000000);
   assert.strictEqual(r.scoringType, 'H2H_POINTS');
   assert.strictEqual(r.format.scoringType, 'h2h_points');

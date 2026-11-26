@@ -8,9 +8,9 @@
   const ROOT = H.dataset.root || '';
   const inApp = H.dataset.appPage === '1';
   const T = {
-    sr: { home: 'Početna', tools: 'Alati', leagues: 'Moje lige', analyzer: 'Analiza trejda', builder: 'Pronađi trejd', finder: 'Mete za trejd', fa: 'Pojačanja sa FA', soon: 'Uskoro', ok: 'U redu', pick: 'Izaberi ligu', pickSub: 'Radi za uvezene lige.', addLeague: 'Dodaj ligu', howWorks: 'Kako radi?', manual: 'Ručna liga', locked: 'Radi samo za uvezene lige, jer su nam potrebni svi rosteri.', howImport: 'Kako da uvezem ligu?', noLeagues: 'Još nemaš sačuvanu ligu. Uvezi svoju ligu sa ESPN-a, Sleepera ili Fantraxa.', close: 'Zatvori',
+    sr: { home: 'Početna', tools: 'Alati', leagues: 'Moje lige', analyzer: 'Analiza trejda', builder: 'Pronađi trejd', finder: 'Mete za trejd', fa: 'Pojačanja sa FA', faLong: 'Predlozi su dugoročni: igrač koji je bolji od tvog za ostatak sezone. Dnevni izbor po rasporedu i stanju meča dolazi uz prikaz matchupa.', soon: 'Uskoro', ok: 'U redu', pick: 'Izaberi ligu', pickSub: 'Radi za uvezene lige.', addLeague: 'Dodaj ligu', howWorks: 'Kako radi?', manual: 'Ručna liga', locked: 'Radi samo za uvezene lige, jer su nam potrebni svi rosteri.', howImport: 'Kako da uvezem ligu?', noLeagues: 'Još nemaš sačuvanu ligu. Uvezi svoju ligu sa ESPN-a, Sleepera ili Fantraxa.', close: 'Zatvori',
       quick: 'Brzo poređenje', all: 'Sve lige', add: 'Dodaj ligu', settings: 'Podešavanja lige', none: 'Još nemaš sačuvanu ligu', myLeague: 'Moja liga' },
-    en: { home: 'Home', tools: 'Tools', leagues: 'My leagues', analyzer: 'Trade analyzer', builder: 'Find a trade', finder: 'Trade targets', fa: 'Free agent pickups', soon: 'Coming soon', ok: 'OK', pick: 'Choose a league', pickSub: 'Works for imported leagues.', addLeague: 'Add league', howWorks: 'How it works', manual: 'Manual league', locked: 'Works only for imported leagues, because we need all rosters.', howImport: 'How do I import a league?', noLeagues: 'No saved leagues yet. Import your league from ESPN, Sleeper or Fantrax.', close: 'Close',
+    en: { home: 'Home', tools: 'Tools', leagues: 'My leagues', analyzer: 'Trade analyzer', builder: 'Find a trade', finder: 'Trade targets', fa: 'Free agent pickups', faLong: 'Suggestions are long term: a player who is better than yours for the rest of the season. Daily picks by schedule and matchup state come with the matchup view.', soon: 'Coming soon', ok: 'OK', pick: 'Choose a league', pickSub: 'Works for imported leagues.', addLeague: 'Add league', howWorks: 'How it works', manual: 'Manual league', locked: 'Works only for imported leagues, because we need all rosters.', howImport: 'How do I import a league?', noLeagues: 'No saved leagues yet. Import your league from ESPN, Sleeper or Fantrax.', close: 'Close',
       quick: 'Quick compare', all: 'All leagues', add: 'Add league', settings: 'League settings', none: 'No saved leagues yet', myLeague: 'My league' },
   };
   let lang = H.dataset.lang === 'sr' ? 'sr' : 'en';
@@ -106,7 +106,7 @@
     m.id = 'modal'; m.className = 'lpk-modal';
     m.innerHTML = `<div class="modal-back" data-nav-close></div><div class="modal-box lpk-box" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="modal-t">
       <button type="button" class="iconbtn lpk-x" data-nav-close aria-label="${esc(L.close)}">✕</button>
-      <h3 id="modal-t">${esc(L.pick)}</h3><p class="lpk-sub">${esc(T[lang][tool] || '')} · ${esc(L.pickSub)}</p>
+      <h3 id="modal-t">${esc(L.pick)}</h3><p class="lpk-sub">${esc(T[lang][tool] || '')} · ${esc(L.pickSub)}</p>${tool === 'fa' ? `<p class="lpk-sub">${esc(L.faLong)}</p>` : ''}
       <div class="lpk-list">${list.length ? list.map(row).join('') : `<p class="lpk-empty">${esc(L.noLeagues)}</p>`}</div>
       <div class="lpk-actions"><a class="btn" href="${app}#home&addleague=1&lang=${lang}" data-lpk-go>＋ ${esc(L.addLeague)}</a><a class="linkbtn" href="${howTool}">${esc(L.howWorks)}</a></div></div>`;
     document.body.appendChild(m);

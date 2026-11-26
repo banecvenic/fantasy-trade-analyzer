@@ -12,7 +12,7 @@ const start = src.indexOf('   Vrednost igrača: čiste funkcije');
 const end = src.indexOf('/* ==== kraj: FA, čiste funkcije ==== */');
 if (start < 0 || end < 0) throw new Error('Nije nađen FA modul u app.js');
 const code = src.slice(src.lastIndexOf('/*', start), end);
-const F = new Function(`${code}\nreturn { FA, VALUE, freeAgentIds, blendWeights, blendValue, blendLine, sumLines, swapTotals, expWins, leagueSpread, pairGain, pairScore, canDrop, dropVerdict, faSuggest, tradeCandidates, pageOf, rotationSignals, watchList, irStash, publicRising };`)();
+const F = new Function(`${code}\nreturn { FA, VALUE, freeAgentIds, blendWeights, blendValue, blendLine, sumLines, swapTotals, expWins, leagueSpread, pairGain, pairScore, canDrop, dropVerdict, faSuggest, tradeCandidates, pageOf, rotationSignals, watchList, irStash, publicRising, startShares };`)();
 
 let n = 0;
 const test = (name, fn) => { fn(); n++; console.log(`ok  ${name}`); };
@@ -214,4 +214,21 @@ test('stvarna vrednost: projekcija nestaje do 15 utakmica, bez donje granice; ce
   assert.ok(F.blendWeights(gp).proj > 0); // cena (podrazumevano): projekcija i dalje ima težinu
 });
 
+test('udeo startova po rangu: nedeljna = prvih N, pun raspored = prvih N, redak raspored daje klupi utakmice, ograničenje seče od dna', () => {
+  const teams = Array.from({ length: 30 }, (_, i) => i + 1);
+  const wk = F.startShares([[1]], teams, 3, 6, { weekly: true });
+  assert.deepStrictEqual(wk, [1, 1, 1, 0, 0, 0]);
+  const full = F.startShares(Array.from({ length: 20 }, () => teams), teams, 3, 6, { trials: 50 });
+  assert.deepStrictEqual(full, [1, 1, 1, 0, 0, 0]);
+  // svaki dan igra pola timova: 10 startnih od 13 -> najbolji uvek, klupa često
+  const half = Array.from({ length: 60 }, (_, d) => teams.filter(t => (t + d) % 2 === 0));
+  const sh = F.startShares(half, teams, 10, 13, { trials: 200 });
+  assert.ok(sh[0] === 1 && sh[9] > 0.95, sh.join());
+  assert.ok(sh[10] > 0.5 && sh[12] < sh[10] && sh[12] > 0.2, sh.join());
+  for (let r = 1; r < 13; r++) assert.ok(sh[r] <= sh[r - 1] + 1e-9);
+  // ograničenje: manje računatih utakmica, najslabiji prvi ispadaju, najbolji ostaju
+  const cap = F.startShares(half, teams, 10, 13, { trials: 200, cap: 280 });
+  assert.strictEqual(cap[0], 1);
+  assert.ok(cap[12] < sh[12] && cap[12] === 0, cap.join());
+});
 console.log(`\n${n} testova prošlo`);
