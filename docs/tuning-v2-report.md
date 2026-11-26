@@ -189,3 +189,20 @@ Slobodno mesto je niže jer najbolji slobodni igrači više ne dobijaju vrednost
 ### Usput: rezultat posle ponovnog učitavanja
 
 Posle osvežavanja stranice sačuvani predlozi su pokazivali „Promenio si izbor”, i za jednog protivnika (stara greška, ne iz ovog koraka). Uzrok: potpis rezultata uključuje slobodno mesto, a ono se promeni kad stigne lista slobodnih igrača, posle vraćanja iz sesije. Sada se potpis osveži kad je izbor isti. Provereno: posle osvežavanja 8 kartica, a izmena oznake i dalje daje „Promenio si izbor”.
+
+## Korak 4: Mete za trejd, Biram kategorije
+
+- **Redosled:** u Biram kategorije ponder kategorija (najjači u oceni mete) sada računa samo korist u izabranim kategorijama (očekivane pobede u tim kategorijama posle izmene). Ranije su sve kategorije ulazile sa težinom 0,5, pa su ostale kategorije zajedno često bile jače od izabranih. Ostali ponderi (spremnost vlasnika, forma, jeftina meta...) ostaju isti.
+- **Prag:** meta ulazi samo ako popravlja bar jednu izabranu kategoriju za bar 0,15 SD timova lige (`TF.CARD_SD`, isti prag kao kartica trejda), računato na postavi pre i posle (meta umesto mog najslabijeg). Bez lige (samo moj tim) prag važi za razliku z vrednosti mete i mog najslabijeg igrača, jer nema timova za SD.
+- **Tekst:** „Najviše ti popravlja” navodi samo izabrane kategorije koje meta popravlja bar 0,15 SD, od najveće promene (najviše 3).
+- Provera (NBA tviter, 40 meta po izboru, prvih 40 po grubom rangu):
+
+| Izabrane kategorije | kandidata sa koristi u izabranim | posle praga 0,15 SD | najmanja najbolja promena među 40 meta | prve 3 mete |
+|---|---|---|---|---|
+| BLK + REB | 134 | 117 | 0,41 SD | Myles Turner, Day'Ron Sharpe, Kel'el Ware |
+| AST + STL | 114 | 108 | 0,35 SD | Ausar Thompson, Stephon Castle, Kevin Porter Jr. |
+| FT% | 127 | 98 | 0,37 SD | Damian Lillard, Austin Reaves, Cam Spencer |
+| 3PM + PTS + FT% | 95 | 90 | 0,34 SD | Damian Lillard, Austin Reaves, Stephen Curry |
+
+  Nijedan tekst ne pominje kategoriju koja nije izabrana. Prag izbacuje slabe kandidate (5 do 29), koji ionako nisu među 40 prikazanih, pa je njegova uloga zaštita kad izabranih kategorija ima malo.
+- **Proceni sam posle koraka 2:** 152 kandidata, 40 posle grubog ranga. Prvih 8: Kawhi Leonard, Ausar Thompson, Christian Braun, Jalen Smith, Day'Ron Sharpe, Myles Turner, Donovan Clingan, Tyrese Haliburton. Tvoje slabe kategorije po proceni: FT%, REB, STL, TO, FG%. Tekstovi navode te kategorije. U proveri pravila: 8 meta, 5 sa mogućim trejdom (isto kao pre koraka 2).

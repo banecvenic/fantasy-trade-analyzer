@@ -11563,10 +11563,14 @@ function ttModel(lg, B, ui) {
   const cands = solo
     ? state.players.filter(p => !myIds.has(p.id) && B.genRaw.has(p.id) && ((statOf(p, 'season')?.GP || 0) > 0 || statOf(p, 'proj')) && !gone(p.id)).map(p => ({ id: p.id, owner: null, ir: false }))
     : ttCandidates(oppsE.map(([k, o]) => ({ owner: k, players: o.players })), gone);
+  // up: promena po kategoriji u SD timova lige (pozitivno = bolje; TO obrnuto); bez lige razlika z vrednosti mete i mog najslabijeg
   const gainOf = p => {
     const l = B.lineOf(p); if (!l) return null;
-    if (solo) { const f = B.fracOf(p), by = Object.fromEntries(Object.entries(vb(p)?.by || {}).map(([k, v]) => [k, v * f])); const d = {}; for (const c of cats) d[c.key] = (by[c.key] || 0) - (wBy?.[c.key] || 0); return { gain: ttSoloGain(by, wBy, soloW), by: d }; }
-    return lineupGain(ctx, B.lineupLine([...myActIds.filter(id => id !== weakest?.id), p.id])); // postava posle: meta umesto mog najslabijeg
+    if (solo) { const f = B.fracOf(p), by = Object.fromEntries(Object.entries(vb(p)?.by || {}).map(([k, v]) => [k, v * f])); const d = {}; for (const c of cats) d[c.key] = (by[c.key] || 0) - (wBy?.[c.key] || 0); return { gain: ttSoloGain(by, wBy, soloW), by: d, up: d }; }
+    const after = B.lineupLine([...myActIds.filter(id => id !== weakest?.id), p.id]); // postava posle: meta umesto mog najslabijeg
+    const g = lineupGain(ctx, after);
+    if (!pts) { g.up = {}; for (const c of cats) { const a = totCat(after, c), b = totCat(tot, c); g.up[c.key] = a == null || b == null ? 0 : (a - b) / (sd[c.key] || 1) * (c.low ? -1 : 1); } }
+    return g;
   };
   // cena na tržištu: rang u ligi (svi rosteri) i kod vlasnika
   const mk = p => B.market(p) ?? -1e9;
@@ -11576,13 +11580,19 @@ function ttModel(lg, B, ui) {
   for (const [k, o] of oppsE) [...o.players].map(x => P(x.id)).filter(Boolean).sort((a, b) => mk(b) - mk(a)).forEach((p, i) => oRank.set(p.id, i + 1));
   // grubo rangiranje (ponderi 1 i 2)
   // uloga (zajednička osnova): meta ima dovoljno minuta ili joj uloga raste
-  let list = cands.map(c => { const p = P(c.id); if (!p || !B.roleOf(p).ok) return null; const g = gainOf(p); return g && g.gain > 0 ? { ...c, p, gain: g.gain, by: g.by } : null; }).filter(Boolean);
+  let list = cands.map(c => { const p = P(c.id); if (!p || !B.roleOf(p).ok) return null; const g = gainOf(p); return g && g.gain > 0 ? { ...c, p, gain: g.gain, by: g.by, up: g.up } : null; }).filter(Boolean);
+  // Biram kategorije: meta mora da popravi bar jednu izabranu kategoriju za bar TF.CARD_SD (isti prag kao kartica trejda),
+  // a redosled (ponder kategorija) određuje samo korist u izabranim kategorijama
+  if (manual) {
+    list = list.map(x => { const upCats = ui.cats.filter(k => (x.up?.[k] ?? 0) >= TF.CARD_SD - 1e-12).sort((a, b) => x.up[b] - x.up[a]); return upCats.length ? { ...x, upCats, catGain: ui.cats.reduce((a, k) => a + (x.by?.[k] || 0), 0) } : null; }).filter(x => x && x.catGain > 0);
+  }
   // filteri sužavaju skup kandidata pre rangiranja (moguće mete bez filtera ostaju za brojeve u modalu i predlog šta da se skloni)
   const fltPool = list.map(x => x.id), flt = fltEff('tt', ttScope(lg));
   if (flt) list = list.filter(x => fltPass(fltRow(x.p, state.period, lg), flt.F, flt.items));
   // korist 0..1: deli se sa korišću igrača na granici najboljih (TT.CAT_FULL), da jedna zvezda ne spljošti sve ostale
-  const gs = list.map(x => x.gain).sort((a, b) => b - a), maxG = Math.max(1e-9, gs[Math.min(gs.length - 1, Math.floor(gs.length * TT.CAT_FULL))] || 0);
-  for (const x of list) { x.cat = ttClamp(x.gain / maxG); x.unreach = solo ? null : ttUnreach(oRank.get(x.id), lRank.get(x.id)); x.coarse = ttCoarse(x.cat, x.unreach || 0); }
+  const cg = x => (manual ? x.catGain : x.gain);
+  const gs = list.map(cg).sort((a, b) => b - a), maxG = Math.max(1e-9, gs[Math.min(gs.length - 1, Math.floor(gs.length * TT.CAT_FULL))] || 0);
+  for (const x of list) { x.cat = ttClamp(cg(x) / maxG); x.unreach = solo ? null : ttUnreach(oRank.get(x.id), lRank.get(x.id)); x.coarse = ttCoarse(x.cat, x.unreach || 0); }
   list.sort((a, b) => b.coarse - a.coarse);
   const coarseN = list.length;
   list = list.slice(0, ui.refine);
@@ -11722,8 +11732,9 @@ function ttReasonOf(M, x, k) {
   switch (k) {
     case 'cat': {
       if (M.pts) return t('{d} FPts po utakmici umesto {n}', { d: `+${x.gain.toFixed(1)}`, n: nm(M.weakest?.name || '–') });
-      const wt = ([c, v]) => v * (M.weights?.[c] ?? 1); // ručni izbor: prvo izabrane kategorije
-      const top = Object.entries(x.by || {}).filter(([, v]) => v > 0.02).sort((a, b) => wt(b) - wt(a)).slice(0, 2).map(([c]) => faCatLabel(c));
+      // Biram kategorije: samo izabrane kategorije koje meta popravlja bar 0,15 SD, od najveće promene
+      if (x.upCats) return t('Najviše ti popravlja {c}', { c: x.upCats.slice(0, 3).map(faCatLabel).join(', ') });
+      const top = Object.entries(x.by || {}).filter(([, v]) => v > 0.02).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([c]) => faCatLabel(c));
       return top.length ? t('Najviše ti popravlja {c}', { c: top.join(', ') }) : '';
     }
     case 'willing': {
