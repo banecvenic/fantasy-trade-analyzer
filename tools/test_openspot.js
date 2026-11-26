@@ -41,7 +41,7 @@ test('procena: van do kraja sezone samo kad ESPN kaže outForSeason (4. polje = 
 test('procena koristi iste igrače kao tabela: otpuštanja, slobodno mesto i dostupnost bez statusa', () => {
   const body = fnBody('rankProjection');
   assert.ok(!body.includes('playerAvail('), 'procena ne sme da koristi playerAvail (OUT = 0)');
-  for (const s of ['projAvail(', 'seasonOut(', "slotPlan('my')", "freeFill('my')", 'sp.nowDrops', 'sp.laterDrops', 'permIds', 'tempIds', 'permRepl', 'replLineNow()'])
+  for (const s of ['projAvail(', 'seasonOut(', "slotPlan('my')", "freeFill('my')", 'sp.drops', 'sp.laterDrops', 'permIds', 'tempIds', 'permRepl', 'replLineNow()'])
     assert.ok(body.includes(s), `procena treba da koristi ${s}`);
 });
 

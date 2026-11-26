@@ -151,7 +151,7 @@ const pStart = src.indexOf('/** valuesByStat (zbirovi cele sezone');
 const pEnd = src.indexOf('/* ---------- Spisak imena');
 if (fStart < 0 || fEnd < 0 || pStart < 0 || pEnd < 0) throw new Error('Nije nađen modul formata ili ESPN parser u app.js');
 const fmtCode = src.slice(src.lastIndexOf('/*', fStart), src.indexOf('\n', fEnd));
-const espn = new Function('LANG', `const IR_SLOT = 13; const ROSTER_DEFAULT = { ACTIVE: 13, IR: 2 };
+const espn = new Function('LANG', `const IR_SLOT = 13; const BENCH_SLOT = 12; const ROSTER_DEFAULT = { ACTIVE: 13, IR: 2 };
   const cleanName = x => String(x ?? '').replace(/\\s+/g, ' ').trim().slice(0, 40);
   ${fmtCode}\n${src.slice(pStart, pEnd)}\nreturn { parseEspnLeague };`)('sr');
 const FIX = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'espn_411647_2019_min.json'), 'utf8'));
@@ -160,7 +160,7 @@ test('ESPN liga 411647: naziv, mesta (klupa i IR), rok, format, timovi, IR igra�
   const r = espn.parseEspnLeague(FIX, '411647', 2019);
   assert.strictEqual(r.name, 'Back from the Future');
   assert.strictEqual(r.size, 12);
-  assert.deepStrictEqual(r.slots, { active: 16, ir: 2 }); // 11 startnih (PG…C, G, F, PF/C, 2× UT) + 5 klupa (slot 12) = 16; slot 13 = 2 IR
+  assert.deepStrictEqual(r.slots, { active: 16, ir: 2, start: 11 }); // 11 startnih (postava) (PG…C, G, F, PF/C, 2× UT) + 5 klupa (slot 12) = 16; slot 13 = 2 IR
   assert.strictEqual(r.deadline, 1550340000000);
   assert.strictEqual(r.scoringType, 'H2H_POINTS');
   assert.strictEqual(r.format.scoringType, 'h2h_points');

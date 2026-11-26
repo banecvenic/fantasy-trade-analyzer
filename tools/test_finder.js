@@ -492,6 +492,17 @@ test('Prodaj skupo i Kupi jeftino: samo trejdovi sa takvim igračima', () => {
   assert.ok(buy.every(x => x.r.includes(104)));
 });
 
+test('postava: tim je N najboljih po stvarnoj vrednosti; zamena igrača van postave ne donosi korist, a ni otpuštanje slabog igrača', () => {
+  const P = (id, rv, f) => ({ ...pl(id, rv / 5, { PTS: f, REB: f / 4, AST: f / 8, TO: 1, FGM: f * 0.4, FGA: f * 0.85 }), rv, drop: true });
+  const mine = [P(1, 50, 30), P(2, 40, 25), P(3, 30, 20), P(4, -60, 5), P(5, -70, 4)], theirs = [P(10, 52, 31), P(11, 41, 26), P(12, -50, 6), P(13, 29, 19), P(14, -65, 4.5)];
+  assert.deepStrictEqual(E.lineupOf(mine, 3).map(x => x.id), [1, 2, 3]);
+  assert.deepStrictEqual(E.lineupOf([...mine, { ...P(9, 99, 40), ir: true }, { ...P(8, 98, 40), gone: true }], 2).map(x => x.id), [1, 2]); // IR i van sezone ne ulaze
+  const L = E.search(base({ mine, theirs, lineupN: 3, limits: TF.SLIDERS.map(k => TF.LIMITS[k]), strategy: 'depth' })).list;
+  for (const x of L) assert.ok(x.g.some(id => id <= 3) || x.r.some(id => [10, 11, 13].includes(id)), `trejd bez igrača iz postave: ${x.g}|${x.r}`);
+  // bez postave (svi igrači) isti trejdovi sa klupe bi menjali zbir tima
+  assert.ok(E.lineupOf(mine, Infinity).length === 5);
+});
+
 test('motor radi i kao tekst (Web Worker)', () => {
   const inp = base({ mine: bigTeam(1, 7, 1), theirs: bigTeam(100, 7, 3), limits: TF.SLIDERS.map(k => TF.LIMITS[k]) });
   assert.deepStrictEqual(E2.search(inp).list.map(x => x.g.join() + '|' + x.r.join()), E.search(inp).list.map(x => x.g.join() + '|' + x.r.join()));

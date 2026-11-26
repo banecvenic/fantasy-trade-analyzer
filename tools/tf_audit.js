@@ -6,6 +6,8 @@
 (function () {
   'use strict';
   const A = (window.tfAudit = {});
+  // čekanje bez tajmera (sakriven tab usporava setTimeout na jednom u minuti)
+  A.sleep = ms => new Promise(res => { const t0 = performance.now(), ch = new MessageChannel(); ch.port1.onmessage = () => (performance.now() - t0 >= ms ? res() : ch.port2.postMessage(0)); ch.port2.postMessage(0); });
   const r3 = v => (v == null || !Number.isFinite(v) ? v : Math.round(v * 1000) / 1000);
   const nm = id => state.byId.get(id)?.name || String(id);
 
@@ -163,6 +165,18 @@
     return { gain, gainNo, card, cardNo, realNo, realSlot, mA, mB };
   };
 
+  /** Korak 2 i dalje: tim = postava (isto kao kartica tfCardView): korist i kartica na postavi pre i posle, bez slobodnog mesta */
+  A.teamJudge = (M, inp, x) => {
+    const B = tfBase(M.ctx.lg); if (!B.lineupIds) return null;
+    const E = A.E, vec = id => M.vecOf(M.lineOf(state.byId.get(id)));
+    const irSet = new Set([...M.ctx.my, ...M.ctx.opp].filter(y => y.ir).map(y => y.id)), myIds = M.ctx.my.filter(y => !y.ir).map(y => y.id), out = new Set([...x.g, ...x.md]);
+    const sum = ids => { const o = new Float64Array(M.keys.length); for (const id of ids) vec(id).forEach((v, i) => { o[i] += v; }); return o; };
+    const before = sum(B.lineupIds(myIds)), after = sum(B.lineupIds([...myIds.filter(id => !out.has(id)), ...x.r.filter(id => !irSet.has(id))]));
+    const gain = M.pts ? after[M.ki.FPTS] - before[M.ki.FPTS] : E.expWins(after, inp.opps, M.cats, M.myIdx, M.sd, inp.w).total - E.expWins(before, inp.opps, M.cats, M.myIdx, M.sd, inp.w).total;
+    const card = M.pts ? null : (E.cardResult ? E.cardResult(before, after, M.cats, M.myIdx, M.sd, TF) : E.sideResult(before, after, M.cats, M.myIdx, TF.TIE));
+    return { gain, card, gainNo: gain, cardNo: card };
+  };
+
   /* ---------- 5) Pretraga (glavna nit, sa dijagnostikom) ---------- */
   A.run = (M, opt = {}, dbg = {}) => { const inp = A.input(M, opt); inp.__dbg = dbg; const t0 = performance.now(); const res = A.E.search(inp); res.ms = performance.now() - t0; res.inp = inp; return res; };
   const key = x => `${[...x.g].sort().join(',')}|${[...x.r].sort().join(',')}`;
@@ -253,7 +267,7 @@
     const ids = leagues || JSON.parse(localStorage.getItem('fbaTrade.profile.v2')).leagues.filter(l => Object.keys(l.opps || {}).length && l.roster?.players?.length).map(l => l.id);
     const push = (rule, sev, ex) => { (out.ex[rule] || (out.ex[rule] = [])).push({ sev, ...ex }); out.ex[rule].sort((a, b) => b.sev - a.sev); out.ex[rule].length = Math.min(out.ex[rule].length, 3); };
     for (const lgId of ids) {
-      if (currentLeague()?.id !== lgId) { location.hash = `#league-${lgId}/overview`; for (let i = 0; i < 100 && currentLeague()?.id !== lgId; i++) await new Promise(r => setTimeout(r, 100)); await new Promise(r => setTimeout(r, 1500)); }
+      if (currentLeague()?.id !== lgId) { location.hash = `#league-${lgId}/overview`; for (let i = 0; i < 100 && currentLeague()?.id !== lgId; i++) await A.sleep((100)); await A.sleep((1500)); }
       const lg = currentLeague(), P = (mkCache = null, marketParts());
       for (const oppKey of Object.keys(lg.opps || {})) {
         if (!lg.opps[oppKey].players?.length) continue;
@@ -353,7 +367,7 @@
     const t0 = performance.now(), out = { tag, at: new Date().toISOString() };
     const espn = JSON.parse(localStorage.getItem('fbaTrade.profile.v2')).leagues.find(l => l.import?.source === 'espn' && l.import?.extId === '2069440345');
     out.sweep = await A.sweep({ leagues, workers });
-    if (currentLeague()?.id !== espn.id) { location.hash = `#league-${espn.id}/overview`; for (let i = 0; i < 100 && currentLeague()?.id !== espn.id; i++) await new Promise(r => setTimeout(r, 100)); await new Promise(r => setTimeout(r, 1500)); }
+    if (currentLeague()?.id !== espn.id) { location.hash = `#league-${espn.id}/overview`; for (let i = 0; i < 100 && currentLeague()?.id !== espn.id; i++) await A.sleep((100)); await A.sleep((1500)); }
     out.fa = A.faTop(8); out.tt = A.ttTop(8);
     const lk = Object.entries(currentLeague().opps).find(([, o]) => /Lajkovacka/.test(o.name))[0];
     const powell = currentLeague().opps[lk].players.map(x => state.byId.get(x.id)).find(p => /Powell/.test(p?.name))?.id;
