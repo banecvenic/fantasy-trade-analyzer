@@ -1013,6 +1013,40 @@ function tfEngine() {
   const catVal = (v, c) => (c.pct ? (v[c.a] > 0 ? v[c.m] / v[c.a] : null) : v[c.k]);
   const add = (out, v, s = 1) => { for (let i = 0; i < out.length; i++) out[i] += s * v[i]; return out; };
   const sumVec = (list, n) => { const o = new Float64Array(n); for (const v of list) add(o, v); return o; };
+  /** Prihvatanje (zajednička osnova za Pronađi trejd i Mete za trejd): da li bi protivnik prihvatio i zašto.
+      thTot / thAfter: njegov tim (postava) pre i posle; A { pts, cats, idx (njegove kategorije), oppW, sd, fIdx, T, card (rezultat strane) }
+      S { rInj (dobija povređenog), gHealthy (daje mu zdravog), rShortIR, gInjIR (moj povređeni ide na njegov IR, a meni fali mesta), sb (situacija lige), strat }
+      -> { ok, ob (ocena za njega), ow [kategorije koje dobija], olose (gubi više kategorija nego što dobija), up (kategorija koja mu najviše raste ili null),
+           sit (glavna situacija ili null), bonus (prednost u rangu), dec (situacija je presudna: bez nje trejd za njega nije dobar) } */
+  function accept(thTot, thAfter, A, S) {
+    const T = A.T, IJ = T.INJ, SB = S.sb, bm = A.pts ? 10 : 1;
+    let ob = 0, ow = [], olose = false, up = null;
+    if (A.pts) {
+      ob = thAfter[A.fIdx] - thTot[A.fIdx];
+      if (ob < -T.PTS_MAX_LOSS) return { ok: false };
+      olose = ob < 0;
+    } else {
+      const or = A.card(thTot, thAfter);
+      if (!catFilterOk(or, T.CAT_MAX_DIFF)) return { ok: false };
+      let best = 0;
+      for (const i of A.idx) {
+        ob += or.res[i] * (A.oppW[i] ?? 1);
+        if (or.res[i] > 0) { ow.push(i); const c = A.cats[i], b = catVal(thTot, c), a = catVal(thAfter, c), z = b != null && a != null ? (a - b) / (A.sd[i] || 1) * (c.low ? -1 : 1) * (A.oppW[i] ?? 1) : 0; if (z > best) { best = z; up = i; } }
+      }
+      olose = or.win < or.lose;
+    }
+    // situacije sa povredama: blage prednosti u rangu, glavna ide u "Zašto bi prihvatio" samo kad je presudna
+    let sit = null, sitB = 0, bonus = 0;
+    const bump = (k, b) => { if (!(b > 0)) return; bonus += b * bm; if (b > sitB) { sitB = b; sit = k; } };
+    if (IJ && SB && S.rInj) {
+      if (SB.oppPressure) bump('pressure', IJ.B_PRESSURE);
+      if (SB.oppContend && S.gHealthy) bump('contend', IJ.B_CONTEND);
+      if (SB.oppBottom) bump('rebuild', IJ.B_REBUILD);
+    }
+    if (S.rShortIR) bump('myir', S.strat === 'buy' ? IJ.B_BUY : IJ.B_MY_IR);
+    if (IJ && SB && S.gInjIR && SB.myPressure) bump('sellmy', IJ.B_SELL_MY);
+    return { ok: true, ob, ow, olose, up, sit, bonus, dec: !!sit && (olose || ob <= 0) };
+  }
   /** Rezultat strane: tim pre i posle po kategoriji (kao analiza trejda; nerešeno ispod praga) -> { win, lose, res[] } */
   function sideResult(before, after, cats, idx, tie) {
     let win = 0, lose = 0; const res = new Array(cats.length).fill(0);
@@ -1141,6 +1175,7 @@ function tfEngine() {
     const sizeStep = wide ? (pts ? T.SIZE_PEN_WIDE_PTS : T.SIZE_PEN_WIDE) : (pts ? T.SIZE_PEN_PTS : T.SIZE_PEN);
     const sizePen = (kG, kR) => sizeStep * (wide ? 3 * Math.max(0, Math.max(kG, kR) - 2) : Math.max(0, kG + kR - 2));
     const myBase = pts ? null : expWins(myTot, inp.opps, cats, inp.myIdx, inp.sd, inp.w);
+    const accA = { pts, cats, idx: inp.oppIdx, oppW: inp.oppW, sd: inp.sd, fIdx: inp.fIdx, T, card: (b, a) => sideResult(b, a, cats, inp.oppIdx, T.TIE) };
     const fa = inp.fa;
     const lim = inp.limits; // [[bez, sa], ...] po stepenu
     const maxL = lim[lim.length - 1][hasTrade ? 1 : 0];
@@ -1211,17 +1246,12 @@ function tfEngine() {
       const myAfter = teamAfter(mine, mOrd, mOutS, [...g, ...myDrop.map(x => x.i)], r.map(i => theirs[i]));
       const thAfter = teamAfter(theirs, tOrd, tOutS, [...r, ...thDrop.map(x => x.i)], g.map(i => mine[i]));
       // prazna mesta ostaju prazna (slobodno mesto se ne računa)
-      // filter iz ugla protivnika
-      let ob, ow = [];
-      if (pts) {
-        const fd = thAfter[inp.fIdx] - thTot[inp.fIdx];
-        if (fd < -T.PTS_MAX_LOSS) return R;
-        ob = fd;
-      } else {
-        const or = sideResult(thTot, thAfter, cats, inp.oppIdx, T.TIE);
-        if (!catFilterOk(or, T.CAT_MAX_DIFF)) return R;
-        ob = 0; for (const i of inp.oppIdx) { ob += or.res[i] * (inp.oppW[i] ?? 1); if (or.res[i] > 0) ow.push(i); }
-      }
+      // prihvatanje iz ugla protivnika (zajednička funkcija)
+      const rInj = r.some(i => theirs[i].out && !theirs[i].gone), gInj = g.some(i => mine[i].out && !mine[i].gone);
+      const rShortIR = !!T.INJ && irR.some(i => theirs[i].wk != null && theirs[i].wk <= T.INJ.SHORT_WEEKS);
+      const acc = accept(thTot, thAfter, accA, { rInj, gHealthy: g.some(i => !mine[i].out), rShortIR, gInjIR: gInj && irG.length > 0, sb: inp.sit, strat });
+      if (!acc.ok) return R;
+      const ob = acc.ob, ow = acc.ow;
       if (!quiet) stats.cats++; if (!quiet) { const sh = `${kG}:${kR}`; stats.shapes[sh] = (stats.shapes[sh] || 0) + 1; } // dijagnostika: oblici koji prolaze fer granicu i filter kategorija
       // korist za moj tim
       let gain;
@@ -1245,20 +1275,9 @@ function tfEngine() {
       if (!pts && strat !== 'cats') { const mr = sideResult(myTot, myAfter, cats, inp.myIdx, T.TIE); if (mr.win < mr.lose) return R; }
       if (pts && myAfter[inp.fIdx] - myTot[inp.fIdx] < 0) return R;
       if (!quiet) stats.gain++;
-      let s = gain - sizePen(kG, kR);
-      // povređeni: blage prednosti u rangu (pritisak na roster, plasman, slobodno IR mesto); glavna situacija ide u "Zašto bi prihvatio"
-      const IJ = T.INJ, SB = inp.sit, bm = pts ? 10 : 1;
-      let sit = null, sitB = 0;
-      const bump = (k, b) => { if (!(b > 0)) return; s += b * bm; if (b > sitB) { sitB = b; sit = k; } };
-      const rInj = r.some(i => theirs[i].out && !theirs[i].gone), gInj = g.some(i => mine[i].out && !mine[i].gone);
-      const rShortIR = !!IJ && irR.some(i => theirs[i].wk != null && theirs[i].wk <= IJ.SHORT_WEEKS);
-      if (IJ && SB && rInj) {
-        if (SB.oppPressure) bump('pressure', IJ.B_PRESSURE);
-        if (SB.oppContend && g.some(i => !mine[i].out)) bump('contend', IJ.B_CONTEND);
-        if (SB.oppBottom) bump('rebuild', IJ.B_REBUILD);
-      }
-      if (rShortIR) bump('myir', strat === 'buy' ? IJ.B_BUY : IJ.B_MY_IR);
-      if (IJ && SB && gInj && SB.myPressure && irG.length) bump('sellmy', IJ.B_SELL_MY);
+      // povređeni: blage prednosti u rangu (pritisak na roster, plasman, slobodno IR mesto) iz funkcije prihvatanja
+      let s = gain - sizePen(kG, kR) + acc.bonus;
+      const sit = acc.sit;
       if (strat === 'sell') { const k = g.filter(i => sell.has(mine[i].id)).length; if (!k) return R; s += formBonus; }
       // Kupi jeftino: igrač u lošoj formi ili dobar igrač sa kratkom povredom koji ide na moj slobodan IR
       if (strat === 'buy') { const k = r.filter(i => buy.has(theirs[i].id)).length; if (!k && !rShortIR) return R; if (k) s += formBonus; }
@@ -1266,7 +1285,7 @@ function tfEngine() {
       if (!quiet) stats.strat++;
       R.x = { g: g.map(i => mine[i].id), r: r.map(i => theirs[i].id), md: myDrop.map(x => x.id), od: thDrop.map(x => x.id),
         mf: myFa.length, of: thFa.length, s, gain, ob, n: kG + kR, tier, soft: gSoft, ow,
-        irIn: irR.map(i => theirs[i].id), irOut: irG.map(i => mine[i].id), sit,
+        irIn: irR.map(i => theirs[i].id), irOut: irG.map(i => mine[i].id), sit, sitDec: acc.dec, olose: acc.olose, up: acc.up,
         // kasnija otpuštanja (poslednja u md/od) i privremena slobodna mesta (poslednja u mf/of), sa udelom utakmica dok je povređeni na IR-u
         mdl: myDrop.length - myNow, odl: thDrop.length - thNow, mft: myFa.length - myFaP, oft: thFa.length - thFaP, wr: wR, wg: wG,
         core: core(g, mine) + '|' + core(r, theirs), top: gTopI, rtop: r.reduce((b, i) => (b == null || theirs[i].v > theirs[b].v ? i : b), null), shape: `${kG}:${kR}` };
@@ -1356,7 +1375,7 @@ function tfEngine() {
   const capGetMore = (list, per = 8, cap = 2) => paginate(list, per, Infinity, cap);
   /** Stranica rezultata (8 po 8, bez ponavljanja) */
   const pageItems = (list, page, per) => list.slice(page * per, page * per + per);
-  return { star, sideResult, catFilterOk, expWins, valueGap, weakest, combos, orderTiers, cmpRank, search, pageItems, normCdf, diversify, capGetMore, paginate, lineupOf, lineupW };
+  return { star, accept, sideResult, catFilterOk, expWins, valueGap, weakest, combos, orderTiers, cmpRank, search, pageItems, normCdf, diversify, capGetMore, paginate, lineupOf, lineupW };
 }
 /** Tržišna vrednost po utakmici: z-score-ovi u bazenu (poolN igrača sa najvećim vlasništvom), težine W { GEN, PROD, MIN, OWN, RANK }.
     rows [{ id, gen (opšta vrednost), prod (PTS + REB + AST ili FPts), min, own (% vlasništva), rank (po vlasništvu) }]
@@ -2562,6 +2581,9 @@ const EN = {
   "Ostaje ti slobodno mesto. Ne računa se u trejd: trejd je dobar i bez igrača sa waivera.": "You keep an open roster spot. It does not count in the trade: the trade works without a waiver pickup.",
   "Dobijaš slobodno mesto za igrača sa waivera.": "You get an open spot for a waiver pickup.",
   "Zašto bi prihvatio": "Why they might accept",
+  'Dobija najboljeg igrača u trejdu ({p}).': 'They get the best player in the trade ({p}).',
+  'Najviše mu raste {c}, gde je {n}. u ligi.': 'Their biggest gain is {c}, where they are {o} in the league.',
+  'Najviše mu raste {c}.': 'Their biggest gain is {c}.',
   "Obeležio si više od 4 igrača sa U trejd na jednoj strani.": "You marked more than 4 players with Trade on one side.",
   "Previše zaključanih igrača: nema koga da ponudiš ili koga da tražiš.": "Too many locked players: there is nobody to offer or nobody to ask for.",
   "Granica vrednosti je previše stroga za ova dva tima.": "The value limit is too strict for these two teams.",
@@ -10900,22 +10922,22 @@ function tfCardView(M, x) {
 /** "Zašto bi prihvatio" (iz zajedničke funkcije prihvatanja): situacija sa povredama samo kad je presudna; inače najbolji igrač u trejdu
     ili kategorija koja mu najviše raste */
 function tfWhy(M, x) {
-  // povređeni: situacija koja je glavni razlog (pritisak na roster, plasman, slobodno IR mesto)
-  if (x.sit === 'pressure' && M.sit) return t('Ima {n} {k}, a {m} IR {s}.', { n: M.sit.oppInjN, k: plural(M.sit.oppInjN, ['povređenog igrača', 'povređena igrača', 'povređenih igrača'], ['injured player', 'injured players']), m: M.sit.irSlots, s: plural(M.sit.irSlots, ['mesto', 'mesta', 'mesta'], ['spot', 'spots']) });
-  if (x.sit === 'contend') return t('Bori se za plejof i treba mu produkcija sada.');
-  if (x.sit === 'rebuild') return t('Pri dnu je tabele, pa mu je manje važno da čeka povratak.');
-  if (x.sit === 'sellmy') return t('Ima slobodno IR mesto, pa može da sačeka povratak.');
-  if (x.sit === 'myir') return t('Za povređenog igrača odmah dobija zdravog.');
-  if (M.pts) return x.ob > 0.05 ? t('Dobija {d} FPts po utakmici.', { d: `+${x.ob.toFixed(1)}` }) : t('Za njega je trejd skoro ravnopravan po FPts.');
-  const won = x.ow.map(i => M.cats[i]);
-  if (!won.length) return t('Trejd je za njega ravnopravan po vrednosti.');
-  if (M.hasOppRanks) {
-    const best = [...won].sort((a, b) => (M.oppRanks[b.key]?.rank || 0) - (M.oppRanks[a.key]?.rank || 0))[0], r = M.oppRanks[best.key];
-    if (r) return t('Dobija {c}, gde je {n}. u ligi.', { c: best.label, n: r.rank, o: ordinalEn(r.rank) });
+  if (x.sitDec) {
+    if (x.sit === 'pressure' && M.sit) return t('Ima {n} {k}, a {m} IR {s}.', { n: M.sit.oppInjN, k: plural(M.sit.oppInjN, ['povređenog igrača', 'povređena igrača', 'povređenih igrača'], ['injured player', 'injured players']), m: M.sit.irSlots, s: plural(M.sit.irSlots, ['mesto', 'mesta', 'mesta'], ['spot', 'spots']) });
+    if (x.sit === 'contend') return t('Bori se za plejof i treba mu produkcija sada.');
+    if (x.sit === 'rebuild') return t('Pri dnu je tabele, pa mu je manje važno da čeka povratak.');
+    if (x.sit === 'sellmy') return t('Ima slobodno IR mesto, pa može da sačeka povratak.');
+    if (x.sit === 'myir') return t('Za povređenog igrača odmah dobija zdravog.');
   }
-  const weak = won.filter(c => M.oppW[M.cats.indexOf(c)] > 1);
-  if (weak.length) return t('Dobija {c}, gde je slabiji od tebe.', { c: weak.slice(0, 2).map(c => c.label).join(', ') });
-  return t('Dobija {c}.', { c: won.slice(0, 3).map(c => c.label).join(', ') });
+  // najbolji igrač u trejdu ide njemu
+  const gTop = M.mine.find(e => e.id === x.g.reduce((b, id) => { const e = M.mine.find(y => y.id === id); return !b || (e && e.v > M.mine.find(y => y.id === b).v) ? id : b; }, null));
+  const rTopV = Math.max(...x.r.map(id => M.theirs.find(y => y.id === id)?.v ?? -Infinity));
+  if (gTop && gTop.v > rTopV) return t('Dobija najboljeg igrača u trejdu ({p}).', { p: esc(gTop.p.name) });
+  if (M.pts) return x.ob > 0.05 ? t('Dobija {d} FPts po utakmici.', { d: `+${x.ob.toFixed(1)}` }) : t('Za njega je trejd skoro ravnopravan po FPts.');
+  const c = x.up != null ? M.cats[x.up] : null;
+  if (!c) return t('Trejd je za njega ravnopravan po vrednosti.');
+  const r = M.hasOppRanks ? M.oppRanks[c.key] : null;
+  return r ? t('Najviše mu raste {c}, gde je {n}. u ligi.', { c: c.label, n: r.rank, o: ordinalEn(r.rank) }) : t('Najviše mu raste {c}.', { c: c.label });
 }
 /** Savet za veto lige (samo prikaz): neravnomeran trejd za tačno jednog igrača, a strana koja daje manje ima igrača na granici rostera
     (vlasništvo ispod praga, slabiji od najboljeg slobodnog ili nivoa zamene i tržišna vrednost ispod nivoa zamene) -> igrač ili null */

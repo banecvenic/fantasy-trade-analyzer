@@ -26,10 +26,11 @@
     // evalPair: oznaka za svaki "return R;"
     const a = s.indexOf('function evalPair('), b = s.indexOf('function convert(');
     let body = s.slice(a, b);
-    const labels = ['tt_top', 'top_mine', 'top_mine_sell', 'top_opp', 'no_drop', 'drop_incoming', 'drop_tc', 'value_gap', 'opp_pts', 'opp_cats', 'cats_keep', 'min_gain', 'card_wl', 'pts_neg', 'sell_none', 'buy_none', 'ok'];
+    // oznake po redu "return R;" u evalPair; kad se broj promeni (izmene motora), oznake su r0, r1, ... (poslednja je uvek ok)
+    const L0 = ['tt_top', 'top_mine', 'top_mine_sell', 'top_opp', 'no_drop', 'drop_incoming', 'drop_tc', 'value_gap', 'opp', 'cats_keep', 'min_gain', 'card_wl', 'pts_neg', 'sell_none', 'buy_none', 'ok'];
+    const cnt = (body.match(/return R;/g) || []).length, labels = cnt === L0.length ? L0 : Array.from({ length: cnt }, (_, i) => (i === cnt - 1 ? 'ok' : `r${i}`));
     let k = 0;
     body = body.replace(/return R;/g, () => `return __F('${labels[k++]}', quiet, __t, R);`);
-    if (k !== labels.length) throw new Error('patch: return R count ' + k);
     const addAfter = (from, extra) => { const i = body.indexOf(from); if (i < 0) return; /* samo trag za slučaj 1: preskoči ako se kod promenio */ body = body.slice(0, i + from.length) + extra + body.slice(i + from.length); };
     addAfter('R = { x: null, myDrop: null, thDrop: null };', ` const __t = __want && !quiet && __want(g, r) ? (D.trace = { gTop, rTop, gV, rV, kG, kR }) : null;`);
     addAfter('const gap = valueGap(A, Bx);', ` if (__t) Object.assign(__t, { A, Bx, gap, lim, myDrop: myDrop.map(x => x.id), thDrop: thDrop.map(x => x.id), myDropV: myDrop.map(x => x.v), thDropV: thDrop.map(x => x.v), myFaV: myFa.map(x => x.v), thFaV: thFa.map(x => x.v), irR: irR.map(i => theirs[i].id), irG: irG.map(i => mine[i].id) });`);
@@ -311,6 +312,11 @@
             if (rep) { v.push(5); push(5, Math.max(...x.g.map(id => cntG.get(id)), ...x.r.map(id => cntR.get(id))), { ...desc, txt: `${tag}: ${[...cntG].filter(([, c]) => c > 3).map(([id, c]) => `${nm(id)} (moj) ${c}/8`).concat([...cntR].filter(([, c]) => c > 2).map(([id, c]) => `${nm(id)} ${c}/8`)).join(', ')}` }); }
             // 7. ne odgovara imenu strategije
             if (!stratOk(strat, M, x, J, P, weak)) { v.push(7); push(`7-${strat}`, strat === 'best' ? -J.gain : 1, desc); }
+            // prihvatanje (korak 4): protivnik ukupno gubi, situacija postoji / presudna, vrsta razloga u "Zašto bi prihvatio"
+            const ac = out.acc || (out.acc = { n: 0, olose: 0, sit: 0, dec: 0, why: {}, ex: [] }); ac.n++;
+            if (x.sit) ac.sit++; if (x.sitDec) ac.dec++;
+            if (x.olose) { ac.olose++; if (ac.ex.length < 6) ac.ex.push(desc.txt); }
+            try { const w = typeof tfWhy === 'function' ? tfWhy(M, x) : ''; const kind = x.sitDec ? 'sit' : /najboljeg|best player/i.test(w) ? 'best' : /raste|biggest/i.test(w) ? 'cat' : 'other'; ac.why[kind] = (ac.why[kind] || 0) + 1; } catch (e) { ac.why.err = (ac.why.err || 0) + 1; }
             out.total++; if (v.length) out.anyViol++; if (v.some(k2 => k2 !== 5)) out.anyNo5 = (out.anyNo5 || 0) + 1;
             ps.n++; if (v.length) ps.any++;
             for (const k2 of new Set(v)) { out.viol[k2] = (out.viol[k2] || 0) + 1; ps.rules[k2] = (ps.rules[k2] || 0) + 1; }
