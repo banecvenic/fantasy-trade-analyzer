@@ -836,4 +836,13 @@ test('poeni: slobodno mesto = realni slobodan igrač × udeo starta (korist i fe
   assert.ok(run(pick, false).every(x => x.mfi == null));
 });
 
+test('Popravi kategorije: korist bar CATS_GAIN, izgubljenih na kartici najviše dobijenih + CATS_LOSE_EXTRA', () => {
+  const run = tf => E.search(base({ mine: bigTeam(1, 10, 1).map(x => ({ ...x, drop: true })), theirs: bigTeam(100, 10, 6).map(x => ({ ...x, drop: true })), band: [-0.10, 0.20], strategy: 'cats', TF: { ...TF, ...tf } }));
+  const loose = run({ CATS_GAIN: -1e9, CATS_LOSE_EXTRA: 99 }), strict = run({}), stricter = run({ CATS_LOSE_EXTRA: -1 });
+  assert.ok(strict.list.length > 0 && strict.list.every(x => x.gain >= TF.CATS_GAIN - 1e-9));
+  assert.ok(loose.list.some(x => x.gain < TF.CATS_GAIN), 'bez pravila ima predloga sa malom koristi');
+  // parovi koji prođu sva pravila (pre strategije): strožije pravilo za karticu propušta manje
+  assert.ok(stricter.stats.gain < strict.stats.gain && strict.stats.gain < loose.stats.gain);
+});
+
 console.log(`\n${n} testova prošlo`);

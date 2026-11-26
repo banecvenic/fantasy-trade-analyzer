@@ -1,6 +1,10 @@
 # Tuning v2: uzorak od 30 predloga
 
-NBA tviter (ESPN 2069440345), iz ugla svih 12 timova. Liga, protivnik, strategija, režim i predlog sa prve strane su izabrani nasumično (seme 20261126), posle koraka 4. Ko daje je tim iz čijeg ugla je pretraga.
+NBA tviter (ESPN 2069440345), iz ugla svih 12 timova. Liga, protivnik, strategija, režim i predlog sa prve strane su izabrani nasumično (seme 20261126). Ko daje je tim iz čijeg ugla je pretraga.
+
+**Ponovljen posle novog pravila za Popravi kategorije** (izgubljenih kategorija na kartici najviše dobijenih + 1, korist bar 0,05), sa svim izmenama iz odgovora i slobodnim mestom u ligama na poene. Isto seme kao prvi uzorak; 13 od 30 predloga je isto kao u prethodnom ponavljanju, ostali su se promenili zbog izmena i osveženih podataka. Prvi uzorak je u istoriji grane (commit a15edf7).
+
+Popravi kategorije u ovom uzorku: 6 predloga, kartice 4:3, 3:3, 5:3, 4:2, 4:4, 5:3, korist od 0.050 do 0.582. Nijedan ne gubi više kategorija nego što dobija + 1.
 
 Kolone: **korist** = očekivane pobede u kategorijama protiv ostalih timova (postava pre i posle); **kartica** = kategorije koje moj tim dobija : gubi (prag 0,15 SD); **cena** = tržišna vrednost koju dobija moj tim / protivnik; **zašto** = tekst „Zašto bi prihvatio” sa kartice.
 
@@ -14,7 +18,7 @@ Kolone: **korist** = očekivane pobede u kategorijama protiv ostalih timova (pos
 - Daje: Onyeka Okongwu, Andrew Nembhard
 - Dobija: Nickeil Alexander-Walker, Josh Hart
 - Korist +0.181 · kartica 4:2 · cena 125 / 100.1
-- Zašto bi prihvatio: Najviše mu raste FG%, gde je 3. u ligi.
+- Zašto bi prihvatio: Najviše mu raste BLK, gde je 4. u ligi.
 
 **3. Red Galaxy → Hakijevi bogalji** · Dubina, Fer · 1. na strani
 - Daje: Jalen Brunson, Andrew Nembhard (otpuštaš Dillon Brooks)
@@ -24,7 +28,7 @@ Kolone: **korist** = očekivane pobede u kategorijama protiv ostalih timova (pos
 
 **4. Red Galaxy → Etoile rouge** · Konsolidacija, Malo u moju korist · 1. na strani
 - Daje: Jalen Brunson, Devin Booker, Kyshawn George, Andrew Nembhard
-- Dobija: Anthony Davis, Desmond Bane, Jaden McDaniels + slobodno mesto
+- Dobija: Anthony Davis, Desmond Bane, Jaden McDaniels + slobodno mesto (on otpušta Brayden Burries)
 - Korist +0.284 · kartica 5:4 · cena 444.5 / 387.9
 - Zašto bi prihvatio: Najviše mu raste AST, gde je 5. u ligi.
 
@@ -32,103 +36,103 @@ Kolone: **korist** = očekivane pobede u kategorijama protiv ostalih timova (pos
 - Daje: Deni Avdija, Rui Hachimura, Andrew Nembhard
 - Dobija: Donovan Mitchell, Ivica Zubac, Buddy Hield
 - Korist +0.375 · kartica 5:3 · cena 167.2 / 150.5
-- Zašto bi prihvatio: Najviše mu raste AST, gde je 2. u ligi.
+- Zašto bi prihvatio: Najviše mu raste PTS, gde je 4. u ligi.
 
-**6. Fruskogorski Bizoni → Blok 23** · Kupi jeftino, Agresivno · 2. na strani
-- Daje: Josh Giddey, VJ Edgecombe, Josh Hart
-- Dobija: James Harden, Paul George, Jordan Poole
-- Korist +0.750 · kartica 3:2 · cena 241.8 / 204
-- Zašto bi prihvatio: Najviše mu raste REB, gde je 5. u ligi.
+**6. Fruskogorski Bizoni → Hakijevi bogalji** · Kupi jeftino, Agresivno · 2. na strani
+- Daje: Giannis Antetokounmpo, Josh Giddey, Michael Porter Jr.
+- Dobija: Karl-Anthony Towns, Tyler Herro, Cedric Coward
+- Korist +0.894 · kartica 4:4 · cena 390.6 / 336.2
+- Zašto bi prihvatio: Najviše mu raste BLK, gde je 10. u ligi.
 
-**7. Fruskogorski Bizoni → Hakijevi bogalji** · Prodaj skupo, Agresivno · 5. na strani
-- Daje: VJ Edgecombe, Josh Hart
-- Dobija: Donovan Mitchell, Rudy Gobert
-- Korist +0.345 · kartica 4:4 · cena 156.5 / 139.9
-- Zašto bi prihvatio: Najviše mu raste STL, gde je 5. u ligi.
-
-**8. Fruskogorski Bizoni → Hakijevi bogalji** · Kupi jeftino, Agresivno · 4. na strani
-- Daje: Stephon Castle, Kevin Porter Jr.
-- Dobija: Ausar Thompson, Immanuel Quickley
-- Korist +0.280 · kartica 4:4 · cena 152.2 / 122
-- Zašto bi prihvatio: Najviše mu raste AST, gde je 2. u ligi.
-
-**9. Dubai Rostiljdzije → Red Galaxy** · Najbolje za mene, Fer · 1. na strani
-- Daje: Walker Kessler, RJ Barrett, Ajay Mitchell
-- Dobija: Deni Avdija, Matas Buzelis, Peyton Watson
-- Korist +0.303 · kartica 5:3 · cena 174 / 167.6
-- Zašto bi prihvatio: Ima slobodno IR mesto, pa može da sačeka povratak.
-
-**10. Dubai Rostiljdzije → Livadari** · Dubina, Malo u moju korist · 1. na strani
-- Daje: Jalen Johnson (otpuštaš Charles Bassey)
-- Dobija: Brandon Miller, Cam Spencer
-- Korist +0.310 · kartica 4:3 · cena 136.8 / 127.9
-- Zašto bi prihvatio: Dobija najboljeg igrača u trejdu (Jalen Johnson).
-
-**11. Dubai Rostiljdzije → Otac Makarije ☦️** · Kupi jeftino, Malo u moju korist · 1. na strani
-- Daje: Walker Kessler (otpuštaš Charles Bassey)
-- Dobija: Ty Jerome, Tari Eason
-- Korist +0.279 · kartica 5:4 · cena 112.6 / 104
-- Zašto bi prihvatio: Dobija najboljeg igrača u trejdu (Walker Kessler).
-
-**12. Dubai Rostiljdzije → Fruskogorski Bizoni** · Popravi kategorije, Fer · 4. na strani
-- Daje: Cameron Boozer
-- Dobija: Josh Giddey
-- Korist +0.100 · kartica 1:5 · cena 64 / 68
-- Zašto bi prihvatio: Dobija najboljeg igrača u trejdu (Cameron Boozer).
-
-**13. Dubai Rostiljdzije → Otac Makarije ☦️** · Prodaj skupo, Malo u moju korist · 1. na strani
-- Daje: Jalen Johnson, RJ Barrett
-- Dobija: Tyrese Maxey, Duncan Robinson
-- Korist +0.262 · kartica 4:3 · cena 168.5 / 157.3
-- Zašto bi prihvatio: Ima 3 povređena igrača, a 2 IR mesta.
-
-**14. DzigiKilly → HIJENE** · Popravi kategorije, Agresivno · 6. na strani
-- Daje: Zion Williamson, Darius Acuff Jr., Jaime Jaquez Jr.
-- Dobija: Darius Garland, AJ Dybantsa, Jeremiah Fears
-- Korist +0.202 · kartica 5:3 · cena 178.1 / 145.7
+**7. Fruskogorski Bizoni → HIJENE** · Prodaj skupo, Agresivno · 5. na strani
+- Daje: Nickeil Alexander-Walker, Josh Hart
+- Dobija: Alperen Sengun, Coby White
+- Korist +0.208 · kartica 5:4 · cena 139.1 / 125
 - Zašto bi prihvatio: Najviše mu raste TO, gde je 6. u ligi.
 
-**15. DzigiKilly → Hakijevi bogalji** · Popravi kategorije, Fer · 5. na strani
-- Daje: Kyrie Irving, Keyonte George
-- Dobija: Donovan Mitchell, Daniss Jenkins
-- Korist +0.042 · kartica 2:3 · cena 198.6 / 179.9
-- Zašto bi prihvatio: Najviše mu raste AST, gde je 2. u ligi.
+**8. Fruskogorski Bizoni → HIJENE** · Kupi jeftino, Agresivno · 4. na strani
+- Daje: VJ Edgecombe (otpuštaš Nic Claxton)
+- Dobija: Alperen Sengun, De'Anthony Melton
+- Korist +0.033 · kartica 4:2 · cena 124.1 / 112.6
+- Zašto bi prihvatio: Najviše mu raste TO, gde je 6. u ligi.
 
-**16. DzigiKilly → Etoile rouge** · Popravi kategorije, Agresivno · 5. na strani
-- Daje: Julius Randle, Jaime Jaquez Jr., Isaiah Hartenstein
-- Dobija: Domantas Sabonis, Collin Murray-Boyles, Saddiq Bey
-- Korist +0.308 · kartica 3:3 · cena 151.4 / 133.9
-- Zašto bi prihvatio: Najviše mu raste PTS, gde je 6. u ligi.
+**9. Dubai Rostiljdzije → Rasini rakuni** · Najbolje za mene, Fer · 1. na strani
+- Daje: Walker Kessler, Cameron Boozer
+- Dobija: Trey Murphy III, LeBron James
+- Korist +0.374 · kartica 5:3 · cena 155.5 / 172
+- Zašto bi prihvatio: Ima slobodno IR mesto, pa može da sačeka povratak.
 
-**17. DzigiKilly → Livadari** · Kupi jeftino, Fer · 2. na strani
-- Daje: Isaiah Hartenstein, Jaime Jaquez Jr.
-- Dobija: Brandon Ingram, Cam Spencer
-- Korist +0.495 · kartica 4:3 · cena 43.8 / 41.4
-- Zašto bi prihvatio: Dobija najboljeg igrača u trejdu (Isaiah Hartenstein).
+**10. Dubai Rostiljdzije → Red Galaxy** · Dubina, Malo u moju korist · 1. na strani
+- Daje: Walker Kessler, Cameron Boozer (otpuštaš Charles Bassey)
+- Dobija: Matas Buzelis, Kyshawn George, Wendell Carter Jr.
+- Korist +0.232 · kartica 4:4 · cena 186 / 176.7
+- Zašto bi prihvatio: Ima slobodno IR mesto, pa može da sačeka povratak.
 
-**18. DzigiKilly → Rasini rakuni** · Konsolidacija, Agresivno · 1. na strani
-- Daje: Zion Williamson, Isaiah Hartenstein, Moussa Diabate, Toumani Camara
-- Dobija: Derrick White, Trey Murphy III, LeBron James + slobodno mesto
-- Korist +0.280 · kartica 4:4 · cena 221.9 / 180.3
-- Zašto bi prihvatio: Najviše mu raste FG%, gde je 11. u ligi.
+**11. Dubai Rostiljdzije → Blok 23** · Kupi jeftino, Malo u moju korist · 1. na strani
+- Daje: Jalen Johnson (otpuštaš Charles Bassey)
+- Dobija: Paul George, Aaron Wiggins
+- Korist +0.135 · kartica 4:4 · cena 128.4 / 127.9
+- Zašto bi prihvatio: Dobija najboljeg igrača u trejdu (Jalen Johnson).
 
-**19. Rasini rakuni → Red Galaxy** · Najbolje za mene, Fer · 1. na strani
-- Daje: Alex Sarr, Ace Bailey (otpuštaš Ryan Rollins)
-- Dobija: Matas Buzelis, Rui Hachimura, John Collins
-- Korist +0.142 · kartica 5:3 · cena 75.3 / 74.4
-- Zašto bi prihvatio: Najviše mu raste TO, gde je 11. u ligi.
+**12. Dubai Rostiljdzije → Fruskogorski Bizoni** · Popravi kategorije, Fer · 4. na strani
+- Daje: OG Anunoby, RJ Barrett
+- Dobija: Michael Porter Jr., Kevin Porter Jr.
+- Korist +0.533 · kartica 4:3 · cena 110.7 / 102.4
+- Zašto bi prihvatio: Najviše mu raste TO, gde je 7. u ligi.
+
+**13. Dubai Rostiljdzije → Blok 23** · Prodaj skupo, Malo u moju korist · 1. na strani
+- Daje: Jalen Johnson (otpuštaš Charles Bassey)
+- Dobija: Paul George, Aaron Wiggins
+- Korist +0.135 · kartica 4:4 · cena 128.4 / 127.9
+- Zašto bi prihvatio: Dobija najboljeg igrača u trejdu (Jalen Johnson).
+
+**14. DzigiKilly → Livadari** · Popravi kategorije, Agresivno · 7. na strani
+- Daje: Jalen Green, Moussa Diabate, Toumani Camara
+- Dobija: Darryn Peterson, Jakob Poeltl, Keegan Murray
+- Korist +0.050 · kartica 3:3 · cena 63.8 / 60
+- Zašto bi prihvatio: Dobija najboljeg igrača u trejdu (Moussa Diabate).
+
+**15. DzigiKilly → HIJENE** · Popravi kategorije, Fer · 5. na strani
+- Daje: Keyonte George, Jalen Green, Jaime Jaquez Jr.
+- Dobija: Darius Garland, Coby White, De'Anthony Melton
+- Korist +0.304 · kartica 5:3 · cena 94.4 / 86.2
+- Zašto bi prihvatio: Najviše mu raste TO, gde je 6. u ligi.
+
+**16. DzigiKilly → Otac Makarije ☦️** · Popravi kategorije, Agresivno · 6. na strani
+- Daje: Kyrie Irving, Darius Acuff Jr., Isaiah Hartenstein
+- Dobija: Trae Young, Donovan Clingan, Zach LaVine
+- Korist +0.471 · kartica 4:2 · cena 258.8 / 210.2
+- Zašto bi prihvatio: Dobija najboljeg igrača u trejdu (Kyrie Irving).
+
+**17. DzigiKilly → Lajkovacka pruga** · Konsolidacija, Agresivno · 1. na strani
+- Daje: Julius Randle, Isaiah Hartenstein, Moussa Diabate, P.J. Washington
+- Dobija: Damian Lillard, Norman Powell, Ayo Dosunmu + slobodno mesto (on otpušta Aday Mara)
+- Korist +0.440 · kartica 4:4 · cena 207.7 / 182.3
+- Zašto bi prihvatio: Ima 4 povređena igrača, a 2 IR mesta.
+
+**18. Rasini rakuni → Lajkovacka pruga** · Najbolje za mene, Fer · 2. na strani
+- Daje: Derrick White, Ace Bailey
+- Dobija: Ayo Dosunmu, Devin Vassell
+- Korist +0.108 · kartica 5:3 · cena 95.2 / 92.9
+- Zašto bi prihvatio: Najviše mu raste AST, gde je 10. u ligi.
+
+**19. Rasini rakuni → Lajkovacka pruga** · Kupi jeftino, Malo u moju korist · 1. na strani
+- Daje: LeBron James, Brandin Podziemski
+- Dobija: Kevin Durant, Day'Ron Sharpe
+- Korist +0.313 · kartica 4:4 · cena 152.8 / 144.6
+- Zašto bi prihvatio: Najviše mu raste AST, gde je 10. u ligi.
 
 **20. Rasini rakuni → DzigiKilly** · Dubina, Fer · 3. na strani
-- Daje: LeBron James, Meleek Thomas (otpuštaš Ryan Rollins)
-- Dobija: Isaiah Hartenstein, Moussa Diabate, Toumani Camara
-- Korist +0.275 · kartica 4:4 · cena 95.4 / 99.7
+- Daje: Alex Sarr, LeBron James (otpuštaš Ryan Rollins)
+- Dobija: Fred VanVleet, Isaiah Hartenstein, Moussa Diabate
+- Korist +0.274 · kartica 4:3 · cena 145.5 / 145.6
 - Zašto bi prihvatio: Dobija najboljeg igrača u trejdu (LeBron James).
 
-**21. Rasini rakuni → Etoile rouge** · Kupi jeftino, Malo u moju korist · 2. na strani
-- Daje: Kel'el Ware, Ace Bailey
-- Dobija: Payton Pritchard, Myles Turner
-- Korist +0.165 · kartica 3:3 · cena 47.1 / 42
-- Zašto bi prihvatio: Dobija najboljeg igrača u trejdu (Ace Bailey).
+**21. Rasini rakuni → Otac Makarije ☦️** · Kupi jeftino, Malo u moju korist · 2. na strani
+- Daje: LeBron James (otpuštaš Ryan Rollins)
+- Dobija: Trae Young, Tre Jones
+- Korist +0.095 · kartica 3:3 · cena 106.5 / 107
+- Zašto bi prihvatio: Najviše mu raste FG%, gde je 5. u ligi.
 
 **22. Rasini rakuni → DzigiKilly** · Dubina, Malo u moju korist · 3. na strani
 - Daje: LeBron James, Meleek Thomas (otpuštaš Ryan Rollins)
@@ -136,17 +140,17 @@ Kolone: **korist** = očekivane pobede u kategorijama protiv ostalih timova (pos
 - Korist +0.275 · kartica 4:4 · cena 95.4 / 99.7
 - Zašto bi prihvatio: Dobija najboljeg igrača u trejdu (LeBron James).
 
-**23. Lajkovacka pruga → Rasini rakuni** · Prodaj skupo, Agresivno · 4. na strani
-- Daje: Naz Reid, Daniel Gafford
-- Dobija: Alex Sarr, Brandin Podziemski
-- Korist +0.181 · kartica 3:2 · cena 80.8 / 68.4
-- Zašto bi prihvatio: Dobija najboljeg igrača u trejdu (Naz Reid).
+**23. Lajkovacka pruga → Etoile rouge** · Prodaj skupo, Agresivno · 4. na strani
+- Daje: Jonathan Kuminga
+- Dobija: Payton Pritchard
+- Korist +0.084 · kartica 4:3 · cena 16.4 / 13.2
+- Zašto bi prihvatio: Najviše mu raste FG%, gde je 4. u ligi.
 
-**24. Lajkovacka pruga → Blok 23** · Najbolje za mene, Agresivno · 3. na strani
-- Daje: Jayson Tatum, Naz Reid, Jonathan Kuminga
-- Dobija: Franz Wagner, Paul George, Aaron Wiggins
-- Korist +0.427 · kartica 5:3 · cena 263.7 / 241.6
-- Zašto bi prihvatio: Dobija najboljeg igrača u trejdu (Jayson Tatum).
+**24. Lajkovacka pruga → Hakijevi bogalji** · Najbolje za mene, Agresivno · 4. na strani
+- Daje: Kevin Durant, Jonathan Kuminga
+- Dobija: Tyler Herro, Daniss Jenkins
+- Korist +0.344 · kartica 5:3 · cena 164 / 138.2
+- Zašto bi prihvatio: Dobija najboljeg igrača u trejdu (Kevin Durant).
 
 **25. Lajkovacka pruga → Fruskogorski Bizoni** · Kupi jeftino, Agresivno · 1. na strani
 - Daje: Devin Vassell
@@ -154,32 +158,32 @@ Kolone: **korist** = očekivane pobede u kategorijama protiv ostalih timova (pos
 - Korist +0.110 · kartica 4:2 · cena 29.5 / 27.4
 - Zašto bi prihvatio: Najviše mu raste TO, gde je 7. u ligi.
 
-**26. Etoile rouge → Hakijevi bogalji** · Kupi jeftino, Agresivno · 5. na strani
-- Daje: Jalen Suggs, Saddiq Bey
-- Dobija: Klay Thompson, Daniss Jenkins
-- Korist +0.216 · kartica 3:2 · cena 42.8 / 38.7
-- Zašto bi prihvatio: Najviše mu raste REB, gde je 2. u ligi.
+**26. Etoile rouge → HIJENE** · Kupi jeftino, Agresivno · 4. na strani
+- Daje: Dyson Daniels (otpuštaš Brayden Burries)
+- Dobija: Alperen Sengun, De'Anthony Melton
+- Korist +0.215 · kartica 5:3 · cena 140.6 / 129
+- Zašto bi prihvatio: Najviše mu raste TO, gde je 6. u ligi.
 
-**27. Etoile rouge → Otac Makarije ☦️** · Popravi kategorije, Malo u moju korist · 5. na strani
-- Daje: Desmond Bane, Jalen Suggs, Brayden Burries
-- Dobija: Trae Young, Tari Eason, Duncan Robinson
-- Korist +0.327 · kartica 3:4 · cena 107.1 / 103
-- Zašto bi prihvatio: Dobija najboljeg igrača u trejdu (Desmond Bane).
+**27. Etoile rouge → Blok 23** · Popravi kategorije, Malo u moju korist · 6. na strani
+- Daje: Domantas Sabonis, Jalen Suggs, Saddiq Bey
+- Dobija: Franz Wagner, Julian Champagnie, Neemias Queta
+- Korist +0.141 · kartica 4:4 · cena 173.1 / 164.1
+- Zašto bi prihvatio: Najviše mu raste FT%, gde je 9. u ligi.
 
-**28. Otac Makarije ☦️ → Red Galaxy** · Popravi kategorije, Fer · 3. na strani
-- Daje: Trae Young, Donovan Clingan
-- Dobija: Jalen Brunson, Kyshawn George
-- Korist +0.277 · kartica 2:6 · cena 208.9 / 197.1
-- Zašto bi prihvatio: Najviše mu raste REB, gde je 9. u ligi.
+**28. Otac Makarije ☦️ → HIJENE** · Konsolidacija, Fer · 1. na strani
+- Daje: Miles Bridges, Yves Missi, Tari Eason
+- Dobija: Stephen Curry, De'Anthony Melton + slobodno mesto (on otpušta Kyle Kuzma)
+- Korist +0.113 · kartica 4:4 · cena 90.9 / 81.4
+- Zašto bi prihvatio: Ima 3 povređena igrača, a 2 IR mesta.
 
-**29. Otac Makarije ☦️ → Etoile rouge** · Prodaj skupo, Agresivno · 3. na strani
-- Daje: Trae Young, De'Andre Hunter
-- Dobija: Jaden McDaniels, Brook Lopez
-- Korist +0.331 · kartica 4:3 · cena 163.9 / 137.2
-- Zašto bi prihvatio: Najviše mu raste AST, gde je 5. u ligi.
+**29. Otac Makarije ☦️ → Rasini rakuni** · Popravi kategorije, Fer · 2. na strani
+- Daje: Donovan Clingan, Miles Bridges (otpuštaš Keldon Johnson)
+- Dobija: Alex Sarr, LeBron James, Meleek Thomas
+- Korist +0.582 · kartica 5:3 · cena 158.6 / 171.1
+- Zašto bi prihvatio: Najviše mu raste TO, gde je 4. u ligi.
 
-**30. Otac Makarije ☦️ → Lajkovacka pruga** · Prodaj skupo, Malo u moju korist · 3. na strani
-- Daje: Trae Young (otpuštaš Keldon Johnson)
-- Dobija: Yaxel Lendeborg, Day'Ron Sharpe
-- Korist +0.177 · kartica 3:3 · cena 119.3 / 112.4
-- Zašto bi prihvatio: Dobija najboljeg igrača u trejdu (Trae Young).
+**30. Otac Makarije ☦️ → Blok 23** · Prodaj skupo, Agresivno · 3. na strani
+- Daje: Trae Young, Miles Bridges
+- Dobija: James Harden, Pascal Siakam
+- Korist +0.243 · kartica 4:3 · cena 229.1 / 184.6
+- Zašto bi prihvatio: Najviše mu raste AST, gde je 7. u ligi.

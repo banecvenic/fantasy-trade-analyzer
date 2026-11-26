@@ -14,6 +14,7 @@ Grana `tuning-v2`, od `main` (2fe7f4c). Ništa nije objavljeno.
 | 5 | a15edf7 | Provera iz ugla 12 timova i u 2 druga formata, uzorak od 30 predloga; Popravi kategorije samo u ligama sa kategorijama |
 | 6 | af091ab | Odgovori: TO po ligi, Fer bliže nuli, Zašto bi prihvatio bez kategorija iz prva 3, otpuštanje u trejdu (Dubina u dubokim ligama) |
 | 7 | 15e2d46 | Slobodno mesto u ligama na poene: realni slobodan igrač × udeo starta, u koristi i u fer granici (tvoja odluka) |
+| 8 | (ovaj) | Popravi kategorije: izgubljenih najviše dobijenih + 1, korist bar 0,05; novi uzorak od 30 |
 
 **Pravila 1 do 7 posle svakog koraka:**
 
@@ -398,3 +399,29 @@ Primeri sa prve strane (Fer):
 - Prvi prolaz je dao 304 kršenja pravila 1, 3 i 7, svi u Sleeper trejdovima sa slobodnim mestom. Uzrok: provera i kartica su tim posle trejda računale bez igrača sa waivera, a motor sa njim. Pravilo 1 („loš bez waiver zamene”) je upravo ono što si za lige na poene ukinuo.
 - Ispravljeno: kartica i provera računaju istog igrača sa istim udelom. U ligama na poene pravilo 1 traži korist sa uračunatim igračem.
 - Sleeper liga je posle provere obrisana iz test browsera.
+
+## Popravi kategorije: ne gubi previše (ispravka pre objave)
+
+- **Problem iz uzorka:** kartice 1:5 (Boozer → Giddey), 2:6 (Trae Young + Clingan → Brunson + K. George), 3:4 i 2:3 sa koristi 0,04.
+- **Pravilo (`TF.CATS_GAIN = 0,05`, `TF.CATS_LOSE_EXTRA = 1`):** u Popravi kategorije broj izgubljenih kategorija na kartici je najviše broj dobijenih + 1, a korist je bar 0,05. Ostaje i staro pravilo: bar jedna izabrana slaba kategorija mora da bude dobijena.
+- Provera (pravilo 7 za Popravi kategorije) proverava isto.
+
+Iz ugla svih 12 timova (NBA tviter) + Moja liga + Test paste:
+
+| Popravi kategorije | Pre | Posle |
+|---|---|---|
+| Predlozi koji krše novo pravilo | 461 od 2.512 (18%) | **0** |
+| Predlozi na prvim stranama | 2.512 | 2.439 |
+| Prazne prve strane, 12 timova (396 pretraga) | 0 | **0** |
+| Prvih strana, Fer / Malo / Agresivno (12 timova) | 840 / 818 / 847 | 807 / 806 / 822 |
+| Prazne prve strane, Moja liga + Test paste (6 pretraga) | 1 | 4 |
+
+- Strane se popunjavaju drugim predlozima, pa prvih strana ima samo 3% manje, iako je 18% starih predloga ispalo.
+- U dve male test lige (Moja liga, Test paste) Popravi kategorije je i pre imala 1 do 3 predloga. Moja liga sada nema nijedan: sva tri stara su gubila previše.
+
+**Pravila 1 do 7: 0** (11.541 predlog).
+
+**Novi uzorak od 30** sa istim semenom: [docs/tuning-v2-uzorak.md](tuning-v2-uzorak.md).
+- U njemu je 6 predloga Popravi kategorije, sa karticama 4:3, 3:3, 5:3, 4:2, 4:4 i 5:3 i koristi od 0,050 do 0,582.
+- Nijedan ne gubi više nego što dobija + 1.
+- U celom uzorku nijedna kartica ne gubi više od dobijenih.

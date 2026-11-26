@@ -264,7 +264,8 @@
   function stratOk(strat, M, x, J, P, weak) {
     const byId = new Map([...M.mine, ...M.theirs].map(e => [e.id, e]));
     if (strat === 'best') return J.gain >= 0.05 && (!J.card || J.card.win - J.card.lose >= 2);
-    if (strat === 'cats') return !!J.card && weak.some(w => J.card.res[w.i] > 0);
+    // Popravi kategorije (tuning-v2): bar jedna slaba dobijena, izgubljenih najviše dobijenih + 1, korist bar 0,05
+    if (strat === 'cats') return !!J.card && weak.some(w => J.card.res[w.i] > 0) && J.card.lose <= J.card.win + 1 && J.gain >= 0.05 - 1e-9;
     if (strat === 'sell') return x.g.some(id => (P.rvRank.get(id) ?? 1e9) - (P.mvRank.get(id) ?? 1e9) >= RANK_GAP);
     // Kupi jeftino: igrač jeftiniji na tržištu nego po stvarnoj vrednosti, ili kratko povređen igrač koji ide na moj IR (situacija myir)
     if (strat === 'buy') return x.r.some(id => (P.mvRank.get(id) ?? 1e9) - (P.rvRank.get(id) ?? 1e9) >= RANK_GAP) || x.r.some(id => { const e = byId.get(id); return e && e.wk != null && e.wk <= TF.INJ.SHORT_WEEKS && (e.irOk || e.out); });

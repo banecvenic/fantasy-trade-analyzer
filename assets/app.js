@@ -962,6 +962,7 @@ const TF = {
   TRADE_WIDEN: 0.05,      // igrač obeležen sa U trejd: gornja granica režima je za ovoliko šira
   SLIDERS: ['fair', 'slight', 'aggr'],
   CARD_SD: 0.15,          // kartica i pravilo za protivnika: kategorija se broji tek kad se promeni bar ovoliko SD timova lige
+  CATS_GAIN: 0.05, CATS_LOSE_EXTRA: 1, // Popravi kategorije: korist bar ovoliko; izgubljenih kategorija na kartici najviše dobijenih + 1
   BEST_GAIN: 0.10, BEST_GAIN_PTS: 1.0, BEST_CARD: 2, // Najbolje za mene: korist bar ovoliko i kartica bar +2
   RANK_GAP: 15,           // Prodaj skupo / Kupi jeftino: rang po ceni na tržištu bolji (lošiji) od ranga po stvarnoj vrednosti za bar ovoliko mesta
   ALL_OPP_PER_PAGE: 2,    // Svi timovi u ligi: najviše 2 predloga istog protivnika na strani od 8
@@ -1343,7 +1344,13 @@ function tfEngine() {
       // rezultat na kartici (moj tim pre i posle, prag 0,15 SD) bar nerešen, Najbolje za mene bar +2; Popravi kategorije sme gore (namerno žrtvuje kategorije), ali mora da dobije bar jednu izabranu
       if (!pts && strat !== 'cats') { const mr = cardResult(myTot, myAfter, cats, inp.myIdx, inp.sd, T); if (mr.win < mr.lose || (strat === 'best' && mr.win - mr.lose < T.BEST_CARD)) return R; }
       // Popravi kategorije: bar jedna izabrana (slaba) kategorija dobijena i na kartici
-      if (!pts && strat === 'cats' && focus.size) { const mr = cardResult(myTot, myAfter, cats, inp.myIdx, inp.sd, T); let any = false; for (const i of focus) if (mr.res[i] > 0) { any = true; break; } if (!any) return R; }
+      // Popravi kategorije sme da izgubi kategorije, ali ne previše (tuning-v2): izgubljenih na kartici najviše dobijenih + CATS_LOSE_EXTRA, korist bar CATS_GAIN
+      if (!pts && strat === 'cats') {
+        if (gain < T.CATS_GAIN - 1e-12) return R;
+        const mr = cardResult(myTot, myAfter, cats, inp.myIdx, inp.sd, T);
+        if (mr.lose > mr.win + T.CATS_LOSE_EXTRA) return R;
+        if (focus.size) { let any = false; for (const i of focus) if (mr.res[i] > 0) { any = true; break; } if (!any) return R; }
+      }
       // Konsolidacija: najbolji igrač u trejdu (stvarna vrednost) dolazi meni
       if (strat === 'cons') { const rvOf = e => e.rv ?? e.v ?? -1e9; let bv = -Infinity, mineBest = false; for (const i of g) if (rvOf(mine[i]) > bv) { bv = rvOf(mine[i]); mineBest = true; } for (const i of r) if (rvOf(theirs[i]) > bv) { bv = rvOf(theirs[i]); mineBest = false; } if (mineBest) return R; }
       // Dubina: bar jedan dodatni igrač ulazi u moju postavu (dolazi više njih u prvih N nego što ih odlazi iz prvih N)
