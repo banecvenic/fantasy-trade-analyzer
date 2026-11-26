@@ -820,4 +820,20 @@ test('Fer: kod približno iste ocene (razlika do FAIR_D_TIE) ispred je trejd sa 
   assert.deepStrictEqual(E.dTie(L.map(x => ({ ...x })), 0).map(x => x.id), ['a', 'b', 'c', 'd']); // bez praga ništa se ne menja
 });
 
+test('poeni: slobodno mesto = realni slobodan igrač × udeo starta (korist i fer granica); kategorije: ne računa se', () => {
+  const P = (id, v, f, x = {}) => ({ ...pl(id, v, { PTS: f * 0.6, REB: f * 0.15, AST: f * 0.1, FGM: f * 0.2, FGA: f * 0.42, FPTS: f }), rv: v, drop: true, ...x });
+  const mine = [P(1, 10, 40), P(2, 6, 26), P(3, 4.5, 21), P(4, 3, 17), P(5, 2.5, 16), P(6, 2, 15)], theirs = [P(20, 7, 31), P(21, 5, 23), P(22, 9.6, 39), P(23, 8.4, 36), P(24, 3.2, 18), P(25, 2.2, 15)];
+  const share = [1, 1, 1, 1, 0.8, 0.6, 0.5];
+  const run = (fa, pts = true) => E.search(base({ pts, mine, theirs, fa, share, lineupN: 4, limits: [TF.LIMITS.fair], strategy: 'cons' })).list;
+  const pick = [P(900, 0.4, 14, { pick: true }), P(901, 0.3, 13, { pick: true })];
+  const withPick = run(pick), noPick = run(pick.map(f => ({ ...f, pick: false })));
+  const slot = withPick.filter(x => x.mf > 0);
+  assert.ok(slot.length > 0, 'Konsolidacija sa slobodnim mestom');
+  for (const x of slot) { assert.deepStrictEqual(x.mfi, pick.slice(0, x.mf).map(f => f.id)); assert.ok(x.mfw.every(w => w > 0 && w <= 1), 'udeo starta 0..1'); }
+  assert.ok(withPick.length > noPick.length, 'uračunat igrač sa waivera otvara više Konsolidacija');
+  assert.ok(noPick.every(x => x.mfi == null));
+  // kategorije: isti ulaz bez poena ne računa igrača sa waivera
+  assert.ok(run(pick, false).every(x => x.mfi == null));
+});
+
 console.log(`\n${n} testova prošlo`);

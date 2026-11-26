@@ -165,7 +165,8 @@
     const rvG = sumF(x.g, e => e.rv), rvR = sumF(x.r, e => e.rv), rvMd = sumF(x.md, e => e.rv), rvOd = sumF(x.od, e => e.rv);
     const vG = sumF(x.g, e => e.v), vR = sumF(x.r, e => e.v), vMd = sumF(x.md, e => e.v), vOd = sumF(x.od, e => e.v);
     const realNo = rvR - rvG - rvMd, realSlot = realNo + x.mf * (B.slot.rv ?? 0);
-    const mA = vR - vMd + x.mf * B.slot.v, mB = vG - vOd + x.of * B.slot.v; // tržišna vrednost koju dobija svaka strana (bez udela za IR)
+    const faV = (ids, ws) => ids.reduce((a, id, k) => a + (B.faPts?.find(f => f.id === id)?.v ?? 0) * (ws?.[k] ?? 0), 0);
+    const mA = vR - vMd + (x.mfi ? faV(x.mfi, x.mfw) : x.mf * B.slot.v), mB = vG - vOd + (x.ofi ? faV(x.ofi, x.ofw) : x.of * B.slot.v); // tržišna vrednost koju dobija svaka strana (bez udela za IR)
     return { gain, gainNo, card, cardNo, realNo, realSlot, mA, mB };
   };
 
@@ -177,7 +178,9 @@
     // postava sa udelom startova (dnevna postava); stara osnova bez lineupW = prvih N
     const LW = ids => (B.lineupW ? B.lineupW(ids) : B.lineupIds(ids).map(id => ({ id, w: 1 })));
     const sum = list => { const o = new Float64Array(M.keys.length); for (const { id, w } of list) vec(id).forEach((v, i) => { o[i] += v * w; }); return o; };
-    const before = sum(LW(myIds)), after = sum(LW([...myIds.filter(id => !out.has(id)), ...x.r.filter(id => !irSet.has(id))]));
+    // liga na poene (tuning-v2): uračunat igrač sa waivera ulazi u postavu sa svojim udelom starta
+    const faM = typeof tfWaiverMult === 'function' ? tfWaiverMult(x, B) : null;
+    const before = sum(LW(myIds)), after = sum(LW([...myIds.filter(id => !out.has(id)), ...x.r.filter(id => !irSet.has(id)), ...(faM ? faM.keys() : [])]).map(e => (faM?.has(e.id) ? { ...e, w: e.w * faM.get(e.id) } : e)));
     const gain = M.pts ? after[M.ki.FPTS] - before[M.ki.FPTS] : E.expWins(after, inp.opps, M.cats, M.myIdx, M.sd, inp.w).total - E.expWins(before, inp.opps, M.cats, M.myIdx, M.sd, inp.w).total;
     const card = M.pts ? null : (E.cardResult ? E.cardResult(before, after, M.cats, M.myIdx, M.sd, TF) : E.sideResult(before, after, M.cats, M.myIdx, TF.TIE));
     return { gain, card, gainNo: gain, cardNo: card };
@@ -306,7 +309,8 @@
             const txt = `${tag}: daješ ${x.g.map(nm).join(' + ')}${x.md.length ? ` (otpuštaš ${x.md.map(nm).join(', ')})` : ''}, dobijaš ${x.r.map(nm).join(' + ')}${x.mf ? ` + ${x.mf} slobodno mesto` : ''}`;
             const desc = { txt, gain: r3(J.gain), gainNo: r3(J.gainNo), card: J.card ? `${J.card.win}:${J.card.lose}` : null, cardNo: J.cardNo ? `${J.cardNo.win}:${J.cardNo.lose}` : null, realNo: r3(J.realNo), realSlot: r3(J.realSlot), mA: r3(J.mA), mB: r3(J.mB) };
             // 1. loše bez waiver zamene
-            if (x.mf > 0 && J.gainNo <= 0) { v.push(1); push(1, -J.gainNo, desc); }
+            // (liga na poene, tuning-v2: slobodno mesto se računa kao igrač sa waivera × udeo starta, pa važi korist sa njim)
+            if (x.mf > 0 && (x.mfi ? J.gain : J.gainNo) <= 0) { v.push(1); push(1, -(x.mfi ? J.gain : J.gainNo), desc); }
             // 2. dajem 2+ igrača iz rotacije za igrače ispod 20 minuta
             const minOf = id => +(M.lineOf(state.byId.get(id))?.MIN || 0), rot = id => minOf(id) >= 24 || (P.genRank.get(id) ?? 1e9) <= 150;
             const rotG = x.g.filter(rot);

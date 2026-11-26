@@ -13,6 +13,7 @@ Grana `tuning-v2`, od `main` (2fe7f4c). Ništa nije objavljeno.
 | 4 | 40f16ac | Mete za trejd, Biram kategorije: redosled, prag 0,15 SD, tekst |
 | 5 | a15edf7 | Provera iz ugla 12 timova i u 2 druga formata, uzorak od 30 predloga; Popravi kategorije samo u ligama sa kategorijama |
 | 6 | af091ab | Odgovori: TO po ligi, Fer bliže nuli, Zašto bi prihvatio bez kategorija iz prva 3, otpuštanje u trejdu (Dubina u dubokim ligama) |
+| 7 | (ovaj) | Slobodno mesto u ligama na poene: realni slobodan igrač × udeo starta, u koristi i u fer granici (tvoja odluka) |
 
 **Pravila 1 do 7 posle svakog koraka:**
 
@@ -21,6 +22,7 @@ Grana `tuning-v2`, od `main` (2fe7f4c). Ništa nije objavljeno.
 | Tvoje lige (3 lige, 234 pretrage) | 1.221 (pravila 4 i 5) | 0 | 0 | 0 | 0 | |
 | Iz ugla svih 12 timova (2.376 pretraga) | | | | | | 0 |
 | Sleeper poeni + Fantrax Roto (363 pretrage) | | | | | | 0 (254 pre ispravke) |
+| Posle odgovora i slobodnog mesta u poen ligama | | | | | | 0 |
 
 Korak 4 menja samo Mete za trejd, pa Pronađi trejd posle njega nije ponovo meren. Korak 5 je meren posle koraka 4.
 
@@ -364,3 +366,35 @@ Obe lige su ponovo uvezene (moj tim = prvi tim), za svaki par igrača izbrojano 
 - **Zašto baš ovde:** u poen ligi sa dnevnom postavom i igrači sa klupe startuju 50 do 93% svojih utakmica. Ko da dva igrača za jednog gubi skoro sve njihove poene, a slobodno mesto mu se ne računa. Kod Dubine se isto dešava protivniku, pa on ne prihvata. U ligama sa kategorijama korist nije linearna, pa tamo obe strategije rade.
 - **Za ovu ligu pravilo nije sasvim opravdano:** najbolji slobodan igrač ima 14,7 FPts, koliko i moj 15. igrač (14,0). Ako bi se slobodno mesto računalo kao najbolji slobodan igrač puta njegov udeo starta (oko 0,5), Konsolidacija bi bila oko +3 FPts.
 - Nisam ga menjao, jer je to tvoja odluka iz tuning-v1. Predlog: samo u poen ligama računati slobodno mesto po najboljem slobodnom igraču i njegovom udelu starta.
+
+## Slobodno mesto u ligama na poene (tvoja odluka posle odgovora)
+
+**Pravilo (`TF.SLOT_PTS`), samo u ligama na poene:**
+- Slobodno mesto je konkretan realni slobodan igrač: 3. najbolji zdrav slobodan igrač po stvarnoj vrednosti, a za drugo mesto sledeći. To je ista granica kao kod postojeće „realne zamene” (3. do 5.): prva dva najbolja se ne računaju, jer ih drugi obično uzmu prvi. Igrač na waiveru ulazi sa umanjenjem 0,8.
+- Računa se puta njegov udeo starta, i to isti udeo u obe provere:
+  - u koristi: njegovi FPts × udeo starta;
+  - u fer granici: njegova cena × udeo starta.
+  - Udeo je mesto koje dobija u postavi posle trejda (tabela dnevne postave). Privremeno mesto (dok je povređeni na IR-u) se množi i delom tih utakmica.
+- Važi i za protivnika kad on dobija slobodno mesto, u njegovoj koristi (prihvatanje) i u fer granici.
+- Kartica piše npr. „Uračunat je igrač sa waivera: **De'Anthony Melton** (realni slobodan igrač, startuje oko 73% utakmica).” Za protivnika: „Njemu je uračunat igrač sa waivera: …”. Korist na kartici uključuje istog igrača sa istim udelom, pa se kartica i redosled slažu.
+- Otvori u analizi bira istog igrača sa waivera (Izaberi igrača), umesto „Ne računaj”.
+- U ligama sa kategorijama ostaje pravilo iz tuning-v1: slobodno mesto se ne računa. Na istim podacima stari i novi motor daju iste rezultate u NBA tviter (48 od 48 pretraga).
+
+**Sleeper „NBA JAM 2026-2027”, 11 protivnika:**
+
+| Strategija | Prazne pre | Prazne posle | Predloga na prvim stranama posle (Fer / Malo / Agresivno) |
+|---|---|---|---|
+| Konsolidacija | 11 od 11 | **0 od 11** | 75 / 72 / 73 |
+| Dubina | 11 od 11 | **0 od 11** | 59 / 59 / 73 |
+| Najbolje za mene | 0 | 0 | 84 / 82 / 86 (pre 77 / 76 / 84) |
+| Kupi jeftino | 3 | 3 | 44 / 45 / 47 |
+| Prodaj skupo | 11 | 11 | opravdano, vidi gore |
+
+Primeri sa prve strane (Fer):
+- **Konsolidacija:** daješ Paul Reed + Matas Buzelis, dobijaš Jarrett Allen (on otpušta Klay Thompson). Uračunat je De'Anthony Melton sa 73% starta. Korist +1,3 FPts, d = −0,02.
+- **Dubina:** daješ Anthony Davis, dobijaš Joel Embiid + Fred VanVleet, otpuštaš Tre Jones. Protivniku je uračunat Melton sa 73% starta. Korist +1,6 FPts, d = +0,01.
+
+**Pravila 1 do 7: 0** (1.984 predloga: NBA tviter, Moja liga, Test paste, Sleeper).
+- Prvi prolaz je dao 304 kršenja pravila 1, 3 i 7, svi u Sleeper trejdovima sa slobodnim mestom. Uzrok: provera i kartica su tim posle trejda računale bez igrača sa waivera, a motor sa njim. Pravilo 1 („loš bez waiver zamene”) je upravo ono što si za lige na poene ukinuo.
+- Ispravljeno: kartica i provera računaju istog igrača sa istim udelom. U ligama na poene pravilo 1 traži korist sa uračunatim igračem.
+- Sleeper liga je posle provere obrisana iz test browsera.
