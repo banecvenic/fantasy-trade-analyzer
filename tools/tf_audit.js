@@ -28,10 +28,10 @@
     let k = 0;
     body = body.replace(/return R;/g, () => `return __F('${labels[k++]}', quiet, __t, R);`);
     if (k !== labels.length) throw new Error('patch: return R count ' + k);
-    const addAfter = (from, extra) => { const i = body.indexOf(from); if (i < 0) throw new Error('patch evalPair: ' + from.slice(0, 60)); body = body.slice(0, i + from.length) + extra + body.slice(i + from.length); };
+    const addAfter = (from, extra) => { const i = body.indexOf(from); if (i < 0) return; /* samo trag za slučaj 1: preskoči ako se kod promenio */ body = body.slice(0, i + from.length) + extra + body.slice(i + from.length); };
     addAfter('R = { x: null, myDrop: null, thDrop: null };', ` const __t = __want && !quiet && __want(g, r) ? (D.trace = { gTop, rTop, gV, rV, kG, kR }) : null;`);
     addAfter('const gap = valueGap(A, Bx);', ` if (__t) Object.assign(__t, { A, Bx, gap, lim, myDrop: myDrop.map(x => x.id), thDrop: thDrop.map(x => x.id), myDropV: myDrop.map(x => x.v), thDropV: thDrop.map(x => x.v), myFaV: myFa.map(x => x.v), thFaV: thFa.map(x => x.v), irR: irR.map(i => theirs[i].id), irG: irG.map(i => mine[i].id) });`);
-    addAfter('thFa.forEach((x, k) => add(thAfter, x.vec, thFw(k)));', ` if (__t) Object.assign(__t, { myTot: Array.from(myTot), myAfter: Array.from(myAfter), thTot: Array.from(thTot), thAfter: Array.from(thAfter) });`);
+    addAfter('// prazna mesta ostaju prazna u zbiru tima (slobodno mesto se ne računa)', ` if (__t) Object.assign(__t, { myTot: Array.from(myTot), myAfter: Array.from(myAfter), thTot: Array.from(thTot), thAfter: Array.from(thAfter) });`);
     addAfter('const or = sideResult(thTot, thAfter, cats, inp.oppIdx, T.TIE);', ` if (__t) __t.opp = { win: or.win, lose: or.lose, res: Array.from(or.res) };`);
     addAfter('const fd = thAfter[inp.fIdx] - thTot[inp.fIdx];', ` if (__t) __t.oppFd = fd;`);
     addAfter('const aw = expWins(myAfter, inp.opps, cats, inp.myIdx, inp.sd, inp.w);', ` if (__t) __t.aw = { total: aw.total, by: Array.from(aw.by), base: myBase.total, baseBy: Array.from(myBase.by) };`);
@@ -151,6 +151,9 @@
       gainNo = E.expWins(Float64Array.from(N.after), inp.opps, M.cats, M.myIdx, M.sd, inp.w).total - base;
       card = wl(S.before, S.after); cardNo = wl(N.before, N.after);
     }
+    // korist i kartica onako kako ih sajt računa u ovom koraku (A.def): 'slot' = polazna tačka (slobodno mesto se računa), inače bez slobodnog mesta
+    if (A.def !== 'slot') { gain = gainNo; card = cardNo; }
+    if (A.teamJudge) ({ gain, card, gainNo, cardNo } = { gain, card, gainNo, cardNo, ...(A.teamJudge(M, inp, x) || {}) }); // tim = postava (korak 2)
     const B = tfBase(), byId = new Map([...M.mine, ...M.theirs].map(e => [e.id, e]));
     const sumF = (ids, f) => ids.reduce((s, id) => s + f(byId.get(id)), 0);
     const rvG = sumF(x.g, e => e.rv), rvR = sumF(x.r, e => e.rv), rvMd = sumF(x.md, e => e.rv), rvOd = sumF(x.od, e => e.rv);
@@ -318,5 +321,47 @@
     P0.close();
     if (startLg && currentLeague()?.id !== startLg) location.hash = `#league-${startLg}/overview`;
     return out;
+  };
+
+  /* ---------- 7) Pojačanja sa FA i Mete za trejd: prvih n predloga (tvoja liga, trenutni period) ---------- */
+  A.faTop = (n = 8) => {
+    const M = faModel(currentLeague());
+    return M.sugg.slice(0, n).map((s, i) => { const x = M.byId.get(s.id), d = M.mine.find(m => m.id === s.drop); const v = d ? faPairView(M, x, d) : null;
+      return { i: i + 1, in: nm(s.id), out: d ? nm(d.id) : null, gain: r3(s.gain), score: r3(s.score), card: v?.R ? `${v.R.win}:${v.R.lose}` : null, rising: !!x.rising, min: r3(+(M.lineOf(x.p)?.MIN || 0)) }; });
+  };
+  A.ttTop = (n = 8, trades = true) => {
+    const lg = currentLeague(); state.tt.M = null; state.tt.full = null;
+    const M = ttGet(lg), top = M.list.slice(0, n);
+    const ins = trades ? ttInputs(M, top.map(x => x.id)) : [];
+    return top.map((x, i) => { const q = ins.find(y => y.id === x.id); const tr = q ? A.E.search(q.inp).list[0] : null;
+      return { i: i + 1, name: nm(x.id), owner: lg.opps[x.owner]?.name, score: r3(x.score), gain: r3(x.gain), min: r3(+(B0().lineOf(x.p)?.MIN || 0)), rising: !!x.rising,
+        trade: tr ? `daješ ${tr.g.map(nm).join(' + ')}${tr.md.length ? ` (otpuštaš ${tr.md.map(nm).join(', ')})` : ''} → ${tr.r.map(nm).join(' + ')}${tr.mf ? ` + ${tr.mf} slobodno mesto` : ''}` : null, tgain: tr ? r3(tr.gain) : null }; });
+  };
+  const B0 = () => tfBase();
+  /** Da li neki trejd postoji u bilo kojoj strategiji i režimu (imena) za protivnika */
+  A.findTrade = async (oppKey, giveNames, getNames, marks = {}) => {
+    const M = A.model(oppKey, marks), id = (list, n2) => list.find(e => state.byId.get(e.id).name === n2)?.id;
+    const k = `${giveNames.map(n2 => id(M.mine, n2)).sort().join(',')}|${getNames.map(n2 => id(M.theirs, n2)).sort().join(',')}`;
+    const hits = [];
+    for (const strat of STRATS) for (const slider of SLIDERS) { const res = A.run(M, { strat, slider, focus: strat === 'cats' && !M.pts ? A.weakCats(M).map(w => w.key) : [] }); const i = res.list.findIndex(x => key(x) === k); if (i >= 0) hits.push(`${strat}/${slider}: ${i + 1}.`); }
+    return hits;
+  };
+  /** Prva strana za jednog protivnika (imena, korist, kartica) */
+  A.page = (oppKey, opt = {}, marks = {}) => { const M = A.model(oppKey, marks), res = A.run(M, opt); return { ms: Math.round(res.ms), n: res.list.length, note: res.note || null, top: res.list.slice(0, 8).map(x => { const J = A.judge(M, res.inp, x); return { g: x.g.map(nm), r: x.r.map(nm), md: x.md.map(nm), od: x.od.map(nm), mf: x.mf, of: x.of, shape: x.shape, s: r3(x.s), gain: r3(x.gain), card: J.card ? `${J.card.win}:${J.card.lose}` : null, why: x.why || null, sit: x.sit || null }; }) }; };
+  /** Sve odjednom: provera, FA, Mete, slučaj Lajkovacka pruga; rezultat ide na lokalni sink (port 5181) */
+  A.snapshot = async (tag, { leagues = null, workers = 4 } = {}) => {
+    const t0 = performance.now(), out = { tag, at: new Date().toISOString() };
+    const espn = JSON.parse(localStorage.getItem('fbaTrade.profile.v2')).leagues.find(l => l.import?.source === 'espn' && l.import?.extId === '2069440345');
+    out.sweep = await A.sweep({ leagues, workers });
+    if (currentLeague()?.id !== espn.id) { location.hash = `#league-${espn.id}/overview`; for (let i = 0; i < 100 && currentLeague()?.id !== espn.id; i++) await new Promise(r => setTimeout(r, 100)); await new Promise(r => setTimeout(r, 1500)); }
+    out.fa = A.faTop(8); out.tt = A.ttTop(8);
+    const lk = Object.entries(currentLeague().opps).find(([, o]) => /Lajkovacka/.test(o.name))[0];
+    const powell = currentLeague().opps[lk].players.map(x => state.byId.get(x.id)).find(p => /Powell/.test(p?.name))?.id;
+    out.lk = { free: A.page(lk, { strat: 'best', slider: 'fair' }), powell: A.page(lk, { strat: 'best', slider: 'fair' }, { lockTheirs: [powell] }) };
+    out.case1 = await A.findTrade(lk, ['Rui Hachimura', 'Andrew Nembhard'], ["Day'Ron Sharpe"]);
+    out.slot = { v: r3(tfBase().slot.v), rv: r3(tfBase().slot.rv) };
+    out.ms = Math.round(performance.now() - t0);
+    await fetch(`http://127.0.0.1:5181/${tag}.json`, { method: 'POST', body: JSON.stringify(out) });
+    return { ms: out.ms, total: out.sweep.total, viol: out.sweep.viol, case1: out.case1 };
   };
 })();

@@ -929,7 +929,8 @@ const TF = {
   SIZE_PEN_WIDE: 0.07,    // Konsolidacija i Dubina (veća strana iznad 2, × 3): bez promene
   SIZE_PEN_WIDE_PTS: 0.7,
   VETO_MAX: 3,            // savet za veto na najviše toliko kartica od 8
-  SLOT_FROM: 3, SLOT_TO: 5, // slobodno mesto (uvezena liga): prosek 3. do 5. najboljeg zdravog slobodnog igrača, ne najbolji (konzervativno)
+  SLOT_FROM: 3, SLOT_TO: 5, // realna zamena (uvezena liga): prosek 3. do 5. najboljeg zdravog slobodnog igrača. Služi samo kao prag za otpuštanje i za prikaz u analizi;
+                          // u Pronađi trejd i Metama za trejd slobodno mesto se ne računa ni u koristi ni u fer granici
   SLOT_WAIVER: 0.8,       // igrač na waiveru ulazi u taj prosek sa ovim umanjenjem (nije zagarantovan)
   GET_MORE_MAX: 2,        // na svakih 8 predloga najviše toliko trejdova gde dobijam više igrača nego što dajem (Najbolje za mene, Popravi kategorije, Prodaj skupo, Kupi jeftino)
   GIVE_MORE_MAX: 2,       // isto za trejdove gde dajem više igrača nego što dobijam (ista strategija, oba ograničenja važe zajedno)
@@ -1064,7 +1065,7 @@ function tfEngine() {
     const sizeStep = wide ? (pts ? T.SIZE_PEN_WIDE_PTS : T.SIZE_PEN_WIDE) : (pts ? T.SIZE_PEN_PTS : T.SIZE_PEN);
     const sizePen = (kG, kR) => sizeStep * (wide ? 3 * Math.max(0, Math.max(kG, kR) - 2) : Math.max(0, kG + kR - 2));
     const myBase = pts ? null : expWins(myTot, inp.opps, cats, inp.myIdx, inp.sd, inp.w);
-    const fa = inp.fa, faV = k => fa.slice(0, k).reduce((s, x) => s + x.v, 0);
+    const fa = inp.fa;
     const lim = inp.limits; // [[bez, sa], ...] po stepenu
     const maxL = lim[lim.length - 1][hasTrade ? 1 : 0];
     const sell = new Set(inp.sell || []), buy = new Set(inp.buy || []);
@@ -1120,9 +1121,10 @@ function tfEngine() {
       const myFa = myD < 0 ? fa.slice(0, -myD) : [], thFa = thD < 0 ? fa.slice(0, -thD) : [];
       const myNow = Math.max(0, myD), thNow = Math.max(0, thD), myFaP = Math.max(0, -myD0), thFaP = Math.max(0, -thD0);
       // težina: otpušteni kasnije igra deo utakmica dok je povređeni na IR-u; privremeni slobodan igrač samo taj deo
-      const myDw = k => (k < myNow ? 1 : 1 - wR), thDw = k => (k < thNow ? 1 : 1 - wG), myFw = k => (k < myFaP ? 1 : wR), thFw = k => (k < thFaP ? 1 : wG);
-      const A = rV - myDrop.reduce((s, x, k) => s + x.v * myDw(k), 0) + myFa.reduce((s, x, k) => s + x.v * myFw(k), 0);
-      const Bx = gV - thDrop.reduce((s, x, k) => s + x.v * thDw(k), 0) + thFa.reduce((s, x, k) => s + x.v * thFw(k), 0);
+      const myDw = k => (k < myNow ? 1 : 1 - wR), thDw = k => (k < thNow ? 1 : 1 - wG);
+      // slobodno mesto se ne računa ni u fer granici ni u koristi (trejd mora da bude dobar sam po sebi); otpušteni igrač ide po svojoj vrednosti
+      const A = rV - myDrop.reduce((s, x, k) => s + x.v * myDw(k), 0);
+      const Bx = gV - thDrop.reduce((s, x, k) => s + x.v * thDw(k), 0);
       const gap = valueGap(A, Bx);
       let tier = -1;
       for (let ti = 0; ti < lim.length; ti++) if (gap <= lim[ti][hasTrade ? 1 : 0] + 1e-12) { tier = ti; break; }
@@ -1135,9 +1137,7 @@ function tfEngine() {
       for (const i of r) if (!theirs[i].ir) { add(thAfter, theirs[i].vec, -1); add(myAfter, theirs[i].vec); }
       myDrop.forEach((x, k) => add(myAfter, x.vec, -myDw(k)));
       thDrop.forEach((x, k) => add(thAfter, x.vec, -thDw(k)));
-      // prazna mesta u zbiru tima: najbolji slobodan igrač (uvezena liga) ili nivo zamene (bez lige i manuelne lige), kao u analizi trejda
-      myFa.forEach((x, k) => add(myAfter, x.vec, myFw(k)));
-      thFa.forEach((x, k) => add(thAfter, x.vec, thFw(k)));
+      // prazna mesta ostaju prazna u zbiru tima (slobodno mesto se ne računa)
       // filter iz ugla protivnika
       let ob, ow = [];
       if (pts) {
@@ -1221,8 +1221,8 @@ function tfEngine() {
         const arr = byK[kR]; if (!arr) continue;
         if (!shapeOk(kG, kR)) continue; // Konsolidacija, Dubina, "Ne otpuštam nikoga", razlika u broju igrača
         const d0 = kR - kG;
-        const myAdjR = d0 > 0 ? -roughDrop(myRoster, d0) : d0 < 0 ? faV(-d0) : 0;
-        const oppAdjR = d0 > 0 ? faV(d0) : d0 < 0 ? -roughDrop(thRoster, -d0) : 0;
+        const myAdjR = d0 > 0 ? -roughDrop(myRoster, d0) : 0; // slobodno mesto se ne računa
+        const oppAdjR = d0 < 0 ? -roughDrop(thRoster, -d0) : 0;
         const B = gV + oppAdjR; // šta on (grubo) dobija
         if (!(B > 0)) continue;
         // |A − B| ≤ L × max(A, B), A = rV + myAdj: rV između B(1 − L) − myAdj i B / (1 − L) − myAdj (uz rezervu)
@@ -2485,6 +2485,7 @@ const EN = {
   "Dobija {c}.": "They gain {c}.",
   "Dajem ako mora": "Only for a good price",
   "Otpuštaš: {n}": "You drop: {n}",
+  "Ostaje ti slobodno mesto. Ne računa se u trejd: trejd je dobar i bez igrača sa waivera.": "You keep an open roster spot. It does not count in the trade: the trade works without a waiver pickup.",
   "Dobijaš slobodno mesto za igrača sa waivera.": "You get an open spot for a waiver pickup.",
   "Zašto bi prihvatio": "Why they might accept",
   "Obeležio si više od 4 igrača sa U trejd na jednoj strani.": "You marked more than 4 players with Trade on one side.",
@@ -10720,9 +10721,9 @@ function tfCardView(M, x) {
   for (const id of x.g) if (!irSet.has(id)) addP(state.byId.get(id), -1);
   for (const id of x.r) if (!irSet.has(id)) addP(state.byId.get(id), 1);
   // kasnija otpuštanja i privremena slobodna mesta: samo deo utakmica dok je povređeni na IR-u, kao u pretrazi
-  const mdNow = x.md.length - (x.mdl || 0), mfP = x.mf - (x.mft || 0), wr = x.wr || 0;
+  const mdNow = x.md.length - (x.mdl || 0), wr = x.wr || 0;
   x.md.forEach((id, k) => addP(state.byId.get(id), k < mdNow ? -1 : -(1 - wr)));
-  for (let k = 0; k < x.mf; k++) { const s = k < mfP ? 1 : wr; (M.fa[k]?.vec || M.replVec).forEach((a, i) => { after[i] += s * a; }); } // slobodno mesto: najbolji slobodan ili nivo zamene, kao u pretrazi
+  // slobodno mesto se ne računa (kao u pretrazi): mesto ostaje prazno
   if (M.pts) {
     const pl = id => M.lineOf(state.byId.get(id));
     const sumC = (ids, k) => ids.reduce((s, id) => s + (+pl(id)?.[k] || 0), 0);
@@ -10782,8 +10783,7 @@ function tfDropText(M, x) {
   const mdNow = x.md.length - (x.mdl || 0), mfP = x.mf - (x.mft || 0), irN = nmL(x.irIn || []);
   return [mdNow ? t('Otpuštaš: {n}', { n: nmL(x.md.slice(0, mdNow)) }) : '',
     x.mdl ? t('Kad se {ir} vrati sa IR-a, otpuštaš: {n}', { ir: irN, n: nmL(x.md.slice(mdNow)) }) : '',
-    mfP ? tfFreeSlotText(M.fa.slice(0, mfP)) : '',
-    x.mft ? t('Dok je {ir} na IR-u, slobodno mesto popunjava igrač sa waivera.', { ir: irN }) : ''].filter(Boolean).join(' ');
+    mfP ? t('Ostaje ti slobodno mesto. Ne računa se u trejd: trejd je dobar i bez igrača sa waivera.') : ''].filter(Boolean).join(' ');
 }
 function tfCardHTML(M, x, i, veto = null) {
   const v = tfCardView(M, x);
@@ -10915,6 +10915,7 @@ function tfOpenX(x, ctx) {
     openInAnalysis([x.g, x.r], { opp: ctx.oppKey });
     state.balance.my = { drops: [...x.md], waivers: [] }; state.balance.opp = { drops: [...x.od], waivers: [] };
     activeTab().mix = true; activeTab().opp = ctx.oppKey; state.mix = true;
+    if (x.mf) activeTab().spotMode = 'none'; // slobodno mesto se ne računa, kao na kartici
   }
   persistTrades();
   goPage('trade');
