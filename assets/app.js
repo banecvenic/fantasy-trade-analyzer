@@ -956,6 +956,7 @@ const TF = {
   BEST_GAIN: 0.10, BEST_GAIN_PTS: 1.0, BEST_CARD: 2, // Najbolje za mene: korist bar ovoliko i kartica bar +2
   RANK_GAP: 15,           // Prodaj skupo / Kupi jeftino: rang po ceni na tržištu bolji (lošiji) od ranga po stvarnoj vrednosti za bar ovoliko mesta
   DIV_MINE: 3, DIV_THEIRS: 2, // na strani od 8: isti moj igrač najviše u 3 predloga, isti njegov u 2 (osim U trejd i retkih igrača koji prolaze filtere)
+  DIV_THEIRS_HI: 3, DIV_MIN_FILL: 6, // ako bi strana imala manje od 6 predloga, njegov igrač sme u 3 (nikad više); i dalje manje od 6: napomena
   FLT_FEW: 3,             // "retki": najviše ovoliko njegovih igrača prolazi filtere
   BIG_GAIN: 0.10, BIG_GAIN_PTS: 1.0, BIG_PER_PAGE: 1, // strana sa 4 igrača: samo kad korist pobedi najbolji trejd do 3 po strani za ovoliko; najviše 1 na strani od 8
   SIZE_TIE: 0.07,         // razlika u oceni manja od ovoga: manji trejd ide ispred
@@ -1391,7 +1392,7 @@ function tfEngine() {
     const exempt = new Set([...mReq.map(i => mine[i].id), ...tReq.map(i => theirs[i].id), ...(ffIds.length && ffIds.length <= T.FLT_FEW ? ffIds : [])]);
     // strane od 8: raznovrsnost po igraču, najviše 1 sa 4 igrača, najviše 2 trejda gde dobijam (dajem) više igrača; "Dajem ako mora" tek posle svih ostalih
     const more = T.GET_MORE_STRATS.includes(strat);
-    const list = paginate(ord, { per: T.PER_PAGE, capG: T.DIV_MINE, capR: T.DIV_THEIRS, exempt, moreCap: more ? T.GET_MORE_MAX : null, lessCap: more ? T.GIVE_MORE_MAX : null, bigCap: T.BIG_PER_PAGE, keep: T.KEEP });
+    const list = paginate(ord, { per: T.PER_PAGE, capG: T.DIV_MINE, capR: T.DIV_THEIRS, capRHi: T.DIV_THEIRS_HI, minFill: T.DIV_MIN_FILL, exempt, moreCap: more ? T.GET_MORE_MAX : null, lessCap: more ? T.GIVE_MORE_MAX : null, bigCap: T.BIG_PER_PAGE, keep: T.KEEP });
     return { list: list.slice(0, T.KEEP), stats, hasTrade };
   }
   /** Jezgro trejda: igrači koji nešto vrede (ili su označeni za trejd); dodaci bez vrednosti ne prave novi predlog */
@@ -1404,11 +1405,13 @@ function tfEngine() {
   /** Slaganje strana od per predloga, redom po rangu. Na svakoj strani: isto jezgro samo jednom; isti moj igrač najviše u capG predloga,
       isti njegov u capR (osim izuzetih: U trejd, retki igrači koji prolaze filtere); najviše bigCap trejdova sa 4 igrača na nekoj strani;
       najviše moreCap (lessCap) trejdova gde dobijam (dajem) više igrača. Strana se popunjava do per kad ima još predloga:
-      popušta samo više/manje igrača. Raznovrsnost po igraču i najviše bigCap sa 4 igrača nikad ne popuštaju (tuning-v2): predlog koji bi ih
-      prekršio čeka sledeću stranu, pa je strana kraća od per samo kad svi preostali predlozi ponavljaju iste igrače ili imaju 4 igrača.
+      popušta samo više/manje igrača. Najviše bigCap sa 4 igrača nikad ne popušta. Njegov igrač: najviše capR, a kad bi strana imala manje od
+      minFill predloga, najviše capRHi (tuning-v2, srednje rešenje); moj igrač uvek najviše capG. Predlog koji bi prekršio granice čeka
+      sledeću stranu; strana kraća od minFill (a ima još predloga) dobija x.pgShort na prvom predlogu.
       "Dajem ako mora" (x.soft) dolazi tek kad nema više ostalih. Svaki predlog dobija broj strane (x.pg). keep: koliko predloga ukupno. */
   function paginate(list, o = {}) {
-    const per = o.per || 8, capG = o.capG ?? 3, capR = o.capR ?? 2, ex = o.exempt || new Set(), keep = o.keep ?? Infinity;
+    const per = o.per || 8, capG = o.capG ?? 3, capR = o.capR ?? 2, capRHi = Math.max(capR, o.capRHi ?? capR), minFill = o.minFill ?? 0;
+    const ex = o.exempt || new Set(), keep = o.keep ?? Infinity;
     const seen = new Set(), pool = [];
     for (const x of list) { if (x.core != null) { if (seen.has(x.core)) continue; seen.add(x.core); } pool.push(x); }
     // "Dajem ako mora": posle svih ostalih predloga
@@ -1419,26 +1422,37 @@ function tfEngine() {
     // koraci popuštanja: samo više/manje igrača; raznovrsnost i 4 igrača važe uvek
     const STAGES = [true, false];
     let first = 0, pg = 0;
-    while (out.length < ordered.length && out.length < keep) {
-      const page = [], cG = new Map(), cR = new Map(); let nm = 0, nl = 0, nb = 0;
+    /** Jedna strana sa granicom cr za njegovog igrača -> indeksi (bez upisa u used) */
+    const build = cr => {
+      const page = [], taken = new Set(), cG = new Map(), cR = new Map(); let nm = 0, nl = 0, nb = 0, rest = restNS;
       for (const mc of STAGES) {
         for (let i = first; i < ordered.length && page.length < per; i++) {
-          if (used[i]) continue;
+          if (used[i] || taken.has(i)) continue;
           const x = ordered[i];
-          if (x.soft && restNS > 0) continue;
+          if (x.soft && rest > 0) continue;
           if (mc && o.moreCap != null && more(x) && nm >= o.moreCap) continue;
           if (mc && o.lessCap != null && less(x) && nl >= o.lessCap) continue;
           if (o.bigCap != null && big(x) && nb >= o.bigCap) continue;
-          if ((x.g.some(id => !ex.has(id) && (cG.get(id) || 0) >= capG) || x.r.some(id => !ex.has(id) && (cR.get(id) || 0) >= capR))) continue;
-          used[i] = 1; page.push(x); if (!x.soft) restNS--; if (more(x)) nm++; if (less(x)) nl++; if (big(x)) nb++;
+          if (x.g.some(id => !ex.has(id) && (cG.get(id) || 0) >= capG) || x.r.some(id => !ex.has(id) && (cR.get(id) || 0) >= cr)) continue;
+          taken.add(i); page.push(i); if (!x.soft) rest--; if (more(x)) nm++; if (less(x)) nl++; if (big(x)) nb++;
           for (const id of x.g) cG.set(id, (cG.get(id) || 0) + 1);
           for (const id of x.r) cR.set(id, (cR.get(id) || 0) + 1);
         }
         if (page.length >= per) break;
       }
+      return page;
+    };
+    while (out.length < ordered.length && out.length < keep) {
+      // njegov igrač najviše capR; ako bi strana imala manje od minFill predloga, granica se podiže na capRHi (nikad više)
+      let idx = build(capR);
+      if (idx.length < minFill && capRHi > capR) { const hi = build(capRHi); if (hi.length > idx.length) idx = hi; }
+      if (!idx.length) break;
+      const page = idx.map(i => ordered[i]);
+      for (const i of idx) { used[i] = 1; if (!ordered[i].soft) restNS--; }
       while (first < ordered.length && used[first]) first++;
-      if (!page.length) break;
-      for (const x of page) x.pg = pg;
+      for (const x of page) { x.pg = pg; delete x.pgShort; }
+      // i dalje manje od minFill, a ima još predloga: napomena na prvom predlogu strane
+      if (minFill && page.length < minFill && first < ordered.length) page[0].pgShort = true;
       out.push(...page); pg++;
     }
     return out;
@@ -1932,6 +1946,7 @@ const EN = {
   "Otvoreni trejdovi": "Open trades",
   "Otvori u analizi": "Open in Trade analyzer",
   "Otvori trejd": "Open in Trade analyzer",
+  "Na ovoj strani je {n} predloga. Ostali bi ponovili istog igrača više puta nego što je dozvoljeno (tvoj najviše u 3 predloga, njegov u 2, a kad bi strana bila kraća od 6, u 3).": "This page has {n} proposals. The others would repeat the same player more often than allowed (yours in at most 3 proposals, theirs in 2, or 3 when the page would have fewer than 6).",
   "Bez utakmica ove sezone": "No games this season",
   "Vrednost je iz ESPN projekcije, uz popust za neizvesnu ulogu.": "The value comes from the ESPN projection, with a discount for the uncertain role.",
   "Vrednost je iz prošle sezone, uz popust za neizvesnu ulogu.": "The value comes from last season, with a discount for the uncertain role.",
@@ -11185,9 +11200,10 @@ function tfResultsHTML(M, ctx) {
   const fe = fltEff('tf', ctx.scopeKey);
   M.flt = fe; M.fltHit = fe ? tfFltHits(M, fe) : null; // oznaka na kartici za igrače koji prolaze filtere
   const items = tfEngineLocal().pageItems(res.list, S.page, TF.PER_PAGE);
+  const short = items[0]?.pgShort ? `<p class="pnote">${t('Na ovoj strani je {n} predloga. Ostali bi ponovili istog igrača više puta nego što je dozvoljeno (tvoj najviše u 3 predloga, njegov u 2, a kad bi strana bila kraća od 6, u 3).', { n: items.length })}</p>` : '';
   const more = res.list[0]?.pg != null ? res.list.some(x => x.pg > S.page) : (S.page + 1) * TF.PER_PAGE < res.list.length;
   const picks = items.map(x => tfVetoCand(M, x)), shown = tfVetoShown(picks, TF.VETO_MAX); // savet samo gde je dopuna najočiglednija
-  return `<h3 class="fa-h">${t('Predlozi')}</h3>${fNote}<div class="tf-cards">${items.map((x, k) => tfCardHTML(M, x, S.page * TF.PER_PAGE + k, shown.has(k) ? picks[k] : null)).join('')}</div>
+  return `<h3 class="fa-h">${t('Predlozi')}</h3>${fNote}${short}<div class="tf-cards">${items.map((x, k) => tfCardHTML(M, x, S.page * TF.PER_PAGE + k, shown.has(k) ? picks[k] : null)).join('')}</div>
     <div class="tf-more">${more ? `<button type="button" class="btn sec" data-action="tf-more">${t('Generiši novih 8')}</button>` : `<span class="tf-more-tip" tabindex="0" data-tip="${esc(t('To su svi predlozi za ovaj izbor.'))}"><button type="button" class="btn sec" disabled>${t('Generiši novih 8')}</button></span>`}</div>`;
 }
 /** Telo alata (liga i javna stranica) */

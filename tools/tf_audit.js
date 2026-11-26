@@ -282,7 +282,7 @@
         const jobs = [];
         for (const strat of STRATS) for (const slider of SLIDERS) {
           const focus = strat === 'cats' && !M.pts ? weak.map(w => w.key) : [];
-          const inp = A.input(M, { strat, slider, focus }); inp.__dbg = {};
+          const inp = A.input(M, { strat, slider, focus }); inp.__dbg = { ordered: true }; // pravi redosled po rangu (provera pravila 5)
           jobs.push(P0.run(inp).then(d => ({ strat, slider, inp, d })));
         }
         const got = await Promise.all(jobs);
@@ -290,12 +290,15 @@
         for (const { strat, slider, inp, d } of got) {
           const page = pg0(d.r.list), tag = `${lg.name} · ${lg.opps[oppKey].name} · ${strat}/${slider}`;
           pages[`${strat}/${slider}`] = page.map(key).sort().join(';');
-          out.runs.push({ lg: lg.name, opp: lg.opps[oppKey].name, strat, slider, n: d.r.list.length, page: page.length, ms: d.ms, tierN: d.r.dbg?.tierN, ordN: d.r.dbg?.ordN, st: { pairs: d.r.stats.pairs, value: d.r.stats.value, cats: d.r.stats.cats, gain: d.r.stats.gain, strat: d.r.stats.strat, conv: d.r.stats.conv }, slots: page.filter(x => x.mf > 0).length, drops: page.filter(x => x.md.length).length, convN: page.filter(x => x.conv).length });
+          out.runs.push({ lg: lg.name, opp: lg.opps[oppKey].name, strat, slider, n: d.r.list.length, page: page.length, pgN: new Set(d.r.list.map(y => y.pg)).size, ms: d.ms, tierN: d.r.dbg?.tierN, ordN: d.r.dbg?.ordN, st: { pairs: d.r.stats.pairs, value: d.r.stats.value, cats: d.r.stats.cats, gain: d.r.stats.gain, strat: d.r.stats.strat, conv: d.r.stats.conv }, slots: page.filter(x => x.mf > 0).length, drops: page.filter(x => x.md.length).length, convN: page.filter(x => x.conv).length });
           if (!page.length) out.emptyRuns++;
           const cntG = new Map(), cntR = new Map();
+          const T0 = TF, more0 = T0.GET_MORE_STRATS.includes(strat);
+          const strictShort = page.length > 0 && A.E.paginate((d.r.dbg?.ordered || d.r.list).map(y => ({ ...y })), { per: T0.PER_PAGE, capG: T0.DIV_MINE, capR: T0.DIV_THEIRS, capRHi: T0.DIV_THEIRS, minFill: 0, moreCap: more0 ? T0.GET_MORE_MAX : null, lessCap: more0 ? T0.GIVE_MORE_MAX : null, bigCap: T0.BIG_PER_PAGE }).filter(y => y.pg === 0).length < (T0.DIV_MIN_FILL || 0);
+          if (strictShort) out.raised = (out.raised || 0) + 1;
           for (const x of page) { x.g.forEach(id => cntG.set(id, (cntG.get(id) || 0) + 1)); x.r.forEach(id => cntR.set(id, (cntR.get(id) || 0) + 1)); }
           const ps = out.perStrat[strat] || (out.perStrat[strat] = { n: 0, any: 0, rules: {}, sizes: {}, pages: 0, repPages: 0, slots: 0 });
-          if (page.length) { ps.pages++; const repG = [...cntG].filter(([, c]) => c > 3), repR = [...cntR].filter(([, c]) => c > 2); if (repG.length || repR.length) { ps.repPages++; out.repPages = (out.repPages || 0) + 1; } out.pages = (out.pages || 0) + 1; }
+          if (page.length) { ps.pages++; const repG = [...cntG].filter(([, c]) => c > 3), repR = [...cntR].filter(([, c]) => c > (strictShort ? 3 : 2)); if (repG.length || repR.length) { ps.repPages++; out.repPages = (out.repPages || 0) + 1; } out.pages = (out.pages || 0) + 1; }
           ps.slots += page.filter(x => x.mf > 0).length;
           for (const x of page) {
             const J = A.judge(M, inp, x), v = [];
@@ -316,8 +319,8 @@
               const nBig = page.filter(y => Math.max(y.g.length, y.r.length) > 3).length;
               if (x.gain < bar - 1e-9 || nBig > TF.BIG_PER_PAGE) { v.push(4); push(4, nBig + Math.max(0, bar - x.gain), desc); }
             }
-            // 5. ponavljanje na strani od 8
-            const rep = x.g.some(id => cntG.get(id) > 3) || x.r.some(id => cntR.get(id) > 2);
+            // 5. ponavljanje na strani od 8 (tuning-v2, srednje rešenje): moj najviše 3; njegov najviše 2, a 3 samo kad strana sa granicom 2 ne bi imala 6
+            const rep = x.g.some(id => cntG.get(id) > 3) || x.r.some(id => cntR.get(id) > (strictShort ? 3 : 2));
             if (rep) { v.push(5); push(5, Math.max(...x.g.map(id => cntG.get(id)), ...x.r.map(id => cntR.get(id))), { ...desc, txt: `${tag}: ${[...cntG].filter(([, c]) => c > 3).map(([id, c]) => `${nm(id)} (moj) ${c}/8`).concat([...cntR].filter(([, c]) => c > 2).map(([id, c]) => `${nm(id)} ${c}/8`)).join(', ')}` }); }
             // 7. ne odgovara imenu strategije
             if (!stratOk(strat, M, x, J, P, weak)) { v.push(7); push(`7-${strat}`, strat === 'best' ? -J.gain : 1, desc); }

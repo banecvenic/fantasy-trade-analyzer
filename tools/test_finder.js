@@ -752,4 +752,29 @@ test('raznovrsnost: njegov igrač najviše u 2 od 8; U trejd je izuzet', () => {
   assert.deepStrictEqual([TF.DIV_MINE, TF.DIV_THEIRS, TF.FLT_FEW], [3, 2, 3]);
 });
 
+test('srednje rešenje: njegov igrač 2 od 8, a 3 kad bi strana imala manje od 6; nikad više', () => {
+  const X = (i, r, g = 100 + i) => ({ core: `c${i}`, s: 10 - i, g: [g], r });
+  // 9 predloga, svi sa njegovim igračem 50 ili 51: uz granicu 2 strana bi imala 4 (< 6), pa granica postaje 3
+  const L = [0, 1, 2, 3, 4, 5, 6, 7, 8].map(i => X(i, [i % 2 ? 51 : 50]));
+  const o = { per: 8, capG: 3, capR: 2, capRHi: 3, minFill: 6 };
+  const P = E.paginate(L, o), p0 = P.filter(x => x.pg === 0);
+  assert.strictEqual(p0.length, 6);
+  for (const id of [50, 51]) assert.ok(p0.filter(x => x.r.includes(id)).length <= 3);
+  assert.ok(p0[0].pgShort === undefined); // 6 predloga: bez napomene
+  // uz granicu 2 strana ima 7 (>= 6): granica ostaje 2
+  const M = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => X(i, [200 + Math.floor(i / 3)]));
+  const q0 = E.paginate(M, o).filter(x => x.pg === 0);
+  assert.strictEqual(q0.length, 7);
+  for (const id of [200, 201, 202, 203]) assert.ok(q0.filter(x => x.r.includes(id)).length <= 2);
+  // ni sa 3 nema 6: koliko ima, uz napomenu (ima još predloga)
+  const S = [0, 1, 2, 3, 4].map(i => X(i, [70]));
+  const s0 = E.paginate(S, o);
+  assert.strictEqual(s0.filter(x => x.pg === 0).length, 3);
+  assert.strictEqual(s0[0].pgShort, true);
+  // moj igrač i dalje najviše 3
+  const G = [0, 1, 2, 3, 4, 5].map(i => X(i, [300 + i], 9));
+  assert.strictEqual(E.paginate(G, o).filter(x => x.pg === 0).length, 3);
+  assert.deepStrictEqual([TF.DIV_THEIRS_HI, TF.DIV_MIN_FILL], [3, 6]);
+});
+
 console.log(`\n${n} testova prošlo`);

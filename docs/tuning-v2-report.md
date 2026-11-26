@@ -21,6 +21,27 @@ Grana `tuning-v2`, od `main` (2fe7f4c). Ništa nije objavljeno.
 
 Polazna tačka nije ista kao kraj tuning-v1: dopuna strane do 8 (commit 2fe7f4c, posle završnog merenja tuning-v1) popuštala je raznovrsnost i ograničenje za 4 igrača, pa su pravila 4 i 5 ponovo rasla.
 
+
+## Srednje rešenje za raznovrsnost (tvoja odluka posle koraka 1)
+
+- Njegov igrač najviše 2 puta na strani od 8. Ako bi strana tako imala manje od 6 predloga, granica se za tu stranu podiže na 3, nikad više (`TF.DIV_THEIRS_HI = 3`, `TF.DIV_MIN_FILL = 6`). Moj igrač ostaje najviše 3. U trejd i retki igrači koji prolaze filtere su izuzeti kao i do sada; zaključani igrači ionako ne ulaze u trejd.
+- Ako ni sa granicom 3 nema 6 predloga, a ima još predloga za sledeće strane, prikazuje se koliko ima, uz napomenu (vraćena napomena iz koraka 5 tuning-v1, dopunjena pravilom).
+- Pravilo 5 u proveri je usklađeno: granica 3 za njegovog igrača je dozvoljena samo kad strana sa granicom 2 (računata na pravom redosledu po rangu) ne bi imala 6 predloga.
+
+| 202 prve strane (3 lige, 234 pretrage, bez praznih) | Strogo (2 od 8) | Srednje rešenje |
+|---|---|---|
+| Pune strane (8) | vidi napomenu | **52** |
+| Prva strana, prosečno predloga | vidi napomenu | **6,0** |
+| Sve strane, prosečno predloga | vidi napomenu | **5,5** |
+| Prve strane sa bar 6 predloga | | 160 |
+| Granica podignuta na 3 | | 87 pretraga |
+| Pravila 1 do 7 | 0 | 0 |
+| Predloga na prvim stranama | 1.095 | 1.210 |
+
+Raspodela prve strane: 1: 17, 2: 4, 3: 11, 4: 6, 5: 4, 6: 64, 7: 44, 8: 52. Strane sa 1 do 3 predloga su pretrage koje ukupno imaju malo predloga (najviše Konsolidacija).
+
+Napomena: strogo pravilo sam merio samo na NBA tviter ligi (13 protivnika × 6 strategija, Fer): pune prve strane 16 od 64, prosečna strana oko 4,2 predloga.
+
 ## Korak 1: sitne greške i tekstovi
 
 **1.1 Ne želim.** Protivnički igrač ima dugme „Ne želim” (EN „Exclude”) sa ikonom ⊘ i tooltipom „Ovaj igrač neće biti u predlozima”. U podacima je to ista oznaka kao ranije, pa postojeće oznake ostaju. Moji igrači i dalje imaju „Zaključaj” sa katancem. Mete za trejd nemaju isključivanje protivničkih igrača (samo „Ne dam” za moje i listu želja), pa tamo nema šta da se menja. Savet kad nema predloga sada razlikuje „zaključaj manje igrača” i „isključi manje igrača (Ne želim)”.
