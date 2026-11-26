@@ -216,7 +216,7 @@ U NBA tviter rosterima je 29 igrača kojima uloga raste (npr. Barnes, Castle, Cl
 | Konsolidacija | najbolji igrač u trejdu (stvarna vrednost) dolazi meni |
 | Dubina | bar jedan igrač više ulazi u moju postavu nego što iz nje izlazi |
 | Prodaj skupo / Kupi jeftino | rang po ceni na tržištu bolji (lošiji) od ranga po stvarnoj vrednosti za bar 15 mesta |
-| Raznovrsnost (strana od 8) | moj igrač u najviše 3, njegov u najviše 2; ne popušta (kraća strana uz objašnjenje); izuzeti „U trejd” i igrači koji prolaze filter kad ih je 3 ili manje |
+| Raznovrsnost (strana od 8) | moj igrač u najviše 3, njegov u najviše 2; popušta samo kad bi strana ostala kraća od 8, a ima još predloga; izuzeti „U trejd” i igrači koji prolaze filter kad ih je 3 ili manje |
 | 4 igrača na strani | samo kad korist pobedi najbolji trejd do 3 po strani za 0,10 (poeni 1,0); najviše 1 na strani |
 | Veličina | manji trejd ide ispred većeg kad je razlika u oceni manja od 0,07 |
 | „Dajem ako mora” | trejdovi sa njim tek posle svih ostalih |
@@ -321,7 +321,7 @@ Konstante su u `TF` sa komentarima (`LIMITS`, `TRADE_WIDEN`, `CARD_SD`, `BEST_*`
 4. **„Dajem ako mora”** je strože od plana: trejdovi sa njim idu tek posle svih ostalih, a ne „u prvih 5 samo kad je korist jasno veća”.
 5. **Pravilo 4 je redefinisano:** strana sa 4 igrača je dozvoljena kad korist pobedi najbolji manji trejd za 0,10, najviše 1 na strani. Važi za sve strategije, i Konsolidaciju i Dubinu. Sirov broj trejdova sa 4 igrača: 58 (polazno 453).
 6. **TF.ROLE.W ostaje 0**, a strogi prag je isključen (deo 5). W 1 prazni FA.
-7. **Raznovrsnost ne popušta**, pa su strane kraće: 1.076 predloga umesto 1.596. Kratka strana ima objašnjenje.
+7. **Strana se uvek popunjava do 8** kad ima još predloga (izmena posle pregleda). Raznovrsnost, ograničenje za više/manje igrača i za 4 igrača popuštaju tim redom, samo koliko treba da se strana popuni. „Generiši novih 8” je zaključano kad su prikazani svi predlozi. Merenje u delu 2 (1.076 predloga, nula kršenja) je urađeno pre ove izmene, sa kraćim stranama; na pravom ulazu za Lajkovacka pruga sada je 50 punih strana, a na prvoj je moj igrač i dalje u najviše 3 predloga.
 8. **Popravi kategorije** sada mora da dobije bar jednu izabranu kategoriju i na kartici. To je dodato da ime strategije odgovara rezultatu (pravilo 7).
 9. **Mete za trejd:** mogući trejd za izabranu metu koristi opšte pravilo (nerešena kartica), ne +2.
 10. **Režimi** daju istu prvu stranu kad ima 1 do 6 predloga (deo 7).

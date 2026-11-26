@@ -1395,9 +1395,9 @@ function tfEngine() {
   }
   /** Slaganje strana od per predloga, redom po rangu. Na svakoj strani: isto jezgro samo jednom; isti moj igrač najviše u capG predloga,
       isti njegov u capR (osim izuzetih: U trejd, retki igrači koji prolaze filtere); najviše bigCap trejdova sa 4 igrača na nekoj strani;
-      najviše moreCap (lessCap) trejdova gde dobijam (dajem) više igrača, a to jedino popušta kad strana ne može da se popuni.
-      Raznovrsnost ne popušta: strana tada ima manje predloga (x.pgShort na prvom). "Dajem ako mora" (x.soft) dolazi tek posle svih ostalih.
-      Svaki predlog dobija broj strane (x.pg). keep: koliko predloga ukupno. */
+      najviše moreCap (lessCap) trejdova gde dobijam (dajem) više igrača. Strana se uvek popunjava do per kad ima još predloga:
+      ograničenja popuštaju redom (više/manje igrača, pa raznovrsnost, pa 4 igrača) samo koliko treba da se strana popuni.
+      "Dajem ako mora" (x.soft) dolazi tek kad nema više ostalih. Svaki predlog dobija broj strane (x.pg). keep: koliko predloga ukupno. */
   function paginate(list, o = {}) {
     const per = o.per || 8, capG = o.capG ?? 3, capR = o.capR ?? 2, ex = o.exempt || new Set(), keep = o.keep ?? Infinity;
     const seen = new Set(), pool = [];
@@ -1406,21 +1406,22 @@ function tfEngine() {
     const ordered = [...pool.filter(x => !x.soft), ...pool.filter(x => x.soft)];
     const more = x => !!(x.r && x.g && x.r.length > x.g.length), less = x => !!(x.r && x.g && x.g.length > x.r.length), big = x => Math.max(x.g?.length || 0, x.r?.length || 0) >= 4;
     const used = new Uint8Array(ordered.length), out = [];
+    let restNS = ordered.filter(x => !x.soft).length; // ostali (ne "Dajem ako mora") koji još nisu prikazani
+    // koraci popuštanja: [više/manje igrača, raznovrsnost, 4 igrača]
+    const STAGES = [[true, true, true], [false, true, true], [false, false, true], [false, false, false]];
     let first = 0, pg = 0;
     while (out.length < ordered.length && out.length < keep) {
       const page = [], cG = new Map(), cR = new Map(); let nm = 0, nl = 0, nb = 0;
-      // "Dajem ako mora" ulazi tek kad nema više ostalih (ni na kasnijim stranama)
-      const softOk = !ordered.some((x, i) => !used[i] && !x.soft);
-      for (const mc of [true, false]) {
+      for (const [mc, dv, bc] of STAGES) {
         for (let i = first; i < ordered.length && page.length < per; i++) {
           if (used[i]) continue;
           const x = ordered[i];
-          if (x.soft && !softOk) continue;
+          if (x.soft && restNS > 0) continue;
           if (mc && o.moreCap != null && more(x) && nm >= o.moreCap) continue;
           if (mc && o.lessCap != null && less(x) && nl >= o.lessCap) continue;
-          if (o.bigCap != null && big(x) && nb >= o.bigCap) continue;
-          if (x.g.some(id => !ex.has(id) && (cG.get(id) || 0) >= capG) || x.r.some(id => !ex.has(id) && (cR.get(id) || 0) >= capR)) continue;
-          used[i] = 1; page.push(x); if (more(x)) nm++; if (less(x)) nl++; if (big(x)) nb++;
+          if (bc && o.bigCap != null && big(x) && nb >= o.bigCap) continue;
+          if (dv && (x.g.some(id => !ex.has(id) && (cG.get(id) || 0) >= capG) || x.r.some(id => !ex.has(id) && (cR.get(id) || 0) >= capR))) continue;
+          used[i] = 1; page.push(x); if (!x.soft) restNS--; if (more(x)) nm++; if (less(x)) nl++; if (big(x)) nb++;
           for (const id of x.g) cG.set(id, (cG.get(id) || 0) + 1);
           for (const id of x.r) cR.set(id, (cR.get(id) || 0) + 1);
         }
@@ -1428,8 +1429,6 @@ function tfEngine() {
       }
       while (first < ordered.length && used[first]) first++;
       if (!page.length) break;
-      // kraća strana: ostali predlozi bi prekršili raznovrsnost (ili su "Dajem ako mora", a ima ostalih)
-      if (page.length < per && first < ordered.length) page[0].pgShort = true;
       for (const x of page) x.pg = pg;
       out.push(...page); pg++;
     }
@@ -2649,7 +2648,6 @@ const EN = {
   "Ostaje ti slobodno mesto. Ne računa se u trejd: trejd je dobar i bez igrača sa waivera.": "You keep an open roster spot. It does not count in the trade: the trade works without a waiver pickup.",
   "Dobijaš slobodno mesto za igrača sa waivera.": "You get an open spot for a waiver pickup.",
   "Zašto bi prihvatio": "Why they might accept",
-  'Na ovoj strani je {n} predloga. Ostali bi ponovili istog igrača više puta nego što je dozvoljeno (tvoj najviše u 3 od 8, njegov u 2 od 8).': 'This page has {n} proposals. The others would repeat the same player more often than allowed (yours in at most 3 of 8, theirs in 2 of 8).',
   'Dobija najboljeg igrača u trejdu ({p}).': 'They get the best player in the trade ({p}).',
   'Najviše mu raste {c}, gde je {n}. u ligi.': 'Their biggest gain is {c}, where they are {o} in the league.',
   'Najviše mu raste {c}.': 'Their biggest gain is {c}.',
@@ -11134,11 +11132,9 @@ function tfResultsHTML(M, ctx) {
   M.flt = fe; M.fltHit = fe ? tfFltHits(M, fe) : null; // oznaka na kartici za igrače koji prolaze filtere
   const items = tfEngineLocal().pageItems(res.list, S.page, TF.PER_PAGE);
   const more = res.list[0]?.pg != null ? res.list.some(x => x.pg > S.page) : (S.page + 1) * TF.PER_PAGE < res.list.length;
-  // kraća strana: ostali predlozi bi ponovili istog igrača više nego što je dozvoljeno
-  const short = items[0]?.pgShort ? `<p class="pnote">${t('Na ovoj strani je {n} predloga. Ostali bi ponovili istog igrača više puta nego što je dozvoljeno (tvoj najviše u 3 od 8, njegov u 2 od 8).', { n: items.length })}</p>` : '';
   const picks = items.map(x => tfVetoCand(M, x)), shown = tfVetoShown(picks, TF.VETO_MAX); // savet samo gde je dopuna najočiglednija
-  return `<h3 class="fa-h">${t('Predlozi')}</h3>${fNote}${short}<div class="tf-cards">${items.map((x, k) => tfCardHTML(M, x, S.page * TF.PER_PAGE + k, shown.has(k) ? picks[k] : null)).join('')}</div>
-    <div class="tf-more">${more ? `<button type="button" class="btn sec" data-action="tf-more">${t('Generiši novih 8')}</button>` : `<span class="hint">${t('To su svi predlozi za ovaj izbor.')}</span>`}</div>`;
+  return `<h3 class="fa-h">${t('Predlozi')}</h3>${fNote}<div class="tf-cards">${items.map((x, k) => tfCardHTML(M, x, S.page * TF.PER_PAGE + k, shown.has(k) ? picks[k] : null)).join('')}</div>
+    <div class="tf-more"><button type="button" class="btn sec" data-action="tf-more"${more ? '' : ' disabled'}>${t('Generiši novih 8')}</button>${more ? '' : ` <span class="hint">${t('To su svi predlozi za ovaj izbor.')}</span>`}</div>`;
 }
 /** Telo alata (liga i javna stranica) */
 function tfBodyHTML() {

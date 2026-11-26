@@ -130,14 +130,16 @@ test('zaključan igrač se ni ne otpušta; primalac ne dobija igrača kog bi odm
   }
 });
 
-test('raznovrsnost: isto jezgro samo jednom; moj igrač najviše u 3 od 8, ne popušta (kraća strana)', () => {
+test('raznovrsnost: isto jezgro samo jednom; moj igrač najviše u 3, a popušta samo da se strana popuni', () => {
   const X = (core, g, r) => ({ core, g, r, s: 1, n: g.length + r.length });
   const L = [X('a|b', [1], [5]), X('a|b', [1], [5]), X('a|c', [1], [6]), X('a|d', [1], [7]), X('a|e', [1], [8]), X('f|b', [2], [5])];
+  // 5 različitih jezgara, strana od 8: sve staju na prvu stranu (četvrti sa igračem 1 tek na kraju strane)
   const out = E.diversify(L, 8, 3);
   assert.deepStrictEqual(out.map(x => x.core), ['a|b', 'a|c', 'a|d', 'f|b', 'a|e']);
-  assert.deepStrictEqual(out.map(x => x.pg), [0, 0, 0, 0, 1]); // četvrti sa igračem 1 ide na sledeću stranu
-  assert.strictEqual(out[0].pgShort, true);                   // prva strana je kraća, uz razlog
-  assert.deepStrictEqual(E.pageItems(out, 0, 8).map(x => x.core), ['a|b', 'a|c', 'a|d', 'f|b']);
+  assert.ok(out.every(x => x.pg === 0));
+  // strana od 4: četvrti sa igračem 1 ide na sledeću stranu, jer ima drugih
+  const o4 = E.diversify(L, 4, 3);
+  assert.deepStrictEqual(o4.map(x => [x.core, x.pg]), [['a|b', 0], ['a|c', 0], ['a|d', 0], ['f|b', 0], ['a|e', 1]]);
 });
 
 test('IR igrač ulazi u kombinacije samo ako je obeležen U trejd', () => {
@@ -723,8 +725,10 @@ test('strana sa 4 igrača: samo kad korist pobedi najbolji manji trejd za 0,10; 
   for (const p of new Set(L.map(x => x.pg))) assert.ok(E.pageItems(L, p, 8).filter(big).length <= 1, `strana ${p + 1}`);
   // straničenje samo: dva trejda sa 4 igrača na vrhu, drugi ide na sledeću stranu
   const T = (i, kG, kR) => ({ core: `c${i}`, s: 10 - i, g: Array.from({ length: kG }, (_, k) => i * 10 + k), r: Array.from({ length: kR }, (_, k) => 500 + i * 10 + k) });
-  const P = E.paginate([T(0, 4, 4), T(1, 3, 4), T(2, 2, 2), T(3, 1, 1)], { per: 8, bigCap: 1 });
-  assert.deepStrictEqual(P.map(x => [x.core, x.pg]), [['c0', 0], ['c2', 0], ['c3', 0], ['c1', 1]]);
+  const P = E.paginate([T(0, 4, 4), T(1, 3, 4), T(2, 2, 2), T(3, 1, 1), T(4, 2, 2)], { per: 4, bigCap: 1 });
+  assert.deepStrictEqual(P.map(x => [x.core, x.pg]), [['c0', 0], ['c2', 0], ['c3', 0], ['c4', 0], ['c1', 1]]);
+  // bez drugih predloga strana se popunjava i drugim sa 4 igrača
+  assert.ok(E.paginate([T(0, 4, 4), T(1, 3, 4), T(2, 2, 2)], { per: 8, bigCap: 1 }).every(x => x.pg === 0));
 });
 
 test('manji trejd ispred većeg kad je razlika u oceni manja od 0,07', () => {
@@ -736,8 +740,10 @@ test('manji trejd ispred većeg kad je razlika u oceni manja od 0,07', () => {
 test('raznovrsnost: njegov igrač najviše u 2 od 8; U trejd je izuzet', () => {
   const X = (i, g, r) => ({ core: `c${i}`, s: 10 - i, g: [g], r: [r] });
   const L = [X(0, 1, 50), X(1, 2, 50), X(2, 3, 50), X(3, 4, 51), X(4, 5, 50)];
-  assert.deepStrictEqual(E.paginate(L, { per: 8, capG: 3, capR: 2 }).map(x => [x.core, x.pg]), [['c0', 0], ['c1', 0], ['c3', 0], ['c2', 1], ['c4', 1]]);
-  assert.ok(E.paginate(L, { per: 8, capG: 3, capR: 2, exempt: new Set([50]) }).every(x => x.pg === 0));
+  // strana od 3: treći sa igračem 50 čeka, jer ima drugih; na strani od 8 sve staje (popunjavanje)
+  assert.deepStrictEqual(E.paginate(L, { per: 3, capG: 3, capR: 2 }).map(x => [x.core, x.pg]), [['c0', 0], ['c1', 0], ['c3', 0], ['c2', 1], ['c4', 1]]);
+  assert.deepStrictEqual(E.paginate(L, { per: 3, capG: 3, capR: 2, exempt: new Set([50]) }).map(x => x.pg), [0, 0, 0, 1, 1]);
+  assert.ok(E.paginate(L, { per: 8, capG: 3, capR: 2 }).every(x => x.pg === 0));
   assert.deepStrictEqual([TF.DIV_MINE, TF.DIV_THEIRS, TF.FLT_FEW], [3, 2, 3]);
 });
 
