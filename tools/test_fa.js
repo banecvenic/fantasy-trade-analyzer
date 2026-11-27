@@ -1,7 +1,7 @@
 // Testovi za Pojačanja sa FA: lista FA igrača, par kao trejd 1 za 1 (zbirovi tima), pravila za otpuštanje, Trejd kandidat,
 // ručni izbor sa upozorenjem, prag, mešavina perioda sa malim uzorkom, IR stash, javna lista u usponu, stranice tabele.
 // Pokretanje: node tools/test_fa.js
-// Izvršava se deo app.js od "Vrednost igrača: čiste funkcije" do "kraj: FA, čiste funkcije" (FA koristi needWeights iz vrednosti).
+// Izvršava se deo app.js od "Vrednost igrača: čiste funkcije" do "kraj: FA, čiste funkcije".
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -12,7 +12,7 @@ const start = src.indexOf('   Vrednost igrača: čiste funkcije');
 const end = src.indexOf('/* ==== kraj: FA, čiste funkcije ==== */');
 if (start < 0 || end < 0) throw new Error('Nije nađen FA modul u app.js');
 const code = src.slice(src.lastIndexOf('/*', start), end);
-const F = new Function(`${code}\nreturn { FA, VALUE, freeAgentIds, blendWeights, blendValue, blendLine, sumLines, swapTotals, expWins, leagueSpread, pairGain, pairScore, canDrop, dropVerdict, faSuggest, tradeCandidates, pageOf, rotationSignals, watchList, irStash, publicRising, startShares };`)();
+const F = new Function(`${code}\nreturn { FA, VALUE, freeAgentIds, blendWeights, blendValue, blendLine, sumLines, swapTotals, expWins, leagueSpread, pairGain, canDrop, dropVerdict, faSuggest, tradeCandidates, pageOf, rotationSignals, watchList, irStash, publicRising, startShares };`)();
 
 let n = 0;
 const test = (name, fn) => { fn(); n++; console.log(`ok  ${name}`); };
@@ -87,11 +87,6 @@ test('par se računa preko zbirova tima: izbacivanje igrača koji nosi jaku kate
   const outB = F.pairGain(ctx, fa, myLines.b), outC = F.pairGain(ctx, fa, myLines.c);
   assert.ok(outC.gain > outB.gain, `${outC.gain} > ${outB.gain}`); // c je slabiji po opštem utisku, ali b nosi AST
   assert.ok(outB.by.AST < 0);
-  // FG% se računa ponderisano iz zbirova (made/att), ne kao prosek procenata
-  const sc = F.pairScore(CATS3, ctx.tot, fa, myLines.c);
-  near(sc.d.FGP.after, (19 + 6 - 6) / (41 + 13 - 13));
-  assert.strictEqual(sc.res.PTS, 1); assert.strictEqual(sc.res.AST, -1);
-  assert.strictEqual(sc.win, 1); assert.strictEqual(sc.lose, 1);
 });
 
 const mine = [
@@ -189,9 +184,7 @@ test('otpuštanje po obe vrednosti: obe ispod realne zamene = otpust; niska stva
   assert.strictEqual(F.dropVerdict({ rv: -39, mv: -18, own: 60 }, slot), 'trade');      // vlasništvo od praga naviše
   assert.strictEqual(F.dropVerdict({ rv: -39, mv: -18, own: 10 }, slot, { locked: true }), 'keep');
   assert.strictEqual(F.dropVerdict({ rv: -39, mv: -18, own: 10, ir: true }, slot), 'keep');
-  assert.strictEqual(F.dropVerdict({ rv: -66.8, mv: -1.4, own: 30 }, slot, { margin: 3 }), 'drop'); // DROP_PRICE_MARGIN
   assert.strictEqual(F.dropVerdict({ rv: null, mv: -20, own: 10 }, slot), 'keep');                  // bez stvarne vrednosti
-  assert.deepStrictEqual([F.FA.DROP_PRICE_MARGIN, F.FA.REAL_PROJ_FADE_GP, F.FA.REAL_PROJ_FLOOR], [0, F.FA.PROJ_FADE_GP, F.FA.PROJ_FLOOR]); // tuning-v2: ista projekcija kao cena
 });
 
 test('FA alat uz realnu zamenu: Trejd kandidat nije otpust; bez ijednog otpusta nema predloga', () => {
@@ -207,8 +200,7 @@ test('FA alat uz realnu zamenu: Trejd kandidat nije otpust; bez ijednog otpusta 
 
 test('stvarna vrednost: projekcija kao kod cene (25 utakmica, najmanje 0,25); kratki periodi po odigranim minutima', () => {
   const gp = { proj: 1, season: 30, l15: 6, l7: 3 };
-  const real = F.blendWeights(gp, F.FA.BLEND, F.FA.BLEND_FULL_GP, F.FA.REAL_PROJ_FLOOR, F.FA.REAL_PROJ_FADE_GP);
-  assert.deepStrictEqual(real, F.blendWeights(gp)); // ista mešavina kao cena na tržištu
+  const real = F.blendWeights(gp); // ista mešavina kao cena na tržištu (jedna konstanta PROJ_FADE_GP i PROJ_FLOOR)
   assert.ok(real.proj > 0);
   // vruć niz: 3 utakmice po 30 minuta u 7 dana vrede manje nego 4 utakmice po 36 minuta
   const K = F.FA.SHORT_MIN_K; assert.strictEqual(K, 300);

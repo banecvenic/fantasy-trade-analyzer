@@ -12,11 +12,11 @@ const start = src.indexOf('   Fer trejd: čiste funkcije');
 const end = src.indexOf('/* ==== kraj: Fer trejd, čiste funkcije ==== */');
 if (start < 0 || end < 0) throw new Error('Nije nađen modul Fer trejd u app.js');
 const code = src.slice(src.lastIndexOf('/*', start), end);
-const { TF, E, tfMarket, tfVetoPick, tfVetoShown, tfDropOk, tfTabFor, tfSlotValue, tfProd, tfRateKey, tfRateApply, tfInjury, tfInjFrac, tfNewsWeeks, tfLate, tfVetoSizeOk, tfShapeOf, tfShapeOk } = new Function(`${code}\nreturn { TF, E: tfEngine(), tfMarket, tfVetoPick, tfVetoShown, tfVetoSizeOk, tfDropOk, tfTabFor, tfSlotValue, tfProd, tfRateKey, tfRateApply, tfInjury, tfInjFrac, tfNewsWeeks, tfLate, tfShapeOf, tfShapeOk };`)();
+const { TF, E, tfMarket, tfVetoPick, tfVetoShown, tfTabFor, tfSlotValue, tfProd, tfRateKey, tfRateApply, tfInjury, tfInjFrac, tfNewsWeeks, tfLate, tfVetoSizeOk, tfShapeOf, tfShapeOk } = new Function(`${code}\nreturn { TF, E: tfEngine(), tfMarket, tfVetoPick, tfVetoShown, tfVetoSizeOk, tfTabFor, tfSlotValue, tfProd, tfRateKey, tfRateApply, tfInjury, tfInjFrac, tfNewsWeeks, tfLate, tfShapeOf, tfShapeOk };`)();
 // i motor kao tekst (kako ga dobija Web Worker) mora da radi samostalno
 const E2 = new Function(`return (${new Function(`${code}\nreturn tfEngine;`)().toString()})();`)();
 
-const TFL = { ...TF, BEST_GAIN: -1e9, BEST_GAIN_PTS: -1e9, BEST_CARD: -99, CARD_SD: 0.01, DIV_MINE: 99, DIV_THEIRS: 99, BIG_GAIN: -1e9, BIG_GAIN_PTS: -1e9, BIG_PER_PAGE: 99 }; // pravila pre koraka 5: testovi mehanike (Lock, otpuštanje, IR, filteri) ne zavise od pravila za Najbolje, raznovrsnost i veličinu
+const TFL = { ...TF, GAIN: { ...TF.GAIN, best: { cat: -1e9, pts: -1e9, card: -99 } }, CARD_SD: 0.01, DIV_MINE: 99, DIV_THEIRS: 99, BIG_GAIN: -1e9, BIG_GAIN_PTS: -1e9, BIG_PER_PAGE: 99 }; // pravila pre koraka 5: testovi mehanike (Lock, otpuštanje, IR, filteri) ne zavise od pravila za Najbolje, raznovrsnost i veličinu
 
 let n = 0;
 const test = (name, fn) => { fn(); n++; console.log(`ok  ${name}`); };
@@ -147,7 +147,7 @@ test('IR igrač ulazi u kombinacije samo ako je obeležen U trejd', () => {
   assert.ok(E.search(inp).list.every(x => !x.g.includes(1)));
 });
 
-test('Dajem ako mora: trejdovi sa njim dolaze tek posle svih ostalih, uz kaznu u rangu', () => {
+test('Dajem ako mora: trejdovi sa njim dolaze tek posle svih ostalih', () => {
   const inp = base({ mine: bigTeam(1, 5, 1), theirs: bigTeam(100, 5, 5) });
   inp.opps = [vec({ PTS: 110, REB: 40, AST: 22, TO: 12, FGM: 42, FGA: 90 }), vec({ PTS: 95, REB: 45, AST: 18, TO: 10, FGM: 38, FGA: 82 })];
   inp.limits = TF.SLIDERS.map(k => TF.LIMITS[k]);
@@ -159,7 +159,7 @@ test('Dajem ako mora: trejdovi sa njim dolaze tek posle svih ostalih, uz kaznu u
   assert.ok(first > 0, 'trejd sa njim postoji, ali ne na prvom mestu');
   assert.ok(marked.slice(first).every(x => x.soft), 'posle prvog trejda sa njim nema više ostalih');
   const withSoft = marked[first];
-  assert.ok(Math.abs(withSoft.s - (withSoft.gain - TF.SOFT_PENALTY - TF.SIZE_PEN * Math.max(0, withSoft.n - 2))) < 1e-9);
+  assert.ok(Math.abs(withSoft.s - (withSoft.gain - TF.SIZE_PEN * Math.max(0, withSoft.n - 2))) < 1e-9);
 });
 
 test('Konsolidacija daje samo trejdove gde dajem više igrača, Dubina obrnuto', () => {
@@ -347,16 +347,11 @@ test('Otvori u analizi: otpuštanja i slobodno mesto preneti, rezultat isti kao 
   }
 });
 
-test('otpuštanje po tržišnoj vrednosti: igrač vredniji od najboljeg slobodnog se ne otpušta (Brooks)', () => {
-  // Brooks: nisko vlasništvo (30%), ali tržišna vrednost veća od najboljeg slobodnog igrača -> nije otpustiv, ni kad mu je opšta vrednost (z-score) niska
-  const bestFa = 4, brooks = { id: 1, v: 9, t: -2, own: 30 }, weak = { id: 2, v: 1, t: 0.5, own: 20 };
-  assert.strictEqual(tfDropOk(brooks, bestFa, 50), false);
-  assert.strictEqual(tfDropOk(weak, bestFa, 50), true);           // slabiji od slobodnog po tržišnoj vrednosti, iako mu je opšta vrednost veća
-  assert.strictEqual(tfDropOk({ ...weak, own: 50 }, bestFa, 50), false);
-  assert.strictEqual(tfDropOk({ ...weak, mark: 'lock' }, bestFa, 50), false);
-  assert.strictEqual(tfDropOk({ ...weak, ir: true }, bestFa, 50), false);
+test('otpuštanje: igrač bez dozvole za otpuštanje (drop: false) se nikad ne pojavljuje u otpuštanjima', () => {
+  // sajt postavlja drop po svojim pravilima (Zaključaj, IR); motor mora da ga poštuje
+  const canDrop = x => !x.ir && x.mark !== 'lock' && (x.v ?? Infinity) < 4; // tržišna vrednost ispod najboljeg slobodnog (4)
   // kroz pretragu: igrač koji nije otpustiv se nikad ne pojavljuje u otpuštanjima (moja i protivnikova)
-  const mine = bigTeam(1, 9, 1).map(x => ({ ...x, drop: tfDropOk({ ...x, own: 30 }, 4, 50) })), theirs = bigTeam(100, 9, 5).map(x => ({ ...x, drop: tfDropOk({ ...x, own: 30 }, 4, 50) }));
+  const mine = bigTeam(1, 9, 1).map(x => ({ ...x, drop: canDrop(x) })), theirs = bigTeam(100, 9, 5).map(x => ({ ...x, drop: canDrop(x) }));
   const ban = new Set([...mine, ...theirs].filter(x => !x.drop).map(x => x.id));
   for (const strategy of ['best', 'depth', 'cons']) {
     const list = E.search(base({ mine, theirs, limits: TF.SLIDERS.map(k => TF.LIMITS[k]), strategy })).list;
@@ -382,10 +377,10 @@ test('Najbolje za mene: najviše 2 od 8 predloga sa više dobijenih igrača; Dub
   for (const strategy of ['best', 'cats']) {
     const L = E.search(mk(strategy)).list, others = L.filter(x => !more(x)).length;
     assert.ok(L.some(more), strategy + ': ima trejdova gde dobijam više');
-    for (let p = 0; (p + 1) * 8 <= others; p++) assert.ok(E.pageItems(L, p, 8).filter(more).length <= TF.GET_MORE_MAX, `${strategy} strana ${p + 1}`);
+    for (let p = 0; (p + 1) * 8 <= others; p++) assert.ok(E.pageItems(L, p, 8).filter(more).length <= TF.MORE_MAX, `${strategy} strana ${p + 1}`);
   }
   const D = E.search(mk('depth')).list;
-  assert.ok(E.pageItems(D, 0, 8).filter(more).length > TF.GET_MORE_MAX); // Dubina: sve dobija više
+  assert.ok(E.pageItems(D, 0, 8).filter(more).length > TF.MORE_MAX); // Dubina: sve dobija više
 });
 
 test('ograničenje: rang se čuva, a kad ostalih nema dovoljno, 8 mesta se popunjava', () => {
@@ -486,9 +481,9 @@ test('poenska liga: rangiranje po FPts po utakmici, protivnik ne sme mnogo da iz
   const inp = base({ pts: true, mine: [P(1, 10, 40), P(2, 6, 25), P(3, 2, 15)], theirs: [P(20, 9.5, 42), P(21, 6, 30), P(22, 2, 14)], limits: TF.SLIDERS.map(k => TF.LIMITS[k]) });
   const list = E.search(inp).list;
   assert.ok(list.length > 0);
-  for (let i = 1; i < list.length; i++) if (list[i].tier === list[i - 1].tier) assert.ok(list[i - 1].s >= list[i].s - 1e-9);
+  for (let i = 1; i < list.length; i++) assert.ok(list[i - 1].s >= list[i].s - 1e-9);
   assert.ok(list.every(x => x.ob >= -TF.PTS_MAX_LOSS - 1e-9));
-  assert.ok(list.every(x => x.gain > TF.MIN_GAIN_PTS));
+  assert.ok(list.every(x => x.gain > TF.GAIN.all.pts));
 });
 
 test('Prodaj skupo i Kupi jeftino: samo trejdovi sa takvim igračima', () => {
@@ -536,16 +531,16 @@ test('strana od 8: najviše 2 gde dajem više i najviše 2 gde dobijam više, za
   // samo neravnomerni: strana se ipak popunjava po rangu
   const U = [T(0, 2, 1), T(1, 3, 2), T(2, 2, 1), T(3, 1, 2), T(4, 2, 1), T(5, 1, 2), T(6, 3, 2), T(7, 1, 2)];
   assert.strictEqual(E.pageItems(E.paginate(U, { per: 8, moreCap: 2, lessCap: 2 }), 0, 8).length, 8);
-  assert.strictEqual(TF.GIVE_MORE_MAX, 2);
+  assert.strictEqual(TF.MORE_MAX, 2);
 });
 
 test('motor: najviše 2 od 8 gde dajem više u Najbolje za mene; Konsolidacija bez ograničenja', () => {
   const mk = strategy => base({ mine: bigTeam(1, 9, 1).map(x => ({ ...x, drop: true })), theirs: bigTeam(100, 9, 5).map(x => ({ ...x, drop: true })), limits: TF.SLIDERS.map(k => TF.LIMITS[k]), strategy });
   const less = x => x.g.length > x.r.length;
   const L = E.search(mk('best')).list, even = L.filter(x => x.g.length === x.r.length).length;
-  for (let p = 0; (p + 1) * 8 <= even; p++) assert.ok(E.pageItems(L, p, 8).filter(less).length <= TF.GIVE_MORE_MAX, `strana ${p + 1}`);
+  for (let p = 0; (p + 1) * 8 <= even; p++) assert.ok(E.pageItems(L, p, 8).filter(less).length <= TF.MORE_MAX, `strana ${p + 1}`);
   const C = E.search(mk('cons')).list;
-  assert.ok(E.pageItems(C, 0, 8).filter(less).length > TF.GIVE_MORE_MAX); // Konsolidacija: sve daje više
+  assert.ok(E.pageItems(C, 0, 8).filter(less).length > TF.MORE_MAX); // Konsolidacija: sve daje više
 });
 
 test('Trejd kandidat se ne otpušta: trejd prolazi samo kad pređe na drugu stranu', () => {
@@ -693,9 +688,9 @@ test('kartica: kategorija se broji tek kad se promeni za bar 0,15 SD tima', () =
 
 test('Najbolje za mene: korist bar 0,10, kartica bar +2; ostale strategije (osim Popravi kategorije) bar nerešeno', () => {
   const mk = (strategy, T = TF) => E.search(base({ mine: bigTeam(1, 10, 1).map(x => ({ ...x, drop: true })), theirs: bigTeam(100, 10, 6).map(x => ({ ...x, drop: true })), band: [-0.10, 0.20], strategy, TF: T }));
-  const L0 = mk('best', TFL), B0 = mk('best', { ...TFL, BEST_GAIN: TF.BEST_GAIN, BEST_CARD: TF.BEST_CARD, CARD_SD: TF.CARD_SD }), best = B0.list;
+  const L0 = mk('best', TFL), B0 = mk('best', { ...TFL, GAIN: TF.GAIN, CARD_SD: TF.CARD_SD }), best = B0.list;
   assert.ok(best.length > 0 && B0.stats.gain < L0.stats.gain / 2, `pravilo ne odseca: ${B0.stats.gain} od ${L0.stats.gain}`);
-  assert.ok(best.every(x => x.gain >= TF.BEST_GAIN - 1e-9));
+  assert.ok(best.every(x => x.gain >= TF.GAIN.best.cat - 1e-9));
   const sumIds = (ids, side) => { const o = new Float64Array(KEYS.length); for (const id of ids) side.find(y => y.id === id).vec.forEach((v, i) => { o[i] += v; }); return o; };
   const inp = base({ mine: bigTeam(1, 10, 1).map(x => ({ ...x, drop: true })), theirs: bigTeam(100, 10, 6).map(x => ({ ...x, drop: true })) });
   const all = [...inp.mine, ...inp.theirs];
@@ -703,7 +698,7 @@ test('Najbolje za mene: korist bar 0,10, kartica bar +2; ostale strategije (osim
     const before = sumIds(inp.mine.map(y => y.id), all), after = Float64Array.from(before);
     sumIds(x.g, all).forEach((v, i) => { after[i] -= v; }); sumIds(x.r, all).forEach((v, i) => { after[i] += v; });
     const c = E.cardResult(before, after, cats, inp.myIdx, inp.sd, TF);
-    assert.ok(c.win - c.lose >= TF.BEST_CARD, `${x.g}→${x.r}: ${c.win}:${c.lose}`);
+    assert.ok(c.win - c.lose >= TF.GAIN.best.card, `${x.g}→${x.r}: ${c.win}:${c.lose}`);
   }
 });
 
@@ -836,11 +831,12 @@ test('poeni: slobodno mesto = realni slobodan igrač × udeo starta (korist i fe
   assert.ok(run(pick, false).every(x => x.mfi == null));
 });
 
-test('Popravi kategorije: korist bar CATS_GAIN, izgubljenih na kartici najviše dobijenih + CATS_LOSE_EXTRA', () => {
+test('Popravi kategorije: korist bar GAIN.cats.cat, izgubljenih na kartici najviše dobijenih + GAIN.cats.lose', () => {
   const run = tf => E.search(base({ mine: bigTeam(1, 10, 1).map(x => ({ ...x, drop: true })), theirs: bigTeam(100, 10, 6).map(x => ({ ...x, drop: true })), band: [-0.10, 0.20], strategy: 'cats', TF: { ...TF, ...tf } }));
-  const loose = run({ CATS_GAIN: -1e9, CATS_LOSE_EXTRA: 99 }), strict = run({}), stricter = run({ CATS_LOSE_EXTRA: -1 });
-  assert.ok(strict.list.length > 0 && strict.list.every(x => x.gain >= TF.CATS_GAIN - 1e-9));
-  assert.ok(loose.list.some(x => x.gain < TF.CATS_GAIN), 'bez pravila ima predloga sa malom koristi');
+  const cats = c => ({ GAIN: { ...TF.GAIN, cats: { ...TF.GAIN.cats, ...c } } });
+  const loose = run(cats({ cat: -1e9, lose: 99 })), strict = run({}), stricter = run(cats({ lose: -1 }));
+  assert.ok(strict.list.length > 0 && strict.list.every(x => x.gain >= TF.GAIN.cats.cat - 1e-9));
+  assert.ok(loose.list.some(x => x.gain < TF.GAIN.cats.cat), 'bez pravila ima predloga sa malom koristi');
   // parovi koji prođu sva pravila (pre strategije): strožije pravilo za karticu propušta manje
   assert.ok(stricter.stats.gain < strict.stats.gain && strict.stats.gain < loose.stats.gain);
 });

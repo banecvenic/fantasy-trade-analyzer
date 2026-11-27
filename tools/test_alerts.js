@@ -11,7 +11,8 @@ const start = src.indexOf('   Alerti i dostupnost: čiste funkcije');
 const end = src.indexOf('/* ==== kraj: Alerti, čiste funkcije ==== */');
 if (start < 0 || end < 0) throw new Error('Nije nađen modul alerta u app.js');
 const code = src.slice(src.lastIndexOf('/*', start), end);
-const A = new Function(`${code}\nreturn { sleeperGroup, trackStatus, statusEvent, irVerdict, sortAlerts, keepHidden, availFactor, sleeperDeadline, SLEEPER_IR_KEY, sleeperStatus, stGroup, resolveStatus, orJoin, isStatusNews };`)();
+const A = new Function(`${code}\nreturn { trackStatus, statusEvent, irVerdict, sortAlerts, keepHidden, availFactor, sleeperDeadline, SLEEPER_IR_KEY, sleeperStatus, stGroup, resolveStatus, orJoin, isStatusNews };`)();
+const sg = s => A.stGroup(A.sleeperStatus(s)?.st); // grupa statusa sa Sleeper-a, kao na sajtu
 
 let n = 0;
 const test = (name, fn) => { fn(); n++; console.log(`ok  ${name}`); };
@@ -38,11 +39,11 @@ test('promena statusa okida alert jednom: važi 72 h, posle se ne ponavlja dok j
 });
 
 test('DTD -> OUT je nova promena; DTD -> GTD (ista grupa) nije', () => {
-  let { mem } = A.trackStatus(null, [{ id: 1, g: A.sleeperGroup('DTD'), label: 'DTD' }], T0);
-  const same = A.trackStatus(mem, [{ id: 1, g: A.sleeperGroup('GTD'), label: 'GTD' }], T0 + H);
+  let { mem } = A.trackStatus(null, [{ id: 1, g: sg('DTD'), label: 'DTD' }], T0);
+  const same = A.trackStatus(mem, [{ id: 1, g: sg('GTD'), label: 'GTD' }], T0 + H);
   assert.strictEqual(same.mem[1][1], 0);
   assert.strictEqual(same.mem[1][3], 'GTD'); // oznaka se osvežava
-  const out = A.trackStatus(same.mem, [{ id: 1, g: A.sleeperGroup('Out'), label: 'Out' }], T0 + 2 * H);
+  const out = A.trackStatus(same.mem, [{ id: 1, g: sg('Out'), label: 'Out' }], T0 + 2 * H);
   assert.strictEqual(A.statusEvent(out.mem[1], T0 + 3 * H, 72), true);
 });
 
@@ -93,13 +94,13 @@ test('IR pravilo: Sleeper podešavanja (reserve_allow_out, _sus, _dnr) i liga be
 });
 
 test('Sleeper statusi -> zajednički skup', () => {
-  assert.strictEqual(A.sleeperGroup('Out'), 'OUT');
-  assert.strictEqual(A.sleeperGroup('IR'), 'OUT');
-  assert.strictEqual(A.sleeperGroup('DTD'), 'DTD');
-  assert.strictEqual(A.sleeperGroup('GTD'), 'DTD');
-  assert.strictEqual(A.sleeperGroup('Sus'), 'SSPD');
-  assert.strictEqual(A.sleeperGroup(''), 'OK');
-  assert.strictEqual(A.sleeperGroup('Nepoznato'), 'DTD');
+  assert.strictEqual(sg('Out'), 'OUT');
+  assert.strictEqual(sg('IR'), 'OUT');
+  assert.strictEqual(sg('DTD'), 'DTD');
+  assert.strictEqual(sg('GTD'), 'DTD');
+  assert.strictEqual(sg('Sus'), 'SSPD');
+  assert.strictEqual(sg(''), 'OK');
+  assert.strictEqual(sg('Nepoznato'), 'DTD');
 });
 
 test('koeficijent dostupnosti: GP igrača / utakmice tima, ograničen na 0 do 1, OUT = 0', () => {
@@ -141,7 +142,7 @@ test('Sleeper status -> zajednički model: grupa, oznaka platforme i ključ za I
   const s = A.resolveStatus(e, 'ACTIVE', true, true);
   assert.strictEqual(s.g, 'SSPD'); assert.strictEqual(s.lb, 'Sus'); assert.strictEqual(s.key, 'sus'); assert.strictEqual(s.espn, false);
   // grupe se poklapaju sa starim Sleeper grupisanjem
-  for (const [lbl, g] of [['Out', 'OUT'], ['IR', 'OUT'], ['GTD', 'DTD'], ['Doubtful', 'DTD'], ['NA', 'OUT'], ['COV', 'OUT'], ['Sus', 'SSPD'], ['Nešto novo', 'DTD'], ['', 'OK']]) assert.strictEqual(A.sleeperGroup(lbl), g, lbl);
+  for (const [lbl, g] of [['Out', 'OUT'], ['IR', 'OUT'], ['GTD', 'DTD'], ['Doubtful', 'DTD'], ['NA', 'OUT'], ['COV', 'OUT'], ['Sus', 'SSPD'], ['Nešto novo', 'DTD'], ['', 'OK']]) assert.strictEqual(sg(lbl), g, lbl);
 });
 
 test('ESPN ključevi za IR pravilo iz zajedničkog statusa: OUT i IR dozvoljeni, DTD i zdrav nisu', () => {

@@ -1,24 +1,10 @@
 /* Javne stranice (početna, privatnost, o sajtu). Boje i osnova dolaze iz app.css (:root). */
-.site-h{position:sticky;top:0;z-index:20;background:var(--header-bg);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
-.site-h .wrap{display:flex;align-items:center;gap:12px;min-height:60px;padding-top:8px;padding-bottom:8px}
-.site-nav{display:flex;align-items:center;gap:8px;margin-left:auto}
-.site-nav a{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 14px;border-radius:999px;font-weight:600;font-size:14px;text-decoration:none;white-space:nowrap}
-.lang-link{color:var(--muted);border:1px solid var(--line)}
-.lang-link:hover{color:var(--text);border-color:var(--dim)}
-.leagues-link{color:var(--text);background:var(--card);border:1px solid var(--line);max-width:240px;overflow:hidden;text-overflow:ellipsis}
-.leagues-link:hover{border-color:var(--dim)}
 .cta{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 22px;border-radius:999px;background:var(--rs-red-btn);color:#fff;font-weight:700;font-size:16px;text-decoration:none;border:0;cursor:pointer;font-family:inherit}
 .cta:hover{background:var(--rs-red)}
 .hero-actions{display:flex;gap:10px;flex-wrap:wrap}
 .cta2{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 22px;border-radius:999px;background:var(--card);border:1px solid var(--line);color:var(--text);font-weight:700;font-size:16px;text-decoration:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cta2:hover{border-color:var(--dim)}
 .cta2.on{border-color:var(--rs-green);color:var(--rs-green)}
-.my-leagues{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:16px}
-.my-leagues[hidden]{display:none}
-.ml-t{color:var(--muted);font-size:13px;font-weight:600;margin-right:2px}
-.ml-chip{display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border-radius:999px;background:var(--card);border:1px solid var(--line);color:var(--text);font-weight:600;font-size:14px;text-decoration:none}
-.ml-chip:hover{border-color:var(--dim)}
-.ml-chip.on{border-color:var(--accent)}
 
 .hero{padding:44px 0 8px;max-width:760px}
 .hero h1{font-size:32px;line-height:1.15;font-weight:800;letter-spacing:-.02em;margin:0 0 14px}
@@ -84,19 +70,10 @@
   .hero p{font-size:16px;margin-bottom:18px}
   .cta,.cta2{width:100%}
   .pub main > section{padding-top:28px}
-  .site-nav{gap:6px}
-  .site-nav a{padding:0 12px;font-size:13px}
-  .leagues-link{max-width:150px}
   .doc h1{font-size:28px}
-}
-@media (max-width:420px){
-  .site-h .brand-word{display:none}
 }
 
 /* ===== Početna: hero sa prikazom analize, mini poređenje, sekcije alata ===== */
-.site-nav .langsel{height:44px}
-.home-link{color:var(--muted);border:1px solid transparent}
-.home-link:hover{color:var(--text)}
 .continue-bar{background:linear-gradient(90deg,rgba(var(--win-rgb),.12),rgba(var(--info-rgb),.08));border-bottom:1px solid var(--line)}
 .continue-bar .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-top:12px;padding-bottom:12px;font-weight:600}
 .continue-bar[hidden]{display:none}
@@ -213,8 +190,6 @@
   .mav.sm{display:none}
   .pub main > section.mini{padding:16px}
   .mini-score .n{font-size:34px}
-  .site-nav .langsel select{max-width:84px}
-  .home-link{display:none}
   .intro h1{font-size:26px}
   .pv-score{font-size:32px}
 }
@@ -231,8 +206,6 @@
 .doc h2[id],.doc h3[id]{scroll-margin-top:80px}
 .shot{margin:10px 0 16px}
 .shot img{display:block;max-width:100%;border-radius:10px;border:1px solid var(--line)}
-.shot-ph{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:150px;padding:16px;border-radius:10px;background:var(--card2);border:1px dashed var(--line);color:var(--dim);text-align:center;font-size:13px}
-.shot-ph code{font-size:11px}
 .lm-box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:16px 0}
 .lm-box h3{margin-top:0}
 .lm-box blockquote{margin:8px 0 12px;padding:10px 12px;border-left:3px solid var(--info);background:var(--bg2);color:var(--text);font-size:14px;line-height:1.55}

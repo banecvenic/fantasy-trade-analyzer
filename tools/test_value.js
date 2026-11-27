@@ -11,7 +11,7 @@ const start = src.indexOf('   Vrednost igrača: čiste funkcije');
 const end = src.indexOf('/* ==== kraj: Vrednost, čiste funkcije ==== */');
 if (start < 0 || end < 0) throw new Error('Nije nađen modul vrednosti u app.js');
 const code = src.slice(src.lastIndexOf('/*', start), end);
-const V = new Function(`${code}\nreturn { VALUE, catContribution, poolStats, zScores, categoryValues, pointsValues, valueRanks, restOfSeasonValue, needWeights, weightedValue };`)();
+const V = new Function(`${code}\nreturn { VALUE, catContribution, poolStats, zScores, categoryValues, pointsValues, valueRanks, restOfSeasonValue};`)();
 
 let n = 0;
 const test = (name, fn) => { fn(); n++; console.log(`ok  ${name}`); };
@@ -55,19 +55,11 @@ test('TO: manje je bolje, znak je obrnut', () => {
   assert.ok(V.zScores({ TO: 3 }, [TO], st).total < 0);
 });
 
-test('punt ne menja opštu vrednost, a vrednost za moj tim stavlja tu kategoriju na 0', () => {
+test('punt ne menja opštu vrednost', () => {
   const rows = [{ id: 1, line: { PTS: 30, REB: 2 } }, { id: 2, line: { PTS: 10, REB: 12 } }, { id: 3, line: { PTS: 20, REB: 7 } }];
   const a = V.categoryValues(rows, [PTS, REB], 3).values.get(1);
   const b = V.categoryValues(rows, [PTS, REB], 3).values.get(1);
   near(a.total, b.total); // opšta vrednost ne zna za punt
-  const w = V.needWeights([PTS, REB], null, new Set(['PTS']));
-  assert.deepStrictEqual(w, { PTS: 0, REB: 1 });
-  near(V.weightedValue(a.by, w), a.by.REB);
-  // bez drugih timova: sve težine 1 osim punta
-  assert.deepStrictEqual(V.needWeights([PTS, REB], null, new Set()), { PTS: 1, REB: 1 });
-  // donja trećina veća težina, gornja manja
-  const wr = V.needWeights([PTS, REB], { PTS: { rank: 12, of: 12 }, REB: { rank: 1, of: 12 } }, new Set());
-  assert.ok(wr.PTS > 1 && wr.REB < 1);
 });
 
 test('poenska liga: vrednost = FPts po utakmici minus nivo zamene (prosek mesta N+1 do N+timovi)', () => {

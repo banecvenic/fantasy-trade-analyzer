@@ -47,11 +47,10 @@
     rep('if (!(B > 0)) continue;', 'if (!(B > 0)) { if (D) __add(D.bneg, kG + \':\' + kR, arr.length); continue; }');
     rep('for (let j = lowerBound(arr, lo);', 'if (D) __add(D.tot, kG + \':\' + kR, arr.length);\n        for (let j = lowerBound(arr, lo);');
     rep('const R = evalPair(g, arr[j].c, P, arr[j].v, arr[j].top);', '__lf = null; const R = evalPair(g, arr[j].c, P, arr[j].v, arr[j].top);');
-    rep('if (!x) continue;\n          const tier = x.tier;',
+    rep('if (!x) continue;',
       `if (D) { const sh = kG + ':' + kR, o = D.out[sh] || (D.out[sh] = {}), lab = x ? (x.conv ? 'conv' : 'ok') : (__lf || '?'); o[lab] = (o[lab] || 0) + 1;
             if (C.small && kG === kR && kG <= 2) D.small.push({ g: g.map(i => mine[i].id), r: r.map(i => theirs[i].id), lab }); }
-          if (!x) continue;
-          const tier = x.tier;`);
+          if (!x) continue;`);
     rep('if (found.length > 12000) {', 'if (found.length > 12000) { if (D) D.trunc++;');
     rep('sizeTie(ord, T.SIZE_TIE);', 'sizeTie(ord, T.SIZE_TIE); if (D) { D.tierN = [found.length]; D.ordN = ord.length; if (C.ordered) D.ordered = ord; }');
     rep('return { list: list.slice(0, T.KEEP), stats, hasTrade, popt: { ...popt, exempt: [...exempt] } };', 'return { list: list.slice(0, T.KEEP), stats, hasTrade, popt: { ...popt, exempt: [...exempt] }, dbg: D };');
@@ -103,7 +102,7 @@
   }
   A.player = id => {
     const B = tfBase(), P = marketParts(), p = state.byId.get(id); if (!p) return null;
-    const gp = B.gpOf(p), w = blendWeights(gp), wR = blendWeights(gp, FA.BLEND, FA.BLEND_FULL_GP, FA.REAL_PROJ_FLOOR, FA.REAL_PROJ_FADE_GP);
+    const gp = B.gpOf(p), w = blendWeights(gp), wR = blendWeights(gp, FA.BLEND, FA.BLEND_FULL_GP, FA.PROJ_FLOOR, FA.PROJ_FADE_GP);
     const V = k => B.LV[k].values.get(id), vals = { proj: V('proj'), season: V('season'), l15: V('l15'), l7: V('l7') };
     const gen = blendValue(vals, w), real = blendValue(vals, wR), row = P.byId.get(id), c = row ? P.comp(row) : null;
     const z = c ? c.map((x, k) => Math.max(TF.MARKET_Z_MIN, (x - P.mu[k]) / P.sd[k])) : null;
@@ -299,7 +298,7 @@
           if (!page.length) out.emptyRuns++;
           const cntG = new Map(), cntR = new Map();
           const T0 = TF, more0 = T0.GET_MORE_STRATS.includes(strat);
-          const strictShort = page.length > 0 && A.E.paginate((d.r.dbg?.ordered || d.r.list).map(y => ({ ...y })), { per: T0.PER_PAGE, capG: T0.DIV_MINE, capR: T0.DIV_THEIRS, capRHi: T0.DIV_THEIRS, minFill: 0, moreCap: more0 ? T0.GET_MORE_MAX : null, lessCap: more0 ? T0.GIVE_MORE_MAX : null, bigCap: T0.BIG_PER_PAGE }).filter(y => y.pg === 0).length < (T0.DIV_MIN_FILL || 0);
+          const strictShort = page.length > 0 && A.E.paginate((d.r.dbg?.ordered || d.r.list).map(y => ({ ...y })), { per: T0.PER_PAGE, capG: T0.DIV_MINE, capR: T0.DIV_THEIRS, capRHi: T0.DIV_THEIRS, minFill: 0, moreCap: more0 ? T0.MORE_MAX : null, lessCap: more0 ? T0.MORE_MAX : null, bigCap: T0.BIG_PER_PAGE }).filter(y => y.pg === 0).length < (T0.DIV_MIN_FILL || 0);
           if (strictShort) out.raised = (out.raised || 0) + 1;
           for (const x of page) { x.g.forEach(id => cntG.set(id, (cntG.get(id) || 0) + 1)); x.r.forEach(id => cntR.set(id, (cntR.get(id) || 0) + 1)); }
           const ps = out.perStrat[strat] || (out.perStrat[strat] = { n: 0, any: 0, rules: {}, sizes: {}, pages: 0, repPages: 0, slots: 0 });
@@ -396,7 +395,7 @@
   /* ---------- Vrednost igrača (tuning-v2, korak 2): komponente stvarne vrednosti i slaganje sa tržištem i vlasništvom ---------- */
   A.valueDiag = () => {
     const lg = currentLeague(); tfBaseCache = null; const B = tfBase(lg), LV = B.LV, E = tfEngineLocal(); const pers = ['proj', 'season', 'l15', 'l7'];
-    const wReal = p => blendWeights(B.gpOf(p), FA.BLEND, FA.BLEND_FULL_GP, FA.REAL_PROJ_FLOOR, FA.REAL_PROJ_FADE_GP), wMkt = p => blendWeights(B.gpOf(p));
+    const wReal = p => blendWeights(B.gpOf(p), FA.BLEND, FA.BLEND_FULL_GP, FA.PROJ_FLOOR, FA.PROJ_FADE_GP), wMkt = p => blendWeights(B.gpOf(p));
     const realPG = new Map(); for (const p of state.players) { const v = blendValue(Object.fromEntries(pers.map(k => [k, LV[k].values.get(p.id)])), wReal(p)); if (v) realPG.set(p.id, v); }
     const pool = LV.proj.pool, rS = [...realPG.values()].map(v => v.total).sort((a, b) => b - a), rBand = rS.slice(pool.n, pool.n + pool.teams), replR = rBand.reduce((a, b) => a + b, 0) / rBand.length;
     const rPos = rS.slice(0, pool.n).map(v => v - replR).filter(v => v > 0), SR = rPos.reduce((a, b) => a + b, 0) / rPos.length;

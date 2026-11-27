@@ -98,7 +98,7 @@ const KEYS = ['PTS', 'REB', 'AST', 'TO', 'FGM', 'FGA', 'FPTS'];
 const cats = [{ key: 'PTS', k: 0 }, { key: 'REB', k: 1 }, { key: 'AST', k: 2 }, { key: 'TO', k: 3, low: true }, { key: 'FGP', pct: true, m: 4, a: 5 }];
 const vec = o => KEYS.map(k => o[k] || 0);
 const pl = (id, v, o = {}, extra = {}) => ({ id, v, vec: vec(o), mark: null, ir: false, ...extra });
-const TFL = { ...TF, BEST_GAIN: -1e9, BEST_GAIN_PTS: -1e9, BEST_CARD: -99, CARD_SD: 0.01, DIV_MINE: 99, DIV_THEIRS: 99, BIG_GAIN: -1e9, BIG_GAIN_PTS: -1e9, BIG_PER_PAGE: 99 }; // pravila pre koraka 5: testovi mehanike (Lock, otpuštanje, IR, filteri) ne zavise od pravila za Najbolje, raznovrsnost i veličinu
+const TFL = { ...TF, GAIN: { ...TF.GAIN, best: { cat: -1e9, pts: -1e9, card: -99 } }, CARD_SD: 0.01, DIV_MINE: 99, DIV_THEIRS: 99, BIG_GAIN: -1e9, BIG_GAIN_PTS: -1e9, BIG_PER_PAGE: 99 }; // pravila pre koraka 5: testovi mehanike (Lock, otpuštanje, IR, filteri) ne zavise od pravila za Najbolje, raznovrsnost i veličinu
 const inpFor = (ffIds = null) => {
   const theirs = [pl(20, 6, { PTS: 14, REB: 6, AST: 2, FGM: 5, FGA: 10 }), pl(21, 5.5, { PTS: 12, REB: 5, AST: 3, FGM: 4, FGA: 9 }),
     pl(22, 5, { PTS: 10, REB: 7, AST: 2, FGM: 4, FGA: 8 }), pl(23, 4, { PTS: 8, REB: 3, AST: 4, FGM: 3, FGA: 7 })];
