@@ -2101,9 +2101,11 @@ const EN = {
   "Već je na tvom rosteru: {list}": "Already on your roster: {list}",
   "Klik: punt": "Click: punt",
   "Poređenje kategorija": "Category comparison",
+  "Premala razlika da utiče na tim": "Too small to affect your team",
   "Dobijaš kat.": "Cats gained",
   "Računato na formu, sezonu i projekciju. U analizi biraš period.": "Based on form, season and projection. In the analyzer you pick the period.",
   "Gubiš kat.": "Cats lost",
+  "Zeleno i crveno su kategorije koje trejd stvarno menja u tvom timu. Sivo sa ≈ znači da je razlika između igrača premala da bi se osetila na nivou celog tima, pa se broji kao nerešeno.": "Green and red are categories this trade actually changes for your team. Grey with ≈ means the difference between the players is too small to matter for your whole team, so it counts as a tie.",
   "klik na kategoriju = punt": "click a category = punt",
   "Kat.": "Cat.",
   "Razlika": "Difference",
@@ -2197,6 +2199,8 @@ const EN = {
   "prazno": "empty",
   "Još nema sačuvanih trejdova. Klikni „Sačuvaj ideju” ili „Trejd se dogodio” ispod rezultata.": "No saved trades yet. Click “Save idea” or “Trade happened” below the score.",
   "Nema igrača za „{q}“": "No players for “{q}”",
+  "Procenat na malom broju šuteva skoro ne utiče na tim.": "A percentage on very few shots barely affects the team.",
+  "mali obim": "low volume",
   "Dobijaš − Daješ, iz tvoje perspektive": "You get − You give, from your perspective",
   "Otvoren deljeni trejd, prikazan iz tvog ugla.": "Shared trade opened, shown from your side.",
   "Dodaj u moj tim": "Add to my team",
@@ -2207,6 +2211,8 @@ const EN = {
   "Dodaj sve ({n})": "Add all ({n})",
   "Dodaj na roster": "Add to roster",
   "Dok svi igrači iz Daješ nisu na tvom rosteru, sekcija Moj tim se ne menja.": "Until all You give players are on your roster, the My team section doesn't change.",
+  "tim: bez promene": "team: no change",
+  "tim: {d}": "team: {d}",
   "obavezno": "required",
   "opciono": "optional",
   "Koga izbacuje sa svog rostera…": "Who do they drop from their roster…",
@@ -2880,9 +2886,6 @@ const EN = {
   'Jak si u {s}, slab u {w}.': 'Strong in {s}, weak in {w}.',
   'Jak si u {s}.': 'Strong in {s}.',
   'Slab si u {w}.': 'Weak in {w}.',
-  'Tim sada': 'Team now',
-  'Tim posle trejda': 'Team after trade',
-  'Tvoj tim pre i posle trejda, sa postavom koja stvarno igra. Zeleno i crveno su kategorije koje trejd menja dovoljno da se oseti, ostalo se broji kao nerešeno.': 'Your team before and after the trade, with the lineup that actually plays. Green and red are categories the trade changes enough to matter, the rest count as ties.',
   'Mesto od {n} timova na kraju sezone: svi timovi idu istim tempom, a tvom timu se dodaje razlika iz trejda za preostale utakmice. Gleda se koliko igrač inače propušta utakmica, a ne trenutni status (OUT, DTD), i ne računa se samo igrač van do kraja sezone.': 'Rank among {n} teams at season end: all teams keep the same pace, and your team gets the trade difference for the remaining games. It counts how many games a player usually misses, not current status (OUT, DTD), and only a player out for the season is left out.',
   '{name} je {a}': '{name} is {a}',
   'Poeni za celu sezonu: ti si {a}. od {m}{o}': 'Season points for: you rank {a} of {m}{o}',
@@ -6272,6 +6275,10 @@ function searchBoxHTML(key, placeholder, label = '') {
 const sideCellCls = (mark, ti) => (mark === 'win' ? (ti === GET ? 'better-me' : 'better-them') : '');
 /** Stanje kategorije iz gornjeg rezultata (kartica): 1 | -1 | 0, ili null bez kartice i za punt (tada važe stare oznake) */
 const cardSt = (cmp, c) => (cmp.card && !cmp.cats[c.key]?.punted && c.key in cmp.card.st ? cmp.card.st[c.key] : null);
+/** Ćelija strane u Poređenju kategorija: dobijena = zeleno u Dobijaš, izgubljena = crveno u Daješ, nerešena = sivo */
+const sideCls = (cmp, c, ti) => { const s = cardSt(cmp, c); return s == null ? sideCellCls(cmp.cats[c.key].marks[ti], ti) : s > 0 ? (ti === GET ? 'better-me' : '') : s < 0 ? (ti === GIVE ? 'better-them' : '') : 'cat-tie'; };
+const approxHTML = () => `<span class="approx" data-tip="${esc(t('Premala razlika da utiče na tim'))}">≈</span>`;
+
 
 /** Red "Slobodno mesto: nivo zamene" sa statistikom nivoa zamene (iste kolone kao red igrača) */
 function replRowHTML(tail = '<td></td>', extraTag = '', sel = '') {
@@ -6350,10 +6357,8 @@ function analyzerCard(lg = currentLeague()) {
   const act = lg.roster.players.filter(x => !x.ir).map(x => x.id), out = new Set([...giveIds(), ...sp.drops]);
   const after = [...act.filter(id => !out.has(id)), ...getIds().filter(id => !oppIr.has(id)), ...ff.permIds];
   const r = B.cardOf(act, after, undefined, state.period); // isti period kao tabele i natpis ispod rezultata
-  // team: vrednost kategorije mog tima pre i posle (ista postava i period kao kartica), za tabelu Poređenje kategorija
-  const vb = B.teamVecW(act, state.period), va = B.teamVecW(after, state.period), cv = (v, c) => (c.pct ? (v[c.a] > 0 ? v[c.m] / v[c.a] : null) : v[c.k]);
   // st: stanje kategorije po ključu (1 dobijena, -1 izgubljena, 0 nerešena), isti izvor za boje u tabelama
-  return { ...r, n: B.cats.filter(c => !state.punt.has(c.key)).length, st: Object.fromEntries(B.cats.map((c, i) => [c.key, r.res[i]])), team: Object.fromEntries(B.cats.map(c => [c.key, [cv(vb, c), cv(va, c)]])) }; // n: kategorije koje se broje (bez punta)
+  return { ...r, n: B.cats.filter(c => !state.punt.has(c.key)).length, st: Object.fromEntries(B.cats.map((c, i) => [c.key, r.res[i]])) }; // n: kategorije koje se broje (bez punta)
 }
 function renderTeams(totals, cmp) {
   const html = state.teams.map((team, ti) => {
@@ -6456,13 +6461,14 @@ function tradeWarnings(ti) {
  * Promena kategorije "od -> do" na prikazanoj preciznosti, iz moje perspektive:
  * zeleno ako je bolje za mene (TO: manje je bolje), crveno ako je lošije, sivo "=" ako je isto.
  */
-function deltaCellHTML(c, from, to) {
+function deltaCellHTML(c, from, to, extraCls = '', sub = '') {
   const a = from?.vals?.[c.key], b = to?.vals?.[c.key];
-  if (a == null || b == null) return `<td class="dcell${puntCls(c)}">–</td>`;
+  const subHTML = sub ? `<span class="sub dsub">${sub}</span>` : '';
+  if (a == null || b == null) return `<td class="dcell ${extraCls}${puntCls(c)}">–${subHTML}</td>`;
   const v = b - a, f = fmtDelta(c, v);
-  if (Math.abs(v) <= EPS || f.zero) return `<td class="dcell eq${puntCls(c)}">=</td>`;
+  if (Math.abs(v) <= EPS || f.zero) return `<td class="dcell eq ${extraCls}${puntCls(c)}">=${subHTML}</td>`;
   const good = c.lowerIsBetter ? v < 0 : v > 0;
-  return `<td class="dcell ${good ? 'pos' : 'neg'}${puntCls(c)}">${f.txt}</td>`;
+  return `<td class="dcell ${good ? 'pos' : 'neg'} ${extraCls}${puntCls(c)}">${f.txt}${subHTML}</td>`;
 }
 
 /** Odnos (FG%, FT%, 3P%, A/TO) na malom imeniocu na bilo kojoj strani; prag je u katalogu (lowVol). U poenima ne postoji. */
@@ -6492,24 +6498,27 @@ function renderCompare(totals, cmp) {
   const el = $('#compare');
   if (cmp.active.length < 2) { el.innerHTML = ''; return; }
   if (cmp.points) { el.innerHTML = contribHTML(cmp.points); return; }
-  const card = cmp.card;
   const rows = CATS.map(c => {
     const r = cmp.cats[c.key];
-    if (card) {
-      // u ligi: moj tim sada i posle trejda (ista postava, period i otpuštanja kao gornji rezultat); boja = stanje iz kartice
-      const tv = card.team[c.key], st = cardSt(cmp, c), cls = st > 0 ? 'pos' : st < 0 ? 'neg' : '';
-      const f = tv && tv[0] != null && tv[1] != null ? fmtDelta(c, tv[1] - tv[0]) : null;
-      const diff = r.punted ? `<td class="dcell punt">punt</td>` : `<td class="dcell ${cls}${puntCls(c)}">${f ? (f.zero ? '=' : f.txt) : '–'}</td>`;
-      const after = st > 0 ? 'better-me' : st < 0 ? 'better-them' : '';
-      return `<tr class="${r.punted ? 'punt-row' : ''}"><td class="catth${puntCls(c)}" data-punt="${c.key}" title="${t('Klik: punt')}"><b>${c.label}</b></td><td class="${puntCls(c)}">${fmtCat(c, tv?.[0])}</td><td class="${after}${puntCls(c)}">${fmtCat(c, tv?.[1])}</td>${diff}</tr>`;
-    }
     const tds = state.teams.map((_, i) => {
       const v = totals[i].vals[c.key];
-      return `<td class="${sideCellCls(r.marks[i], i)}${puntCls(c)}">${fmtCat(c, v)}</td>`;
+      return `<td class="${sideCls(cmp, c, i)}${puntCls(c)}">${fmtCat(c, v)}</td>`;
     }).join('');
-    // bez lige: poređenje strana, Razlika iz moje perspektive: Dobijaš − Daješ
+    // Razlika iz moje perspektive: Dobijaš − Daješ
+    // FG%/FT% sa unetim rosterom: sitno ispod, koliko se menja procenat mog tima
+    const tv = c.type === 'pct' ? myTeamValues(c) : null;
+    const sub = tv == null ? '' : Math.abs(tv.after - tv.before) < teamTieOf(c)
+      ? t('tim: bez promene')
+      : t('tim: {d}', { d: fmtDelta(c, tv.after - tv.before).txt });
     const sameShown = cmpKey(c, totals[GIVE].vals[c.key]) === cmpKey(c, totals[GET].vals[c.key]) && totals[GIVE].vals[c.key] != null;
-    const diff = r.punted ? `<td class="dcell punt">punt</td>` : sameShown ? `<td class="dcell eq${puntCls(c)}">=</td>` : deltaCellHTML(c, totals[GIVE], totals[GET]);
+    let diff = r.punted ? `<td class="dcell punt">punt</td>` : sameShown && tv == null ? `<td class="dcell eq${puntCls(c)}">=</td>` : deltaCellHTML(c, totals[GIVE], totals[GET], '', sub);
+    if (!r.punted && tv == null && currentLeague() && lowVolume(c, totals)) diff = diff.replace(/(<span class="sub dsub">|<\/td>$)/, ` <span class="lowvol" data-tip="${esc(t('Procenat na malom broju šuteva skoro ne utiče na tim.'))}">${t('mali obim')}</span>$1`);
+    // sa karticom: sadržaj Razlike ostaje isti, boja prati gornji rezultat (nerešeno sivo sa ≈)
+    const st = cardSt(cmp, c);
+    if (st != null) {
+      diff = diff.replace(/^<td class="dcell (?:pos |neg |eq )?/, `<td class="dcell ${st > 0 ? 'pos' : st < 0 ? 'neg' : 'eq'} `);
+      if (st === 0 && !/^<td[^>]*>[=–]/.test(diff)) diff = diff.replace(/(<span class="sub dsub">|<\/td>$)/, `${approxHTML()}$1`);
+    }
     return `<tr class="${r.punted ? 'punt-row' : ''}"><td class="catth${puntCls(c)}" data-punt="${c.key}" title="${t('Klik: punt')}"><b>${c.label}</b></td>${tds}${diff}</tr>`;
   }).join('');
   // uvezena liga: isti okvir prebacuje se na procenu plasmana u ligi posle trejda
@@ -6520,8 +6529,8 @@ function renderCompare(totals, cmp) {
       <button type="button" data-action="cmp-view" data-v="rank" aria-pressed="${rank}">${t('Procena plasmana')}</button></div>` : '';
   el.innerHTML = rank
     ? `<div class="section-t cmp-head"><span>${t('Procena plasmana u ligi posle trejda')} <span class="i" data-tip="${esc(`${t('Mesto od {n} timova na kraju sezone: svi timovi idu istim tempom, a tvom timu se dodaje razlika iz trejda za preostale utakmice. Gleda se koliko igrač inače propušta utakmica, a ne trenutni status (OUT, DTD), i ne računa se samo igrač van do kraja sezone.', { n: currentLeague().import.teams.filter(x => x.vals).length })}${FMT_ACTIVE.scoringType !== 'roto' ? ` ${t('U H2H ligi ovo je samo informativno.')}` : ''}`)}">ⓘ</span></span>${seg}</div>${rankProjHTML(proj)}`
-    : `<div class="section-t cmp-head"><span>${t('Poređenje kategorija')}${card ? ` <span class="i" data-tip="${esc(t('Tvoj tim pre i posle trejda, sa postavom koja stvarno igra. Zeleno i crveno su kategorije koje trejd menja dovoljno da se oseti, ostalo se broji kao nerešeno.'))}">ⓘ</span>` : ''} <span class="hint">· ${t('klik na kategoriju = punt')}</span></span>${seg}</div>
-    <div class="card"><div class="tscroll"><table class="cmp"><thead><tr><th>${t('Kat.')}</th>${card ? `<th>${t('Tim sada')}</th><th>${t('Tim posle trejda')}</th><th>${t('Razlika')}</th>` : `${SIDES.map(sd => `<th style="color:${sd.color}">${sd.name}</th>`).join('')}<th title="${esc(t('Dobijaš − Daješ, iz tvoje perspektive'))}">${t('Razlika')}</th>`}</tr></thead>
+    : `<div class="section-t cmp-head"><span>${t('Poređenje kategorija')}${cmp.card ? ` <span class="i" data-tip="${esc(t('Zeleno i crveno su kategorije koje trejd stvarno menja u tvom timu. Sivo sa ≈ znači da je razlika između igrača premala da bi se osetila na nivou celog tima, pa se broji kao nerešeno.'))}">ⓘ</span>` : ''} <span class="hint">· ${t('klik na kategoriju = punt')}</span></span>${seg}</div>
+    <div class="card"><div class="tscroll"><table class="cmp"><thead><tr><th>${t('Kat.')}</th>${SIDES.map(sd => `<th style="color:${sd.color}">${sd.name}</th>`).join('')}<th title="${esc(t('Dobijaš − Daješ, iz tvoje perspektive'))}">${t('Razlika')}</th></tr></thead>
     <tbody>${rows}</tbody></table></div></div>`;
 }
 /** Tabela procene plasmana (kategorije redom kao u Poređenju) */
@@ -10697,7 +10706,7 @@ function tfBase(lg = currentLeague()) {
   /** Uloga igrača koga dobijam: ok = dovoljno minuta ili uloga raste; rising = razlog rasta ili null */
   const roleOf = p => { const l = rawLine(p), rising = risingOf(p), min = +(l?.MIN || 0);
     return { ok: min >= RO.MIN || !!rising, rising, min }; };
-  tfBaseCache = { key, lg, pts, LV, vcats, keys, ki, cats, gpOf, lineOf, roleOf, risingOf, teamSd, cardOf, teamVecW, vecOf, genRaw, pool, dropBar, dropBarV, market, ros, real, ownOf, verdictOf, bandPs, replVec, replV, fa, faPts: faPts?.length ? faPts : null, faAll, slot, replLine, synced, injOfP, fracOf, lineupN, share, lineupW, lineupIds, lineupLine, lineupSum };
+  tfBaseCache = { key, lg, pts, LV, vcats, keys, ki, cats, gpOf, lineOf, roleOf, risingOf, teamSd, cardOf, vecOf, genRaw, pool, dropBar, dropBarV, market, ros, real, ownOf, verdictOf, bandPs, replVec, replV, fa, faPts: faPts?.length ? faPts : null, faAll, slot, replLine, synced, injOfP, fracOf, lineupN, share, lineupW, lineupIds, lineupLine, lineupSum };
   return tfBaseCache;
 }
 /** Linija pomnožena udelom (zbirovi i pogođeni / pokušaji; procenti se računaju iz zbira) */
