@@ -259,6 +259,8 @@ tr.total td:first-child{background:var(--card2)}
 td.win{background:var(--win-bg)!important;color:var(--win-text)}
 td.better-me{background:var(--win-bg)!important;color:var(--win-text)}
 td.better-them{background:var(--lose-bg)!important;color:var(--lose-text)}
+td.cat-tie{color:var(--muted)}
+.approx{display:inline-block;margin-left:3px;font-size:.85em;font-weight:600;color:var(--dim);cursor:help}
 td.lose{background:var(--lose-bg)!important;color:var(--lose-text)}
 td .sub{display:block;font-size:10px;font-weight:500;color:var(--muted);margin-top:1px}
 .pl{display:flex;align-items:center;gap:8px;min-width:0}
