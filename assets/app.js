@@ -2161,6 +2161,7 @@ const EN = {
   "Poređenje kategorija": "Category comparison",
   "Premala razlika da utiče na tim": "Too small to affect your team",
   "Dobijaš kat.": "Cats gained",
+  "Računato na formu, sezonu i projekciju. U analizi biraš period.": "Based on form, season and projection. In the analyzer you pick the period.",
   "Gubiš kat.": "Cats lost",
   "Zeleno i crveno su kategorije koje trejd stvarno menja u tvom timu. Sivo sa ≈ znači da je razlika između igrača premala da bi se osetila na nivou celog tima, pa se broji kao nerešeno.": "Green and red are categories this trade actually changes for your team. Grey with ≈ means the difference between the players is too small to matter for your whole team, so it counts as a tie.",
   "klik na kategoriju = punt": "click a category = punt",
@@ -2848,9 +2849,6 @@ const EN = {
   "Daješ više igrača nego što dobijaš: slobodno mesto popunjavaš igračem sa waivera i to ulazi u rezultat. Uvezena liga: najbolji slobodan igrač, inače nivo zamene. Svog igrača sa waivera biraš u sekciji Moj tim.": "You give more players than you get: you fill the open spot from waivers, and that counts in the score. Imported league: the best free agent, otherwise replacement level. You pick your own waiver player in the My team section.",
   "Koga protivnik izbacuje menja njegov tim, ne tvoj rezultat.": "Who your opponent drops changes their team, not your score.",
   "Daješ više igrača nego što dobijaš, pa ti posle trejda ostaje slobodno mesto. Igrač sa waivera ulazi u rezultat trejda. Dok ga ne izabereš, računa se najbolji slobodan igrač (uvezena liga) ili nivo zamene.": "You give more players than you get, so you have an open spot after the trade. A waiver pickup counts in the trade score. Until you pick one, the best free agent (imported league) or replacement level is used.",
-  "Ista mešavina perioda kao na kartici u Pronađi trejd. Izaberi period da vidiš samo njega.": "The same blend of periods as the card in Find a trade. Pick a period to see only that period.",
-  "Mešavina": "Blend",
-  "Mešavina kao na kartici u Pronađi trejd (sezona, 15 i 7 dana i projekcija)": "Blend as on the Find a trade card (season, 15 and 7 days and projection)",
   "Predlažu se samo trejdovi u kojima ne dobijaš više igrača nego što daješ, pa ne moraš nikog da otpustiš.": "Only trades where you do not get more players than you give, so you do not have to drop anyone.",
   "Dubina uvek dobija više igrača, a uključeno je Ne otpuštam nikoga.": "Depth always gets more players, and Don't drop anyone is on.",
   "Rosteri su se promenili, pokreni pretragu ponovo.": "Rosters have changed, run the search again.",
@@ -3622,7 +3620,7 @@ function activateTab(id) {
   s.active = tab.id;
   state.teams = tab.teams;
   state.balance = tab.balance;
-  state.mix = !!tab.mix; // otvoreno iz Pronađi trejd: mešavina perioda kao na kartici
+  delete tab.mix; // stari tabovi iz Pronađi trejd (mešavina perioda više ne postoji u analizi): otvaraju se na izabranom periodu
   if (tab.opp && state.rosters?.opps?.[tab.opp] && state.rosters.oppSel !== tab.opp) { state.rosters.oppSel = tab.opp; saveRosters(); } // tab iz Pronađi trejd pamti protivnika
   setQuickTeam(tab);
 }
@@ -3809,11 +3807,10 @@ function applyRoute() {
       else if (!tabHasPlayers(activeTab())) { state.teams.forEach((tm, i) => { tm.ids = [...new Set(lists[i] || [])]; }); }
       else addTab([lists[GIVE] || [], lists[GET] || []]);
       state.teams[GET].ids = state.teams[GET].ids.filter(id => !state.teams[GIVE].ids.includes(id));
-      // iz Pronađi trejd: otpuštanja (moja | protivnikova), moj tim (za procente i slobodno mesto) i ista mešavina perioda kao kartica
+      // iz Pronađi trejd: otpuštanja (moja | protivnikova) i moj tim (za procente i slobodno mesto); period dolazi iz per= (Sezona)
       const tb = activeTab();
       if (hp.has('d')) { const [md, od] = hp.get('d').split('|').map(ids); state.balance.my = { drops: md || [], waivers: [] }; state.balance.opp = { drops: od || [], waivers: [] }; }
       if (hp.has('m')) { tb.myTeam = ids(hp.get('m')); setQuickTeam(tb); }
-      if (hp.get('mix') === '1') { tb.mix = true; state.mix = true; }
       history.replaceState(null, '', location.pathname + location.search);
     }
     persistTrades();
@@ -4037,32 +4034,19 @@ async function loadInjuryDates() {
 /* =====================================================================
    Proračun
    ===================================================================== */
-const currentStatId = () => PERIODS.find(p => p.key === state.period).statId(CONFIG.SEASON);
 
-/** Analiza trejda otvorena iz Pronađi trejd: ista mešavina perioda kao na kartici (sezona, 15 i 7 dana i projekcija), dok korisnik ne izabere period */
-const mixOn = () => !!state.mix && (state.page === 'trade' || state.view === 'quick' && !EMBED?.finder && !EMBED?.targets); // brza analiza (/trade-analyzer/) je uvek analiza trejda
-let mixCache = { B: null, m: new Map() };
-function mixLine(p) {
-  const B = tfBase();
-  if (mixCache.B !== B) mixCache = { B, m: new Map() };
-  if (mixCache.m.has(p.id)) return mixCache.m.get(p.id);
-  const b = B.lineOf(p);
-  // GP iz sezone (za prikaz); FPts kao u pretrazi (poeni svakog perioda pa mešavina)
-  const l = b ? { ...b, GP: statOf(p, 'season')?.GP || b.GP || 1, ...(B.pts ? { _fpts: b.FPTS } : {}) } : null;
-  mixCache.m.set(p.id, l);
-  return l;
-}
-/** Statistika igrača za trenutni period ili null ako nema podataka (GP = 0). */
-function playerLine(p) {
-  if (p && mixOn()) return mixLine(p);
-  const s = p?.stats[currentStatId()];
+/** Statistika igrača za period ili null ako nema podataka (GP = 0); ista linija za tabele i karticu u analizi */
+function periodStat(p, per) {
+  const s = p?.stats[PERIODS.find(x => x.key === per).statId(CONFIG.SEASON)];
   return s && s.GP > 0 ? s : null;
 }
+/** Statistika igrača za trenutni period ili null ako nema podataka (GP = 0). */
+const playerLine = p => periodStat(p, state.period);
 
 /** Zbirovi tima (sve statistike iz kataloga koje se sabiraju) + FPts. Igrači bez podataka se ne računaju. */
 const SUM_KEYS = STAT_CATALOG.filter(x => x.type === 'sum').map(x => x.id);
 /** Statistika kojoj u ovom periodu nema podataka (npr. DD u projekciji) */
-const noData = c => state.period === 'proj' && c.noProj && !mixOn();
+const noData = c => state.period === 'proj' && c.noProj;
 
 /** Pretvara zbirove u vrednosti kategorija. Odnosi uvek preko made/att, nikad prosek procenata. */
 function catValues(sum, counted) {
@@ -4188,11 +4172,11 @@ function freeFill(kind = 'my') {
 }
 /** Privremena slobodna mesta (dok je povređeni na IR-u), pomnožena udelom tih utakmica */
 const freeTempLines = f => (f.tempIds.length || f.tempRepl ? [...scaledLines(f.tempIds, f.w), ...replExtras(f.tempRepl).map(l => scaleLine(l, f.w))] : []);
-/** Red statistike nivoa zamene za trenutni period ili mešavinu (keš) */
+/** Red statistike nivoa zamene za trenutni period (keš) */
 let replLineCache = { key: null, line: null };
 function replLineNow() {
-  const B = tfBase(), key = [B.key, mixOn() ? 'mix' : state.period].join('|');
-  if (replLineCache.key !== key) replLineCache = { key, line: mixOn() ? B.replLine() : B.replLine(playerLine, fptsOf) };
+  const B = tfBase(), key = [B.key, state.period].join('|');
+  if (replLineCache.key !== key) replLineCache = { key, line: B.replLine(playerLine, fptsOf) };
   return replLineCache.line;
 }
 const replExtras = n => (n > 0 && replLineNow() ? Array(n).fill(replLineNow()) : []);
@@ -6091,9 +6075,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id
 /* ==== kraj: Uvoz lige ==== */
 
 function renderPeriods() {
-  const mix = mixOn();
-  $('#periods').innerHTML = (mix ? `<button type="button" class="mix" aria-pressed="true" title="${esc(t('Ista mešavina perioda kao na kartici u Pronađi trejd. Izaberi period da vidiš samo njega.'))}">${t('Mešavina')}</button>` : '') + PERIODS.map(p =>
-    `<button type="button" data-period="${p.key}" aria-pressed="${!mix && p.key === state.period}">${p.label}</button>`).join('');
+  $('#periods').innerHTML = PERIODS.map(p =>
+    `<button type="button" data-period="${p.key}" aria-pressed="${p.key === state.period}">${p.label}</button>`).join('');
 }
 
 function renderStatus() {
@@ -6163,7 +6146,7 @@ function renderScore(totals, cmp) {
   const win = card ? card.win : cmp.score[GET], lose = card ? card.lose : cmp.score[GIVE];
   const ties = card ? Math.max(0, card.n - win - lose) : cmp.ties;
   const verdict = win > lose ? 'good' : win < lose ? 'bad' : '';
-  const per = mixOn() ? t('Mešavina kao na kartici u Pronađi trejd (sezona, 15 i 7 dana i projekcija)') : PERIODS.find(p => p.key === state.period).label;
+  const per = PERIODS.find(p => p.key === state.period).label; // rezultat, boje i tabele su na istom periodu
   const pts = cmp.points;
   const head = pts
     // poeni: razlika FPts po utakmici, ispod obe strane
@@ -6394,7 +6377,7 @@ function playerRowHTML(p, { tags = [], cls = '', actions = '', sign = '', drag =
   const tagHTML = tags.map(tg => `<span class="slot-tag ${tg.cls}">${tg.raw ? tg.text : t(tg.text)}</span>`).join('');
   return `<tr class="${line ? '' : 'nodata'} ${cls}" ${attrs}>
     <td><div class="pl">${drag ? `<span class="drag" data-drag="${drag}" title="${t('Prevuci gore/dole')}" aria-label="${t('Pomeri igrača')}">≡</span>` : ''}<span class="pm-open" data-pm="${p.id}">${avatarHTML(p)}</span><div class="txt">${tagHTML ? `<span class="tags">${tagHTML}</span>` : ''}<button type="button" class="nm pm-open" data-pm="${p.id}" title="${esc(t('Profil igrača: {n}', { n: p.name }))}">${esc(p.name)}</button>
-      <span class="meta">${p.team} · ${posTxt(p)} ${injHTML(p)}${mixOn() ? injRetHTML(p) : ''} ${durabilityHTML(p)} ${weekGamesHTML(p)} ${line ? '' : `<span class="flag" title="${t('Nema podataka za ovaj period, ne računa se')}">0 GP</span>`}</span>
+      <span class="meta">${p.team} · ${posTxt(p)} ${injHTML(p)} ${durabilityHTML(p)} ${weekGamesHTML(p)} ${line ? '' : `<span class="flag" title="${t('Nema podataka za ovaj period, ne računa se')}">0 GP</span>`}</span>
       </div>${actions ? `<span class="acts">${actions}</span>` : ''}</div></td>
     ${minutesCell(p, line)}${cells}<td>${line ? Math.round(line.GP) : '0'}</td></tr>`;
 }
@@ -6513,7 +6496,7 @@ function analyzerCard(lg = currentLeague()) {
   const oppIr = new Set(Object.values(lg.opps || {}).flatMap(o => (o?.players || []).filter(x => x.ir).map(x => x.id)));
   const act = lg.roster.players.filter(x => !x.ir).map(x => x.id), out = new Set([...giveIds(), ...sp.drops]);
   const after = [...act.filter(id => !out.has(id)), ...getIds().filter(id => !oppIr.has(id)), ...ff.permIds];
-  const r = B.cardOf(act, after);
+  const r = B.cardOf(act, after, undefined, state.period); // isti period kao tabele i natpis ispod rezultata
   // st: stanje kategorije po ključu (1 dobijena, -1 izgubljena, 0 nerešena), isti izvor za boje u tabelama
   return { ...r, n: B.cats.filter(c => !state.punt.has(c.key)).length, st: Object.fromEntries(B.cats.map((c, i) => [c.key, r.res[i]])) }; // n: kategorije koje se broje (bez punta)
 }
@@ -10757,12 +10740,19 @@ function tfBase(lg = currentLeague()) {
   };
   // linija za zbir tima (pretraga, kartica, analiza): povređenom se zbirovi množe udelom utakmica posle povratka (prosek do kraja sezone)
   const scaled = new Map();
+  const injScale = (p, l) => { const f = l ? fracOf(p) : 1; return l && f < 1 ? Object.fromEntries(Object.entries(l).map(([k, v]) => [k, typeof v === 'number' && k !== 'GP' && k !== 'MIN' && !/%|PCT/i.test(k) ? v * f : v])) : l; };
   const lineOf = p => {
     if (!p) return null;
     if (scaled.has(p.id)) return scaled.get(p.id);
-    const l = rawLine(p), f = l ? fracOf(p) : 1;
-    const out = l && f < 1 ? Object.fromEntries(Object.entries(l).map(([k, v]) => [k, typeof v === 'number' && k !== 'GP' && k !== 'MIN' && !/%|PCT/i.test(k) ? v * f : v])) : l;
+    const out = injScale(p, rawLine(p));
     scaled.set(p.id, out); return out;
+  };
+  // linija za zadati period (analiza trejda: period iz trake), sa istim umanjenjem za povređene kao lineOf; null = mešavina (lineOf)
+  const perLines = new Map();
+  const lineFor = per => {
+    if (!per) return lineOf;
+    if (!perLines.has(per)) { const m = new Map(); perLines.set(per, p => { if (!p) return null; if (!m.has(p.id)) m.set(p.id, injScale(p, periodStat(p, per))); return m.get(p.id); }); }
+    return perLines.get(per);
   };
   const vecOf = l => keys.map(k => +l?.[k] || 0);
   // opšta vrednost po utakmici iznad nivoa zamene (kategorije: z-score minus igrači oko mesta broj timova × aktivna mesta)
@@ -10835,7 +10825,8 @@ function tfBase(lg = currentLeague()) {
   /** Zbir postave za prikaz (sumPlayers oblik, linija iz lf, npr. izabrani period) */
   const lineupSum = (ids, lf = playerLine) => { const W = new Map(lineupW(ids).map(x => [x.id, x.w])); return sumPlayers([...W.keys()], [], p => wLine(lf(p), W.get(p?.id) ?? 0)); };
   // kartica (zajednička osnova za Pronađi trejd i zaglavlje u analizi): postava pre i posle, kategorija se broji od 0,15 SD timova lige
-  const teamVecW = ids => { const o = new Array(keys.length).fill(0); for (const { id, w } of lineupW(ids)) vecOf(lineOf(state.byId.get(id))).forEach((a, i) => { o[i] += a * w; }); return o; };
+  // per: period (analiza trejda); igrač bez podataka za period se ne računa (kao u tabelama), a mesto u postavi dobija sledeći
+  const teamVecW = (ids, per = null) => { const lf = lineFor(per), use = per ? ids.filter(id => lf(state.byId.get(id))) : ids; const o = new Array(keys.length).fill(0); for (const { id, w } of lineupW(use)) vecOf(lf(state.byId.get(id))).forEach((a, i) => { o[i] += a * w; }); return o; };
   const actIdsOf = r => (r?.players || []).filter(y => !y.ir).map(y => y.id);
   let sdMemo = null;
   const teamSd = () => {
@@ -10845,8 +10836,9 @@ function tfBase(lg = currentLeague()) {
     sdMemo = cats.map(c => { const xs = vecs.map(v => cv(v, c)).filter(v => v != null); const m = xs.reduce((a, b) => a + b, 0) / (xs.length || 1); const sv = Math.sqrt(xs.reduce((a, b) => a + (b - m) ** 2, 0) / (xs.length || 1)); return sv > 1e-9 ? sv : c.pct ? 0.01 : Math.max(0.5, Math.abs(m) * 0.05); });
     return sdMemo;
   };
-  /** Kartica: moja postava pre (beforeIds) i posle (afterIds), bez punt kategorija -> { win, lose, res } */
-  const cardOf = (beforeIds, afterIds, sd = teamSd()) => tfEngineLocal().cardResult(teamVecW(beforeIds), teamVecW(afterIds), cats, cats.map((c, i) => i).filter(i => !(lg && state.punt.has(cats[i].key))), sd, TF);
+  /** Kartica: moja postava pre (beforeIds) i posle (afterIds), bez punt kategorija -> { win, lose, res }.
+      per: period linija (analiza trejda šalje period iz trake); bez njega mešavina kao u Pronađi trejd. Prag (sd) je isti. */
+  const cardOf = (beforeIds, afterIds, sd = teamSd(), per = null) => tfEngineLocal().cardResult(teamVecW(beforeIds, per), teamVecW(afterIds, per), cats, cats.map((c, i) => i).filter(i => !(lg && state.punt.has(cats[i].key))), sd, TF);
   /** Uloga igrača koga dobijam: ok = dovoljno minuta (ili strožiji prag) ili uloga raste; rising = razlog rasta ili null */
   const roleOf = p => { const l = rawLine(p), rising = risingOf(p), min = +(l?.MIN || 0), ptsPG = +(l?.PTS || 0);
     const base = RO.STRICT ? min >= RO.STRICT_MIN && ptsPG >= RO.STRICT_PTS : min >= RO.MIN;
@@ -11231,14 +11223,14 @@ function rateWipe() {
     onConfirm: () => { localStorage.removeItem(RATE_KEY); toast(t('Ocene su obrisane')); },
   });
 }
-/** Sačuvaj predlog kao nov tab Analize trejda (otpuštanja, slobodno mesto i mešavina perioda), bez prelaska na Analizu */
+/** Sačuvaj predlog kao nov tab Analize trejda (otpuštanja i slobodno mesto), bez prelaska na Analizu */
 function tfSaveTrade(i) {
   const S = state.tf, x = tfView()[i], all = tfCtx(), ctx = tfItemCtx(all, x); if (!x || ctx.quick) return;
   const k = tfTradeKey(x);
   const s = scopeTabs();
   let tab = tfTabFor(s.tabs, x.g, x.r, S.saved?.[k]); // isti trejd se ne čuva dvaput
   if (!tab) {
-    tab = { ...newTab([x.g, x.r], { ...emptyBalance(), my: { drops: [...x.md], waivers: [] }, opp: { drops: [...x.od], waivers: [] } }), mix: true, opp: ctx.oppKey };
+    tab = { ...newTab([x.g, x.r], { ...emptyBalance(), my: { drops: [...x.md], waivers: [] }, opp: { drops: [...x.od], waivers: [] } }), opp: ctx.oppKey };
     s.tabs.push(tab); persistTrades(); // aktivan tab Analize se ne menja
   }
   S.saved = { ...(S.saved || {}), [k]: tab.id }; tfSessSave(all);
@@ -11406,7 +11398,7 @@ function tfCardHTML(M, x, i, veto = null, oppName = null) {
     <div class="tf-sides"><div><span class="slot-tag tag-out">${t('Daješ')}</span><ul>${x.g.map(id => pl(id, soft(id))).join('')}</ul></div>
       <div><span class="slot-tag tag-in">${t('Dobijaš')}</span><ul>${x.r.map(id => pl(id, false)).join('')}</ul></div></div>
     ${drop ? `<p class="pnote tf-drop">${drop}</p>` : ''}${toIr.size && M.irEst ? `<p class="pnote tf-drop">${t('Broj IR mesta je procena. Proveri u podešavanjima lige.')}</p>` : ''}
-    <div class="fa-score ${v.up ? 'up' : 'down'}"><b>${v.head}</b>${v.changes ? `<span class="fa-changes">${v.changes}</span>` : ''}</div>
+    <div class="fa-score ${v.up ? 'up' : 'down'}"><b>${v.head}${M.pts ? '' : `<span class="i tf-why-i" data-tip="${esc(t('Računato na formu, sezonu i projekciju. U analizi biraš period.'))}">ⓘ</span>`}</b>${v.changes ? `<span class="fa-changes">${v.changes}</span>` : ''}</div>
     ${v.chips ? `<div class="fa-chips">${v.chips}</div>` : ''}
     ${(why => why ? `<p class="tf-why"><b>${t('Zašto bi prihvatio')}:</b> ${why}</p>` : '')(tfWhy(M, x))}${tfVetoHTML(x, veto)}
     <div class="tf-foot">${rateBtnsHTML(tfRateKey('finder', M.ctx.lg?.id, x.g, x.r), 'tf-rate', i)}${saveBtn}<button type="button" class="btn small" data-action="tf-open" data-i="${i}">${t('Otvori trejd')}</button></div></article>`;
@@ -11518,10 +11510,11 @@ function openFinder({ opp = null, want = null, give = null, run = false, back = 
 }
 window.openFinder = openFinder;
 function tfOpen(i) { const x = tfView()[i]; if (x) tfOpenX(x, tfItemCtx(tfCtx(), x)); }
-/** Otvori predlog u Analizi trejda (Pronađi trejd i Mete za trejd): otpuštanja, slobodno mesto, mešavina perioda */
+/** Otvori predlog u Analizi trejda (Pronađi trejd i Mete za trejd): otpuštanja, slobodno mesto; analiza se otvara na periodu Sezona */
 function tfOpenX(x, ctx) {
-  // analiza dobija i otpuštanja, slobodno mesto računa sama (najbolji slobodan ili nivo zamene), a rezultat je za istu mešavinu perioda kao kartica
-  if (ctx.quick) { const base = EMBED?.ta || '../trade-analyzer/'; location.href = `${base}#per=${state.period}&t=${x.g.join(',')}|${x.r.join(',')}&d=${x.md.join(',')}|${x.od.join(',')}&m=${ctx.my.filter(y => !y.ir).map(y => y.id).join(',')}&mix=1`; return; }
+  // analiza dobija i otpuštanja, slobodno mesto računa sama (najbolji slobodan ili nivo zamene); rezultat je za period iz trake (Sezona)
+  if (ctx.quick) { const base = EMBED?.ta || '../trade-analyzer/'; location.href = `${base}#per=season&t=${x.g.join(',')}|${x.r.join(',')}&d=${x.md.join(',')}|${x.od.join(',')}&m=${ctx.my.filter(y => !y.ir).map(y => y.id).join(',')}`; return; }
+  state.period = 'season';
   setBack('trade');
   const savedId = state.tf.saved?.[tfTradeKey(x)], savedTab = savedId ? tfTabFor(scopeTabs().tabs, x.g, x.r, savedId) : null;
   if (savedTab) { // već sačuvan: otvori postojeći tab
@@ -11530,7 +11523,7 @@ function tfOpenX(x, ctx) {
   } else {
     openInAnalysis([x.g, x.r], { opp: ctx.oppKey });
     state.balance.my = { drops: [...x.md], waivers: [] }; state.balance.opp = { drops: [...x.od], waivers: [] };
-    activeTab().mix = true; activeTab().opp = ctx.oppKey; state.mix = true;
+    activeTab().opp = ctx.oppKey;
     if (x.mfi?.length) { activeTab().spotMode = 'pick'; state.balance.my.waivers = [...x.mfi]; } // liga na poene: isti igrač sa waivera kao na kartici
     else if (x.mf) activeTab().spotMode = 'none'; // slobodno mesto se ne računa, kao na kartici
   }
@@ -12441,7 +12434,9 @@ document.addEventListener('click', e => {
   if (pt) { togglePunt(pt.dataset.punt); return; }
   const el = e.target.closest('[data-action],[data-period]');
   if (!el) return;
-  if (el.dataset.period) { if (state.mix) { const tb = activeTab(); if (tb) delete tb.mix; state.mix = false; } state.period = el.dataset.period; for (const u of Object.values(state.fa)) { u.risePer = null; u.allPer = null; } saveState(); render(); return; } // zaglavlje: kartice FA opet prate period iz zaglavlja
+  const tipIn = e.target.closest('[data-tip]');
+  if (tipIn && tipIn !== el && el.contains(tipIn)) return; // ⓘ unutar kartice (npr. predlog u Pronađi trejd) samo otvara tooltip
+  if (el.dataset.period) { state.period = el.dataset.period; for (const u of Object.values(state.fa)) { u.risePer = null; u.allPer = null; } saveState(); render(); return; } // zaglavlje: kartice FA opet prate period iz zaglavlja
   if (el.dataset.action?.startsWith('flt-') && fltAction(el.dataset.action, el)) return; // Filteri (Mete za trejd, Pronađi trejd)
   if (el.dataset.action?.startsWith('tf-') && tfAction(el.dataset.action, el)) return; // Pronađi trejd
   if (el.dataset.action?.startsWith('tt-') && ttAction(el.dataset.action, el)) return; // Mete za trejd

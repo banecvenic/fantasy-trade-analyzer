@@ -31,10 +31,10 @@
 .lead{color:var(--muted);font-size:15px;line-height:1.55;margin:0 0 14px;max-width:760px}
 .tool{scroll-margin-top:72px}
 .tool-app .status{margin-top:4px}
-.tool-periods{margin:10px 0 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.fmtbar{margin-left:auto}
+.tool-periods{margin:10px 0 0;display:flex;align-items:center;gap:10px;flex-wrap:nowrap} /* traka perioda, format i ⚙ uvek u jednom redu; traka se skroluje kad ne staje */
+.fmtbar{margin-left:auto;flex-shrink:0}
 .mini-fmt{display:block;font-size:12px;color:var(--dim);margin-top:2px}
-.tool-periods .seg{margin-left:0;width:max-content;max-width:100%}
+.tool-periods .seg{margin-left:0;width:max-content;max-width:100%;min-width:0;flex:0 1 auto}
 .tool-app .score{margin-top:4px}
 
 .steps{list-style:none;margin:16px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,1fr);gap:12px;counter-reset:st}
