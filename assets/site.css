@@ -178,6 +178,11 @@
 .intro{padding:26px 0 6px}
 .intro h1{font-size:30px;font-weight:800;letter-spacing:-.02em;margin:0 0 6px}
 .intro p{color:var(--muted);font-size:15px;line-height:1.5;margin:0;max-width:760px}
+/* /trade-analyzer/: traka perioda, format i ⚙ gore desno u redu sa naslovom (kao u alatima u ligi); kad ne staje, ispod naslova */
+.intro-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.intro-row .intro-t{min-width:0;flex:1 1 auto}
+.intro-row .tool-periods{margin:6px 0 0;flex:none}
+@media (max-width:1100px){.intro-row{display:block}.intro-row .tool-periods{margin:10px 0 0}}
 .pub main > section.tool{padding-top:14px}
 @media (max-width:900px){
   .hero-home,.feature-league,.feature-grid{grid-template-columns:1fr}

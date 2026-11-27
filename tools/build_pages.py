@@ -981,13 +981,13 @@ def analyzer(lang):
     feats = ''.join(f'<li><h3>{escape(a)}</h3><p>{escape(b)}</p></li>' for a, b in t['feats'])
     return head(lang, 'analyzer', t['title'], t['desc'], depth, extra) + header(lang, 'analyzer', depth) + f"""
 <main class="wrap">
-  <section class="intro">
-    <h1>{escape(t['h1'])}</h1>
-    <p>{escape(t['lead'])}</p>
+  <section class="intro intro-row">
+    <div class="intro-t"><h1>{escape(t['h1'])}</h1>
+    <p>{escape(t['lead'])}</p></div>
+    <div class="tool-periods"><div class="seg" id="periods" role="group" aria-label="Period">{pre_periods}</div><div id="fmtbar" class="fmtbar"><span class="fbar"><span class="fchip static">9-cat H2H</span></span></div></div>
   </section>
 
   <section class="tool" id="tool" aria-label="{escape(t['tool_h'])}">
-    <div class="tool-periods"><div class="seg" id="periods" role="group" aria-label="Period">{pre_periods}</div><div id="fmtbar" class="fmtbar"><span class="fbar"><span class="fchip static">9-cat H2H</span></span></div></div>
     <div id="tradetabs" class="tool-tabs"></div>
     <div class="tool-app">
       <div class="status" id="status">{escape(t['loading'])}</div>
